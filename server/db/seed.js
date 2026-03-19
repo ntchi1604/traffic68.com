@@ -49,6 +49,32 @@ async function seed() {
 
   console.log('✅ Seed complete — admin@traffic68.com / 123231321');
   console.log('🎯 Demo widget token: T68-DEMO0001');
+
+  // ── Default pricing tiers ──
+  const pricingData = [
+    // Google Search Traffic
+    ['google_search', '60s',  700,  420, 600,  360],
+    ['google_search', '120s', 850,  510, 750,  450],
+    ['google_search', '150s', 1000, 600, 900,  550],
+    ['google_search', '200s', 1150, 690, 1050, 630],
+    // Social Traffic
+    ['social', '60s',  700,  420, 600,  360],
+    ['social', '120s', 850,  510, 750,  450],
+    ['social', '150s', 1000, 600, 900,  550],
+    ['social', '200s', 1150, 690, 1050, 630],
+    // Direct Traffic
+    ['direct', '60s',  500, 300, 400, 240],
+    ['direct', '120s', 650, 390, 550, 330],
+    ['direct', '150s', 800, 480, 700, 420],
+    ['direct', '200s', 950, 570, 850, 510],
+  ];
+  for (const [type, dur, v1, d1, v2, d2] of pricingData) {
+    await pool.execute(
+      `INSERT IGNORE INTO pricing_tiers (traffic_type, duration, v1_price, v1_discount, v2_price, v2_discount) VALUES (?,?,?,?,?,?)`,
+      [type, dur, v1, d1, v2, d2]
+    );
+  }
+  console.log('💰 Default pricing tiers seeded');
 }
 
 module.exports = { seed };

@@ -39,6 +39,18 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ── Public pricing API (no auth) ──
+app.get('/api/pricing', async (req, res) => {
+  try {
+    const { getPool } = require('./db');
+    const pool = getPool();
+    const [rows] = await pool.execute('SELECT * FROM pricing_tiers ORDER BY traffic_type, duration');
+    res.json({ tiers: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Routes ──
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/campaigns', require('./routes/campaigns'));

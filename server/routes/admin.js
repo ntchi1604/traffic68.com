@@ -319,4 +319,30 @@ router.put('/settings/password', async (req, res) => {
   }
 });
 
+// ── GET /admin/pricing ──
+router.get('/pricing', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute('SELECT * FROM pricing_tiers ORDER BY traffic_type, duration');
+    res.json({ tiers: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PUT /admin/pricing/:id ──
+router.put('/pricing/:id', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { v1_price, v1_discount, v2_price, v2_discount } = req.body;
+    await pool.execute(
+      'UPDATE pricing_tiers SET v1_price=?, v1_discount=?, v2_price=?, v2_discount=? WHERE id=?',
+      [v1_price, v1_discount, v2_price, v2_discount, req.params.id]
+    );
+    res.json({ message: 'Cập nhật giá thành công' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

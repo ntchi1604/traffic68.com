@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Megaphone, Receipt, LifeBuoy,
-  ChevronLeft, Shield, Settings, Menu, X,
+  ChevronLeft, Shield, Settings, Menu, X, DollarSign,
 } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -12,6 +12,7 @@ const NAV = [
   { to: '/admin/campaigns',    icon: Megaphone,       label: 'Chiến dịch' },
   { to: '/admin/transactions', icon: Receipt,         label: 'Giao dịch' },
   { to: '/admin/tickets',      icon: LifeBuoy,        label: 'Hỗ trợ' },
+  { to: '/admin/pricing',      icon: DollarSign,      label: 'Bảng giá' },
   { to: '/admin/settings',     icon: Settings,        label: 'Cài đặt' },
 ];
 

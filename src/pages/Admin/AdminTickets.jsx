@@ -94,6 +94,7 @@ export default function AdminTickets() {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [replyTicket, setReplyTicket] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const fetchTickets = () => {
     setLoading(true);
@@ -112,11 +113,53 @@ export default function AdminTickets() {
     } catch (err) { toast.error(err.message); }
   };
 
+  const FILTERS = [
+    { key: 'all', label: 'Tất cả' },
+    { key: 'pending', label: 'Chưa xử lý' },
+    { key: 'resolved', label: 'Đã xử lý' },
+    { key: 'closed', label: 'Đóng' },
+  ];
+
+  const filteredTickets = tickets.filter(t => {
+    if (statusFilter === 'all') return true;
+    if (statusFilter === 'pending') return t.status === 'open' || t.status === 'in_progress';
+    if (statusFilter === 'resolved') return t.status === 'resolved';
+    if (statusFilter === 'closed') return t.status === 'closed';
+    return true;
+  });
+
+  const countFor = (key) => {
+    if (key === 'all') return tickets.length;
+    if (key === 'pending') return tickets.filter(t => t.status === 'open' || t.status === 'in_progress').length;
+    if (key === 'resolved') return tickets.filter(t => t.status === 'resolved').length;
+    if (key === 'closed') return tickets.filter(t => t.status === 'closed').length;
+    return 0;
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-black text-slate-900">Hỗ trợ khách hàng</h1>
-        <p className="text-sm text-slate-500 mt-1">{tickets.length} tickets</p>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex flex-wrap gap-2">
+        {FILTERS.map(f => {
+          const count = countFor(f.key);
+          return (
+            <button key={f.key} onClick={() => setStatusFilter(f.key)}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 ${
+                statusFilter === f.key
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}>
+              {f.label}
+              <span className={`px-1.5 py-0.5 text-[10px] font-black rounded-full ${
+                statusFilter === f.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+              }`}>{count}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="space-y-3">
@@ -124,12 +167,12 @@ export default function AdminTickets() {
           <div className="flex justify-center py-12">
             <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : tickets.length === 0 ? (
+        ) : filteredTickets.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400">
             <MessageSquare size={32} className="mx-auto mb-2 opacity-40" />
-            Chưa có ticket hỗ trợ nào
+            Không có ticket nào
           </div>
-        ) : tickets.map(t => {
+        ) : filteredTickets.map(t => {
           const st = STATUS_MAP[t.status] || STATUS_MAP.open;
           return (
             <div key={t.id} className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-shadow">

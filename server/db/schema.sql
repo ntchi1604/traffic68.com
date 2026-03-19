@@ -136,3 +136,15 @@ CREATE TABLE IF NOT EXISTS vuot_link_tasks (
   FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
   FOREIGN KEY (worker_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pricing_tiers (
+  id             INT PRIMARY KEY AUTO_INCREMENT,
+  traffic_type   VARCHAR(50) NOT NULL,
+  duration       VARCHAR(20) NOT NULL,
+  v1_price       INT NOT NULL DEFAULT 0,
+  v1_discount    INT NOT NULL DEFAULT 0,
+  v2_price       INT NOT NULL DEFAULT 0,
+  v2_discount    INT NOT NULL DEFAULT 0,
+  updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_tier (traffic_type, duration)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
