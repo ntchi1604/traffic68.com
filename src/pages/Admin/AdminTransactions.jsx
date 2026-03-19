@@ -120,9 +120,9 @@ export default function AdminTransactions() {
 
   const pendingCount = transactions.filter(t => t.status === 'pending').length;
   const totalDeposit = transactions.filter(t => t.type === 'deposit' && t.status === 'completed')
-    .reduce((s, t) => s + t.amount, 0);
+    .reduce((s, t) => s + Number(t.amount), 0);
   const totalWithdraw = transactions.filter(t => t.type === 'withdraw' && t.status === 'completed')
-    .reduce((s, t) => s + t.amount, 0);
+    .reduce((s, t) => s + Number(t.amount), 0);
 
   return (
     <div className="space-y-5">
