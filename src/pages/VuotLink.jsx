@@ -1,11 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import usePageTitle from '../hooks/usePageTitle';
 import { Rocket, ExternalLink, Search, Copy, Check } from 'lucide-react';
-
-/* ─────────────────────────────────────────────────────────
-   Data — keyword would come from the campaign in production
-───────────────────────────────────────────────────────── */
-const KEYWORD = 'giày thể thao chính hãng';
 
 const STEPS = [
   {
@@ -46,11 +41,11 @@ const FEATURES = [
 /* ─────────────────────────────────────────────────────────
    Step card with interactive actions
 ───────────────────────────────────────────────────────── */
-function StepCard({ num, title, subtitle, desc, img, alt, action }) {
+function StepCard({ num, title, subtitle, desc, img, alt, action, keyword }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(KEYWORD);
+    navigator.clipboard.writeText(keyword);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -102,7 +97,7 @@ function StepCard({ num, title, subtitle, desc, img, alt, action }) {
         {action === 'keyword' && (
           <div className="mt-1 flex items-center gap-2 bg-amber-50 border-2 border-amber-300 rounded-xl p-2.5">
             <Search size={16} className="text-amber-600 flex-shrink-0" />
-            <span className="flex-1 font-black text-amber-800 text-sm">{KEYWORD}</span>
+            <span className="flex-1 font-black text-amber-800 text-sm">{keyword || 'Đang tải...'}</span>
             <button
               onClick={handleCopy}
               className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600
@@ -123,6 +118,20 @@ function StepCard({ num, title, subtitle, desc, img, alt, action }) {
 export default function VuotLink() {
   usePageTitle('Vượt Link');
   const [glowing, setGlowing] = useState(false);
+  const [keyword, setKeyword] = useState('');
+  const [taskId, setTaskId] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/vuot-link/task')
+      .then(r => r.json())
+      .then(data => {
+        if (data.task) {
+          setKeyword(data.task.keyword);
+          setTaskId(data.task.id);
+        }
+      })
+      .catch(() => setKeyword('Không có task'));
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
@@ -185,7 +194,7 @@ export default function VuotLink() {
 
           <div className="grid grid-cols-3 gap-5">
             {STEPS.map((step) => (
-              <StepCard key={step.num} {...step} />
+              <StepCard key={step.num} {...step} keyword={keyword} />
             ))}
           </div>
         </div>
@@ -193,7 +202,7 @@ export default function VuotLink() {
         {/* MOBILE: stacked cards + character below */}
         <div className="flex flex-col gap-5 md:hidden">
           {STEPS.map((step) => (
-            <StepCard key={step.num} {...step} />
+            <StepCard key={step.num} {...step} keyword={keyword} />
           ))}
           <div className="flex justify-center">
             <img
