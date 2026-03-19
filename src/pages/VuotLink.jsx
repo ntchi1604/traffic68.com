@@ -189,11 +189,23 @@ export default function VuotLink() {
       setKeyword('Đang xác minh...');
 
       try {
-        // Step 1: Get JS challenge from server
+        // Step 1: Get encrypted challenge
         const chRes = await fetch('/api/vuot-link/challenge');
-        const { c: challengeId, j: jsCode } = await chRes.json();
+        const { d: encrypted } = await chRes.json();
 
-        // Step 2: Evaluate JS code in browser (only works with real DOM)
+        // Step 2: Decrypt with AES-256-GCM
+        const [ivB64, dataB64, tagB64] = encrypted.split('.');
+        const keyData = new TextEncoder().encode(import.meta.env.VITE_CHALLENGE_KEY);
+        const key = await crypto.subtle.importKey('raw', keyData, 'AES-GCM', false, ['decrypt']);
+        const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
+        const ciphertext = Uint8Array.from(atob(dataB64), c => c.charCodeAt(0));
+        const tag = Uint8Array.from(atob(tagB64), c => c.charCodeAt(0));
+        const combined = new Uint8Array(ciphertext.length + tag.length);
+        combined.set(ciphertext); combined.set(tag, ciphertext.length);
+        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, combined);
+        const { c: challengeId, j: jsCode } = JSON.parse(new TextDecoder().decode(decrypted));
+
+        // Step 3: Evaluate JS code in browser (only works with real DOM)
         const jsResult = new Function('return ' + jsCode)();
 
         // Step 3: Submit result + proof

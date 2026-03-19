@@ -37,6 +37,18 @@ function generateJsChallenge() {
   return { jsCode, expected };
 }
 
+// AES-256-GCM key from env
+const CHALLENGE_KEY = Buffer.from(process.env.CHALLENGE_KEY || 't68vL$ecur3Ch@ll3ng3K3y!2026xZqW', 'utf8');
+
+function encryptPayload(data) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', CHALLENGE_KEY, iv);
+  let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+  const tag = cipher.getAuthTag().toString('base64');
+  return iv.toString('base64') + '.' + encrypted + '.' + tag;
+}
+
 // ── GET /api/vuot-link/challenge ──
 router.get('/challenge', (req, res) => {
   const ua = req.headers['user-agent'] || '';
@@ -44,11 +56,12 @@ router.get('/challenge', (req, res) => {
 
   const challengeId = crypto.randomBytes(16).toString('hex');
   const { jsCode, expected } = generateJsChallenge();
-  const salt = crypto.randomBytes(8).toString('hex');
 
-  challenges[challengeId] = { expected, salt, createdAt: Date.now(), used: false };
+  challenges[challengeId] = { expected, createdAt: Date.now(), used: false };
 
-  res.json({ c: challengeId, j: jsCode, s: salt });
+  // Encrypt entire payload
+  const encrypted = encryptPayload({ c: challengeId, j: jsCode });
+  res.json({ d: encrypted });
 });
 
 // ── POST /api/vuot-link/task (PUBLIC) ──
