@@ -273,18 +273,18 @@
 
     /* ── Decide embed vs float ────────────────────────────── */
     // embedMode: 'floating' → always float
-    //            'inline'   → embed in target (requires target selector)
+    //            'inline'   → embed in target; if not found → don't show
     //            (unset)    → auto: embed if target is set, else float
-    var shouldEmbed = cfg.embedMode === 'inline'
-      ? !!cfg.target
-      : cfg.embedMode === 'floating'
-        ? false
-        : !!cfg.target;
+    var isInlineMode = cfg.embedMode === 'inline';
 
-    if (shouldEmbed) {
+    if (isInlineMode) {
+      // Inline mode — MUST have target, otherwise don't show
+      if (!cfg.target) {
+        console.warn('[LayNut] inline mode but no target set, button will not be shown.');
+        return;
+      }
       var container = document.querySelector(cfg.target);
       if (!container) {
-        // Target not in DOM yet (common in React/SPA) — observe for it
         console.info('[LayNut] target not yet in DOM, waiting:', cfg.target);
         _waitForTarget(cfg.target, function (el) {
           _embedInContainer(btn, el);
@@ -293,12 +293,11 @@
         });
         return;
       }
-
       _embedInContainer(btn, container);
       return;
     }
 
-    /* ── Floating mode ── */
+    /* ── Floating mode (explicit or default) ── */
     _appendFixed(btn);
   }
 
