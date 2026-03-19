@@ -271,42 +271,22 @@
       else if (challengeActive) { openModal(); }
     };
 
-    /* ── Decide embed vs float ────────────────────────────── */
-    // embedMode: 'floating' → always float
-    //            'inline'   → embed in target; if not found → don't show
-    //            (unset)    → auto: embed if target is set, else float
-    var isInlineMode = cfg.embedMode === 'inline';
-
-    if (isInlineMode) {
-      // Inline mode — MUST have target, otherwise don't show
-      if (!cfg.target) {
-        console.warn('[LayNut] inline mode but no target set, button will not be shown.');
-        return;
-      }
-      var container = document.querySelector(cfg.target);
-      if (!container) {
-        console.info('[LayNut] target not yet in DOM, waiting:', cfg.target);
-        _waitForTarget(cfg.target, function (el) {
-          _embedInContainer(btn, el);
-        }, function () {
-          console.warn('[LayNut] target never appeared, button will not be shown:', cfg.target);
-        });
-        return;
-      }
-      _embedInContainer(btn, container);
+    /* ── Embed in target — target required, no floating ──── */
+    if (!cfg.target) {
+      console.warn('[LayNut] no target set, button will not be shown.');
       return;
     }
-
-    /* ── Floating mode (explicit or default) ── */
-    _appendFixed(btn);
-  }
-
-  function _appendFixed(btn) {
-    btn.style.position = 'fixed';
-    btn.style.zIndex   = '2147483647';
-    var ps = posStyle();
-    Object.keys(ps).forEach(function (k) { btn.style[k] = ps[k]; });
-    document.body.appendChild(btn);
+    var container = document.querySelector(cfg.target);
+    if (!container) {
+      console.info('[LayNut] target not yet in DOM, waiting:', cfg.target);
+      _waitForTarget(cfg.target, function (el) {
+        _embedInContainer(btn, el);
+      }, function () {
+        console.warn('[LayNut] target never appeared, button will not be shown:', cfg.target);
+      });
+      return;
+    }
+    _embedInContainer(btn, container);
   }
 
   /* ── Embed button inside a container element ─────────── */
