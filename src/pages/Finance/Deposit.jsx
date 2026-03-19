@@ -142,7 +142,7 @@ function CommissionModal({ mode, balance, onConfirm, onClose }) {
               className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold text-sm rounded-xl transition">
               Hủy
             </button>
-            <button type="button" disabled={!valid} onClick={() => onConfirm(num, method)}
+            <button type="button" disabled={!valid} onClick={() => onConfirm(num, isTransfer ? 'transfer' : method)}
               className={`flex-1 py-2.5 text-white font-bold text-sm rounded-xl transition-all
                           disabled:opacity-40 disabled:cursor-not-allowed
                           ${isTransfer ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-500 hover:bg-red-600'}`}>
@@ -206,9 +206,21 @@ export default function Deposit() {
   };
 
   /* Commission actions */
-  const handleCommissionAction = (num, meth) => {
-    showToast('success', `Yêu cầu đã được gửi! (${fmt(num)} đ)`);
+  const handleCommissionAction = async (num, meth) => {
     setModal(null);
+    if (meth === 'transfer' || !meth) {
+      // Transfer commission → main wallet
+      try {
+        const data = await api.post('/finance/transfer', { amount: num });
+        showToast('success', data.message || `Đã chuyển ${fmt(num)} đ sang Ví Traffic`);
+        fetchWallets();
+      } catch (err) {
+        showToast('error', err.message);
+      }
+    } else {
+      // Withdraw (placeholder for now)
+      showToast('success', `Yêu cầu rút ${fmt(num)} đ đã được gửi!`);
+    }
   };
 
   return (

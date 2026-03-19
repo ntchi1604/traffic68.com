@@ -68,4 +68,57 @@ router.get('/transactions', async (req, res) => {
   res.json({ transactions });
 });
 
+// ── POST /api/finance/transfer ── (Commission → Main)
+router.post('/transfer', async (req, res) => {
+  const pool = getPool();
+  const { amount } = req.body;
+  const num = Number(amount);
+
+  if (!num || num <= 0) return res.status(400).json({ error: 'Số tiền phải lớn hơn 0' });
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Check commission balance
+    const [wallets] = await conn.execute('SELECT balance FROM wallets WHERE user_id = ? AND type = ? FOR UPDATE', [req.userId, 'commission']);
+    if (!wallets[0] || wallets[0].balance < num) {
+      await conn.rollback();
+      conn.release();
+      return res.status(400).json({ error: 'Số dư ví hoa hồng không đủ' });
+    }
+
+    // Deduct from commission
+    await conn.execute('UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = ?', [num, req.userId, 'commission']);
+    // Add to main
+    await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [num, req.userId, 'main']);
+
+    // Transaction record
+    const refCode = 'TRF-' + Date.now();
+    await conn.execute(
+      `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.userId, 'commission', 'withdraw', 'transfer', num, 'completed', refCode, 'Chuyển sang Ví Traffic']
+    );
+    await conn.execute(
+      `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.userId, 'main', 'deposit', 'transfer', num, 'completed', refCode, 'Nhận từ Ví Hoa Hồng']
+    );
+
+    // Notification
+    const fmtAmount = new Intl.NumberFormat('vi-VN').format(num);
+    await conn.execute(
+      `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
+      [req.userId, 'Chuyển ví thành công', `Đã chuyển ${fmtAmount} VND từ Ví Hoa Hồng sang Ví Traffic.`, 'success']
+    );
+
+    await conn.commit();
+    conn.release();
+    res.json({ message: `Đã chuyển ${fmtAmount} VND sang Ví Traffic`, refCode });
+  } catch (err) {
+    await conn.rollback();
+    conn.release();
+    res.status(500).json({ error: 'Lỗi chuyển ví: ' + err.message });
+  }
+});
+
 module.exports = router;
