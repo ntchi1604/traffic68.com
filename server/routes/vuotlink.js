@@ -13,14 +13,17 @@ router.get('/task', optionalAuth, async (req, res) => {
   if (campaigns.length === 0) return res.status(404).json({ error: 'Hiện không có task vượt link nào' });
   const campaign = campaigns[0];
 
+  const startedAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+  const session = require('crypto').randomBytes(16).toString('hex');
+
   const [result] = await pool.execute(
     `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, expires_at) VALUES (?, ?, ?, ?, ?, 'assigned', ?)`,
     [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', expiresAt]
   );
 
   res.json({
-    task: { id: result.insertId, keyword: campaign.keyword, targetUrl: campaign.url, targetPage: campaign.target_page, cpc: campaign.cpc, expiresAt },
+    task: { id: result.insertId, keyword: campaign.keyword, session, startedAt, expiresAt },
   });
 });
 
