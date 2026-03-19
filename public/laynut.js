@@ -264,7 +264,12 @@
       '<span class="ln-label">' + escHtml(cfg.buttonText) + '</span>' +
       '<span class="ln-badge" id="laynut-badge">' + remaining + '</span>';
 
-    // Click handler is set in ready() — not here
+    // Click handler — set directly so it works even when deferred by MutationObserver
+    btn.onclick = function () {
+      if (revealed) { openModal(); return; }
+      if (!countdownRunning) { beginCountdown(); }
+      else if (challengeActive) { openModal(); }
+    };
 
     /* ── Mode A: embed inside a target element ── */
     if (cfg.target) {
@@ -698,16 +703,6 @@
       function ready() {
         buildButton();
         startGlobal();
-        // Override button click to start countdown
-        var btn = document.getElementById('laynut-btn');
-        if (btn) {
-          btn.onclick = function () {
-            if (revealed) { openModal(); return; }
-            if (!countdownRunning) { beginCountdown(); }
-            else if (challengeActive) { openModal(); }
-            // else: countdown running normally — do nothing
-          };
-        }
       }
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', ready);
