@@ -148,6 +148,7 @@ router.put('/:id', async (req, res) => {
     if (existing.length === 0) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
 
     const { name, url, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, targetPage, timeOnSite, status, image1_url } = req.body;
+    const n = (v) => v === undefined ? null : v;
 
     // Delete old image if new image is provided and different
     const oldImage = existing[0].image1_url;
@@ -161,7 +162,7 @@ router.put('/:id', async (req, res) => {
 
     await pool.execute(
       `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url) WHERE id = ? AND user_id = ?`,
-      [name, url, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, targetPage, timeOnSite, status, image1_url, req.params.id, req.userId]
+      [n(name), n(url), n(trafficType), n(version), n(budget), n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(targetPage), n(timeOnSite), n(status), n(image1_url), req.params.id, req.userId]
     );
 
     const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [req.params.id]);

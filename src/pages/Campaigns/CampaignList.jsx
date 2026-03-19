@@ -81,18 +81,6 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <p className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700">{campaign.name}</p>
           </div>
 
-          {/* URL (editable) */}
-          <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích</label>
-            <input
-              type="url"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white
-                         shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-            />
-          </div>
-
           {/* Keyword (editable) */}
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Từ khóa</label>
@@ -100,6 +88,18 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
               type="text"
               value={keyword}
               onChange={e => setKeyword(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white
+                         shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+            />
+          </div>
+
+          {/* URL (editable) */}
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích</label>
+            <input
+              type="url"
+              value={url}
+              onChange={e => setUrl(e.target.value)}
               className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white
                          shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
             />
