@@ -325,6 +325,9 @@ export default function CampaignList() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      {c.status === 'completed' ? (
+                        <span className="text-slate-400 text-xs">—</span>
+                      ) : (
                       <div className="relative" ref={actionMenuId === c.id ? menuRef : null}>
                         <button
                           onClick={() => setActionMenuId(actionMenuId === c.id ? null : c.id)}
@@ -348,15 +351,10 @@ export default function CampaignList() {
                                 ? <><Pause size={14} className="text-amber-500" /> Tạm dừng</>
                                 : <><Play size={14} className="text-green-500" /> Chạy lại</>}
                             </button>
-                            <button
-                              onClick={() => { handleToggleStatus(c.id, 'force_complete'); setActionMenuId(null); }}
-                              className="flex items-center gap-2.5 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
-                            >
-                              <CheckCircle2 size={14} className="text-indigo-500" /> Hoàn thành
-                            </button>
                           </div>
                         )}
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))
