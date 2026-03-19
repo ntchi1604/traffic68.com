@@ -15,6 +15,7 @@ import {
   CreditCard,
   History,
   HelpCircle,
+  DollarSign,
 } from 'lucide-react';
 
 const linkBase =
@@ -144,6 +145,11 @@ export default function Sidebar({ isOpen, onClose }) {
 
           {/* ── Bottom ── */}
           <div className="pt-4 mt-4 border-t border-slate-800 space-y-1">
+            <NavLink to="/dashboard/pricing"
+              className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
+              <DollarSign className="w-5 h-5" />
+              Bảng giá
+            </NavLink>
             <NavLink to="/dashboard/profile"
               className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
               <UserCircle className="w-5 h-5" />

@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
 // ── POST /api/campaigns ──
 router.post('/', async (req, res) => {
   const pool = getPool();
-  const { name, url, budget, cpc, keyword, note, trafficType, traffic_type, dailyViews, daily_views, totalViews, total_views, viewByHour, view_by_hour, version, targetPage, target_page, timeOnSite, time_on_site } = req.body;
+  const { name, url, budget, cpc, keyword, note, trafficType, traffic_type, dailyViews, daily_views, totalViews, total_views, viewByHour, view_by_hour, version, targetPage, target_page, timeOnSite, time_on_site, duration } = req.body;
 
   const _trafficType = trafficType || traffic_type || 'google_search';
   const _dailyViews = dailyViews || daily_views || 500;
@@ -31,25 +31,49 @@ router.post('/', async (req, res) => {
   const _viewByHour = viewByHour || view_by_hour || 0;
   const _targetPage = targetPage || target_page || '';
   const _timeOnSite = timeOnSite || time_on_site || '60-120';
+  const _version = version || 'v1';
 
   if (!name || !url) return res.status(400).json({ error: 'Tên và URL chiến dịch là bắt buộc' });
 
+  // ── Calculate real budget from DB pricing ──
+  let realBudget = budget || 0;
+  try {
+    const durSec = duration ? duration + 's' : '';
+    const [tiers] = await pool.execute(
+      'SELECT * FROM pricing_tiers WHERE traffic_type = ? AND duration = ?',
+      [_trafficType, durSec]
+    );
+    if (tiers.length > 0) {
+      const tier = tiers[0];
+      // Check discount enabled
+      const [settings] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'discount_enabled'");
+      const discountEnabled = settings.length > 0 && settings[0].setting_value === 'true';
+      const price = _version === 'v1'
+        ? (discountEnabled ? tier.v1_discount : tier.v1_price)
+        : (discountEnabled ? tier.v2_discount : tier.v2_price);
+      realBudget = Math.round((_totalViews / 1000) * price);
+    }
+  } catch (e) {
+    // If pricing table doesn't exist, use submitted budget
+    console.log('Pricing lookup failed, using submitted budget:', e.message);
+  }
+
   const [wallets] = await pool.execute('SELECT balance FROM wallets WHERE user_id = ? AND type = ?', [req.userId, 'main']);
-  if (!wallets[0] || wallets[0].balance < (budget || 0)) {
-    return res.status(400).json({ error: 'Số dư ví không đủ để tạo chiến dịch' });
+  if (!wallets[0] || wallets[0].balance < realBudget) {
+    return res.status(400).json({ error: `Số dư ví không đủ. Cần ${realBudget} VNĐ, hiện có ${wallets[0]?.balance || 0} VNĐ` });
   }
 
   const [result] = await pool.execute(
     `INSERT INTO campaigns (user_id, name, url, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, target_page, time_on_site) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [req.userId, name, url, _trafficType, version || 1, budget || 0, cpc || 0, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite]
+    [req.userId, name, url, _trafficType, _version, realBudget, cpc || 0, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite]
   );
 
-  if (budget > 0) {
-    await pool.execute('UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = ?', [budget, req.userId, 'main']);
+  if (realBudget > 0) {
+    await pool.execute('UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = ?', [realBudget, req.userId, 'main']);
     const refCode = 'CMP-' + Date.now();
     await pool.execute(
       `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.userId, 'main', 'withdraw', 'system', budget, 'completed', refCode, `Tạo chiến dịch: ${name}`]
+      [req.userId, 'main', 'withdraw', 'system', realBudget, 'completed', refCode, `Tạo chiến dịch: ${name}`]
     );
   }
 

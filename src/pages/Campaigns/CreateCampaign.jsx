@@ -203,10 +203,18 @@ export default function CreateCampaign() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Pricing from API
+  const [pricingTiers, setPricingTiers] = useState([]);
+  const [pricingConfig, setPricingConfig] = useState({});
 
   useEffect(() => {
     api.get('/finance').then(data => {
       setWalletBalance(data.wallets?.main?.balance || 0);
+    }).catch(() => {});
+
+    fetch('/api/pricing').then(r => r.json()).then(data => {
+      setPricingTiers(data.tiers || []);
+      if (data.config) setPricingConfig(data.config);
     }).catch(() => {});
   }, []);
 
@@ -223,11 +231,29 @@ export default function CreateCampaign() {
     image2: null,
     devices: ['desktop', 'mobile'],
     countries: ['VN'],
-    discountCode: 'DISCOUNT_40',
+    discountCode: '',
     note: '',
   });
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
+
+  /* ── Find matching price per 1000 views from DB ── */
+  const discountEnabled = pricingConfig.discount_enabled === 'true';
+  const findTier = () => {
+    const durSec = form.duration ? form.duration + 's' : '';
+    const match = pricingTiers.find(t => t.traffic_type === form.trafficType && t.duration === durSec);
+    return match || null;
+  };
+
+  const tier = findTier();
+  const getPricePerKViews = () => {
+    if (!tier) return form.version === 'v1' ? 700 : 600; // fallback
+    if (discountEnabled) return form.version === 'v1' ? tier.v1_discount : tier.v2_discount;
+    return form.version === 'v1' ? tier.v1_price : tier.v2_price;
+  };
+
+  const pricePerKViews = getPricePerKViews();
+  const totalPrice = Math.round((form.totalViews / 1000) * pricePerKViews);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -247,8 +273,9 @@ export default function CreateCampaign() {
         total_views: form.totalViews,
         daily_views: form.dailyViews,
         duration: Number(form.duration),
-        cpc: form.version === 'v1' ? 15 : 10,
-        budget: form.totalViews * (form.version === 'v1' ? 15 : 10),
+        version: form.version,
+        cpc: Math.round(pricePerKViews / 1000 * 100) / 100,
+        budget: totalPrice,
         device: form.devices.join(','),
         country: form.countries.join(','),
         note: form.note,
@@ -263,9 +290,6 @@ export default function CreateCampaign() {
     }
   };
 
-  /* price per view (VNĐ) */
-  const pricePerView = form.version === 'v1' ? 15 : 10;
-  const totalPrice = fmt(form.totalViews * pricePerView);
 
   return (
     <div className="space-y-0">
@@ -640,19 +664,19 @@ export default function CreateCampaign() {
                   value={DURATIONS.find(d => d.value === form.duration)?.label || '—'} />
                 <SummaryRow label="View/ngày" value={fmt(form.dailyViews)} />
                 <SummaryRow label="Tổng view" value={fmt(form.totalViews)} />
-                <SummaryRow label="Đơn giá/view" value={`${pricePerView} VNĐ`} />
-                {form.discountCode && (
-                  <SummaryRow label="Mã giảm giá" value={form.discountCode} accent />
+                <SummaryRow label="Đơn giá/1000 view" value={`${fmt(pricePerKViews)} VNĐ`} />
+                {discountEnabled && (
+                  <SummaryRow label="Giảm giá" value={`Đã áp dụng (-${pricingConfig.discount_percent}%)`} accent />
                 )}
               </div>
 
               <div className="border-t border-gray-100 pt-4 mb-5">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-gray-600">Tổng tiền</span>
-                  <span className="text-xl font-black text-blue-700">{totalPrice} <span className="text-sm font-semibold">VNĐ</span></span>
+                  <span className="text-xl font-black text-blue-700">{fmt(totalPrice)} <span className="text-sm font-semibold">VNĐ</span></span>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  Giá ước tính, giá thực tế sau khi áp mã giảm giá.
+                  Số tiền sẽ trừ từ ví chính khi tạo chiến dịch.
                 </p>
               </div>
 
@@ -673,7 +697,7 @@ export default function CreateCampaign() {
                 </p>
                 <ul className="space-y-1 text-xs text-blue-600">
                   <li>• Traffic bắt đầu trong vòng 24h</li>
-                  <li>• Số dư hiện tại: <strong>0 VNĐ</strong> – cần nạp thêm</li>
+                  <li>• Số dư hiện tại: <strong>{fmt(walletBalance)} VNĐ</strong></li>
                   <li>• Cam kết hoàn tiền nếu không đạt KPI</li>
                   <li>• Hỗ trợ tư vấn 24/7</li>
                 </ul>

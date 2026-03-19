@@ -37,6 +37,7 @@ import SettingsAndSupport from './pages/General/SettingsAndSupport';
 
 import UserProfileAndAccountSettings from './pages/General/UserProfileAndAccountSettings';
 import ScriptGenerator from './pages/Script/ScriptGenerator';
+import UserPricing from './pages/Dashboard/UserPricing';
 
 import AdminLayout from './pages/Admin/AdminLayout';
 import AdminDashboard from './pages/Admin/AdminDashboard';
@@ -106,6 +107,7 @@ function Layout() {
           <Route path="finance/transactions" element={<TransactionHistory />} />
           <Route path="script" element={<ScriptGenerator />} />
           <Route path="support" element={<SettingsAndSupport />} />
+          <Route path="pricing" element={<UserPricing />} />
 
           <Route path="profile" element={<UserProfileAndAccountSettings />} />
         </Route>
