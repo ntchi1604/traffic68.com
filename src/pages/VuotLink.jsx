@@ -6,6 +6,7 @@ const STEPS = [
   { num: 1, title: 'BƯỚC 1:', subtitle: 'MỞ GOOGLE', desc: 'Mở trình duyệt và truy cập trang chủ Google.', img: '/step1_google.png', alt: 'Mở Google', action: 'google' },
   { num: 2, title: 'BƯỚC 2:', subtitle: 'NHẬP TỪ KHÓA TÌM KIẾM', desc: 'Tìm kiếm từ khóa bên dưới trên Google.', img: '/step2_search.png', alt: 'Nhập từ khóa', action: 'keyword' },
   { num: 3, title: 'BƯỚC 3:', subtitle: 'TÌM KIẾM TRANG ĐÍCH', desc: 'Tìm kiếm trang đích', img: '/step3_getcode.png', alt: 'Tìm kiếm trang đích', action: 'campaign_img' },
+  { num: 4, title: 'BƯỚC 4:', subtitle: 'NHẬP MÃ XÁC NHẬN', desc: 'Tìm kiếm nút - Đợi và nhập code', img: '/step4_code.png', alt: 'Nhập mã xác nhận' },
 ];
 
 const FEATURES = [
@@ -175,7 +176,7 @@ export default function VuotLink() {
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-black uppercase text-center leading-tight tracking-wide" style={{ color: '#166534' }}>
-            QUY TRÌNH HOÀN TẤT VƯỢT LINK 3 BƯỚC
+            QUY TRÌNH HOÀN TẤT VƯỢT LINK 4 BƯỚC
           </h2>
           <button
             onMouseEnter={() => setGlowing(true)}
@@ -191,10 +192,10 @@ export default function VuotLink() {
         </div>
 
         <div className="relative hidden md:block">
-          <div className="absolute z-10 pointer-events-none" style={{ bottom: '108px', left: '33.33%', transform: 'translateX(-50%)', width: '130px' }}>
+          <div className="absolute z-10 pointer-events-none" style={{ bottom: '108px', left: '25%', transform: 'translateX(-50%)', width: '110px' }}>
             <img src="/character_guide.png" alt="Hướng dẫn viên" className="w-full h-auto object-contain drop-shadow-2xl" />
           </div>
-          <div className="grid grid-cols-3 gap-5">
+          <div className="grid grid-cols-4 gap-4">
             {STEPS.map((step) => (<StepCard key={step.num} {...step} keyword={keyword} campaignImg={campaignImg} />))}
           </div>
         </div>
