@@ -270,44 +270,18 @@
     if (cfg.target) {
       var container = document.querySelector(cfg.target);
       if (!container) {
-        console.warn('[LayNut] target not found:', cfg.target);
-        _appendFixed(btn); // fallback
+        // Target not in DOM yet (common in React/SPA) — observe for it
+        console.info('[LayNut] target not yet in DOM, waiting:', cfg.target);
+        _waitForTarget(cfg.target, function (el) {
+          _embedInContainer(btn, el);
+        }, function () {
+          console.warn('[LayNut] target never appeared, falling back to fixed:', cfg.target);
+          _appendFixed(btn);
+        });
         return;
       }
 
-      // Make container positionable if it's static
-      var cs = window.getComputedStyle(container);
-      if (cs.position === 'static') container.style.position = 'relative';
-
-      if (cfg.align === 'inline') {
-        // ── Sub-mode: flow inline inside container ──
-        var wrap = document.createElement('div');
-        wrap.id = 'laynut-wrap-inline';
-        wrap.className = 'ln-' + (cfg.align || 'right');
-        wrap.appendChild(btn);
-        container.appendChild(wrap);
-      } else {
-        // ── Sub-mode: absolute-positioned inside container ──
-        // insetCorner: top-left / top-right / bottom-left / bottom-right
-        var corner = cfg.insetCorner || 'bottom-right';
-        var ix = (cfg.insetX || 16) + 'px';
-        var iy = (cfg.insetY || 16) + 'px';
-        if (corner === 'center') {
-          // Flow element — centered, does NOT overlap content
-          var centerWrap = document.createElement('div');
-          centerWrap.style.cssText = 'display:flex;justify-content:center;margin-top:12px;position:relative;z-index:9999;';
-          centerWrap.appendChild(btn);
-          container.appendChild(centerWrap);
-        } else {
-          btn.style.position = 'absolute';
-          btn.style.zIndex   = '9999';
-          if (corner.indexOf('top')    !== -1) { btn.style.top    = iy; btn.style.bottom = 'auto'; }
-          else                                  { btn.style.bottom = iy; btn.style.top    = 'auto'; }
-          if (corner.indexOf('left')  !== -1)  { btn.style.left  = ix; btn.style.right  = 'auto'; }
-          else                                  { btn.style.right = ix; btn.style.left   = 'auto'; }
-          container.appendChild(btn);
-        }
-      }
+      _embedInContainer(btn, container);
       return;
     }
 
@@ -321,6 +295,62 @@
     var ps = posStyle();
     Object.keys(ps).forEach(function (k) { btn.style[k] = ps[k]; });
     document.body.appendChild(btn);
+  }
+
+  /* ── Embed button inside a container element ─────────── */
+  function _embedInContainer(btn, container) {
+    // Make container positionable if it's static
+    var cs = window.getComputedStyle(container);
+    if (cs.position === 'static') container.style.position = 'relative';
+
+    if (cfg.align === 'inline') {
+      var wrap = document.createElement('div');
+      wrap.id = 'laynut-wrap-inline';
+      wrap.className = 'ln-' + (cfg.align || 'right');
+      wrap.appendChild(btn);
+      container.appendChild(wrap);
+    } else {
+      var corner = cfg.insetCorner || 'bottom-right';
+      var ix = (cfg.insetX || 16) + 'px';
+      var iy = (cfg.insetY || 16) + 'px';
+      if (corner === 'center') {
+        var centerWrap = document.createElement('div');
+        centerWrap.style.cssText = 'display:flex;justify-content:center;margin-top:12px;position:relative;z-index:9999;';
+        centerWrap.appendChild(btn);
+        container.appendChild(centerWrap);
+      } else {
+        btn.style.position = 'absolute';
+        btn.style.zIndex   = '9999';
+        if (corner.indexOf('top')    !== -1) { btn.style.top    = iy; btn.style.bottom = 'auto'; }
+        else                                  { btn.style.bottom = iy; btn.style.top    = 'auto'; }
+        if (corner.indexOf('left')  !== -1)  { btn.style.left  = ix; btn.style.right  = 'auto'; }
+        else                                  { btn.style.right = ix; btn.style.left   = 'auto'; }
+        container.appendChild(btn);
+      }
+    }
+  }
+
+  /* ── Wait for a target selector to appear in DOM (SPA support) ── */
+  function _waitForTarget(selector, onFound, onTimeout) {
+    var maxWait = 10000; // 10 seconds
+    var timer = setTimeout(function () {
+      observer.disconnect();
+      onTimeout();
+    }, maxWait);
+
+    var observer = new MutationObserver(function () {
+      var el = document.querySelector(selector);
+      if (el) {
+        clearTimeout(timer);
+        observer.disconnect();
+        onFound(el);
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
   }
 
   /* ── Build overlay + modal ────────────────────────────── */
