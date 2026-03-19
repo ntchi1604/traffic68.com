@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
-import { Banknote, Plus, Filter, Download } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Wallet } from 'lucide-react';
 import api from '../../lib/api';
 import { formatMoney } from '../../lib/format';
 
@@ -36,6 +36,13 @@ export default function TransactionHistory() {
 
   const fmt = (n) => formatMoney(n);
 
+  const totalDeposit = transactions
+    .filter(t => (t.type === 'deposit' || t.type === 'commission') && t.status === 'completed')
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const totalWithdraw = transactions
+    .filter(t => t.type === 'withdraw' && t.status === 'completed')
+    .reduce((s, t) => s + Number(t.amount), 0);
+
   return (
     <div className="space-y-6">
       <Breadcrumb items={[
@@ -62,6 +69,37 @@ export default function TransactionHistory() {
               {label}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border-l-4 border-l-green-400 border border-slate-200 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+            <ArrowDownCircle size={20} className="text-green-600" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase">Tổng nạp</p>
+            <p className="text-lg font-black text-green-600">+{fmt(totalDeposit)} ₫</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border-l-4 border-l-red-400 border border-slate-200 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
+            <ArrowUpCircle size={20} className="text-red-600" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase">Tổng chi</p>
+            <p className="text-lg font-black text-red-600">-{fmt(totalWithdraw)} ₫</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border-l-4 border-l-blue-400 border border-slate-200 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+            <Wallet size={20} className="text-blue-600" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase">Chênh lệch</p>
+            <p className="text-lg font-black text-blue-600">{fmt(totalDeposit - totalWithdraw)} ₫</p>
+          </div>
         </div>
       </div>
 
