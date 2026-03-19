@@ -237,6 +237,7 @@ export default function CreateCampaign() {
   }, []);
 
   const [form, setForm] = useState({
+    campaignName: '',
     trafficType: '',
     version: 'v1',
     duration: '',
@@ -288,7 +289,7 @@ export default function CreateCampaign() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.trafficType || !form.duration || !form.keyword || !form.website) {
+    if (!form.campaignName || !form.trafficType || !form.duration || !form.keyword || !form.website) {
       setError('Vui lòng điền đầy đủ các trường bắt buộc (*).');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -297,7 +298,7 @@ export default function CreateCampaign() {
     setSubmitting(true);
     try {
       await api.post('/campaigns', {
-        name: form.keyword,
+        name: form.campaignName,
         url: form.website,
         traffic_type: form.trafficType,
         keyword: form.keyword,
@@ -391,6 +392,19 @@ export default function CreateCampaign() {
               </div>
 
               <div className="space-y-5">
+
+                {/* Campaign name */}
+                <div>
+                  <Label required hint="Đặt tên để dễ nhận biết chiến dịch">Tên chiến dịch</Label>
+                  <input
+                    type="text"
+                    value={form.campaignName}
+                    onChange={e => set('campaignName', e.target.value)}
+                    placeholder="VD: SEO traffictot.com"
+                    className="w-full mt-1 px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white
+                               shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  />
+                </div>
 
                 {/* Traffic type */}
                 <div>
