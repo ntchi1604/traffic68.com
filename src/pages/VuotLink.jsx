@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../hooks/usePageTitle';
-import { Rocket, ExternalLink, Search } from 'lucide-react';
+import { Rocket, ExternalLink, Search, CheckCircle, Loader2 } from 'lucide-react';
 
 const STEPS = [
   { num: 1, title: 'BƯỚC 1:', subtitle: 'MỞ GOOGLE', desc: 'Mở trình duyệt và truy cập trang chủ Google.', img: '/step1_google.png', alt: 'Mở Google', action: 'google' },
   { num: 2, title: 'BƯỚC 2:', subtitle: 'NHẬP TỪ KHÓA TÌM KIẾM', desc: 'Tìm kiếm từ khóa bên dưới trên Google.', img: '/step2_search.png', alt: 'Nhập từ khóa', action: 'keyword' },
   { num: 3, title: 'BƯỚC 3:', subtitle: 'TÌM KIẾM TRANG ĐÍCH', desc: 'Tìm kiếm trang đích', img: '/step3_getcode.png', alt: 'Tìm kiếm trang đích', action: 'campaign_img' },
-  { num: 4, title: 'BƯỚC 4:', subtitle: 'NHẬP MÃ XÁC NHẬN', desc: 'Tìm kiếm nút - Đợi và nhập code', img: '/step4_code.png', alt: 'Nhập mã xác nhận' },
+  { num: 4, title: 'BƯỚC 4:', subtitle: 'NHẬP MÃ XÁC NHẬN', desc: 'Tìm kiếm nút - Đợi và nhập code', img: '/step4_code.png', alt: 'Nhập mã xác nhận', action: 'code' },
 ];
 
 const FEATURES = [
@@ -16,7 +16,7 @@ const FEATURES = [
   { label: 'TÙY CHỈNH LINK', img: '/feat_link.png', alt: 'Tùy Chỉnh Link' },
 ];
 
-function StepCard({ num, title, subtitle, desc, img, alt, action, keyword, campaignImg }) {
+function StepCard({ num, title, subtitle, desc, img, alt, action, keyword, campaignImg, codeInput, onCodeChange, onCodeSubmit, codeResult, submitting }) {
   return (
     <div className="relative flex flex-col rounded-2xl border-2 shadow-md card-hover" style={{ borderColor: '#166534' }}>
       <div className="absolute top-3 left-3 z-20 w-9 h-9 rounded-full flex items-center justify-center shadow-lg" style={{ background: '#166534' }}>
@@ -44,6 +44,38 @@ function StepCard({ num, title, subtitle, desc, img, alt, action, keyword, campa
             <span className="flex-1 font-black text-amber-800 text-sm">{keyword || 'Đang tải...'}</span>
           </div>
         )}
+        {action === 'code' && (
+          <div className="mt-1 flex flex-col gap-2">
+            <input
+              type="text"
+              placeholder="Nhập mã code tại đây..."
+              value={codeInput}
+              onChange={e => onCodeChange(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border-2 border-green-300 text-sm font-bold focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+              style={{ background: '#f0fdf4' }}
+              disabled={submitting || (codeResult && codeResult.success)}
+            />
+            <button
+              onClick={onCodeSubmit}
+              disabled={submitting || !codeInput.trim() || (codeResult && codeResult.success)}
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-bold transition-all hover:scale-[1.02] active:scale-95 shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              style={{ background: codeResult?.success ? '#16a34a' : 'linear-gradient(135deg, #f97316, #ea580c)' }}
+            >
+              {submitting ? (
+                <><Loader2 size={15} className="animate-spin" /> Đang xác nhận...</>
+              ) : codeResult?.success ? (
+                <><CheckCircle size={15} /> Đã xác nhận!</>
+              ) : (
+                <><CheckCircle size={15} /> Xác Nhận</>
+              )}
+            </button>
+            {codeResult && (
+              <div className={`text-xs font-bold rounded-lg px-3 py-2 ${codeResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+                {codeResult.message}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -55,6 +87,32 @@ export default function VuotLink() {
   const [keyword, setKeyword] = useState('');
   const [taskId, setTaskId] = useState(null);
   const [campaignImg, setCampaignImg] = useState('');
+  const [codeInput, setCodeInput] = useState('');
+  const [codeResult, setCodeResult] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleCodeSubmit = async () => {
+    if (!taskId || !codeInput.trim() || submitting) return;
+    setSubmitting(true);
+    setCodeResult(null);
+    try {
+      const res = await fetch(`/api/vuot-link/task/${taskId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: codeInput.trim(), timeOnSite: Math.floor((Date.now() - performance.now()) / 1000) })
+      });
+      const data = await res.json();
+      if (res.ok && data.code) {
+        setCodeResult({ success: true, message: `✅ Thành công! Mã của bạn: ${data.code} — Bạn nhận được ${data.earning}đ` });
+      } else {
+        setCodeResult({ success: false, message: data.error || 'Xác nhận thất bại. Vui lòng thử lại.' });
+      }
+    } catch (err) {
+      setCodeResult({ success: false, message: 'Lỗi kết nối. Vui lòng thử lại.' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     let botScore = 0;
@@ -196,12 +254,12 @@ export default function VuotLink() {
             <img src="/character_guide.png" alt="Hướng dẫn viên" className="w-full h-auto object-contain drop-shadow-2xl" />
           </div>
           <div className="grid grid-cols-4 gap-4">
-            {STEPS.map((step) => (<StepCard key={step.num} {...step} keyword={keyword} campaignImg={campaignImg} />))}
+            {STEPS.map((step) => (<StepCard key={step.num} {...step} keyword={keyword} campaignImg={campaignImg} codeInput={codeInput} onCodeChange={setCodeInput} onCodeSubmit={handleCodeSubmit} codeResult={codeResult} submitting={submitting} />))}
           </div>
         </div>
 
         <div className="flex flex-col gap-5 md:hidden">
-          {STEPS.map((step) => (<StepCard key={step.num} {...step} keyword={keyword} campaignImg={campaignImg} />))}
+          {STEPS.map((step) => (<StepCard key={step.num} {...step} keyword={keyword} campaignImg={campaignImg} codeInput={codeInput} onCodeChange={setCodeInput} onCodeSubmit={handleCodeSubmit} codeResult={codeResult} submitting={submitting} />))}
           <div className="flex justify-center">
             <img src="/character_guide.png" alt="Hướng dẫn viên" className="h-44 w-auto object-contain drop-shadow" />
           </div>
