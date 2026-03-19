@@ -4,41 +4,29 @@ const { getPool } = require('../db');
 const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
-
-// Bot user-agent patterns
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
+const CHALLENGE_KEY = Buffer.from(process.env.CHALLENGE_KEY || 't68vL$ecur3Ch@ll3ng3K3y!2026xZqW', 'utf8');
 
-// IP rate limit: max 10 tasks/hour
 const ipTaskCount = {};
-setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 60 * 60 * 1000);
+setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 3600000);
 
-// Challenge store
 const challenges = {};
 setInterval(() => {
   const now = Date.now();
   Object.keys(challenges).forEach(k => { if (now - challenges[k].createdAt > 120000) delete challenges[k]; });
 }, 30000);
 
-// Generate random JS challenge that only a real browser can evaluate
 function generateJsChallenge() {
   const v = 'abcdefghijklmnopqrstuvwxyz'.split('').sort(() => Math.random() - 0.5);
   const a = Math.floor(Math.random() * 90) + 10;
   const b = Math.floor(Math.random() * 90) + 10;
   const c = Math.floor(Math.random() * 50) + 5;
   const domVal = Math.floor(Math.random() * 500) + 100;
-
-  // Calculate expected result
   const mathResult = ((a * b) + c) % 9973;
   const expected = domVal + mathResult;
-
-  // Build JS code that requires DOM (document.createElement)
   const jsCode = `(function(){var ${v[0]}=typeof document!=='undefined'&&document.createElement?${domVal}:0;var ${v[1]}=${a};var ${v[2]}=${b};var ${v[3]}=${c};return ${v[0]}+((${v[1]}*${v[2]})+${v[3]})%9973})()`;
-
   return { jsCode, expected };
 }
-
-// AES-256-GCM key from env
-const CHALLENGE_KEY = Buffer.from(process.env.CHALLENGE_KEY || 't68vL$ecur3Ch@ll3ng3K3y!2026xZqW', 'utf8');
 
 function encryptPayload(data) {
   const iv = crypto.randomBytes(12);
@@ -49,22 +37,6 @@ function encryptPayload(data) {
   return iv.toString('base64') + '.' + encrypted + '.' + tag;
 }
 
-// ── GET /api/vuot-link/challenge ──
-router.get('/challenge', (req, res) => {
-  const ua = req.headers['user-agent'] || '';
-  if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
-
-  const challengeId = crypto.randomBytes(16).toString('hex');
-  const { jsCode, expected } = generateJsChallenge();
-
-  challenges[challengeId] = { expected, createdAt: Date.now(), used: false };
-
-  // Encrypt entire payload
-  const encrypted = encryptPayload({ c: challengeId, j: jsCode });
-  res.json({ d: encrypted });
-});
-
-// ── POST /api/vuot-link/task (PUBLIC) ──
 function decryptPayload(encStr) {
   const [ivB64, dataB64, tagB64] = encStr.split('.');
   const iv = Buffer.from(ivB64, 'base64');
@@ -77,6 +49,16 @@ function decryptPayload(encStr) {
   return JSON.parse(decrypted);
 }
 
+router.get('/challenge', (req, res) => {
+  const ua = req.headers['user-agent'] || '';
+  if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
+
+  const challengeId = crypto.randomBytes(16).toString('hex');
+  const { jsCode, expected } = generateJsChallenge();
+  challenges[challengeId] = { expected, createdAt: Date.now(), used: false };
+  res.json({ d: encryptPayload({ c: challengeId, j: jsCode }) });
+});
+
 router.post('/task', optionalAuth, async (req, res) => {
   const ERR = { error: 'Yêu cầu không hợp lệ' };
   const ua = req.headers['user-agent'] || '';
@@ -86,7 +68,6 @@ router.post('/task', optionalAuth, async (req, res) => {
   ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
   if (ipTaskCount[ip] > 10) return res.status(403).json(ERR);
 
-  // Decrypt incoming payload
   let challengeId, jsResult, proof;
   try {
     const body = decryptPayload(req.body.d);
@@ -103,7 +84,6 @@ router.post('/task', optionalAuth, async (req, res) => {
     return res.status(403).json(ERR);
   }
   if (Number(jsResult) !== ch.expected) return res.status(403).json(ERR);
-
   ch.used = true;
 
   if (proof && (proof.botScore >= 40 || proof.sw === 0 || proof.sh === 0)) return res.status(403).json(ERR);
@@ -112,11 +92,11 @@ router.post('/task', optionalAuth, async (req, res) => {
   const [campaigns] = await pool.execute(
     `SELECT * FROM campaigns WHERE status = 'running' AND traffic_type = 'google_search' AND keyword != '' AND views_done < total_views ORDER BY RAND() LIMIT 1`
   );
-  if (campaigns.length === 0) return res.status(404).json({ error: 'Hiện không có task vượt link nào' });
+  if (campaigns.length === 0) return res.status(404).json(ERR);
   const campaign = campaigns[0];
 
   const startedAt = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+  const expiresAt = new Date(Date.now() + 600000).toISOString().slice(0, 19).replace('T', ' ');
   const session = crypto.randomBytes(16).toString('hex');
 
   const [result] = await pool.execute(
@@ -124,11 +104,9 @@ router.post('/task', optionalAuth, async (req, res) => {
     [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', expiresAt]
   );
 
-  const taskData = { id: result.insertId, keyword: campaign.keyword, session, startedAt, expiresAt };
-  res.json({ d: encryptPayload(taskData) });
+  res.json({ d: encryptPayload({ id: result.insertId, keyword: campaign.keyword, session, startedAt, expiresAt }) });
 });
 
-// ── PUT /api/vuot-link/task/:id/step ──
 router.put('/task/:id/step', optionalAuth, async (req, res) => {
   const pool = getPool();
   const { step } = req.body;
@@ -155,10 +133,9 @@ router.put('/task/:id/step', optionalAuth, async (req, res) => {
     return res.status(400).json({ error: 'Step không hợp lệ' });
   }
 
-  res.json({ message: `Đã cập nhật ${step}`, status: step });
+  res.json({ status: step });
 });
 
-// ── POST /api/vuot-link/task/:id/complete ──
 router.post('/task/:id/complete', optionalAuth, async (req, res) => {
   const pool = getPool();
   const { timeOnSite } = req.body;
@@ -166,7 +143,7 @@ router.post('/task/:id/complete', optionalAuth, async (req, res) => {
   const [tasks] = await pool.execute('SELECT * FROM vuot_link_tasks WHERE id = ?', [req.params.id]);
   if (tasks.length === 0) return res.status(404).json({ error: 'Task không tồn tại' });
   const task = tasks[0];
-  if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành rồi' });
+  if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
 
   const [campaigns] = await pool.execute('SELECT cpc, user_id FROM campaigns WHERE id = ?', [task.campaign_id]);
   if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
@@ -200,10 +177,9 @@ router.post('/task/:id/complete', optionalAuth, async (req, res) => {
     );
   }
 
-  res.json({ message: 'Hoàn thành vượt link!', code, earning });
+  res.json({ code, earning });
 });
 
-// ── Protected: stats ──
 router.use(authMiddleware);
 
 router.get('/stats', async (req, res) => {
