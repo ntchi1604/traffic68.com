@@ -498,7 +498,10 @@ export default function ScriptGenerator() {
                   ].map(m => {
                     const sel = cfg.embedMode === m.id;
                     return (
-                      <button key={m.id} type="button" onClick={() => set('embedMode', m.id)}
+                      <button key={m.id} type="button" onClick={() => {
+                        set('embedMode', m.id);
+                        if (m.id === 'floating') set('target', '');
+                      }}
                         className={`relative p-4 rounded-2xl border-2 text-left transition-all
                                     ${sel ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}>
                         {sel && <span className="absolute top-2 right-2 text-blue-500">✓</span>}
