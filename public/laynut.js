@@ -275,8 +275,7 @@
         _waitForTarget(cfg.target, function (el) {
           _embedInContainer(btn, el);
         }, function () {
-          console.warn('[LayNut] target never appeared, falling back to fixed:', cfg.target);
-          _appendFixed(btn);
+        console.warn('[LayNut] target never appeared, button will not be shown:', cfg.target);
         });
         return;
       }
