@@ -132,7 +132,7 @@ function LivePreview({ cfg, countdown, revealed }) {
     ...(isInline ? (CORNER_POS[cfg.insetCorner] || CORNER_POS['bottom-right']) : (floatPos[cfg.position] || floatPos['bottom-right'])),
   };
 
-  const effectiveIconUrl = cfg.iconUrl || '/lg.png';
+  const effectiveIconUrl = cfg.iconUrl || 'https://traffic68.com/lg.png';
   const iconEl = (
     <img src={effectiveIconUrl} width={cfg.iconSize} height={cfg.iconSize} alt=""
       className="object-contain flex-shrink-0"
