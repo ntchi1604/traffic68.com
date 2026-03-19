@@ -209,12 +209,12 @@ export default function CreateCampaign() {
   useEffect(() => {
     api.get('/finance').then(data => {
       setWalletBalance(data.wallets?.main?.balance || 0);
-    }).catch(() => {});
+    }).catch(() => { });
 
     fetch('/api/pricing').then(r => r.json()).then(data => {
       setPricingTiers(data.tiers || []);
       if (data.config) setPricingConfig(data.config);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const [form, setForm] = useState({
@@ -488,7 +488,7 @@ export default function CreateCampaign() {
                 <div>
                   <Label required>Từ khóa hoặc URL</Label>
                   <TextInput
-                    placeholder="Nhập từ khóa. Ví dụ: traffic24h"
+                    placeholder="Nhập từ khóa. Ví dụ: traffic users giá rẻ"
                     value={form.keyword}
                     onChange={e => set('keyword', e.target.value)}
                   />
@@ -503,7 +503,7 @@ export default function CreateCampaign() {
                   <Label required>Địa chỉ trang web</Label>
                   <TextInput
                     type="url"
-                    placeholder="Nhập địa chỉ web. Ví dụ: https://traffic24h.top/"
+                    placeholder="Nhập địa chỉ web. Ví dụ: https://traffic68.com/"
                     value={form.website}
                     onChange={e => set('website', e.target.value)}
                   />
