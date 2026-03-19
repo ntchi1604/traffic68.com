@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
   keyword      VARCHAR(255) DEFAULT '',
   target_page  VARCHAR(500) DEFAULT '',
   time_on_site VARCHAR(50)  DEFAULT '60-120',
+  image1_url   TEXT DEFAULT NULL,
   status       VARCHAR(20)  NOT NULL DEFAULT 'running',
   views_done   INT NOT NULL DEFAULT 0,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,

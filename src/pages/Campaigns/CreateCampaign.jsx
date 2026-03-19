@@ -101,12 +101,31 @@ function NumberInput({ suffix, ...props }) {
 }
 
 /* ── Image upload field ──────────────────────────────────── */
-function ImageUpload({ label, required, hint, value, onChange }) {
+function ImageUpload({ label, required, hint, value, onUploaded }) {
   const ref = useRef();
+  const [uploading, setUploading] = useState(false);
 
-  const handleFile = (e) => {
+  const handleFile = async (e) => {
     const file = e.target.files[0];
-    if (file) onChange(file);
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/campaigns/upload-image', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload thất bại');
+      onUploaded(file, data.imageUrl);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -118,7 +137,7 @@ function ImageUpload({ label, required, hint, value, onChange }) {
                    px-4 py-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition group"
       >
         <div className="w-9 h-9 rounded-lg bg-gray-100 group-hover:bg-blue-100 flex items-center justify-center flex-shrink-0 transition">
-          <Upload size={16} className="text-gray-400 group-hover:text-blue-500 transition" />
+          <Upload size={16} className={`text-gray-400 group-hover:text-blue-500 transition ${uploading ? 'animate-spin' : ''}`} />
         </div>
         <div className="min-w-0 flex-1">
           {value ? (
@@ -130,7 +149,7 @@ function ImageUpload({ label, required, hint, value, onChange }) {
         {value && (
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onChange(null); }}
+            onClick={(e) => { e.stopPropagation(); onUploaded(null, ''); }}
             className="text-gray-400 hover:text-red-500 transition flex-shrink-0"
           >
             <X size={14} />
@@ -227,7 +246,7 @@ export default function CreateCampaign() {
     keyword: '',
     website: '',
     image1: null,
-    image2: null,
+    image1_url: '',
     devices: ['desktop', 'mobile'],
     countries: ['VN'],
     discountCode: '',
@@ -292,6 +311,7 @@ export default function CreateCampaign() {
         budget: totalPrice,
         device: form.devices.join(','),
         country: form.countries.join(','),
+        image1_url: form.image1_url || '',
         note: form.note,
       });
       setSubmitted(true);
@@ -524,11 +544,11 @@ export default function CreateCampaign() {
 
               <div className="space-y-4">
                 <ImageUpload
-                  label="Image 1"
+                  label="Hình ảnh"
                   required
-                  hint="Image 1: hình ảnh tìm kiếm từ khóa theo google hoặc từ backlink sau đó click vào web"
+                  hint="Hình ảnh tìm kiếm từ khóa theo google hoặc từ backlink"
                   value={form.image1}
-                  onChange={v => set('image1', v)}
+                  onUploaded={(file, url) => { set('image1', file); set('image1_url', url); }}
                 />
               </div>
             </div>

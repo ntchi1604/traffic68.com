@@ -1,9 +1,46 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(authMiddleware);
+
+// ── Multer config for campaign images ──
+const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'campaigns');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `campaign-${req.userId}-${Date.now()}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) cb(null, true);
+    else cb(new Error('Chỉ chấp nhận file ảnh (jpg, png, gif, webp)'));
+  },
+});
+
+// ── POST /api/campaigns/upload-image ──
+router.post('/upload-image', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Chưa chọn file ảnh' });
+    const imageUrl = `/uploads/campaigns/${req.file.filename}`;
+    res.json({ message: 'Upload ảnh thành công', imageUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── GET /api/campaigns ──
 router.get('/', async (req, res) => {
@@ -23,7 +60,7 @@ router.get('/', async (req, res) => {
 // ── POST /api/campaigns ──
 router.post('/', async (req, res) => {
   const pool = getPool();
-  const { name, url, budget, cpc, keyword, note, trafficType, traffic_type, dailyViews, daily_views, totalViews, total_views, viewByHour, view_by_hour, version, targetPage, target_page, timeOnSite, time_on_site, duration, discount_applied, discount_code } = req.body;
+  const { name, url, budget, cpc, keyword, note, trafficType, traffic_type, dailyViews, daily_views, totalViews, total_views, viewByHour, view_by_hour, version, targetPage, target_page, timeOnSite, time_on_site, duration, discount_applied, discount_code, image1_url } = req.body;
 
   const _trafficType = trafficType || traffic_type || 'google_search';
   const _dailyViews = dailyViews || daily_views || 500;
@@ -45,7 +82,6 @@ router.post('/', async (req, res) => {
     );
     if (tiers.length > 0) {
       const tier = tiers[0];
-      // Validate discount: must be enabled AND code must match
       let useDiscount = false;
       if (discount_applied && discount_code) {
         const [dcSettings] = await pool.execute("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('discount_enabled','discount_code')");
@@ -68,8 +104,8 @@ router.post('/', async (req, res) => {
   }
 
   const [result] = await pool.execute(
-    `INSERT INTO campaigns (user_id, name, url, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, target_page, time_on_site) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [req.userId, name, url, _trafficType, _version, realBudget, cpc || 0, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite]
+    `INSERT INTO campaigns (user_id, name, url, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, target_page, time_on_site, image1_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [req.userId, name, url, _trafficType, _version, realBudget, cpc || 0, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite, image1_url || null]
   );
 
   if (realBudget > 0) {
