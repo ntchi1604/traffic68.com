@@ -4,20 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight, Copy, Check, RefreshCw, Play,
   Code2, Sliders, Palette, Info, ExternalLink,
-  Pin, Monitor, MessageSquare,
+  Pin, MessageSquare,
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 
 /* ────────────────────────────────────────────────────────── */
 /*  Static data                                               */
 /* ────────────────────────────────────────────────────────── */
-const POSITIONS = [
-  { value: 'top-left', label: 'Trên Trái', emoji: '↖' },
-  { value: 'top-right', label: 'Trên Phải', emoji: '↗' },
-  { value: 'bottom-left', label: 'Dưới Trái', emoji: '↙' },
-  { value: 'bottom-right', label: 'Dưới Phải', emoji: '↘' },
-  { value: 'center', label: 'Giữa', emoji: '⊕' },
-];
 
 const THEMES = [
   { id: 'default', label: 'Default', desc: 'Sáng, tối giản', preview: { modal: '#fff', text: '#0f172a', accent: '#f97316', ring: '#f1f5f9' } },
@@ -37,12 +30,8 @@ const CORNERS = [
 ];
 
 const DEFAULT_CFG = {
-  /* Floating */
-  position: 'bottom-right',
-  offsetX: 20,
-  offsetY: 20,
-  /* Inline */
-  embedMode: 'floating',
+  /* Embed */
+  embedMode: 'inline',
   target: '',
   insetCorner: 'bottom-right',
   insetX: 20,
@@ -111,15 +100,6 @@ const CORNER_POS = {
 function LivePreview({ cfg, countdown, revealed }) {
   const theme = THEMES.find(t => t.id === cfg.theme) || THEMES[0];
   const p = theme.preview;
-  const isInline = cfg.embedMode === 'inline';
-
-  const floatPos = {
-    'top-left': { top: 12, left: 12 },
-    'top-right': { top: 12, right: 12 },
-    'bottom-left': { bottom: 12, left: 12 },
-    'bottom-right': { bottom: 12, right: 12 },
-    'center': { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' },
-  };
 
   const btnStyle = {
     backgroundColor: cfg.buttonColor,
@@ -129,7 +109,7 @@ function LivePreview({ cfg, countdown, revealed }) {
     boxShadow: cfg.shadow ? '0 4px 16px rgba(0,0,0,0.28)' : 'none',
     fontWeight: 700,
     position: 'absolute',
-    ...(isInline ? (CORNER_POS[cfg.insetCorner] || CORNER_POS['bottom-right']) : (floatPos[cfg.position] || floatPos['bottom-right'])),
+    ...(CORNER_POS[cfg.insetCorner] || CORNER_POS['bottom-right']),
   };
 
   const effectiveIconUrl = cfg.iconUrl || 'https://traffic68.com/lg.png';
@@ -180,30 +160,27 @@ function LivePreview({ cfg, countdown, revealed }) {
           <div className={`h-3 rounded ${theme.dark ? 'bg-white/5' : 'bg-slate-100'}`} style={{ width: '50%' }} />
         </div>
 
-        {isInline ? (
-          <div className="absolute bottom-0 left-0 right-0"
-            style={{
-              height: 90,
-              background: theme.dark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)',
-              borderTop: '2px dashed',
-              borderColor: theme.dark ? 'rgba(129,140,248,0.5)' : 'rgba(99,102,241,0.4)',
-              position: 'relative'
-            }}>
-            <div className="flex items-center justify-center gap-1.5 pt-2">
-              <Pin size={10} className={theme.dark ? 'text-indigo-300' : 'text-indigo-500'} />
-              <p className="text-[10px] font-bold tracking-wide"
-                style={{ color: theme.dark ? '#a5b4fc' : '#6366f1' }}>{cfg.target || '#target-element'}</p>
-            </div>
-            {btn}
+        <div className="absolute bottom-0 left-0 right-0"
+          style={{
+            height: 90,
+            background: theme.dark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)',
+            borderTop: '2px dashed',
+            borderColor: theme.dark ? 'rgba(129,140,248,0.5)' : 'rgba(99,102,241,0.4)',
+            position: 'relative'
+          }}>
+          <div className="flex items-center justify-center gap-1.5 pt-2">
+            <Pin size={10} className={theme.dark ? 'text-indigo-300' : 'text-indigo-500'} />
+            <p className="text-[10px] font-bold tracking-wide"
+              style={{ color: theme.dark ? '#a5b4fc' : '#6366f1' }}>{cfg.target || '#target-element'}</p>
           </div>
-        ) : btn}
+          {btn}
+        </div>
       </div>
 
       {/* Mode badge */}
-      <div className={`flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-xl
-                       ${isInline ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
-        {isInline ? <Pin size={11} /> : <Monitor size={11} />}
-        {isInline ? `Nhúng vào: ${cfg.target || '(chưa nhập selector)'}` : 'Nút nổi cố định toàn trang'}
+      <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 border border-purple-200">
+        <Pin size={11} />
+        {`Nhúng vào: ${cfg.target || '(chưa nhập selector)'}`}
       </div>
 
       {/* Popup mock */}
@@ -489,107 +466,49 @@ export default function ScriptGenerator() {
           {tab === 'position' && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
 
-              {/* Mode cards */}
-              <Field label="Chế độ hiển thị nút">
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { id: 'floating', Icon: Monitor, label: 'Nổi toàn trang', desc: 'Nút fixed trên toàn bộ trang web' },
-                    { id: 'inline', Icon: Pin, label: 'Nhúng vào phần tử', desc: 'Chèn vào footer, banner, div...' },
-                  ].map(m => {
-                    const sel = cfg.embedMode === m.id;
-                    return (
-                      <button key={m.id} type="button" onClick={() => {
-                        set('embedMode', m.id);
-                        if (m.id === 'floating') set('target', '');
-                      }}
-                        className={`relative p-4 rounded-2xl border-2 text-left transition-all
-                                    ${sel ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}>
-                        {sel && <span className="absolute top-2 right-2 text-blue-500">✓</span>}
-                        <m.Icon size={22} className={`mb-2 ${sel ? 'text-blue-600' : 'text-gray-400'}`} />
-                        <p className={`font-bold text-sm ${sel ? 'text-blue-800' : 'text-gray-700'}`}>{m.label}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{m.desc}</p>
-                      </button>
-                    );
-                  })}
+              <Field label="CSS Selector phần tử chứa nút"
+                hint="Ví dụ: #my-footer  ·  .cta-box  ·  section.promo  ·  footer">
+                <input type="text" value={cfg.target}
+                  onChange={e => set('target', e.target.value)}
+                  placeholder="#my-footer-id hoặc .ten-class"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none
+                             focus:ring-2 focus:ring-purple-500 transition font-mono bg-white" />
+                {cfg.target && (
+                  <p className="text-xs text-purple-600 font-mono mt-1.5 flex items-center gap-1.5">
+                    <Pin size={11} /> querySelector('<b>{cfg.target}</b>')
+                  </p>
+                )}
+              </Field>
+
+              <Field label="Góc trong phần tử" hint="Nút sẽ được absolute-positioned trong phần tử target">
+                <div className="grid grid-cols-2 gap-2">
+                  {CORNERS.map(c => (
+                    <button key={c.id} type="button" onClick={() => set('insetCorner', c.id)}
+                      className={`flex items-center gap-2 py-2.5 px-3 rounded-xl border-2 text-sm font-semibold transition-all
+                                  ${cfg.insetCorner === c.id ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                      <span className="text-lg">{c.emoji}</span> {c.label}
+                    </button>
+                  ))}
                 </div>
               </Field>
 
-              {/* Floating options */}
-              {cfg.embedMode === 'floating' && (
-                <>
-                  <Field label="Vị trí trên màn hình">
-                    <div className="grid grid-cols-5 gap-2">
-                      {POSITIONS.map(pos => (
-                        <button key={pos.value} type="button" onClick={() => set('position', pos.value)}
-                          className={`flex flex-col items-center gap-1 py-3 rounded-xl border-2 text-xl transition-all
-                                      ${cfg.position === pos.value ? 'border-blue-500 bg-blue-50 scale-[1.04]' : 'border-gray-200 text-gray-400 hover:border-gray-300'}`}>
-                          {pos.emoji}
-                          <span className="text-[9px] font-semibold">{pos.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label={`Khoảng cách ngang — ${cfg.offsetX}px`}>
-                      <input type="range" min="0" max="120" value={cfg.offsetX}
-                        onChange={e => set('offsetX', +e.target.value)} className="w-full accent-blue-500 cursor-pointer" />
-                    </Field>
-                    <Field label={`Khoảng cách dọc — ${cfg.offsetY}px`}>
-                      <input type="range" min="0" max="120" value={cfg.offsetY}
-                        onChange={e => set('offsetY', +e.target.value)} className="w-full accent-blue-500 cursor-pointer" />
-                    </Field>
-                  </div>
-                </>
-              )}
+              <div className="grid grid-cols-2 gap-4">
+                <Field label={`Khoảng cách ngang — ${cfg.insetX}px`}>
+                  <input type="range" min="0" max="80" value={cfg.insetX}
+                    onChange={e => set('insetX', +e.target.value)} className="w-full accent-purple-500 cursor-pointer" />
+                </Field>
+                <Field label={`Khoảng cách dọc — ${cfg.insetY}px`}>
+                  <input type="range" min="0" max="80" value={cfg.insetY}
+                    onChange={e => set('insetY', +e.target.value)} className="w-full accent-purple-500 cursor-pointer" />
+                </Field>
+              </div>
 
-              {/* Inline options */}
-              {cfg.embedMode === 'inline' && (
-                <>
-                  <Field label="CSS Selector phần tử chứa nút"
-                    hint="Ví dụ: #my-footer  ·  .cta-box  ·  section.promo  ·  footer">
-                    <input type="text" value={cfg.target}
-                      onChange={e => set('target', e.target.value)}
-                      placeholder="#my-footer-id hoặc .ten-class"
-                      className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none
-                                 focus:ring-2 focus:ring-purple-500 transition font-mono bg-white" />
-                    {cfg.target && (
-                      <p className="text-xs text-purple-600 font-mono mt-1.5 flex items-center gap-1.5">
-                        <Pin size={11} /> querySelector('<b>{cfg.target}</b>')
-                      </p>
-                    )}
-                  </Field>
-
-                  <Field label="Góc trong phần tử" hint="Nút sẽ được absolute-positioned trong phần tử target">
-                    <div className="grid grid-cols-2 gap-2">
-                      {CORNERS.map(c => (
-                        <button key={c.id} type="button" onClick={() => set('insetCorner', c.id)}
-                          className={`flex items-center gap-2 py-2.5 px-3 rounded-xl border-2 text-sm font-semibold transition-all
-                                      ${cfg.insetCorner === c.id ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
-                          <span className="text-lg">{c.emoji}</span> {c.label}
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label={`Khoảng cách ngang — ${cfg.insetX}px`}>
-                      <input type="range" min="0" max="80" value={cfg.insetX}
-                        onChange={e => set('insetX', +e.target.value)} className="w-full accent-purple-500 cursor-pointer" />
-                    </Field>
-                    <Field label={`Khoảng cách dọc — ${cfg.insetY}px`}>
-                      <input type="range" min="0" max="80" value={cfg.insetY}
-                        onChange={e => set('insetY', +e.target.value)} className="w-full accent-purple-500 cursor-pointer" />
-                    </Field>
-                  </div>
-
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 space-y-1">
-                    <p className="font-bold">💡 Lưu ý:</p>
-                    <p>• Phần tử target cần <strong>chiều cao đủ lớn</strong> để nút không bị che.</p>
-                    <p>• Script tự thêm <code className="bg-amber-100 px-1 rounded">position:relative</code> nếu chưa có.</p>
-                    <p>• Thêm <code className="bg-amber-100 px-1 rounded">min-height:80px</code> vào target nếu cần.</p>
-                  </div>
-                </>
-              )}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 space-y-1">
+                <p className="font-bold">💡 Lưu ý:</p>
+                <p>• Nút <strong>chỉ hiển thị</strong> khi tìm thấy phần tử target trên trang.</p>
+                <p>• Nếu trang không có phần tử target, nút sẽ <strong>không hiện</strong>.</p>
+                <p>• Script tự thêm <code className="bg-amber-100 px-1 rounded">position:relative</code> nếu chưa có.</p>
+              </div>
             </div>
           )}
 
