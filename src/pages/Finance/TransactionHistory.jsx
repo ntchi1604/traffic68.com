@@ -30,7 +30,7 @@ export default function TransactionHistory() {
   };
 
   const getMethodLabel = (method) => {
-    const map = { credit_card: 'Thẻ tín dụng', bank_transfer: 'Chuyển khoản', momo: 'MoMo', system: 'Hệ thống', zalopay: 'ZaloPay' };
+    const map = { credit_card: 'Thẻ tín dụng', bank_transfer: 'Chuyển khoản', momo: 'MoMo', system: 'Hệ thống', zalopay: 'ZaloPay', transfer: 'Chuyển ví' };
     return map[method] || method;
   };
 
