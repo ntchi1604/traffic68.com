@@ -244,7 +244,7 @@ export default function CampaignList() {
       </div>
 
       <div className="bg-white rounded-lg shadow border border-slate-200">
-        <div className="overflow-x-auto">
+        <div className={actionMenuId ? 'overflow-visible' : 'overflow-x-auto'}>
           {loading ? (
             <div className="flex justify-center py-12">
               <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -305,7 +305,7 @@ export default function CampaignList() {
                           <MoreVertical className="w-4 h-4 text-slate-500" />
                         </button>
                         {actionMenuId === c.id && (
-                          <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50">
+                          <div className="absolute right-0 bottom-full mb-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50">
                             <button
                               onClick={() => { setEditingCampaign(c); setActionMenuId(null); }}
                               className="flex items-center gap-2.5 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
