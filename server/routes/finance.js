@@ -113,7 +113,7 @@ router.post('/transfer', async (req, res) => {
 
     await conn.commit();
     conn.release();
-    res.json({ message: `Đã chuyển ${fmtAmount} VND sang Ví Traffic`, refCode });
+    res.json({ message: `Đã chuyển ${fmtAmount} VND sang Ví Traffic` });
   } catch (err) {
     await conn.rollback();
     conn.release();
