@@ -190,25 +190,29 @@ export default function VuotLink() {
 
       try {
         // Step 1: Get encrypted challenge
+        // Decrypt helper
+        const decrypt = async (enc) => {
+          const [ivB64, dataB64, tagB64] = enc.split('.');
+          const keyData = new TextEncoder().encode(import.meta.env.VITE_CHALLENGE_KEY);
+          const k = await crypto.subtle.importKey('raw', keyData, 'AES-GCM', false, ['decrypt']);
+          const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
+          const ct = Uint8Array.from(atob(dataB64), c => c.charCodeAt(0));
+          const tg = Uint8Array.from(atob(tagB64), c => c.charCodeAt(0));
+          const buf = new Uint8Array(ct.length + tg.length);
+          buf.set(ct); buf.set(tg, ct.length);
+          const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, k, buf);
+          return JSON.parse(new TextDecoder().decode(dec));
+        };
+
+        // Step 2: Decrypt challenge
         const chRes = await fetch('/api/vuot-link/challenge');
-        const { d: encrypted } = await chRes.json();
+        const { d: encCh } = await chRes.json();
+        const { c: challengeId, j: jsCode } = await decrypt(encCh);
 
-        // Step 2: Decrypt with AES-256-GCM
-        const [ivB64, dataB64, tagB64] = encrypted.split('.');
-        const keyData = new TextEncoder().encode(import.meta.env.VITE_CHALLENGE_KEY);
-        const key = await crypto.subtle.importKey('raw', keyData, 'AES-GCM', false, ['decrypt']);
-        const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
-        const ciphertext = Uint8Array.from(atob(dataB64), c => c.charCodeAt(0));
-        const tag = Uint8Array.from(atob(tagB64), c => c.charCodeAt(0));
-        const combined = new Uint8Array(ciphertext.length + tag.length);
-        combined.set(ciphertext); combined.set(tag, ciphertext.length);
-        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, combined);
-        const { c: challengeId, j: jsCode } = JSON.parse(new TextDecoder().decode(decrypted));
-
-        // Step 3: Evaluate JS code in browser (only works with real DOM)
+        // Step 3: Evaluate JS code in browser
         const jsResult = new Function('return ' + jsCode)();
 
-        // Step 3: Submit result + proof
+        // Step 4: Submit + decrypt task response
         const taskRes = await fetch('/api/vuot-link/task', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -218,9 +222,13 @@ export default function VuotLink() {
             proof: { botScore, mouseCount, timeOnPage: Date.now() - loadTime, sw: window.screen.width, sh: window.screen.height, plugins: navigator.plugins?.length || 0 }
           })
         });
-        const data = await taskRes.json();
-        if (data.task) { setKeyword(data.task.keyword); setTaskId(data.task.id); }
-        else setKeyword(data.error || 'Không có task');
+        const taskJson = await taskRes.json();
+        if (taskJson.d) {
+          const task = await decrypt(taskJson.d);
+          setKeyword(task.keyword); setTaskId(task.id);
+        } else {
+          setKeyword(taskJson.error || 'Không có task');
+        }
       } catch (err) { console.error('VuotLink error:', err); setKeyword('Không có task'); }
     };
 

@@ -104,9 +104,8 @@ router.post('/task', optionalAuth, async (req, res) => {
     [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', expiresAt]
   );
 
-  res.json({
-    task: { id: result.insertId, keyword: campaign.keyword, session, startedAt, expiresAt },
-  });
+  const taskData = { id: result.insertId, keyword: campaign.keyword, session, startedAt, expiresAt };
+  res.json({ d: encryptPayload(taskData) });
 });
 
 // ── PUT /api/vuot-link/task/:id/step ──
