@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet } from 'lucide-react';
+import { useToast } from '../../components/Toast';
+import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
 
-const fmt = (n) => (n || 0).toLocaleString('vi-VN');
+
 
 /* ── Balance Modal ── */
 function BalanceModal({ user, onClose, onDone }) {
@@ -153,6 +155,7 @@ function BalanceModal({ user, onClose, onDone }) {
 /* ── Main ── */
 export default function AdminUsers() {
   usePageTitle('Admin - Người dùng');
+  const toast = useToast();
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -178,7 +181,7 @@ export default function AdminUsers() {
       await api.put(`/admin/users/${id}`, updates);
       fetchUsers(search);
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -188,7 +191,7 @@ export default function AdminUsers() {
       await api.delete(`/admin/users/${id}`);
       fetchUsers(search);
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 

@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import usePageTitle from '../hooks/usePageTitle';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail, User, Rocket, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { useToast } from '../components/Toast';
 
 export default function DangNhap() {
   usePageTitle('Đăng nhập');
   const navigate = useNavigate();
+  const toast = useToast();
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({ login: '', password: '' });
   const [remember, setRemember] = useState(false);
@@ -45,6 +47,7 @@ export default function DangNhap() {
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
+      toast.success(`Chào mừng ${data.user.name || 'bạn'}!`, 'Đăng nhập thành công');
       navigate('/dashboard');
     } catch (err) {
       setError('Không thể kết nối đến máy chủ');

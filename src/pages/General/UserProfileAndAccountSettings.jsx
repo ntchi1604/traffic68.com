@@ -3,11 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import usePageTitle from '../../hooks/usePageTitle';
 import { User, Lock, Mail, Phone, Save, Camera, Check } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
+import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 
 export default function UserProfileAndAccountSettings() {
   usePageTitle('Hồ sơ & Tài khoản');
   const [searchParams] = useSearchParams();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile');
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', avatar: '' });
   const [passwordForm, setPasswordForm] = useState({
@@ -71,11 +73,11 @@ export default function UserProfileAndAccountSettings() {
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (passwordForm.new !== passwordForm.confirm) {
-      alert('Mật khẩu mới và xác nhận mật khẩu không khớp!');
+      toast.error('Mật khẩu mới và xác nhận mật khẩu không khớp!');
       return;
     }
     if (passwordForm.new.length < 8) {
-      alert('Mật khẩu mới phải có ít nhất 8 ký tự!');
+      toast.error('Mật khẩu mới phải có ít nhất 8 ký tự!');
       return;
     }
 

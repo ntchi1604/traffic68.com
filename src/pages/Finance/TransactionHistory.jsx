@@ -3,6 +3,7 @@ import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
 import { Banknote, Plus, Filter, Download } from 'lucide-react';
 import api from '../../lib/api';
+import { formatMoney } from '../../lib/format';
 
 export default function TransactionHistory() {
   usePageTitle('Lịch sử giao dịch');
@@ -33,7 +34,7 @@ export default function TransactionHistory() {
     return map[method] || method;
   };
 
-  const fmt = (n) => (n || 0).toLocaleString('vi-VN');
+  const fmt = (n) => formatMoney(n);
 
   return (
     <div className="space-y-6">

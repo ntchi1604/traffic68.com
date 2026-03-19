@@ -6,6 +6,7 @@ import {
   BarChart2, Wallet, Gift, Star, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import api from '../../lib/api';
+import { formatMoney as fmt } from '../../lib/format';
 import Breadcrumb from '../../components/Breadcrumb';
 
 /* ── Static data ─────────────────────────────────────────── */
@@ -201,7 +202,7 @@ export default function CreateCampaign() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const fmt = (n) => (n || 0).toLocaleString('vi-VN');
+
 
   useEffect(() => {
     api.get('/finance').then(data => {
@@ -264,7 +265,7 @@ export default function CreateCampaign() {
 
   /* price per view (VNĐ) */
   const pricePerView = form.version === 'v1' ? 15 : 10;
-  const totalPrice = (form.totalViews * pricePerView).toLocaleString('vi-VN');
+  const totalPrice = fmt(form.totalViews * pricePerView);
 
   return (
     <div className="space-y-0">
@@ -637,8 +638,8 @@ export default function CreateCampaign() {
                   value={form.version === 'v1' ? 'Version 1 (2 bước)' : form.version === 'v2' ? 'Version 2 (1 bước)' : '—'} />
                 <SummaryRow label="Thời gian"
                   value={DURATIONS.find(d => d.value === form.duration)?.label || '—'} />
-                <SummaryRow label="View/ngày" value={form.dailyViews.toLocaleString('vi-VN')} />
-                <SummaryRow label="Tổng view" value={form.totalViews.toLocaleString('vi-VN')} />
+                <SummaryRow label="View/ngày" value={fmt(form.dailyViews)} />
+                <SummaryRow label="Tổng view" value={fmt(form.totalViews)} />
                 <SummaryRow label="Đơn giá/view" value={`${pricePerView} VNĐ`} />
                 {form.discountCode && (
                   <SummaryRow label="Mã giảm giá" value={form.discountCode} accent />

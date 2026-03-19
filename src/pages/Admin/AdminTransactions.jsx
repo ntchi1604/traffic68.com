@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { CheckCircle, XCircle, X, Calendar, Filter } from 'lucide-react';
+import { useToast } from '../../components/Toast';
+import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
 
-const fmt = (n) => (n || 0).toLocaleString('vi-VN');
+
 
 const TYPE_MAP = {
   deposit: { label: 'Nạp tiền', cls: 'bg-green-100 text-green-700' },
@@ -44,7 +46,7 @@ function RejectModal({ tx, onClose, onDone }) {
       await api.put(`/admin/transactions/${tx.id}/reject`, { reason: reason || 'Không hợp lệ' });
       onDone();
       onClose();
-    } catch (err) { alert(err.message); }
+    } catch (err) { console.error(err.message); }
     finally { setLoading(false); }
   };
 
@@ -79,6 +81,7 @@ function RejectModal({ tx, onClose, onDone }) {
 /* ── Main ── */
 export default function AdminTransactions() {
   usePageTitle('Admin - Giao dịch');
+  const toast = useToast();
   const [transactions, setTransactions] = useState([]);
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -105,8 +108,9 @@ export default function AdminTransactions() {
     if (!confirm(`Duyệt đơn nạp ${fmt(tx.amount)} đ của ${tx.user_name}?`)) return;
     try {
       await api.put(`/admin/transactions/${tx.id}/approve`);
+      toast.success(`Đã duyệt đơn nạp ${fmt(tx.amount)} đ`);
       fetchData();
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   };
 
   const applyPreset = (p) => {

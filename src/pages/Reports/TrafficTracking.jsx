@@ -14,7 +14,7 @@ const pieData = [
   { name: 'Backlink',      value: 0, color: '#f59e0b' },
 ];
 
-function fmt(n) { return (n || 0).toLocaleString('vi-VN'); }
+import { formatMoney as fmt } from '../../lib/format';
 
 export default function TrafficTracking() {
   usePageTitle('Theo dõi lưu lượng');

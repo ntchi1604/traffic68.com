@@ -3,11 +3,14 @@ import usePageTitle from '../../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
 import { Eye, Pause, Play, Edit, Trash2 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
+import { useToast } from '../../components/Toast';
+import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
 
 export default function CampaignList() {
   usePageTitle('Quản lý chiến dịch');
   const navigate = useNavigate();
+  const toast = useToast();
   const [campaigns, setCampaigns] = useState([]);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -39,7 +42,7 @@ export default function CampaignList() {
     try {
       await api.put(`/campaigns/${id}/status`, { status: newStatus });
       setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   };
 
   const handleDelete = async (id) => {
@@ -47,10 +50,10 @@ export default function CampaignList() {
     try {
       await api.delete(`/campaigns/${id}`);
       setCampaigns(prev => prev.filter(c => c.id !== id));
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   };
 
-  const fmt = (n) => (n || 0).toLocaleString('vi-VN');
+
 
   return (
     <div className="space-y-6">

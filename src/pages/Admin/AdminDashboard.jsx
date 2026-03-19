@@ -19,7 +19,7 @@ function StatCard({ icon: Icon, label, value, color, bg, badge }) {
   );
 }
 
-const fmt = (n) => (n || 0).toLocaleString('vi-VN');
+import { formatMoney as fmt } from '../../lib/format';
 
 /* Date helpers */
 const today = () => new Date().toISOString().slice(0, 10);

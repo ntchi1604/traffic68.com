@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { Send, Phone, Mail, Clock, CheckCircle, AlertCircle, MessageSquare } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
+import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 
 const STATUS_MAP = {
@@ -19,6 +20,7 @@ const PRIORITY_MAP = {
 
 export default function SettingsAndSupport() {
   usePageTitle('Hỗ trợ');
+  const toast = useToast();
   const [ticketData, setTicketData] = useState({
     subject: '',
     description: '',
@@ -50,11 +52,11 @@ export default function SettingsAndSupport() {
     setIsSubmitting(true);
     try {
       const data = await api.post('/support/tickets', ticketData);
-      alert(`Gửi yêu cầu hỗ trợ thành công! Ticket #${data.ticketId}`);
+      toast.success(`Ticket #${data.ticketId} đã được tạo`, 'Gửi yêu cầu thành công');
       setTicketData({ subject: '', description: '', priority: 'medium' });
       fetchTickets();
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setIsSubmitting(false);
     }

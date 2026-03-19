@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { CheckCircle, Clock, XCircle, Send, MessageSquare, X } from 'lucide-react';
+import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 
 const STATUS_MAP = {
@@ -24,7 +25,7 @@ function ReplyModal({ ticket, onClose, onDone }) {
       onDone();
       onClose();
     } catch (err) {
-      alert(err.message);
+      // error handled by caller
     } finally {
       setLoading(false);
     }
@@ -89,6 +90,7 @@ function ReplyModal({ ticket, onClose, onDone }) {
 
 export default function AdminTickets() {
   usePageTitle('Admin - Hỗ trợ');
+  const toast = useToast();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [replyTicket, setReplyTicket] = useState(null);
@@ -107,7 +109,7 @@ export default function AdminTickets() {
     try {
       await api.put(`/admin/tickets/${id}`, { status });
       fetchTickets();
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   };
 
   return (

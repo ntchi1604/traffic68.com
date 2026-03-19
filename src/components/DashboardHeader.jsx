@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Wallet, Gift, ChevronDown } from 'lucide-react';
 import NotificationDropdown from './NotificationDropdown';
 import api, { getUser, clearAuth } from '../lib/api';
+import { formatMoney as fmt } from '../lib/format';
 
 export default function DashboardHeader({ onMenuClick }) {
   const navigate = useNavigate();
@@ -43,7 +44,7 @@ export default function DashboardHeader({ onMenuClick }) {
     navigate('/dang-nhap');
   };
 
-  const fmt = (n) => n.toLocaleString('vi-VN');
+
   const initials = (user.name || 'U').split(' ').map(w => w[0]).join('').slice(-2).toUpperCase();
 
   return (

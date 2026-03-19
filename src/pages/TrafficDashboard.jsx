@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { ChevronDown } from 'lucide-react';
 import Breadcrumb from '../components/Breadcrumb';
+import { formatMoney as fmt } from '../lib/format';
 import api from '../lib/api';
 
 const deviceTraffic = [
@@ -42,7 +43,7 @@ export default function TrafficDashboard() {
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
-  const fmt = (n) => (n || 0).toLocaleString('vi-VN');
+
 
   if (loading) {
     return (

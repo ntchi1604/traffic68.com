@@ -10,7 +10,7 @@ import api from '../../lib/api';
 import Breadcrumb from '../../components/Breadcrumb';
 
 /* ── helpers ──────────────────────────────────────── */
-const fmt = (n) => n.toLocaleString('vi-VN');
+import { formatMoney as fmt } from '../../lib/format';
 
 const METHODS = [
   { id: 'momo',  label: 'Momo',           Icon: Smartphone, color: 'bg-pink-500',  border: 'border-pink-200',  bg: 'bg-pink-50'  },

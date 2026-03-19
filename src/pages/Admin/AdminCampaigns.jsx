@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { Search, Play, Pause, CheckCircle, ExternalLink } from 'lucide-react';
+import { useToast } from '../../components/Toast';
+import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
 
-const fmt = (n) => (n || 0).toLocaleString('vi-VN');
+
 
 const STATUS_MAP = {
   running:   { label: 'Đang chạy', cls: 'bg-green-100 text-green-700' },
@@ -13,6 +15,7 @@ const STATUS_MAP = {
 
 export default function AdminCampaigns() {
   usePageTitle('Admin - Chiến dịch');
+  const toast = useToast();
   const [campaigns, setCampaigns] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -32,7 +35,7 @@ export default function AdminCampaigns() {
     try {
       await api.put(`/admin/campaigns/${id}`, { status });
       fetchCampaigns();
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   };
 
   return (

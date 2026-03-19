@@ -47,7 +47,7 @@ const cards = [
   },
 ];
 
-function fmt(n) { return n.toLocaleString('vi-VN'); }
+import { formatMoney as fmt } from '../lib/format';
 
 const faqs = [
   { q: 'Tôi có thể nâng cấp gói bất cứ lúc nào không?', a: 'Có, bạn có thể nâng hoặc hạ gói bất cứ lúc nào. Phần dư sẽ được tính theo tỷ lệ ngày.' },

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import usePageTitle from '../hooks/usePageTitle';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail, User, Rocket, CheckCircle2, TrendingUp, Link2 } from 'lucide-react';
-
+import { useToast } from '../components/Toast';
 
 const testimonials = [
   { quote: 'Tăng 500% traffic chỉ sau 2 tháng. Đội ngũ hỗ trợ tuyệt vời!', name: 'Anh Tuấn', role: 'CEO – TechStartup.vn', initials: 'AT', gradient: 'from-orange-400 to-orange-600' },
@@ -99,6 +99,7 @@ function TestimonialCarousel() {
 export default function DangKy() {
   usePageTitle('Đăng ký');
   const navigate = useNavigate();
+  const toast = useToast();
   const [show, setShow] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [form, setForm] = useState({
@@ -148,6 +149,7 @@ export default function DangKy() {
         return;
       }
       setDone(true);
+      toast.success('Tài khoản đã được tạo thành công!', 'Đăng ký thành công');
     } catch {
       setError('Không thể kết nối đến máy chủ');
     } finally {
