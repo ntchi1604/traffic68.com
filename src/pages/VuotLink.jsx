@@ -116,17 +116,62 @@ export default function VuotLink() {
   const [glowing, setGlowing] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [taskId, setTaskId] = useState(null);
+  const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
-    fetch('/api/vuot-link/task')
-      .then(r => r.json())
-      .then(data => {
-        if (data.task) {
-          setKeyword(data.task.keyword);
-          setTaskId(data.task.id);
-        }
-      })
-      .catch(() => setKeyword('Không có task'));
+    // ── Anti-bot checks ──
+    const isBot = () => {
+      // 1. WebDriver / Headless detection
+      if (navigator.webdriver) return true;
+      // 2. No plugins (headless usually has 0)
+      if (navigator.plugins && navigator.plugins.length === 0 && !/mobile/i.test(navigator.userAgent)) return true;
+      // 3. Screen size 0 (headless)
+      if (window.screen.width === 0 || window.screen.height === 0) return true;
+      // 4. Chrome without chrome object
+      if (/Chrome/.test(navigator.userAgent) && !window.chrome) return true;
+      return false;
+    };
+
+    if (isBot()) {
+      setBlocked(true);
+      setKeyword('Trình duyệt không hợp lệ');
+      return;
+    }
+
+    // Wait for human interaction before fetching task
+    let interacted = false;
+    const handleInteraction = () => {
+      if (interacted) return;
+      interacted = true;
+      window.removeEventListener('mousemove', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+      window.removeEventListener('scroll', handleInteraction);
+
+      fetch('/api/vuot-link/task')
+        .then(r => r.json())
+        .then(data => {
+          if (data.task) {
+            setKeyword(data.task.keyword);
+            setTaskId(data.task.id);
+          }
+        })
+        .catch(() => setKeyword('Không có task'));
+    };
+
+    // Require at least 1 user interaction
+    window.addEventListener('mousemove', handleInteraction);
+    window.addEventListener('touchstart', handleInteraction);
+    window.addEventListener('scroll', handleInteraction);
+
+    // Fallback: auto-load after 3s (for real users who don't move mouse immediately)
+    const timer = setTimeout(handleInteraction, 3000);
+
+    return () => {
+      window.removeEventListener('mousemove', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+      window.removeEventListener('scroll', handleInteraction);
+      clearTimeout(timer);
+    };
   }, []);
 
   return (

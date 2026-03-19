@@ -4,8 +4,14 @@ const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Bot user-agent patterns
+const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
+
 // ── GET /api/vuot-link/task (PUBLIC) ──
 router.get('/task', optionalAuth, async (req, res) => {
+  const ua = req.headers['user-agent'] || '';
+  if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Trình duyệt không hợp lệ' });
+
   const pool = getPool();
   const [campaigns] = await pool.execute(
     `SELECT * FROM campaigns WHERE status = 'running' AND traffic_type = 'google_search' AND keyword != '' AND views_done < total_views ORDER BY RAND() LIMIT 1`
