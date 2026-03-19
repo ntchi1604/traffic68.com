@@ -75,6 +75,12 @@ async function seed() {
     );
   }
   console.log('💰 Default pricing tiers seeded');
+
+  // ── Default site settings ──
+  await pool.execute("INSERT IGNORE INTO site_settings (setting_key, setting_value) VALUES ('discount_code', 'SALE_ALL_40')");
+  await pool.execute("INSERT IGNORE INTO site_settings (setting_key, setting_value) VALUES ('discount_percent', '40')");
+  await pool.execute("INSERT IGNORE INTO site_settings (setting_key, setting_value) VALUES ('discount_label', 'Khai trương hệ thống - Giảm giá 40%')");
+  console.log('⚙️ Default site settings seeded');
 }
 
 module.exports = { seed };

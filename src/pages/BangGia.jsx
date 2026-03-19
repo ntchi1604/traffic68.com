@@ -1,53 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import usePageTitle from '../hooks/usePageTitle';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Tag } from 'lucide-react';
 import Footer from '../components/Footer';
 import BottomCTA from '../components/BottomCTA';
-
-/* ── Pricing data (exact values) ── */
-const DISCOUNT_CODE = 'SALE_ALL_40';
-
-const cards = [
-  {
-    bg: 'bg-blue-50',
-    border: 'border-blue-100',
-    icon: '/google_icon.png',
-    title: 'GOOGLE SEARCH TRAFFIC',
-    tiers: [
-      { dur: '60s',  v1: 700,  d1: 420, v2: 600,  d2: 360 },
-      { dur: '120s', v1: 850,  d1: 510, v2: 750,  d2: 450 },
-      { dur: '150s', v1: 1000, d1: 600, v2: 900,  d2: 550 },
-      { dur: '200s', v1: 1150, d1: 690, v2: 1050, d2: 630 },
-    ],
-  },
-  {
-    bg: 'bg-pink-50',
-    border: 'border-pink-100',
-    icon: '/social_icons.png',
-    title: 'SOCIAL TRAFFIC',
-    tiers: [
-      { dur: '60s',  v1: 700,  d1: 420, v2: 600,  d2: 360 },
-      { dur: '120s', v1: 850,  d1: 510, v2: 750,  d2: 450 },
-      { dur: '150s', v1: 1000, d1: 600, v2: 900,  d2: 550 },
-      { dur: '200s', v1: 1150, d1: 690, v2: 1050, d2: 630 },
-    ],
-  },
-  {
-    bg: 'bg-green-50',
-    border: 'border-green-100',
-    icon: '/direct_icon.png',
-    title: 'DIRECT TRAFFIC',
-    tiers: [
-      { dur: '60s',  v1: 500, d1: 300, v2: 400, d2: 240 },
-      { dur: '120s', v1: 650, d1: 390, v2: 550, d2: 330 },
-      { dur: '150s', v1: 800, d1: 480, v2: 700, d2: 420 },
-      { dur: '200s', v1: 950, d1: 570, v2: 850, d2: 510 },
-    ],
-  },
-];
-
 import { formatMoney as fmt } from '../lib/format';
+
+/* ── Static styling per traffic type ── */
+const TYPE_STYLE = {
+  google_search: { bg: 'bg-blue-50', border: 'border-blue-100', icon: '/google_icon.png', title: 'GOOGLE SEARCH TRAFFIC' },
+  social: { bg: 'bg-pink-50', border: 'border-pink-100', icon: '/social_icons.png', title: 'SOCIAL TRAFFIC' },
+  direct: { bg: 'bg-green-50', border: 'border-green-100', icon: '/direct_icon.png', title: 'DIRECT TRAFFIC' },
+};
 
 const faqs = [
   { q: 'Tôi có thể nâng cấp gói bất cứ lúc nào không?', a: 'Có, bạn có thể nâng hoặc hạ gói bất cứ lúc nào. Phần dư sẽ được tính theo tỷ lệ ngày.' },
@@ -58,6 +22,49 @@ const faqs = [
 
 export default function BangGia() {
   usePageTitle('Bảng giá');
+
+  const [cards, setCards] = useState([]);
+  const [config, setConfig] = useState({ discount_code: 'SALE_ALL_40', discount_percent: '40', discount_label: 'Khai trương hệ thống - Giảm giá 40%' });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/pricing')
+      .then(r => r.json())
+      .then(data => {
+        if (data.config) setConfig(data.config);
+
+        // Group tiers by traffic_type
+        const grouped = {};
+        (data.tiers || []).forEach(t => {
+          if (!grouped[t.traffic_type]) grouped[t.traffic_type] = [];
+          grouped[t.traffic_type].push(t);
+        });
+
+        // Convert to card format
+        const order = ['google_search', 'social', 'direct'];
+        const result = order
+          .filter(type => grouped[type])
+          .map(type => {
+            const style = TYPE_STYLE[type] || { bg: 'bg-gray-50', border: 'border-gray-100', icon: '', title: type };
+            return {
+              ...style,
+              tiers: grouped[type].map(t => ({
+                dur: t.duration,
+                v1: t.v1_price,
+                d1: t.v1_discount,
+                v2: t.v2_price,
+                d2: t.v2_discount,
+              })),
+            };
+          });
+        setCards(result);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const discountPercent = config.discount_percent || '40';
+
   return (
     <>
       {/* Hero */}
@@ -81,74 +88,80 @@ export default function BangGia() {
                             rounded-2xl px-6 py-3 shadow-lg shadow-red-200/40">
               <Tag size={18} />
               <div className="text-left">
-                <p className="text-sm font-black">Khai trương hệ thống - Giảm giá 40%</p>
+                <p className="text-sm font-black">{config.discount_label || `Giảm giá ${discountPercent}%`}</p>
                 <p className="text-xs opacity-80">
-                  Trong lúc tạo chiến dịch mới add mã giảm giá <strong className="bg-white/20 px-1.5 py-0.5 rounded">{DISCOUNT_CODE}</strong>.
+                  Trong lúc tạo chiến dịch mới add mã giảm giá <strong className="bg-white/20 px-1.5 py-0.5 rounded">{config.discount_code}</strong>.
                 </p>
               </div>
-              <span className="text-2xl font-black">Giảm 40%</span>
+              <span className="text-2xl font-black">Giảm {discountPercent}%</span>
             </div>
           </div>
 
-          {/* 3 cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {cards.map(({ bg, border, icon, title, tiers }) => (
-              <div
-                key={title}
-                className={`${bg} border ${border} rounded-2xl p-6 flex flex-col transition-all hover:shadow-lg hover:-translate-y-1`}
-              >
-                {/* Icon */}
-                <img src={icon} alt={title} className="w-20 h-20 object-contain mx-auto mb-3" />
-
-                {/* Title */}
-                <h3 className="text-center text-base font-black text-[#1e3a5f] uppercase tracking-wide mb-5">
-                  {title}
-                </h3>
-
-                {/* Tiers */}
-                <div className="space-y-4 flex-1">
-                  {tiers.map(({ dur, v1, d1, v2, d2 }) => (
-                    <div key={dur} className="bg-white/60 rounded-xl p-3 border border-gray-100/80">
-                      {/* Duration label */}
-                      <p className="text-sm text-gray-700 mb-1.5">
-                        - <strong>Gói {dur}:</strong>{' '}
-                        <span className="text-gray-500">[Thời gian: <strong>{dur}</strong>]</span>
-                      </p>
-
-                      {/* Version 1 (2 bước) */}
-                      <div className="flex items-start gap-1.5 mb-1">
-                        <CheckCircle2 size={14} className="text-green-500 shrink-0 mt-0.5" />
-                        <span className="text-sm">
-                          Version 1 (2 bước){' '}
-                          <span className="text-[10px] font-bold text-white bg-orange-500 px-1.5 py-0.5 rounded">Best</span>
-                          : <span className="line-through text-gray-400">{fmt(v1)} VNĐ</span>{' '}
-                          <strong>{fmt(d1)} VNĐ</strong>{' '}
-                          <span className="text-red-500 font-bold text-xs">(-40%)</span>
-                        </span>
-                      </div>
-
-                      {/* Version 2 (1 bước) */}
-                      <p className="text-sm text-gray-600 ml-5">
-                        Version 2 (1 bước): <span className="line-through text-gray-400">{fmt(v2)} VNĐ</span>{' '}
-                        <strong>{fmt(d2)} VNĐ</strong>{' '}
-                        <span className="text-red-500 font-bold text-xs">(-40%)</span>
-                      </p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* CTA */}
-                <Link
-                  to="/dang-ky"
-                  className="mt-5 flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c]
-                             text-white font-bold text-sm px-6 py-3 rounded-xl shadow-md shadow-orange-200
-                             transition-all hover:-translate-y-0.5 active:scale-95"
+          {loading ? (
+            <div className="flex justify-center py-16">
+              <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            /* 3 cards */
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {cards.map(({ bg, border, icon, title, tiers }) => (
+                <div
+                  key={title}
+                  className={`${bg} border ${border} rounded-2xl p-6 flex flex-col transition-all hover:shadow-lg hover:-translate-y-1`}
                 >
-                  MUA GÓI <ArrowRight size={16} />
-                </Link>
-              </div>
-            ))}
-          </div>
+                  {/* Icon */}
+                  <img src={icon} alt={title} className="w-20 h-20 object-contain mx-auto mb-3" />
+
+                  {/* Title */}
+                  <h3 className="text-center text-base font-black text-[#1e3a5f] uppercase tracking-wide mb-5">
+                    {title}
+                  </h3>
+
+                  {/* Tiers */}
+                  <div className="space-y-4 flex-1">
+                    {tiers.map(({ dur, v1, d1, v2, d2 }) => (
+                      <div key={dur} className="bg-white/60 rounded-xl p-3 border border-gray-100/80">
+                        {/* Duration label */}
+                        <p className="text-sm text-gray-700 mb-1.5">
+                          - <strong>Gói {dur}:</strong>{' '}
+                          <span className="text-gray-500">[Thời gian: <strong>{dur}</strong>]</span>
+                        </p>
+
+                        {/* Version 1 (2 bước) */}
+                        <div className="flex items-start gap-1.5 mb-1">
+                          <CheckCircle2 size={14} className="text-green-500 shrink-0 mt-0.5" />
+                          <span className="text-sm">
+                            Version 1 (2 bước){' '}
+                            <span className="text-[10px] font-bold text-white bg-orange-500 px-1.5 py-0.5 rounded">Best</span>
+                            : <span className="line-through text-gray-400">{fmt(v1)} VNĐ</span>{' '}
+                            <strong>{fmt(d1)} VNĐ</strong>{' '}
+                            <span className="text-red-500 font-bold text-xs">(-{discountPercent}%)</span>
+                          </span>
+                        </div>
+
+                        {/* Version 2 (1 bước) */}
+                        <p className="text-sm text-gray-600 ml-5">
+                          Version 2 (1 bước): <span className="line-through text-gray-400">{fmt(v2)} VNĐ</span>{' '}
+                          <strong>{fmt(d2)} VNĐ</strong>{' '}
+                          <span className="text-red-500 font-bold text-xs">(-{discountPercent}%)</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* CTA */}
+                  <Link
+                    to="/dang-ky"
+                    className="mt-5 flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c]
+                               text-white font-bold text-sm px-6 py-3 rounded-xl shadow-md shadow-orange-200
+                               transition-all hover:-translate-y-0.5 active:scale-95"
+                  >
+                    MUA GÓI <ArrowRight size={16} />
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Bottom note */}
           <p className="text-center text-sm text-gray-400 mt-8">

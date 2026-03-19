@@ -44,8 +44,11 @@ app.get('/api/pricing', async (req, res) => {
   try {
     const { getPool } = require('./db');
     const pool = getPool();
-    const [rows] = await pool.execute('SELECT * FROM pricing_tiers ORDER BY traffic_type, duration');
-    res.json({ tiers: rows });
+    const [tiers] = await pool.execute('SELECT * FROM pricing_tiers ORDER BY traffic_type, duration');
+    const [settings] = await pool.execute("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('discount_code','discount_percent','discount_label')");
+    const config = {};
+    settings.forEach(s => { config[s.setting_key] = s.setting_value; });
+    res.json({ tiers, config });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

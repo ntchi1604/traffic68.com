@@ -345,4 +345,34 @@ router.put('/pricing/:id', async (req, res) => {
   }
 });
 
+// ── GET /admin/settings/site ──
+router.get('/settings/site', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute('SELECT setting_key, setting_value FROM site_settings');
+    const config = {};
+    rows.forEach(r => { config[r.setting_key] = r.setting_value; });
+    res.json({ config });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PUT /admin/settings/site ──
+router.put('/settings/site', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { settings } = req.body; // { discount_code: '...', discount_percent: '40', ... }
+    for (const [key, value] of Object.entries(settings || {})) {
+      await pool.execute(
+        'INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?',
+        [key, String(value), String(value)]
+      );
+    }
+    res.json({ message: 'Cập nhật cài đặt thành công' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
