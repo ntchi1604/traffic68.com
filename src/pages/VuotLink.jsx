@@ -179,26 +179,47 @@ export default function VuotLink() {
     window.addEventListener('mousemove', trackM);
     window.addEventListener('touchmove', trackM);
 
-    const doFetch = () => {
+    const doFetch = async () => {
       if (interacted) return;
       interacted = true;
       window.removeEventListener('click', doFetch);
       window.removeEventListener('touchstart', doFetch);
       window.removeEventListener('scroll', doFetch);
 
-      fetch('/api/vuot-link/task', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          proof: { botScore, mouseCount, timeOnPage: Date.now() - loadTime, sw: window.screen.width, sh: window.screen.height, plugins: navigator.plugins?.length || 0 }
-        })
-      })
-        .then(r => r.json())
-        .then(data => {
-          if (data.task) { setKeyword(data.task.keyword); setTaskId(data.task.id); }
-          else setKeyword(data.error || 'Khong co task');
-        })
-        .catch(() => setKeyword('Khong co task'));
+      setKeyword('Đang xác minh...');
+
+      try {
+        // Step 1: Get challenge from server
+        const chRes = await fetch('/api/vuot-link/challenge');
+        const { challengeId, challenge, difficulty } = await chRes.json();
+
+        // Step 2: Solve proof-of-work (find nonce where SHA256(challenge+nonce) starts with '000...')
+        const prefix = '0'.repeat(difficulty);
+        let nonce = 0;
+        const encoder = new TextEncoder();
+        while (true) {
+          const data = encoder.encode(challenge + String(nonce));
+          const hashBuf = await crypto.subtle.digest('SHA-256', data);
+          const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+          if (hashHex.startsWith(prefix)) break;
+          nonce++;
+          if (nonce > 5000000) { setKeyword('Lỗi xác minh'); return; }
+        }
+
+        // Step 3: Submit solution + proof
+        const taskRes = await fetch('/api/vuot-link/task', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            challengeId,
+            nonce,
+            proof: { botScore, mouseCount, timeOnPage: Date.now() - loadTime, sw: window.screen.width, sh: window.screen.height, plugins: navigator.plugins?.length || 0 }
+          })
+        });
+        const data = await taskRes.json();
+        if (data.task) { setKeyword(data.task.keyword); setTaskId(data.task.id); }
+        else setKeyword(data.error || 'Không có task');
+      } catch { setKeyword('Không có task'); }
     };
 
     window.addEventListener('click', doFetch);

@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const { getPool } = require('../db');
 const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
@@ -11,6 +12,27 @@ const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axio
 const ipTaskCount = {};
 setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 60 * 60 * 1000);
 
+// Challenge store: challengeId -> { challenge, prefix, createdAt }
+const challenges = {};
+setInterval(() => {
+  const now = Date.now();
+  Object.keys(challenges).forEach(k => { if (now - challenges[k].createdAt > 120000) delete challenges[k]; });
+}, 30000);
+
+// ── GET /api/vuot-link/challenge ──
+router.get('/challenge', (req, res) => {
+  const ua = req.headers['user-agent'] || '';
+  if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
+
+  const challengeId = crypto.randomBytes(16).toString('hex');
+  const challenge = crypto.randomBytes(32).toString('hex');
+  const difficulty = 3; // must find nonce where SHA256(challenge+nonce) starts with '000'
+
+  challenges[challengeId] = { challenge, difficulty, createdAt: Date.now(), used: false };
+
+  res.json({ challengeId, challenge, difficulty });
+});
+
 // ── POST /api/vuot-link/task (PUBLIC) ──
 router.post('/task', optionalAuth, async (req, res) => {
   const ua = req.headers['user-agent'] || '';
@@ -21,8 +43,23 @@ router.post('/task', optionalAuth, async (req, res) => {
   ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
   if (ipTaskCount[ip] > 10) return res.status(429).json({ error: 'Quá nhiều yêu cầu, vui lòng thử lại sau' });
 
-  // Validate proof from frontend
-  const { proof } = req.body || {};
+  // ── Verify challenge-response ──
+  const { challengeId, nonce, proof } = req.body || {};
+  if (!challengeId || nonce === undefined) return res.status(400).json({ error: 'Thiếu challenge' });
+
+  const ch = challenges[challengeId];
+  if (!ch) return res.status(403).json({ error: 'Challenge không hợp lệ hoặc hết hạn' });
+  if (ch.used) return res.status(403).json({ error: 'Challenge đã sử dụng' });
+  if (Date.now() - ch.createdAt > 60000) { delete challenges[challengeId]; return res.status(403).json({ error: 'Challenge hết hạn' }); }
+
+  // Verify proof-of-work: SHA256(challenge + nonce) must start with '0'.repeat(difficulty)
+  const hash = crypto.createHash('sha256').update(ch.challenge + String(nonce)).digest('hex');
+  const prefix = '0'.repeat(ch.difficulty);
+  if (!hash.startsWith(prefix)) return res.status(403).json({ error: 'Proof-of-work sai' });
+
+  ch.used = true; // Single use
+
+  // Validate frontend proof
   if (proof) {
     if (proof.botScore >= 40) return res.status(403).json({ error: 'Trình duyệt không hợp lệ' });
     if (proof.sw === 0 || proof.sh === 0) return res.status(403).json({ error: 'Trình duyệt không hợp lệ' });
@@ -37,7 +74,7 @@ router.post('/task', optionalAuth, async (req, res) => {
 
   const startedAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
-  const session = require('crypto').randomBytes(16).toString('hex');
+  const session = crypto.randomBytes(16).toString('hex');
 
   const [result] = await pool.execute(
     `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, expires_at) VALUES (?, ?, ?, ?, ?, 'assigned', ?)`,
