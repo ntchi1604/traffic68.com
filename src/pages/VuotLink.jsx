@@ -106,9 +106,6 @@ export default function VuotLink() {
     const doFetch = async () => {
       if (interacted) return;
       interacted = true;
-      window.removeEventListener('click', doFetch);
-      window.removeEventListener('touchstart', doFetch);
-      window.removeEventListener('scroll', doFetch);
 
       setKeyword('Đang xác minh...');
 
@@ -162,18 +159,11 @@ export default function VuotLink() {
       } catch (err) { console.error('VuotLink error:', err); setKeyword('Không có task'); }
     };
 
-    window.addEventListener('click', doFetch);
-    window.addEventListener('touchstart', doFetch);
-    window.addEventListener('scroll', doFetch);
-    const timer = setTimeout(doFetch, 5000);
+    doFetch();
 
     return () => {
-      window.removeEventListener('click', doFetch);
-      window.removeEventListener('touchstart', doFetch);
-      window.removeEventListener('scroll', doFetch);
       window.removeEventListener('mousemove', trackM);
       window.removeEventListener('touchmove', trackM);
-      clearTimeout(timer);
     };
   }, []);
 
