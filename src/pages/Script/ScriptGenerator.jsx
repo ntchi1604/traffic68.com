@@ -37,7 +37,7 @@ const DEFAULT_CFG = {
   /* Vị trí chèn */
   insertTarget: '.footer',
   insertMode: 'after',
-  insertId: 'API-SEO_TRAFFIC68',
+  insertId: 'API_SEO_TRAFFIC68',
   insertStyle: '',
   align: 'center',
   padX: 0,

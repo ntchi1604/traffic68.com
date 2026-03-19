@@ -52,7 +52,7 @@
     /* Vị trí chèn */
     insertTarget: '.footer',
     insertMode: 'after',
-    insertId: 'API-SEO_TRAFFIC68',
+    insertId: 'API_SEO_TRAFFIC68',
     insertStyle: '',
     align: 'center',
     padX: 0,
@@ -332,7 +332,7 @@
   function _placeButton(btn, container) {
     var alignMap = {
       'top-left': 'flex-start', 'bottom-left': 'flex-start', 'left': 'flex-start',
-      'top-right': 'flex-end',  'bottom-right': 'flex-end',  'right': 'flex-end',
+      'top-right': 'flex-end', 'bottom-right': 'flex-end', 'right': 'flex-end',
       'center': 'center',
     };
     var justify = alignMap[cfg.align] || 'center';
