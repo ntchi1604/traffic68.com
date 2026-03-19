@@ -19,6 +19,7 @@ function getPool() {
       waitForConnections: true,
       connectionLimit: 10,
       charset: 'utf8mb4',
+      multipleStatements: true,
     });
   }
   return pool;
@@ -27,25 +28,36 @@ function getPool() {
 async function initDb() {
   const p = getPool();
 
-  // Run schema — execute each statement separately
+  // Disable FK checks, run full schema, re-enable FK checks
   const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
-  const statements = schema
-    .split(';')
-    .map(s => s.trim())
-    .filter(s => s.length > 0 && !s.startsWith('--'));
+  const fullSql = `SET FOREIGN_KEY_CHECKS = 0;\n${schema}\nSET FOREIGN_KEY_CHECKS = 1;`;
 
-  for (const stmt of statements) {
-    try {
-      await p.execute(stmt);
-    } catch (err) {
-      // Ignore "already exists" errors
-      if (!err.message.includes('already exists')) {
-        console.error('Schema error:', err.message);
+  try {
+    const conn = await p.getConnection();
+    await conn.query(fullSql);
+    conn.release();
+    console.log('✅ MySQL database initialized');
+  } catch (err) {
+    // If multipleStatements fails, try one by one
+    console.log('⚠️ Bulk schema failed, trying individual statements...');
+    const statements = schema
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !s.startsWith('--'));
+
+    await p.execute('SET FOREIGN_KEY_CHECKS = 0');
+    for (const stmt of statements) {
+      try {
+        await p.execute(stmt);
+      } catch (e) {
+        if (!e.message.includes('already exists')) {
+          console.error('Schema error:', e.message.substring(0, 100));
+        }
       }
     }
+    await p.execute('SET FOREIGN_KEY_CHECKS = 1');
+    console.log('✅ MySQL database initialized');
   }
-
-  console.log('✅ MySQL database initialized');
 }
 
 module.exports = { getPool, initDb };
