@@ -142,19 +142,34 @@ router.get('/:id', async (req, res) => {
 
 // ── PUT /api/campaigns/:id ──
 router.put('/:id', async (req, res) => {
-  const pool = getPool();
-  const [existing] = await pool.execute('SELECT * FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
-  if (existing.length === 0) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+  try {
+    const pool = getPool();
+    const [existing] = await pool.execute('SELECT * FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
 
-  const { name, url, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, targetPage, timeOnSite, status, image1_url } = req.body;
+    const { name, url, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, targetPage, timeOnSite, status, image1_url } = req.body;
 
-  await pool.execute(
-    `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url) WHERE id = ? AND user_id = ?`,
-    [name, url, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, targetPage, timeOnSite, status, image1_url, req.params.id, req.userId]
-  );
+    // Delete old image if new image is provided and different
+    const oldImage = existing[0].image1_url;
+    if (image1_url !== undefined && oldImage && oldImage !== image1_url) {
+      const oldPath = path.join(__dirname, '..', '..', oldImage);
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+        console.log('Deleted old campaign image:', oldPath);
+      }
+    }
 
-  const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [req.params.id]);
-  res.json({ message: 'Cập nhật thành công', campaign: campaigns[0] });
+    await pool.execute(
+      `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url) WHERE id = ? AND user_id = ?`,
+      [name, url, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, targetPage, timeOnSite, status, image1_url, req.params.id, req.userId]
+    );
+
+    const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Cập nhật thành công', campaign: campaigns[0] });
+  } catch (err) {
+    console.error('Campaign update error:', err);
+    res.status(500).json({ error: 'Lỗi cập nhật: ' + err.message });
+  }
 });
 
 // ── PUT /api/campaigns/:id/status ──
@@ -162,6 +177,16 @@ router.put('/:id/status', async (req, res) => {
   const pool = getPool();
   const { status } = req.body;
   if (!['running', 'paused', 'completed'].includes(status)) return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
+
+  // Auto-delete image when campaign is completed
+  if (status === 'completed') {
+    const [rows] = await pool.execute('SELECT image1_url FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
+    if (rows[0]?.image1_url) {
+      const imgPath = path.join(__dirname, '..', '..', rows[0].image1_url);
+      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+      await pool.execute('UPDATE campaigns SET image1_url = NULL WHERE id = ?', [req.params.id]);
+    }
+  }
 
   const [result] = await pool.execute('UPDATE campaigns SET status = ? WHERE id = ? AND user_id = ?', [status, req.params.id, req.userId]);
   if (result.affectedRows === 0) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });

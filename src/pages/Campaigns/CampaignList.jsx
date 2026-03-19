@@ -12,6 +12,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
   const fileRef = useRef();
   const [dailyViews, setDailyViews] = useState(campaign.daily_views || 500);
+  const [keyword, setKeyword] = useState(campaign.keyword || '');
+  const [url, setUrl] = useState(campaign.url || '');
   const [imageFile, setImageFile] = useState(null);
   const [imageUrl, setImageUrl] = useState(campaign.image1_url || '');
   const [uploading, setUploading] = useState(false);
@@ -46,6 +48,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     try {
       await api.put(`/campaigns/${campaign.id}`, {
         dailyViews: Number(dailyViews),
+        keyword,
+        url,
         image1_url: imageUrl || null,
       });
       toast.success('Cập nhật chiến dịch thành công');
@@ -75,6 +79,30 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Tên chiến dịch</label>
             <p className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700">{campaign.name}</p>
+          </div>
+
+          {/* URL (editable) */}
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích</label>
+            <input
+              type="url"
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white
+                         shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+            />
+          </div>
+
+          {/* Keyword (editable) */}
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">Từ khóa</label>
+            <input
+              type="text"
+              value={keyword}
+              onChange={e => setKeyword(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white
+                         shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+            />
           </div>
 
           {/* Daily views (editable) */}
