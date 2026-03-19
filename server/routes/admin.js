@@ -323,7 +323,7 @@ router.put('/settings/password', async (req, res) => {
 router.get('/pricing', async (req, res) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.execute('SELECT * FROM pricing_tiers ORDER BY traffic_type, duration');
+    const [rows] = await pool.execute('SELECT * FROM pricing_tiers ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)');
     res.json({ tiers: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
