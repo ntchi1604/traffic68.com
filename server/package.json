@@ -1,0 +1,20 @@
+{
+  "name": "traffic68-api",
+  "version": "1.0.0",
+  "description": "Traffic68 Backend API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "seed": "node -e \"require('./db'); require('./db/seed').seed()\""
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.0",
+    "jsonwebtoken": "^9.0.0",
+    "morgan": "^1.10.0"
+  }
+}

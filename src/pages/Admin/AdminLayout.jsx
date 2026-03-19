@@ -1,0 +1,135 @@
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import {
+  LayoutDashboard, Users, Megaphone, Receipt, LifeBuoy,
+  ChevronLeft, Shield, Settings, Menu, X,
+} from 'lucide-react';
+import api from '../../lib/api';
+
+const NAV = [
+  { to: '/admin',              icon: LayoutDashboard, label: 'Tổng quan',    end: true },
+  { to: '/admin/users',        icon: Users,           label: 'Người dùng' },
+  { to: '/admin/campaigns',    icon: Megaphone,       label: 'Chiến dịch' },
+  { to: '/admin/transactions', icon: Receipt,         label: 'Giao dịch' },
+  { to: '/admin/tickets',      icon: LifeBuoy,        label: 'Hỗ trợ' },
+  { to: '/admin/settings',     icon: Settings,        label: 'Cài đặt' },
+];
+
+export default function AdminLayout() {
+  const navigate = useNavigate();
+  const [admin, setAdmin] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    api.get('/auth/me').then(data => {
+      if (data.user?.role !== 'admin') {
+        navigate('/dashboard');
+        return;
+      }
+      setAdmin(data.user);
+    }).catch(() => navigate('/dang-nhap'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Close sidebar on route change (mobile)
+  const closeSidebar = () => setSidebarOpen(false);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-100 flex">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={closeSidebar} />
+      )}
+
+      {/* Sidebar */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col
+        transform transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        lg:translate-x-0 lg:static lg:z-auto
+      `}>
+        {/* Logo */}
+        <div className="h-16 flex items-center justify-between px-5 border-b border-white/10 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
+              <Shield size={16} className="text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-black tracking-tight">TRAFFIC68</p>
+              <p className="text-[10px] text-orange-400 font-semibold">ADMIN PANEL</p>
+            </div>
+          </div>
+          <button onClick={closeSidebar} className="lg:hidden p-1.5 hover:bg-white/10 rounded-lg">
+            <X size={18} className="text-slate-400" />
+          </button>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+          {NAV.map(({ to, icon: Icon, label, end }) => (
+            <NavLink key={to} to={to} end={end} onClick={closeSidebar}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all
+                 ${isActive
+                   ? 'bg-orange-500/20 text-orange-400'
+                   : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+            >
+              <Icon size={18} />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* Footer */}
+        <div className="px-3 py-4 border-t border-white/10 space-y-2 shrink-0">
+          <button onClick={() => { closeSidebar(); navigate('/dashboard'); }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-400 hover:bg-white/5 hover:text-white transition">
+            <ChevronLeft size={18} /> Về Dashboard
+          </button>
+          <div className="flex items-center gap-3 px-4 py-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0">
+              {admin?.name?.charAt(0) || 'A'}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white truncate">{admin?.name}</p>
+              <p className="text-[10px] text-slate-500 truncate">{admin?.email}</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile header */}
+        <header className="lg:hidden h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 sticky top-0 z-30">
+          <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-slate-100 rounded-lg">
+            <Menu size={20} className="text-slate-700" />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
+              <Shield size={12} className="text-white" />
+            </div>
+            <span className="text-sm font-black text-slate-800">ADMIN</span>
+          </div>
+          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-[10px] font-black">
+            {admin?.name?.charAt(0) || 'A'}
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main className="flex-1 p-4 sm:p-6">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}
