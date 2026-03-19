@@ -271,8 +271,17 @@
       else if (challengeActive) { openModal(); }
     };
 
-    /* ── Mode A: embed inside a target element ── */
-    if (cfg.target) {
+    /* ── Decide embed vs float ────────────────────────────── */
+    // embedMode: 'floating' → always float
+    //            'inline'   → embed in target (requires target selector)
+    //            (unset)    → auto: embed if target is set, else float
+    var shouldEmbed = cfg.embedMode === 'inline'
+      ? !!cfg.target
+      : cfg.embedMode === 'floating'
+        ? false
+        : !!cfg.target;
+
+    if (shouldEmbed) {
       var container = document.querySelector(cfg.target);
       if (!container) {
         // Target not in DOM yet (common in React/SPA) — observe for it
@@ -280,7 +289,7 @@
         _waitForTarget(cfg.target, function (el) {
           _embedInContainer(btn, el);
         }, function () {
-        console.warn('[LayNut] target never appeared, button will not be shown:', cfg.target);
+          console.warn('[LayNut] target never appeared, button will not be shown:', cfg.target);
         });
         return;
       }
@@ -289,7 +298,7 @@
       return;
     }
 
-    /* ── Mode B: classic floating fixed button ── */
+    /* ── Floating mode ── */
     _appendFixed(btn);
   }
 
