@@ -1,66 +1,57 @@
 const express = require('express');
-const { getDb } = require('../db');
+const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(authMiddleware);
 
 // Admin guard middleware
-router.use((req, res, next) => {
-  const db = getDb();
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.userId);
-  if (!user || user.role !== 'admin') {
+router.use(async (req, res, next) => {
+  const pool = getPool();
+  const [users] = await pool.execute('SELECT role FROM users WHERE id = ?', [req.userId]);
+  if (!users[0] || users[0].role !== 'admin') {
     return res.status(403).json({ error: 'Bạn không có quyền truy cập trang admin' });
   }
   next();
 });
 
 // ── GET /api/admin/overview ──
-router.get('/overview', (req, res) => {
-  const db = getDb();
+router.get('/overview', async (req, res) => {
+  const pool = getPool();
   const { fromDate, toDate } = req.query;
 
-  // Build date condition for transactions
   let dateCondition = '';
   const dateParams = [];
-  if (fromDate) {
-    dateCondition += " AND date(created_at) >= ?";
-    dateParams.push(fromDate);
+  if (fromDate) { dateCondition += " AND DATE(created_at) >= ?"; dateParams.push(fromDate); }
+  if (toDate) { dateCondition += " AND DATE(created_at) <= ?"; dateParams.push(toDate); }
+
+  const [tu] = await pool.execute('SELECT COUNT(*) as c FROM users');
+  const [tc] = await pool.execute('SELECT COUNT(*) as c FROM campaigns');
+  const [rc] = await pool.execute("SELECT COUNT(*) as c FROM campaigns WHERE status = 'running'");
+
+  const [td] = await pool.execute(`SELECT COALESCE(SUM(amount), 0) as s FROM transactions WHERE type = 'deposit' AND status = 'completed'${dateCondition}`, dateParams);
+  const [tr] = await pool.execute(`SELECT COALESCE(SUM(amount), 0) as s FROM transactions WHERE type = 'withdraw' AND status = 'completed'${dateCondition}`, dateParams);
+  const [pd] = await pool.execute(`SELECT COUNT(*) as c FROM transactions WHERE type = 'deposit' AND status = 'pending'${dateCondition}`, dateParams);
+  const [tv] = await pool.execute('SELECT COALESCE(SUM(views_done), 0) as s FROM campaigns');
+  const [pt] = await pool.execute("SELECT COUNT(*) as c FROM support_tickets WHERE status = 'open'");
+  const [nuw] = await pool.execute("SELECT COUNT(*) as c FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
+
+  // Daily stats
+  let chartSql, chartParams;
+  if (fromDate || toDate) {
+    chartSql = `SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE 1=1${dateCondition} GROUP BY DATE(created_at) ORDER BY date ASC`;
+    chartParams = dateParams;
+  } else {
+    chartSql = `SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) GROUP BY DATE(created_at) ORDER BY date ASC`;
+    chartParams = [];
   }
-  if (toDate) {
-    dateCondition += " AND date(created_at) <= ?";
-    dateParams.push(toDate);
-  }
+  const [rawStats] = await pool.execute(chartSql, chartParams);
 
-  const totalUsers = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
-  const totalCampaigns = db.prepare('SELECT COUNT(*) as c FROM campaigns').get().c;
-  const runningCampaigns = db.prepare("SELECT COUNT(*) as c FROM campaigns WHERE status = 'running'").get().c;
-
-  const totalDeposits = db.prepare(`SELECT COALESCE(SUM(amount), 0) as s FROM transactions WHERE type = 'deposit' AND status = 'completed'${dateCondition}`).get(...dateParams).s;
-  const totalRevenue = db.prepare(`SELECT COALESCE(SUM(amount), 0) as s FROM transactions WHERE type = 'withdraw' AND status = 'completed'${dateCondition}`).get(...dateParams).s;
-  const pendingDeposits = db.prepare(`SELECT COUNT(*) as c FROM transactions WHERE type = 'deposit' AND status = 'pending'${dateCondition}`).get(...dateParams).c;
-  const totalViews = db.prepare('SELECT COALESCE(SUM(views_done), 0) as s FROM campaigns').get().s;
-  const pendingTickets = db.prepare("SELECT COUNT(*) as c FROM support_tickets WHERE status = 'open'").get().c;
-
-  // Recent users (last 7 days)
-  const newUsersWeek = db.prepare("SELECT COUNT(*) as c FROM users WHERE created_at >= datetime('now', '-7 days')").get().c;
-
-  // Daily stats for chart
-  let chartSql = `SELECT date(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total
-    FROM transactions WHERE 1=1${dateCondition}`;
-  if (!fromDate && !toDate) {
-    chartSql = `SELECT date(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total
-      FROM transactions WHERE created_at >= datetime('now', '-14 days')`;
-  }
-  chartSql += ' GROUP BY date(created_at) ORDER BY date ASC';
-  const rawStats = db.prepare(chartSql).all(...(fromDate || toDate ? dateParams : []));
-
-  // Fill missing dates so chart shows complete range
   const statsMap = {};
-  rawStats.forEach(r => { statsMap[r.date] = r; });
+  rawStats.forEach(r => { statsMap[r.date instanceof Date ? r.date.toISOString().slice(0, 10) : r.date] = r; });
 
   const dailyStats = [];
-  const startStr = fromDate || (rawStats.length ? rawStats[0].date : new Date().toISOString().slice(0, 10));
+  const startStr = fromDate || (rawStats.length ? (rawStats[0].date instanceof Date ? rawStats[0].date.toISOString().slice(0, 10) : rawStats[0].date) : new Date().toISOString().slice(0, 10));
   const endStr = toDate || new Date().toISOString().slice(0, 10);
   const start = new Date(startStr);
   const end = new Date(endStr);
@@ -71,17 +62,17 @@ router.get('/overview', (req, res) => {
 
   res.json({
     overview: {
-      totalUsers, totalCampaigns, runningCampaigns,
-      totalDeposits, totalRevenue, totalViews,
-      pendingTickets, newUsersWeek, pendingDeposits,
+      totalUsers: tu[0].c, totalCampaigns: tc[0].c, runningCampaigns: rc[0].c,
+      totalDeposits: td[0].s, totalRevenue: tr[0].s, totalViews: tv[0].s,
+      pendingTickets: pt[0].c, newUsersWeek: nuw[0].c, pendingDeposits: pd[0].c,
     },
     dailyStats,
   });
 });
 
 // ── GET /api/admin/users ──
-router.get('/users', (req, res) => {
-  const db = getDb();
+router.get('/users', async (req, res) => {
+  const pool = getPool();
   const { search, role, page = 1, limit = 20 } = req.query;
   const offset = (page - 1) * limit;
 
@@ -89,210 +80,144 @@ router.get('/users', (req, res) => {
     (SELECT COALESCE(SUM(w.balance), 0) FROM wallets w WHERE w.user_id = u.id) as total_balance,
     (SELECT COUNT(*) FROM campaigns c WHERE c.user_id = u.id) as campaign_count
     FROM users u WHERE 1=1`;
+  let countSql = `SELECT COUNT(*) as total FROM users u WHERE 1=1`;
   const params = [];
+  const countParams = [];
 
   if (search) {
-    sql += ' AND (u.name LIKE ? OR u.email LIKE ? OR u.phone LIKE ? OR u.username LIKE ?)';
+    const searchCond = ' AND (u.name LIKE ? OR u.email LIKE ? OR u.phone LIKE ? OR u.username LIKE ?)';
+    sql += searchCond; countSql += searchCond;
     params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    countParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
   }
   if (role && role !== 'all') {
-    sql += ' AND u.role = ?';
-    params.push(role);
+    sql += ' AND u.role = ?'; countSql += ' AND u.role = ?';
+    params.push(role); countParams.push(role);
   }
 
-  const countSql = sql.replace(/SELECT.*FROM/, 'SELECT COUNT(*) as total FROM');
-  const total = db.prepare(countSql).get(...params)?.total || 0;
-
+  const [totalRows] = await pool.execute(countSql, countParams);
   sql += ' ORDER BY u.created_at DESC LIMIT ? OFFSET ?';
   params.push(Number(limit), Number(offset));
 
-  const users = db.prepare(sql).all(...params);
-  res.json({ users, total, page: Number(page), limit: Number(limit) });
+  const [users] = await pool.execute(sql, params);
+  res.json({ users, total: totalRows[0].total, page: Number(page), limit: Number(limit) });
 });
 
 // ── PUT /api/admin/users/:id ──
-router.put('/users/:id', (req, res) => {
-  const db = getDb();
+router.put('/users/:id', async (req, res) => {
+  const pool = getPool();
   const { role, status, name, email } = req.body;
-
-  db.prepare(`
-    UPDATE users SET
-      role = COALESCE(?, role),
-      status = COALESCE(?, status),
-      name = COALESCE(?, name),
-      email = COALESCE(?, email),
-      updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `).run(role || null, status || null, name || null, email || null, req.params.id);
-
-  const user = db.prepare('SELECT id, email, name, role, status FROM users WHERE id = ?').get(req.params.id);
-  res.json({ message: 'Cập nhật thành công', user });
+  await pool.execute(
+    `UPDATE users SET role=COALESCE(?,role), status=COALESCE(?,status), name=COALESCE(?,name), email=COALESCE(?,email) WHERE id = ?`,
+    [role || null, status || null, name || null, email || null, req.params.id]
+  );
+  const [users] = await pool.execute('SELECT id, email, name, role, status FROM users WHERE id = ?', [req.params.id]);
+  res.json({ message: 'Cập nhật thành công', user: users[0] });
 });
 
 // ── DELETE /api/admin/users/:id ──
-router.delete('/users/:id', (req, res) => {
-  const db = getDb();
-  if (Number(req.params.id) === req.userId) {
-    return res.status(400).json({ error: 'Không thể xóa chính mình' });
-  }
-  db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+router.delete('/users/:id', async (req, res) => {
+  const pool = getPool();
+  if (Number(req.params.id) === req.userId) return res.status(400).json({ error: 'Không thể xóa chính mình' });
+  await pool.execute('DELETE FROM users WHERE id = ?', [req.params.id]);
   res.json({ message: 'Đã xóa người dùng' });
 });
 
-// ── POST /api/admin/users/:id/balance ── (Cộng/Trừ tiền)
-router.post('/users/:id/balance', (req, res) => {
-  const db = getDb();
+// ── POST /api/admin/users/:id/balance ──
+router.post('/users/:id/balance', async (req, res) => {
+  const pool = getPool();
   const { amount, type, walletType, note } = req.body;
-  // type: 'add' or 'subtract'
-  // walletType: 'main' or 'commission'
-
   const numAmount = Number(amount);
-  if (!numAmount || numAmount <= 0) {
-    return res.status(400).json({ error: 'Số tiền phải lớn hơn 0' });
-  }
-  if (!['add', 'subtract'].includes(type)) {
-    return res.status(400).json({ error: 'Loại giao dịch không hợp lệ' });
-  }
+  if (!numAmount || numAmount <= 0) return res.status(400).json({ error: 'Số tiền phải lớn hơn 0' });
+  if (!['add', 'subtract'].includes(type)) return res.status(400).json({ error: 'Loại giao dịch không hợp lệ' });
 
   const wType = walletType || 'main';
-  const wallet = db.prepare('SELECT id, balance FROM wallets WHERE user_id = ? AND type = ?')
-    .get(req.params.id, wType);
-
-  if (!wallet) {
-    return res.status(404).json({ error: 'Không tìm thấy ví của người dùng' });
-  }
+  const [wallets] = await pool.execute('SELECT id, balance FROM wallets WHERE user_id = ? AND type = ?', [req.params.id, wType]);
+  if (wallets.length === 0) return res.status(404).json({ error: 'Không tìm thấy ví của người dùng' });
+  const wallet = wallets[0];
 
   if (type === 'subtract' && wallet.balance < numAmount) {
     return res.status(400).json({ error: `Số dư ví không đủ (hiện có: ${wallet.balance.toLocaleString('vi-VN')} đ)` });
   }
 
-  // Update wallet
-  const newBalance = type === 'add' ? wallet.balance + numAmount : wallet.balance - numAmount;
-  db.prepare('UPDATE wallets SET balance = ? WHERE id = ?')
-    .run(newBalance, wallet.id);
+  const newBalance = type === 'add' ? Number(wallet.balance) + numAmount : Number(wallet.balance) - numAmount;
+  await pool.execute('UPDATE wallets SET balance = ? WHERE id = ?', [newBalance, wallet.id]);
 
-  // Record transaction
   const refCode = 'ADM-' + Date.now();
   const txType = type === 'add' ? 'deposit' : 'withdraw';
   const txNote = note || (type === 'add' ? 'Admin cộng tiền' : 'Admin trừ tiền');
+  await pool.execute(
+    `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [req.params.id, wType, txType, 'admin', numAmount, 'completed', refCode, txNote]
+  );
 
-  db.prepare(`
-    INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(req.params.id, wType, txType, 'admin', numAmount, 'completed', refCode, txNote);
-
-  // Notification to user
-  const admin = db.prepare('SELECT name FROM users WHERE id = ?').get(req.userId);
-  db.prepare(`
-    INSERT INTO notifications (user_id, title, message, type)
-    VALUES (?, ?, ?, ?)
-  `).run(
+  await pool.execute(`INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`, [
     req.params.id,
     type === 'add' ? 'Ví được cộng tiền' : 'Ví bị trừ tiền',
     `${type === 'add' ? '+' : '-'}${numAmount.toLocaleString('vi-VN')} đ vào ví ${wType === 'main' ? 'Traffic' : 'Hoa hồng'}. Lý do: ${txNote}`,
     type === 'add' ? 'success' : 'warning'
-  );
+  ]);
 
-  res.json({
-    message: `Đã ${type === 'add' ? 'cộng' : 'trừ'} ${numAmount.toLocaleString('vi-VN')} đ`,
-    newBalance,
-    refCode,
-  });
+  res.json({ message: `Đã ${type === 'add' ? 'cộng' : 'trừ'} ${numAmount.toLocaleString('vi-VN')} đ`, newBalance, refCode });
 });
 
 // ── GET /api/admin/campaigns ──
-router.get('/campaigns', (req, res) => {
-  const db = getDb();
+router.get('/campaigns', async (req, res) => {
+  const pool = getPool();
   const { search, status, page = 1, limit = 20 } = req.query;
   const offset = (page - 1) * limit;
-
-  let sql = `SELECT c.*, u.name as user_name, u.email as user_email
-    FROM campaigns c LEFT JOIN users u ON c.user_id = u.id WHERE 1=1`;
+  let sql = `SELECT c.*, u.name as user_name, u.email as user_email FROM campaigns c LEFT JOIN users u ON c.user_id = u.id WHERE 1=1`;
   const params = [];
-
-  if (search) {
-    sql += ' AND (c.name LIKE ? OR c.url LIKE ? OR u.email LIKE ?)';
-    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-  }
-  if (status && status !== 'all') {
-    sql += ' AND c.status = ?';
-    params.push(status);
-  }
-
+  if (search) { sql += ' AND (c.name LIKE ? OR c.url LIKE ? OR u.email LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+  if (status && status !== 'all') { sql += ' AND c.status = ?'; params.push(status); }
   sql += ' ORDER BY c.created_at DESC LIMIT ? OFFSET ?';
   params.push(Number(limit), Number(offset));
-
-  const campaigns = db.prepare(sql).all(...params);
+  const [campaigns] = await pool.execute(sql, params);
   res.json({ campaigns });
 });
 
 // ── PUT /api/admin/campaigns/:id ──
-router.put('/campaigns/:id', (req, res) => {
-  const db = getDb();
+router.put('/campaigns/:id', async (req, res) => {
+  const pool = getPool();
   const { status } = req.body;
-  db.prepare('UPDATE campaigns SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-    .run(status, req.params.id);
+  await pool.execute('UPDATE campaigns SET status = ? WHERE id = ?', [status, req.params.id]);
   res.json({ message: 'Đã cập nhật chiến dịch' });
 });
 
 // ── GET /api/admin/transactions ──
-router.get('/transactions', (req, res) => {
-  const db = getDb();
+router.get('/transactions', async (req, res) => {
+  const pool = getPool();
   const { type, status, fromDate, toDate, page = 1, limit = 50 } = req.query;
   const offset = (page - 1) * limit;
-
-  let sql = `SELECT t.*, u.name as user_name, u.email as user_email
-    FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE 1=1`;
+  let sql = `SELECT t.*, u.name as user_name, u.email as user_email FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE 1=1`;
   const params = [];
-
-  if (type && type !== 'all') {
-    sql += ' AND t.type = ?';
-    params.push(type);
-  }
-  if (status && status !== 'all') {
-    sql += ' AND t.status = ?';
-    params.push(status);
-  }
-  if (fromDate) {
-    sql += ' AND date(t.created_at) >= ?';
-    params.push(fromDate);
-  }
-  if (toDate) {
-    sql += ' AND date(t.created_at) <= ?';
-    params.push(toDate);
-  }
-
+  if (type && type !== 'all') { sql += ' AND t.type = ?'; params.push(type); }
+  if (status && status !== 'all') { sql += ' AND t.status = ?'; params.push(status); }
+  if (fromDate) { sql += ' AND DATE(t.created_at) >= ?'; params.push(fromDate); }
+  if (toDate) { sql += ' AND DATE(t.created_at) <= ?'; params.push(toDate); }
   sql += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
   params.push(Number(limit), Number(offset));
-
-  const transactions = db.prepare(sql).all(...params);
+  const [transactions] = await pool.execute(sql, params);
   res.json({ transactions });
 });
 
 // ── PUT /api/admin/transactions/:id/approve ──
-router.put('/transactions/:id/approve', (req, res) => {
+router.put('/transactions/:id/approve', async (req, res) => {
   try {
-    const db = getDb();
-    const tx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(req.params.id);
-
-    if (!tx) return res.status(404).json({ error: 'Không tìm thấy giao dịch' });
+    const pool = getPool();
+    const [txs] = await pool.execute('SELECT * FROM transactions WHERE id = ?', [req.params.id]);
+    if (txs.length === 0) return res.status(404).json({ error: 'Không tìm thấy giao dịch' });
+    const tx = txs[0];
     if (tx.status !== 'pending') return res.status(400).json({ error: 'Giao dịch này đã được xử lý' });
 
-    // Update transaction status
-    db.prepare("UPDATE transactions SET status = 'completed' WHERE id = ?")
-      .run(req.params.id);
+    await pool.execute("UPDATE transactions SET status = 'completed' WHERE id = ?", [req.params.id]);
+    await pool.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [tx.amount, tx.user_id, tx.wallet_type || 'main']);
 
-    // Add money to wallet
-    db.prepare('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?')
-      .run(tx.amount, tx.user_id, tx.wallet_type || 'main');
-
-    // Notify user
     const fmt = new Intl.NumberFormat('vi-VN').format(tx.amount);
-    db.prepare(`
-      INSERT INTO notifications (user_id, title, message, type)
-      VALUES (?, ?, ?, ?)
-    `).run(tx.user_id, 'Nạp tiền thành công ✓', `Đơn nạp ${fmt} VND (Mã: ${tx.ref_code}) đã được admin duyệt. Tiền đã vào ví!`, 'success');
-
+    await pool.execute(
+      `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
+      [tx.user_id, 'Nạp tiền thành công ✓', `Đơn nạp ${fmt} VND (Mã: ${tx.ref_code}) đã được admin duyệt. Tiền đã vào ví!`, 'success']
+    );
     res.json({ message: `Đã duyệt đơn nạp ${fmt} VND` });
   } catch (err) {
     console.error('Approve error:', err);
@@ -301,27 +226,23 @@ router.put('/transactions/:id/approve', (req, res) => {
 });
 
 // ── PUT /api/admin/transactions/:id/reject ──
-router.put('/transactions/:id/reject', (req, res) => {
+router.put('/transactions/:id/reject', async (req, res) => {
   try {
-    const db = getDb();
+    const pool = getPool();
     const { reason } = req.body;
-    const tx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(req.params.id);
-
-    if (!tx) return res.status(404).json({ error: 'Không tìm thấy giao dịch' });
+    const [txs] = await pool.execute('SELECT * FROM transactions WHERE id = ?', [req.params.id]);
+    if (txs.length === 0) return res.status(404).json({ error: 'Không tìm thấy giao dịch' });
+    const tx = txs[0];
     if (tx.status !== 'pending') return res.status(400).json({ error: 'Giao dịch này đã được xử lý' });
 
-    // Update transaction status
-    db.prepare("UPDATE transactions SET status = 'failed', note = ? WHERE id = ?")
-      .run(reason || 'Admin từ chối', req.params.id);
+    await pool.execute("UPDATE transactions SET status = 'failed', note = ? WHERE id = ?", [reason || 'Admin từ chối', req.params.id]);
 
-    // Notify user
     const fmt = new Intl.NumberFormat('vi-VN').format(tx.amount);
-    db.prepare(`
-      INSERT INTO notifications (user_id, title, message, type)
-      VALUES (?, ?, ?, ?)
-    `).run(tx.user_id, 'Đơn nạp tiền bị từ chối', `Đơn nạp ${fmt} VND (Mã: ${tx.ref_code}) đã bị từ chối. Lý do: ${reason || 'Không hợp lệ'}`, 'error');
-
-    res.json({ message: `Đã từ chối đơn nạp` });
+    await pool.execute(
+      `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
+      [tx.user_id, 'Đơn nạp tiền bị từ chối', `Đơn nạp ${fmt} VND (Mã: ${tx.ref_code}) đã bị từ chối. Lý do: ${reason || 'Không hợp lệ'}`, 'error']
+    );
+    res.json({ message: 'Đã từ chối đơn nạp' });
   } catch (err) {
     console.error('Reject error:', err);
     res.status(500).json({ error: 'Lỗi từ chối giao dịch: ' + err.message });
@@ -329,63 +250,46 @@ router.put('/transactions/:id/reject', (req, res) => {
 });
 
 // ── GET /api/admin/tickets ──
-router.get('/tickets', (req, res) => {
-  const db = getDb();
-  const tickets = db.prepare(`
-    SELECT st.*, u.name as user_name, u.email as user_email
-    FROM support_tickets st LEFT JOIN users u ON st.user_id = u.id
-    ORDER BY st.created_at DESC LIMIT 50
-  `).all();
+router.get('/tickets', async (req, res) => {
+  const pool = getPool();
+  const [tickets] = await pool.execute(`SELECT st.*, u.name as user_name, u.email as user_email FROM support_tickets st LEFT JOIN users u ON st.user_id = u.id ORDER BY st.created_at DESC LIMIT 50`);
   res.json({ tickets });
 });
 
 // ── PUT /api/admin/tickets/:id ──
-router.put('/tickets/:id', (req, res) => {
-  const db = getDb();
+router.put('/tickets/:id', async (req, res) => {
+  const pool = getPool();
   const { status, reply } = req.body;
-
   if (reply !== undefined) {
-    db.prepare('UPDATE support_tickets SET admin_reply = ?, replied_at = CURRENT_TIMESTAMP, status = COALESCE(?, status), updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(reply, status || null, req.params.id);
+    await pool.execute('UPDATE support_tickets SET admin_reply = ?, replied_at = NOW(), status = COALESCE(?, status) WHERE id = ?', [reply, status || null, req.params.id]);
   } else {
-    db.prepare('UPDATE support_tickets SET status = COALESCE(?, status), updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(status || null, req.params.id);
+    await pool.execute('UPDATE support_tickets SET status = COALESCE(?, status) WHERE id = ?', [status || null, req.params.id]);
   }
-
-  // Send notification to user
   if (reply) {
-    const ticket = db.prepare('SELECT user_id, subject FROM support_tickets WHERE id = ?').get(req.params.id);
-    if (ticket) {
-      db.prepare(`INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`)
-        .run(ticket.user_id, `Phản hồi ticket: ${ticket.subject}`, reply, 'info');
+    const [tickets] = await pool.execute('SELECT user_id, subject FROM support_tickets WHERE id = ?', [req.params.id]);
+    if (tickets[0]) {
+      await pool.execute(`INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`, [tickets[0].user_id, `Phản hồi ticket: ${tickets[0].subject}`, reply, 'info']);
     }
   }
-
   res.json({ message: 'Đã cập nhật ticket' });
 });
 
 // ── PUT /api/admin/settings/info ──
-router.put('/settings/info', (req, res) => {
+router.put('/settings/info', async (req, res) => {
   try {
-    const db = getDb();
+    const pool = getPool();
     const { email, username, name } = req.body;
-    const userId = req.userId;
-
     if (!email) return res.status(400).json({ error: 'Email là bắt buộc' });
 
-    // Check email uniqueness (exclude self)
-    const emailExists = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, userId);
-    if (emailExists) return res.status(409).json({ error: 'Email đã được sử dụng bởi tài khoản khác' });
+    const [emailCheck] = await pool.execute('SELECT id FROM users WHERE email = ? AND id != ?', [email, req.userId]);
+    if (emailCheck.length > 0) return res.status(409).json({ error: 'Email đã được sử dụng bởi tài khoản khác' });
 
-    // Check username uniqueness (exclude self)
     if (username) {
-      const usernameExists = db.prepare("SELECT id FROM users WHERE username = ? AND username != '' AND id != ?").get(username, userId);
-      if (usernameExists) return res.status(409).json({ error: 'Tên đăng nhập đã tồn tại' });
+      const [usernameCheck] = await pool.execute("SELECT id FROM users WHERE username = ? AND username != '' AND id != ?", [username, req.userId]);
+      if (usernameCheck.length > 0) return res.status(409).json({ error: 'Tên đăng nhập đã tồn tại' });
     }
 
-    db.prepare('UPDATE users SET email = ?, username = ?, name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(email, username || '', name || '', userId);
-
+    await pool.execute('UPDATE users SET email = ?, username = ?, name = ? WHERE id = ?', [email, username || '', name || '', req.userId]);
     res.json({ message: 'Cập nhật thông tin thành công' });
   } catch (err) {
     console.error('Settings info error:', err);
@@ -394,31 +298,20 @@ router.put('/settings/info', (req, res) => {
 });
 
 // ── PUT /api/admin/settings/password ──
-router.put('/settings/password', (req, res) => {
+router.put('/settings/password', async (req, res) => {
   try {
-    const db = getDb();
+    const pool = getPool();
     const bcrypt = require('bcryptjs');
     const { currentPassword, newPassword } = req.body;
-    const userId = req.userId;
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ mật khẩu' });
+    if (newPassword.length < 6) return res.status(400).json({ error: 'Mật khẩu mới phải ít nhất 6 ký tự' });
 
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Vui lòng nhập đầy đủ mật khẩu' });
-    }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'Mật khẩu mới phải ít nhất 6 ký tự' });
-    }
-
-    const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
-    if (!user) return res.status(404).json({ error: 'Không tìm thấy tài khoản' });
-
-    if (!bcrypt.compareSync(currentPassword, user.password_hash)) {
-      return res.status(401).json({ error: 'Mật khẩu hiện tại không đúng' });
-    }
+    const [users] = await pool.execute('SELECT password_hash FROM users WHERE id = ?', [req.userId]);
+    if (users.length === 0) return res.status(404).json({ error: 'Không tìm thấy tài khoản' });
+    if (!bcrypt.compareSync(currentPassword, users[0].password_hash)) return res.status(401).json({ error: 'Mật khẩu hiện tại không đúng' });
 
     const newHash = bcrypt.hashSync(newPassword, 10);
-    db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(newHash, userId);
-
+    await pool.execute('UPDATE users SET password_hash = ? WHERE id = ?', [newHash, req.userId]);
     res.json({ message: 'Đổi mật khẩu thành công' });
   } catch (err) {
     console.error('Settings password error:', err);

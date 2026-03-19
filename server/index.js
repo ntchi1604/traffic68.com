@@ -3,8 +3,8 @@ const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
 
-// Init DB + Seed
-const { getDb } = require('./db');
+// Init DB
+const { initDb } = require('./db');
 const { seed } = require('./db/seed');
 
 const app = express();
@@ -55,15 +55,22 @@ app.use((err, req, res, next) => {
 });
 
 // ── Start ──
-getDb(); // Init database
-seed();  // Seed demo data
+(async () => {
+  try {
+    await initDb();
+    await seed();
 
-app.listen(PORT, () => {
-  console.log(`
+    app.listen(PORT, () => {
+      console.log(`
 ╔════════════════════════════════════════════╗
-║   🚀 Traffic68 API Server                 ║
+║   🚀 Traffic68 API Server (MySQL)         ║
 ║   http://localhost:${PORT}                   ║
 ║   Health: http://localhost:${PORT}/api/health ║
 ╚════════════════════════════════════════════╝
-  `);
-});
+      `);
+    });
+  } catch (err) {
+    console.error('❌ Failed to start server:', err.message);
+    process.exit(1);
+  }
+})();
