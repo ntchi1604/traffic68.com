@@ -15,6 +15,14 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(morgan('dev'));
 
+// ── Prevent caching for API routes ──
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 // ── Serve embed script & public assets ──
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   maxAge: '1h',

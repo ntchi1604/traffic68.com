@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import usePageTitle from '../hooks/usePageTitle';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail, User, Rocket, CheckCircle2, TrendingUp, Link2 } from 'lucide-react';
-import { setAuth } from '../lib/api';
+
 
 const testimonials = [
   { quote: 'Tăng 500% traffic chỉ sau 2 tháng. Đội ngũ hỗ trợ tuyệt vời!', name: 'Anh Tuấn', role: 'CEO – TechStartup.vn', initials: 'AT', gradient: 'from-orange-400 to-orange-600' },
@@ -113,10 +113,7 @@ export default function DangKy() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
 
-  // Redirect if already logged in
-  useEffect(() => {
-    if (localStorage.getItem('token')) navigate('/dashboard');
-  }, []);
+
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -150,9 +147,7 @@ export default function DangKy() {
         setLoading(false);
         return;
       }
-      setAuth(data.token, data.user);
       setDone(true);
-      setTimeout(() => navigate('/dashboard'), 2000);
     } catch {
       setError('Không thể kết nối đến máy chủ');
     } finally {
