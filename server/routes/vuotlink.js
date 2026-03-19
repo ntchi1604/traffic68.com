@@ -21,29 +21,18 @@ setInterval(() => {
 
 // Generate random JS challenge that only a real browser can evaluate
 function generateJsChallenge() {
-  const vars = 'abcdefghijklmnopqrstuvwxyz'.split('').sort(() => Math.random() - 0.5);
-  const ops = [
-    () => { const a = Math.floor(Math.random()*100), b = Math.floor(Math.random()*100); return { code: `${vars[0]}=${a};${vars[1]}=${b};${vars[0]}*${vars[1]}+${vars[0]}`, answer: a*b+a }; },
-    () => { const a = Math.floor(Math.random()*50)+10, b = Math.floor(Math.random()*20)+1; return { code: `${vars[2]}=${a};${vars[3]}=${b};(${vars[2]}<<${vars[3]})>>>${vars[3]}`, answer: (a<<b)>>>b }; },
-    () => { const a = Math.floor(Math.random()*1000), b = Math.floor(Math.random()*100)+1; return { code: `${vars[4]}=${a};${vars[5]}=${b};(${vars[4]}%${vars[5]})+${vars[4]}`, answer: (a%b)+a }; },
-    () => { const a = Math.floor(Math.random()*50)+2, b = Math.floor(Math.random()*10)+1; return { code: `${vars[6]}=${a};${vars[7]}=${b};Math.pow(${vars[6]},${vars[7]})%9999`, answer: Math.pow(a,b)%9999 }; },
-  ];
+  const v = 'abcdefghijklmnopqrstuvwxyz'.split('').sort(() => Math.random() - 0.5);
+  const a = Math.floor(Math.random() * 90) + 10;
+  const b = Math.floor(Math.random() * 90) + 10;
+  const c = Math.floor(Math.random() * 50) + 5;
+  const domVal = Math.floor(Math.random() * 500) + 100;
 
-  // Pick 2-3 random operations and chain them
-  const count = 2 + Math.floor(Math.random() * 2);
-  let totalCode = '';
-  let finalAnswer = 0;
-  for (let i = 0; i < count; i++) {
-    const op = ops[Math.floor(Math.random() * ops.length)]();
-    totalCode += (i > 0 ? ';' : '') + op.code;
-    finalAnswer += op.answer;
-  }
+  // Calculate expected result
+  const mathResult = ((a * b) + c) % 9973;
+  const expected = domVal + mathResult;
 
-  // Wrap in a function with DOM check (only works in browser)
-  const domCheck = Math.floor(Math.random() * 1000);
-  const fnName = '_' + crypto.randomBytes(4).toString('hex');
-  const jsCode = `(function(){var _d=typeof document!=='undefined'&&document.createElement?${domCheck}:0;${totalCode};return _d+${totalCode.split(';').pop()}})()`;
-  const expected = domCheck + finalAnswer;
+  // Build JS code that requires DOM (document.createElement)
+  const jsCode = `(function(){var ${v[0]}=typeof document!=='undefined'&&document.createElement?${domVal}:0;var ${v[1]}=${a};var ${v[2]}=${b};var ${v[3]}=${c};return ${v[0]}+((${v[1]}*${v[2]})+${v[3]})%9973})()`;
 
   return { jsCode, expected };
 }
