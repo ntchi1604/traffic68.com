@@ -109,7 +109,7 @@ router.post('/task', optionalAuth, async (req, res) => {
     [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', expiresAt]
   );
 
-  res.json({ d: encryptPayload({ id: result.insertId, keyword: campaign.keyword, session, startedAt, expiresAt }) });
+  res.json({ d: encryptPayload({ id: result.insertId, keyword: campaign.keyword, image1_url: campaign.image1_url || '', session, startedAt, expiresAt }) });
 });
 
 router.put('/task/:id/step', optionalAuth, async (req, res) => {

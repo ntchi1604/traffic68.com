@@ -4,8 +4,8 @@ import { Rocket, ExternalLink, Search } from 'lucide-react';
 
 const STEPS = [
   { num: 1, title: 'BƯỚC 1:', subtitle: 'MỞ GOOGLE', desc: 'Mở trình duyệt và truy cập trang chủ Google.', img: '/step1_google.png', alt: 'Mở Google', action: 'google' },
-  { num: 2, title: 'BƯỚC 2:', subtitle: 'NHẬP TỪ KHÓA TÌM KIẾM', desc: 'Sao chép từ khóa bên dưới và dán vào ô tìm kiếm Google.', img: '/step2_search.png', alt: 'Nhập từ khóa', action: 'keyword' },
-  { num: 3, title: 'BƯỚC 3:', subtitle: 'TÌM NÚT LẤY MÃ', desc: "Truy cập trang web trong kết quả tìm kiếm và cuộn xuống để tìm nút 'Lấy Mã'.", img: '/step3_getcode.png', alt: 'Tìm nút lấy mã' },
+  { num: 2, title: 'BƯỚC 2:', subtitle: 'NHẬP TỪ KHÓA TÌM KIẾM', desc: 'Tìm kiếm từ khóa bên dưới trên Google.', img: '/step2_search.png', alt: 'Nhập từ khóa', action: 'keyword' },
+  { num: 3, title: 'BƯỚC 3:', subtitle: 'TÌM KIẾM TRANG ĐÍCH', desc: 'Tìm kiếm trang đích', img: '/step3_getcode.png', alt: 'Tìm kiếm trang đích', action: 'campaign_img' },
 ];
 
 const FEATURES = [
@@ -15,14 +15,14 @@ const FEATURES = [
   { label: 'TÙY CHỈNH LINK', img: '/feat_link.png', alt: 'Tùy Chỉnh Link' },
 ];
 
-function StepCard({ num, title, subtitle, desc, img, alt, action, keyword }) {
+function StepCard({ num, title, subtitle, desc, img, alt, action, keyword, campaignImg }) {
   return (
     <div className="relative flex flex-col rounded-2xl border-2 shadow-md card-hover" style={{ borderColor: '#166534' }}>
       <div className="absolute top-3 left-3 z-20 w-9 h-9 rounded-full flex items-center justify-center shadow-lg" style={{ background: '#166534' }}>
         <span className="text-white font-black text-base leading-none">{num}</span>
       </div>
       <div className="overflow-hidden rounded-t-[14px] flex items-center justify-center flex-shrink-0" style={{ background: '#dcfce7', height: '200px' }}>
-        <img src={img} alt={alt} className="w-full h-full object-contain p-3" />
+        <img src={action === 'campaign_img' && campaignImg ? campaignImg : img} alt={alt} className="w-full h-full object-contain p-3" />
       </div>
       <div className="bg-white rounded-b-[14px] p-4 flex flex-col gap-2 flex-1">
         <p className="font-black text-sm sm:text-base leading-snug" style={{ color: '#166534' }}>
@@ -53,6 +53,7 @@ export default function VuotLink() {
   const [glowing, setGlowing] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [taskId, setTaskId] = useState(null);
+  const [campaignImg, setCampaignImg] = useState('');
 
   useEffect(() => {
     let botScore = 0;
@@ -74,7 +75,7 @@ export default function VuotLink() {
       ctx.fillStyle = '#069';
       ctx.fillText('AB test', 2, 15);
       if (c.toDataURL().length < 1000) botScore += 20;
-    } catch(e) { botScore += 10; }
+    } catch (e) { botScore += 10; }
 
     try {
       const gl = document.createElement('canvas').getContext('webgl');
@@ -85,10 +86,10 @@ export default function VuotLink() {
           if (/swiftshader|llvmpipe|software|mesa/i.test(r)) botScore += 30;
         }
       } else { botScore += 15; }
-    } catch(e) { botScore += 5; }
+    } catch (e) { botScore += 5; }
 
     if (!navigator.language) botScore += 15;
-    try { if (!Intl.DateTimeFormat().resolvedOptions().timeZone) botScore += 10; } catch(e) { botScore += 10; }
+    try { if (!Intl.DateTimeFormat().resolvedOptions().timeZone) botScore += 10; } catch (e) { botScore += 10; }
 
     if (botScore >= 40) {
       setKeyword('Trình duyệt không hợp lệ');
@@ -153,6 +154,7 @@ export default function VuotLink() {
         if (taskJson.d) {
           const task = await decrypt(taskJson.d);
           setKeyword(task.keyword); setTaskId(task.id);
+          if (task.image1_url) setCampaignImg(task.image1_url);
         } else {
           setKeyword(taskJson.error || 'Không có task');
         }
@@ -193,12 +195,12 @@ export default function VuotLink() {
             <img src="/character_guide.png" alt="Hướng dẫn viên" className="w-full h-auto object-contain drop-shadow-2xl" />
           </div>
           <div className="grid grid-cols-3 gap-5">
-            {STEPS.map((step) => (<StepCard key={step.num} {...step} keyword={keyword} />))}
+            {STEPS.map((step) => (<StepCard key={step.num} {...step} keyword={keyword} campaignImg={campaignImg} />))}
           </div>
         </div>
 
         <div className="flex flex-col gap-5 md:hidden">
-          {STEPS.map((step) => (<StepCard key={step.num} {...step} keyword={keyword} />))}
+          {STEPS.map((step) => (<StepCard key={step.num} {...step} keyword={keyword} campaignImg={campaignImg} />))}
           <div className="flex justify-center">
             <img src="/character_guide.png" alt="Hướng dẫn viên" className="h-44 w-auto object-contain drop-shadow" />
           </div>
