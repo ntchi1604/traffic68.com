@@ -258,14 +258,14 @@ export default function CreateCampaign() {
 
   const tier = findTier();
   const hasPricing = !!(form.trafficType && form.duration && tier);
-  const getPricePerKViews = () => {
+  const getPricePerView = () => {
     if (!tier) return 0;
     if (discountApplied) return form.version === 'v1' ? tier.v1_discount : tier.v2_discount;
     return form.version === 'v1' ? tier.v1_price : tier.v2_price;
   };
 
-  const pricePerKViews = getPricePerKViews();
-  const totalPrice = hasPricing ? Math.round((form.totalViews / 1000) * pricePerKViews) : 0;
+  const pricePerView = getPricePerView();
+  const totalPrice = hasPricing ? Math.round(form.totalViews * pricePerView) : 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -288,7 +288,7 @@ export default function CreateCampaign() {
         version: form.version,
         discount_applied: discountApplied,
         discount_code: discountApplied ? form.discountCode.trim() : '',
-        cpc: Math.round(pricePerKViews / 1000 * 100) / 100,
+        cpc: pricePerView,
         budget: totalPrice,
         device: form.devices.join(','),
         country: form.countries.join(','),
@@ -692,9 +692,9 @@ export default function CreateCampaign() {
                 <SummaryRow label="View/ngày" value={fmt(form.dailyViews)} />
                 <SummaryRow label="Tổng view" value={fmt(form.totalViews)} />
                 {hasPricing ? (
-                  <SummaryRow label="Đơn giá/1000 view" value={`${fmt(pricePerKViews)} VNĐ`} />
+                  <SummaryRow label="Đơn giá/view" value={`${fmt(pricePerView)} VNĐ`} />
                 ) : (
-                  <SummaryRow label="Đơn giá/1000 view" value="Chọn loại traffic & thời gian" />
+                  <SummaryRow label="Đơn giá/view" value="Chọn loại traffic & thời gian" />
                 )}
                 {discountApplied && (
                   <SummaryRow label="Giảm giá" value={`✓ Đã áp dụng (-${pricingConfig.discount_percent}%)`} accent />

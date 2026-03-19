@@ -56,7 +56,7 @@ router.post('/', async (req, res) => {
       const price = _version === 'v1'
         ? (useDiscount ? tier.v1_discount : tier.v1_price)
         : (useDiscount ? tier.v2_discount : tier.v2_price);
-      realBudget = Math.round((_totalViews / 1000) * price);
+      realBudget = Math.round(_totalViews * price);
     }
   } catch (e) {
     console.log('Pricing lookup failed, using submitted budget:', e.message);
