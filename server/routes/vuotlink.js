@@ -65,6 +65,18 @@ router.get('/challenge', (req, res) => {
 });
 
 // ── POST /api/vuot-link/task (PUBLIC) ──
+function decryptPayload(encStr) {
+  const [ivB64, dataB64, tagB64] = encStr.split('.');
+  const iv = Buffer.from(ivB64, 'base64');
+  const encrypted = Buffer.from(dataB64, 'base64');
+  const tag = Buffer.from(tagB64, 'base64');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', CHALLENGE_KEY, iv);
+  decipher.setAuthTag(tag);
+  let decrypted = decipher.update(encrypted, null, 'utf8');
+  decrypted += decipher.final('utf8');
+  return JSON.parse(decrypted);
+}
+
 router.post('/task', optionalAuth, async (req, res) => {
   const ERR = { error: 'Yêu cầu không hợp lệ' };
   const ua = req.headers['user-agent'] || '';
@@ -74,7 +86,15 @@ router.post('/task', optionalAuth, async (req, res) => {
   ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
   if (ipTaskCount[ip] > 10) return res.status(403).json(ERR);
 
-  const { challengeId, jsResult, proof } = req.body || {};
+  // Decrypt incoming payload
+  let challengeId, jsResult, proof;
+  try {
+    const body = decryptPayload(req.body.d);
+    challengeId = body.challengeId;
+    jsResult = body.jsResult;
+    proof = body.proof;
+  } catch { return res.status(403).json(ERR); }
+
   if (!challengeId || jsResult === undefined) return res.status(403).json(ERR);
 
   const ch = challenges[challengeId];

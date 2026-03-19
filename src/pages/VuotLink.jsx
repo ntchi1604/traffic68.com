@@ -212,15 +212,26 @@ export default function VuotLink() {
         // Step 3: Evaluate JS code in browser
         const jsResult = new Function('return ' + jsCode)();
 
-        // Step 4: Submit + decrypt task response
+        // Step 4: Encrypt payload + submit
+        const payload = {
+          challengeId,
+          jsResult,
+          proof: { botScore, mouseCount, timeOnPage: Date.now() - loadTime, sw: window.screen.width, sh: window.screen.height, plugins: navigator.plugins?.length || 0 }
+        };
+        const ck = import.meta.env.VITE_CHALLENGE_KEY;
+        const ek = await crypto.subtle.importKey('raw', new TextEncoder().encode(ck), 'AES-GCM', false, ['encrypt']);
+        const eiv = crypto.getRandomValues(new Uint8Array(12));
+        const enc = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: eiv }, ek, new TextEncoder().encode(JSON.stringify(payload)));
+        const encArr = new Uint8Array(enc);
+        const eCt = encArr.slice(0, encArr.length - 16);
+        const eTag = encArr.slice(encArr.length - 16);
+        const toB64 = arr => btoa(String.fromCharCode(...arr));
+        const encBody = toB64(eiv) + '.' + toB64(eCt) + '.' + toB64(eTag);
+
         const taskRes = await fetch('/api/vuot-link/task', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            challengeId,
-            jsResult,
-            proof: { botScore, mouseCount, timeOnPage: Date.now() - loadTime, sw: window.screen.width, sh: window.screen.height, plugins: navigator.plugins?.length || 0 }
-          })
+          body: JSON.stringify({ d: encBody })
         });
         const taskJson = await taskRes.json();
         if (taskJson.d) {
