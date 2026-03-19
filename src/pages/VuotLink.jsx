@@ -221,7 +221,7 @@ export default function VuotLink() {
         const data = await taskRes.json();
         if (data.task) { setKeyword(data.task.keyword); setTaskId(data.task.id); }
         else setKeyword(data.error || 'Không có task');
-      } catch { setKeyword('Không có task'); }
+      } catch (err) { console.error('VuotLink error:', err); setKeyword('Không có task'); }
     };
 
     window.addEventListener('click', doFetch);
