@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
-import { Pause, Play, Trash2, Pencil, X, Upload } from 'lucide-react';
+import { Pause, Play, Trash2, Pencil, X, Upload, MoreVertical, CheckCircle2 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
@@ -147,6 +147,18 @@ export default function CampaignList() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [editingCampaign, setEditingCampaign] = useState(null);
+  const [actionMenuId, setActionMenuId] = useState(null);
+  const menuRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!actionMenuId) return;
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setActionMenuId(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [actionMenuId]);
 
   const fetchCampaigns = () => {
     setLoading(true);
@@ -170,7 +182,7 @@ export default function CampaignList() {
   }, [campaigns, filter, search]);
 
   const handleToggleStatus = async (id, currentStatus) => {
-    const newStatus = currentStatus === 'running' ? 'paused' : 'running';
+    const newStatus = currentStatus === 'force_complete' ? 'completed' : currentStatus === 'running' ? 'paused' : 'running';
     try {
       await api.put(`/campaigns/${id}/status`, { status: newStatus });
       setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
@@ -285,32 +297,44 @@ export default function CampaignList() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center gap-2">
+                      <div className="relative" ref={actionMenuId === c.id ? menuRef : null}>
                         <button
-                          onClick={() => setEditingCampaign(c)}
-                          className="text-blue-600 hover:bg-blue-50 p-1 rounded-full"
-                          title="Sửa"
+                          onClick={() => setActionMenuId(actionMenuId === c.id ? null : c.id)}
+                          className="p-1.5 hover:bg-slate-100 rounded-lg transition"
                         >
-                          <Pencil className="w-4 h-4" />
+                          <MoreVertical className="w-4 h-4 text-slate-500" />
                         </button>
-                        <button
-                          onClick={() => handleToggleStatus(c.id, c.status)}
-                          className={`p-1 rounded-full ${
-                            c.status === 'running'
-                              ? 'text-amber-600 hover:bg-amber-50'
-                              : 'text-green-600 hover:bg-green-50'
-                          }`}
-                          title={c.status === 'running' ? 'Tạm dừng' : 'Chạy lại'}
-                        >
-                          {c.status === 'running' ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(c.id)}
-                          className="text-red-600 hover:text-red-900 p-1"
-                          title="Xóa"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {actionMenuId === c.id && (
+                          <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50">
+                            <button
+                              onClick={() => { setEditingCampaign(c); setActionMenuId(null); }}
+                              className="flex items-center gap-2.5 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+                            >
+                              <Pencil size={14} className="text-blue-500" /> Chỉnh sửa
+                            </button>
+                            <button
+                              onClick={() => { handleToggleStatus(c.id, c.status); setActionMenuId(null); }}
+                              className="flex items-center gap-2.5 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+                            >
+                              {c.status === 'running'
+                                ? <><Pause size={14} className="text-amber-500" /> Tạm dừng</>
+                                : <><Play size={14} className="text-green-500" /> Chạy lại</>}
+                            </button>
+                            <button
+                              onClick={() => { handleToggleStatus(c.id, 'force_complete'); setActionMenuId(null); }}
+                              className="flex items-center gap-2.5 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+                            >
+                              <CheckCircle2 size={14} className="text-indigo-500" /> Hoàn thành
+                            </button>
+                            <div className="border-t border-slate-100 my-1" />
+                            <button
+                              onClick={() => { handleDelete(c.id); setActionMenuId(null); }}
+                              className="flex items-center gap-2.5 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition"
+                            >
+                              <Trash2 size={14} /> Xóa
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
