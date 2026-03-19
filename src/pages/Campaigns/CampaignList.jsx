@@ -1,11 +1,142 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Pause, Play, Edit, Trash2 } from 'lucide-react';
+import { Pause, Play, Trash2, Pencil, X, Upload } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
+
+/* ── Edit Modal ── */
+function EditCampaignModal({ campaign, onClose, onSaved }) {
+  const toast = useToast();
+  const fileRef = useRef();
+  const [dailyViews, setDailyViews] = useState(campaign.daily_views || 500);
+  const [imageFile, setImageFile] = useState(null);
+  const [imageUrl, setImageUrl] = useState(campaign.image1_url || '');
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/campaigns/upload-image', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload thất bại');
+      setImageFile(file);
+      setImageUrl(data.imageUrl);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/campaigns/${campaign.id}`, {
+        dailyViews: Number(dailyViews),
+        image1_url: imageUrl || null,
+      });
+      toast.success('Cập nhật chiến dịch thành công');
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <h3 className="text-lg font-bold text-slate-800">Sửa chiến dịch</h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition">
+            <X size={18} className="text-slate-500" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-5">
+          {/* Campaign name (readonly) */}
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">Tên chiến dịch</label>
+            <p className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700">{campaign.name}</p>
+          </div>
+
+          {/* Daily views (editable) */}
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">Số lượng view/ngày</label>
+            <input
+              type="number"
+              min="1"
+              value={dailyViews}
+              onChange={e => setDailyViews(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white
+                         shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+            />
+          </div>
+
+          {/* Image upload (editable) */}
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">Hình ảnh</label>
+            {imageUrl && (
+              <div className="mb-2 relative group">
+                <img src={imageUrl} alt="Campaign" className="w-full h-40 object-cover rounded-xl border border-slate-200" />
+                <button
+                  onClick={() => { setImageUrl(''); setImageFile(null); }}
+                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+            <div
+              onClick={() => fileRef.current.click()}
+              className="flex items-center gap-3 border border-dashed border-slate-300 rounded-xl
+                         px-4 py-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition group"
+            >
+              <div className="w-9 h-9 rounded-lg bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center">
+                <Upload size={16} className={`text-slate-400 group-hover:text-blue-500 transition ${uploading ? 'animate-spin' : ''}`} />
+              </div>
+              <span className="text-sm text-slate-500">
+                {imageFile ? imageFile.name : uploading ? 'Đang upload...' : 'Chọn ảnh mới'}
+              </span>
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200">
+          <button onClick={onClose} className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+            Hủy
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition disabled:opacity-50"
+          >
+            {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function CampaignList() {
   usePageTitle('Quản lý chiến dịch');
@@ -15,6 +146,7 @@ export default function CampaignList() {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [editingCampaign, setEditingCampaign] = useState(null);
 
   const fetchCampaigns = () => {
     setLoading(true);
@@ -52,8 +184,6 @@ export default function CampaignList() {
       setCampaigns(prev => prev.filter(c => c.id !== id));
     } catch (err) { toast.error(err.message); }
   };
-
-
 
   return (
     <div className="space-y-6">
@@ -157,6 +287,13 @@ export default function CampaignList() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center gap-2">
                         <button
+                          onClick={() => setEditingCampaign(c)}
+                          className="text-blue-600 hover:bg-blue-50 p-1 rounded-full"
+                          title="Sửa"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => handleToggleStatus(c.id, c.status)}
                           className={`p-1 rounded-full ${
                             c.status === 'running'
@@ -184,6 +321,15 @@ export default function CampaignList() {
           )}
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {editingCampaign && (
+        <EditCampaignModal
+          campaign={editingCampaign}
+          onClose={() => setEditingCampaign(null)}
+          onSaved={fetchCampaigns}
+        />
+      )}
     </div>
   );
 }

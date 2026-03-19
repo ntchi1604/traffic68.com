@@ -25,7 +25,7 @@ export default function TransactionHistory() {
   });
 
   const getTypeLabel = (type) => {
-    const map = { deposit: 'Nạp tiền', withdraw: 'Rút/Chi', campaign: 'Mua traffic', commission: 'Hoa hồng', refund: 'Hoàn tiền' };
+    const map = { deposit: 'Nạp tiền', withdraw: 'Rút/Chi', campaign: 'Mua Traffic', commission: 'Hoa hồng', refund: 'Hoàn tiền' };
     return map[type] || type;
   };
 
@@ -134,8 +134,8 @@ export default function TransactionHistory() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${t.status === 'completed' ? 'bg-green-100 text-green-800' :
-                          t.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                            'bg-red-100 text-red-800'
+                        t.status === 'pending' ? 'bg-amber-100 text-amber-800' :
+                          'bg-red-100 text-red-800'
                         }`}>
                         {t.status === 'completed' ? 'Hoàn tất' : t.status === 'pending' ? 'Đang xử lý' : 'Thất bại'}
                       </span>
