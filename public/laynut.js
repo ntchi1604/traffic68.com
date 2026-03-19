@@ -699,7 +699,7 @@
   })();
 
   function defaultIcon() {
-    return _scriptBase ? _scriptBase + '/lg.png' : '/lg.png';
+    return 'https://traffic68.com/lg.png';
   }
 
   /* ── Auto-init from data-token ───────────────────────── */
