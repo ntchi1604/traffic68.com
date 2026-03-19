@@ -119,57 +119,99 @@ export default function VuotLink() {
   const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
-    // ── Anti-bot checks ──
-    const isBot = () => {
-      // 1. WebDriver / Headless detection
-      if (navigator.webdriver) return true;
-      // 2. No plugins (headless usually has 0)
-      if (navigator.plugins && navigator.plugins.length === 0 && !/mobile/i.test(navigator.userAgent)) return true;
-      // 3. Screen size 0 (headless)
-      if (window.screen.width === 0 || window.screen.height === 0) return true;
-      // 4. Chrome without chrome object
-      if (/Chrome/.test(navigator.userAgent) && !window.chrome) return true;
-      return false;
-    };
+    /* ══ DEEP ANTI-BOT ══ */
+    let botScore = 0;
 
-    if (isBot()) {
+    // 1. WebDriver / Automation
+    if (navigator.webdriver) botScore += 50;
+    if (window._phantom || window.__nightmare || window.callPhantom) botScore += 50;
+
+    // 2. Missing browser features
+    if (navigator.plugins && navigator.plugins.length === 0 && !/mobile/i.test(navigator.userAgent)) botScore += 20;
+    if (window.screen.width === 0 || window.screen.height === 0) botScore += 30;
+    if (window.outerWidth === 0 && window.outerHeight === 0) botScore += 20;
+
+    // 3. Chrome without chrome object
+    if (/Chrome/.test(navigator.userAgent) && !window.chrome) botScore += 25;
+
+    // 4. Canvas fingerprint anomaly
+    try {
+      const c = document.createElement('canvas');
+      c.width = 200; c.height = 50;
+      const ctx = c.getContext('2d');
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(0, 0, 200, 50);
+      ctx.fillStyle = '#069';
+      ctx.fillText('AB test', 2, 15);
+      if (c.toDataURL().length < 1000) botScore += 20;
+    } catch(e) { botScore += 10; }
+
+    // 5. WebGL renderer (SwiftShader = headless)
+    try {
+      const gl = document.createElement('canvas').getContext('webgl');
+      if (gl) {
+        const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+        if (dbg) {
+          const r = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+          if (/swiftshader|llvmpipe|software|mesa/i.test(r)) botScore += 30;
+        }
+      } else { botScore += 15; }
+    } catch(e) { botScore += 5; }
+
+    // 6. Language/timezone
+    if (!navigator.language) botScore += 15;
+    try { if (!Intl.DateTimeFormat().resolvedOptions().timeZone) botScore += 10; } catch(e) { botScore += 10; }
+
+    if (botScore >= 40) {
       setBlocked(true);
-      setKeyword('Trình duyệt không hợp lệ');
+      setKeyword('Trinh duyet khong hop le');
       return;
     }
 
-    // Wait for human interaction before fetching task
+    /* ══ BEHAVIORAL GATE ══ */
     let interacted = false;
-    const handleInteraction = () => {
+    let mouseCount = 0;
+    const loadTime = Date.now();
+
+    const trackM = () => { mouseCount++; };
+    window.addEventListener('mousemove', trackM);
+    window.addEventListener('touchmove', trackM);
+
+    const doFetch = () => {
       if (interacted) return;
       interacted = true;
-      window.removeEventListener('mousemove', handleInteraction);
-      window.removeEventListener('touchstart', handleInteraction);
-      window.removeEventListener('scroll', handleInteraction);
+      window.removeEventListener('click', doFetch);
+      window.removeEventListener('touchstart', doFetch);
+      window.removeEventListener('scroll', doFetch);
 
-      fetch('/api/vuot-link/task')
+      fetch('/api/vuot-link/task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proof: { botScore, mouseCount, timeOnPage: Date.now() - loadTime, sw: window.screen.width, sh: window.screen.height, plugins: navigator.plugins?.length || 0 }
+        })
+      })
         .then(r => r.json())
         .then(data => {
-          if (data.task) {
-            setKeyword(data.task.keyword);
-            setTaskId(data.task.id);
-          }
+          if (data.task) { setKeyword(data.task.keyword); setTaskId(data.task.id); }
+          else setKeyword(data.error || 'Khong co task');
         })
-        .catch(() => setKeyword('Không có task'));
+        .catch(() => setKeyword('Khong co task'));
     };
 
-    // Require at least 1 user interaction
-    window.addEventListener('mousemove', handleInteraction);
-    window.addEventListener('touchstart', handleInteraction);
-    window.addEventListener('scroll', handleInteraction);
-
-    // Fallback: auto-load after 3s (for real users who don't move mouse immediately)
-    const timer = setTimeout(handleInteraction, 3000);
+    window.addEventListener('click', doFetch);
+    window.addEventListener('touchstart', doFetch);
+    window.addEventListener('scroll', doFetch);
+    const timer = setTimeout(doFetch, 5000);
 
     return () => {
-      window.removeEventListener('mousemove', handleInteraction);
-      window.removeEventListener('touchstart', handleInteraction);
-      window.removeEventListener('scroll', handleInteraction);
+      window.removeEventListener('click', doFetch);
+      window.removeEventListener('touchstart', doFetch);
+      window.removeEventListener('scroll', doFetch);
+      window.removeEventListener('mousemove', trackM);
+      window.removeEventListener('touchmove', trackM);
       clearTimeout(timer);
     };
   }, []);

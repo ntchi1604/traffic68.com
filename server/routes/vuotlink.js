@@ -7,10 +7,26 @@ const router = express.Router();
 // Bot user-agent patterns
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
 
-// ── GET /api/vuot-link/task (PUBLIC) ──
-router.get('/task', optionalAuth, async (req, res) => {
+// IP rate limit: max 10 tasks/hour
+const ipTaskCount = {};
+setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 60 * 60 * 1000);
+
+// ── POST /api/vuot-link/task (PUBLIC) ──
+router.post('/task', optionalAuth, async (req, res) => {
   const ua = req.headers['user-agent'] || '';
   if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Trình duyệt không hợp lệ' });
+
+  // Rate limit by IP
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
+  if (ipTaskCount[ip] > 10) return res.status(429).json({ error: 'Quá nhiều yêu cầu, vui lòng thử lại sau' });
+
+  // Validate proof from frontend
+  const { proof } = req.body || {};
+  if (proof) {
+    if (proof.botScore >= 40) return res.status(403).json({ error: 'Trình duyệt không hợp lệ' });
+    if (proof.sw === 0 || proof.sh === 0) return res.status(403).json({ error: 'Trình duyệt không hợp lệ' });
+  }
 
   const pool = getPool();
   const [campaigns] = await pool.execute(
