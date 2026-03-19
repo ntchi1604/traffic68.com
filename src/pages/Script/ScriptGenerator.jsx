@@ -2,9 +2,10 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
 import {
-  ChevronRight, Copy, Check, RefreshCw, Play,
-  Code2, Sliders, Palette, Info, ExternalLink,
+  Copy, Check, RefreshCw, Play,
+  Code2, Sliders, Info,
   Pin, MessageSquare,
+  Crosshair, Settings2,
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 
@@ -19,24 +20,29 @@ const THEMES = [
   { id: 'glass', label: 'Glass', desc: 'Glassmorphism', preview: { modal: 'rgba(255,255,255,0.15)', text: '#fff', accent: '#fff', ring: 'rgba(255,255,255,0.15)' }, dark: true },
 ];
 
-const EMOJI_ICONS = ['🎁', '🔓', '✨', '🎯', '🚀', '💎', '🎉', '🔑', '⚡', '🌟', '🏆', '💡'];
+const INSERT_MODES = [
+  { id: 'before', label: 'Trước', arrow: '↑', desc: 'Phía trên phần tử' },
+  { id: 'after', label: 'Sau', arrow: '↓', desc: 'Phía dưới phần tử' },
+  { id: 'prepend', label: 'Đầu (trong)', arrow: '↱', desc: 'Con đầu tiên bên trong' },
+  { id: 'append', label: 'Cuối (trong)', arrow: '↳', desc: 'Con cuối cùng bên trong' },
+];
 
-const CORNERS = [
-  { id: 'top-left', label: 'Trên Trái', emoji: '↖' },
-  { id: 'top-right', label: 'Trên Phải', emoji: '↗' },
-  { id: 'bottom-left', label: 'Dưới Trái', emoji: '↙' },
-  { id: 'bottom-right', label: 'Dưới Phải', emoji: '↘' },
-  { id: 'center', label: 'Giữa', emoji: '⊕' },
+const ALIGNS = [
+  { id: 'top-left', label: 'Trái', arrow: '←' },
+  { id: 'center', label: 'Giữa', arrow: '·' },
+  { id: 'top-right', label: 'Phải', arrow: '→' },
 ];
 
 const DEFAULT_CFG = {
-  /* Embed */
-  embedMode: 'inline',
-  target: '',
-  insetCorner: 'bottom-right',
-  insetX: 20,
-  insetY: 14,
-  /* Button appearance */
+  /* Vị trí chèn */
+  insertTarget: '.footer',
+  insertMode: 'after',
+  insertId: 'API-SEO_TRAFFIC68',
+  insertStyle: '',
+  align: 'center',
+  padX: 0,
+  padY: 12,
+  /* Button */
   buttonText: 'Lấy Mã',
   buttonColor: '#e53935',
   textColor: '#ffffff',
@@ -58,7 +64,6 @@ const DEFAULT_CFG = {
   brandName: 'Traffic68',
   brandUrl: 'https://traffic68.com',
   brandLogo: '',
-  /* Embed */
   customCSS: '',
 };
 
@@ -89,12 +94,10 @@ function CopyButton({ text }) {
 /* ────────────────────────────────────────────────────────── */
 /*  Live preview                                              */
 /* ────────────────────────────────────────────────────────── */
-const CORNER_POS = {
-  'top-left': { top: 10, left: 10 },
-  'top-right': { top: 10, right: 10 },
-  'bottom-left': { bottom: 10, left: 10 },
-  'bottom-right': { bottom: 10, right: 10 },
-  'center': { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' },
+const ALIGN_FLEX = {
+  'top-left': 'flex-start', 'bottom-left': 'flex-start',
+  'top-right': 'flex-end', 'bottom-right': 'flex-end',
+  'center': 'center',
 };
 
 function LivePreview({ cfg, countdown, revealed }) {
@@ -108,9 +111,8 @@ function LivePreview({ cfg, countdown, revealed }) {
     fontSize: Math.min(cfg.fontSize, 13),
     boxShadow: cfg.shadow ? '0 4px 16px rgba(0,0,0,0.28)' : 'none',
     fontWeight: 700,
-    position: 'absolute',
-    ...(CORNER_POS[cfg.insetCorner] || CORNER_POS['bottom-right']),
   };
+  const wrapJustify = ALIGN_FLEX[cfg.align] || ALIGN_FLEX['center'] || 'center';
 
   const effectiveIconUrl = cfg.iconUrl || 'https://traffic68.com/lg.png';
   const iconEl = (
@@ -162,25 +164,19 @@ function LivePreview({ cfg, countdown, revealed }) {
 
         <div className="absolute bottom-0 left-0 right-0"
           style={{
-            height: 90,
             background: theme.dark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)',
             borderTop: '2px dashed',
             borderColor: theme.dark ? 'rgba(129,140,248,0.5)' : 'rgba(99,102,241,0.4)',
-            position: 'relative'
           }}>
-          <div className="flex items-center justify-center gap-1.5 pt-2">
-            <Pin size={10} className={theme.dark ? 'text-indigo-300' : 'text-indigo-500'} />
-            <p className="text-[10px] font-bold tracking-wide"
-              style={{ color: theme.dark ? '#a5b4fc' : '#6366f1' }}>{cfg.target || '#target-element'}</p>
+          <div className="flex items-center justify-center gap-1.5 py-1">
+            <Pin size={9} className={theme.dark ? 'text-indigo-300' : 'text-indigo-500'} />
+            <p className="text-[9px] font-bold tracking-wide"
+              style={{ color: theme.dark ? '#a5b4fc' : '#6366f1' }}>{cfg.insertTarget || '.footer'}</p>
           </div>
-          {btn}
+          <div style={{ display: 'flex', justifyContent: wrapJustify, padding: `${cfg.padY || 0}px ${cfg.padX || 0}px` }}>
+            {btn}
+          </div>
         </div>
-      </div>
-
-      {/* Mode badge */}
-      <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 border border-purple-200">
-        <Pin size={11} />
-        {`Nhúng vào: ${cfg.target || '(chưa nhập selector)'}`}
       </div>
 
       {/* Popup mock */}
@@ -334,7 +330,7 @@ export default function ScriptGenerator() {
     if (!token) return '// Nhấn "Lưu & Lấy Script" để tạo mã nhúng an toàn';
     return [
       `<!-- Traffic68 LayNut Button -->`,
-      `<script src="${window.location.origin}/laynut.js" data-token="${token}" async><\/script>`,
+      `<script src="${window.location.origin}/api_seo_traffic68.js" data-token="${token}" async><\/script>`,
     ].join('\n');
   }, [token]);
 
@@ -364,8 +360,8 @@ export default function ScriptGenerator() {
               <button key={key} onClick={() => setTab(key)}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-bold rounded-lg whitespace-nowrap transition-all
                             ${tab === key
-                              ? 'bg-blue-600 text-white shadow-md'
-                              : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700'}`}>
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700'}`}>
                 <Icon size={13} /> {label}
               </button>
             ))}
@@ -460,55 +456,110 @@ export default function ScriptGenerator() {
             </div>
           )}
 
-          {/* ─────────────────────────────────────────────────── */}
-          {/* TAB 2: Nhúng vào — all positioning in one place     */}
-          {/* ─────────────────────────────────────────────────── */}
+          {/* ── TAB 2: Nhúng ─────────────────────────────────── */}
           {tab === 'position' && (
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
+            <div className="space-y-4">
 
-              <Field label="CSS Selector phần tử chứa nút"
-                hint="Ví dụ: #my-footer  ·  .cta-box  ·  section.promo  ·  footer">
-                <input type="text" value={cfg.target}
-                  onChange={e => set('target', e.target.value)}
-                  placeholder="#my-footer-id hoặc .ten-class"
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none
-                             focus:ring-2 focus:ring-purple-500 transition font-mono bg-white" />
-                {cfg.target && (
-                  <p className="text-xs text-purple-600 font-mono mt-1.5 flex items-center gap-1.5">
-                    <Pin size={11} /> querySelector('<b>{cfg.target}</b>')
-                  </p>
-                )}
-              </Field>
+              {/* ── 1. Phần tử tham chiếu ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <Crosshair size={14} className="text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-800">Phần tử tham chiếu</h3>
+                    <p className="text-[11px] text-gray-400">CSS selector — script sẽ tìm phần tử này trên trang khách</p>
+                  </div>
+                </div>
+                <input type="text" value={cfg.insertTarget}
+                  onChange={e => set('insertTarget', e.target.value)}
+                  placeholder=".footer · #sidebar · header · .cta-section"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl
+                             focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition font-mono bg-white" />
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  Script tự tạo 1 <code className="bg-gray-100 px-1 rounded text-gray-600">div</code> mới và chèn vào vị trí bạn chọn bên dưới.
+                  Khách hàng chỉ cần dán thẻ <code className="bg-gray-100 px-1 rounded text-gray-600">&lt;script&gt;</code>, không cần sửa HTML.
+                </p>
+              </div>
 
-              <Field label="Góc trong phần tử" hint="Nút sẽ được absolute-positioned trong phần tử target">
-                <div className="grid grid-cols-2 gap-2">
-                  {CORNERS.map(c => (
-                    <button key={c.id} type="button" onClick={() => set('insetCorner', c.id)}
-                      className={`flex items-center gap-2 py-2.5 px-3 rounded-xl border-2 text-sm font-semibold transition-all
-                                  ${cfg.insetCorner === c.id ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
-                      <span className="text-lg">{c.emoji}</span> {c.label}
+              {/* ── 2. Vị trí chèn ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center">
+                    <Pin size={14} className="text-violet-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-800">Vị trí chèn</h3>
+                    <p className="text-[11px] text-gray-400">Div mới sẽ xuất hiện ở đâu so với phần tử tham chiếu?</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {INSERT_MODES.map(m => {
+                    const sel = cfg.insertMode === m.id;
+                    return (
+                      <button key={m.id} type="button" onClick={() => set('insertMode', m.id)}
+                        className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all
+                          ${sel ? 'border-violet-500 bg-violet-50 text-violet-700 shadow-sm' : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600'}`}>
+                        <span className="text-base font-bold leading-none">{m.arrow}</span>
+                        <span className="text-[11px] font-semibold">{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ── 3. Căn chỉnh + Padding ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-sm">↔</div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-800">Căn chỉnh & khoảng cách</h3>
+                    <p className="text-[11px] text-gray-400">Nút hiển thị inline, tự chiếm không gian trong div mới</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {ALIGNS.map(a => (
+                    <button key={a.id} type="button" onClick={() => set('align', a.id)}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 text-xs font-bold transition-all
+                        ${cfg.align === a.id ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' : 'border-gray-200 text-gray-400 hover:border-gray-300'}`}>
+                      <span className="text-sm">{a.arrow}</span> {a.label}
                     </button>
                   ))}
                 </div>
-              </Field>
 
-              <div className="grid grid-cols-2 gap-4">
-                <Field label={`Khoảng cách ngang — ${cfg.insetX}px`}>
-                  <input type="range" min="0" max="80" value={cfg.insetX}
-                    onChange={e => set('insetX', +e.target.value)} className="w-full accent-purple-500 cursor-pointer" />
-                </Field>
-                <Field label={`Khoảng cách dọc — ${cfg.insetY}px`}>
-                  <input type="range" min="0" max="80" value={cfg.insetY}
-                    onChange={e => set('insetY', +e.target.value)} className="w-full accent-purple-500 cursor-pointer" />
-                </Field>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label={`Padding ngang — ${cfg.padX}px`}>
+                    <input type="range" min="0" max="60" value={cfg.padX}
+                      onChange={e => set('padX', +e.target.value)} className="w-full accent-emerald-500 cursor-pointer" />
+                  </Field>
+                  <Field label={`Padding dọc — ${cfg.padY}px`}>
+                    <input type="range" min="0" max="60" value={cfg.padY}
+                      onChange={e => set('padY', +e.target.value)} className="w-full accent-emerald-500 cursor-pointer" />
+                  </Field>
+                </div>
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 space-y-1">
-                <p className="font-bold">💡 Lưu ý:</p>
-                <p>• Nút <strong>chỉ hiển thị</strong> khi tìm thấy phần tử target trên trang.</p>
-                <p>• Nếu trang không có phần tử target, nút sẽ <strong>không hiện</strong>.</p>
-                <p>• Script tự thêm <code className="bg-amber-100 px-1 rounded">position:relative</code> nếu chưa có.</p>
-              </div>
+              {/* ── 4. Nâng cao ── */}
+              <details className="bg-white rounded-2xl border border-gray-200 shadow-sm group">
+                <summary className="flex items-center gap-2 p-5 cursor-pointer select-none">
+                  <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center">
+                    <Settings2 size={14} className="text-gray-500" />
+                  </div>
+                  <span className="text-sm font-bold text-gray-600">Nâng cao</span>
+                  <span className="ml-auto text-gray-300 text-xs group-open:rotate-90 transition-transform">▶</span>
+                </summary>
+                <div className="px-5 pb-5 grid grid-cols-2 gap-4 -mt-1">
+                  <Field label="ID container" hint="Mặc định: laynut-auto-container">
+                    <TextInput value={cfg.insertId} onChange={e => set('insertId', e.target.value)}
+                      placeholder="laynut-auto-container" mono />
+                  </Field>
+                  <Field label="CSS cho container" hint="VD: background:#f5f5f5;">
+                    <TextInput value={cfg.insertStyle} onChange={e => set('insertStyle', e.target.value)}
+                      placeholder="padding:20px;" mono />
+                  </Field>
+                </div>
+              </details>
             </div>
           )}
 
@@ -690,11 +741,12 @@ export default function ScriptGenerator() {
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {[
-                        ['target', '""', 'CSS selector phần tử chứa nút (inline mode)'],
-                        ['insetCorner', 'bottom-right', 'Góc trong target: top-left/top-right/bottom-left/bottom-right'],
-                        ['insetX / insetY', '20 / 14', 'Khoảng cách trong target (px)'],
-                        ['position', 'bottom-right', 'Floating: top-left/top-right/bottom-left/bottom-right/center'],
-                        ['offsetX / offsetY', '20', 'Khoảng cách từ cạnh màn hình (px)'],
+                        ['insertTarget', '.footer', 'CSS selector phần tử tham chiếu'],
+                        ['insertMode', 'after', 'before | after | prepend | append'],
+                        ['insertId', 'laynut-auto-container', 'ID cho div tự tạo'],
+                        ['insertStyle', '""', 'Inline CSS cho div tự tạo'],
+                        ['align', 'center', 'Căn chỉnh: top-left / center / top-right'],
+                        ['padX / padY', '0 / 12', 'Padding trong container (px)'],
                         ['buttonText', 'Lấy Mã', 'Text nút'],
                         ['buttonColor', '#f97316', 'Màu nền nút'],
                         ['textColor', '#ffffff', 'Màu chữ nút'],

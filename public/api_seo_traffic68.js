@@ -49,17 +49,14 @@
 
   /* ── Defaults ─────────────────────────────────────────── */
   var D = {
-    /* Floating mode (no target) */
-    position: 'bottom-right',
-    offsetX: 20,
-    offsetY: 20,
-
-    /* Inline / embedded mode */
-    target: '',        // CSS selector of container element, e.g. '#my-footer'
-    align: 'right',   // left | center | right  — inline alignment within container
-    insetX: 16,       // px offset from left/right edge inside container
-    insetY: 16,       // px offset from top/bottom edge inside container
-    insetCorner: 'bottom-right', // which corner of the container: top-left/top-right/bottom-left/bottom-right
+    /* Vị trí chèn */
+    insertTarget: '.footer',
+    insertMode: 'after',
+    insertId: 'API-SEO_TRAFFIC68',
+    insertStyle: '',
+    align: 'center',
+    padX: 0,
+    padY: 12,
 
     buttonText: 'Lấy Mã',
     buttonColor: '#f97316',
@@ -153,11 +150,11 @@
     var ox = cfg.offsetX + 'px';
     var oy = cfg.offsetY + 'px';
     var map = {
-      'top-left':     { top: oy,    left: ox,   bottom: 'auto', right: 'auto'  },
-      'top-right':    { top: oy,    right: ox,  bottom: 'auto', left: 'auto'   },
-      'bottom-left':  { bottom: oy, left: ox,   top: 'auto',    right: 'auto'  },
-      'bottom-right': { bottom: oy, right: ox,  top: 'auto',    left: 'auto'   },
-      'center':       { top: '50%', left: '50%', transform: 'translate(-50%,-50%)', bottom: 'auto', right: 'auto' },
+      'top-left': { top: oy, left: ox, bottom: 'auto', right: 'auto' },
+      'top-right': { top: oy, right: ox, bottom: 'auto', left: 'auto' },
+      'bottom-left': { bottom: oy, left: ox, top: 'auto', right: 'auto' },
+      'bottom-right': { bottom: oy, right: ox, top: 'auto', left: 'auto' },
+      'center': { top: '50%', left: '50%', transform: 'translate(-50%,-50%)', bottom: 'auto', right: 'auto' },
     };
     return map[cfg.position] || map['bottom-right'];
   }
@@ -244,6 +241,42 @@
     document.head.appendChild(s);
   }
 
+  /* ── Auto-create container div if insertTarget is set ─── */
+  function _autoInsertContainer() {
+    if (!cfg.insertTarget) return null;
+
+    // Don't create duplicate
+    var existing = document.getElementById(cfg.insertId || 'laynut-auto-container');
+    if (existing) return existing;
+
+    var refEl = document.querySelector(cfg.insertTarget);
+    if (!refEl) return null; // reference element not found yet
+
+    var div = document.createElement('div');
+    div.id = cfg.insertId || 'laynut-auto-container';
+    if (cfg.insertStyle) div.style.cssText = cfg.insertStyle;
+
+    var mode = cfg.insertMode || 'after';
+    switch (mode) {
+      case 'before':
+        refEl.parentNode.insertBefore(div, refEl);
+        break;
+      case 'after':
+        refEl.parentNode.insertBefore(div, refEl.nextSibling);
+        break;
+      case 'prepend':
+        refEl.insertBefore(div, refEl.firstChild);
+        break;
+      case 'append':
+        refEl.appendChild(div);
+        break;
+      default:
+        refEl.parentNode.insertBefore(div, refEl.nextSibling);
+    }
+
+    return div;
+  }
+
   /* ── Build button ─────────────────────────────────────── */
   function buildButton() {
     var btn = document.createElement('button');
@@ -251,9 +284,9 @@
 
     // Common styles
     btn.style.backgroundColor = cfg.buttonColor;
-    btn.style.color            = cfg.textColor;
-    btn.style.borderRadius     = cfg.borderRadius + 'px';
-    btn.style.fontSize         = cfg.fontSize + 'px';
+    btn.style.color = cfg.textColor;
+    btn.style.borderRadius = cfg.borderRadius + 'px';
+    btn.style.fontSize = cfg.fontSize + 'px';
     if (cfg.shadow) btn.style.boxShadow = '0 4px 20px rgba(0,0,0,0.28)';
 
     var effectiveIcon = cfg.iconUrl || defaultIcon();
@@ -271,55 +304,46 @@
       else if (challengeActive) { openModal(); }
     };
 
-    /* ── Embed in target — target required, no floating ──── */
-    if (!cfg.target) {
-      console.warn('[LayNut] no target set, button will not be shown.');
+    /* ── Insert button into auto-created container ── */
+    if (!cfg.insertTarget) {
+      console.warn('[LayNut] insertTarget is required. Button will not be shown.');
       return;
     }
-    var container = document.querySelector(cfg.target);
-    if (!container) {
-      console.info('[LayNut] target not yet in DOM, waiting:', cfg.target);
-      _waitForTarget(cfg.target, function (el) {
-        _embedInContainer(btn, el);
-      }, function () {
-        console.warn('[LayNut] target never appeared, button will not be shown:', cfg.target);
-      });
+
+    var autoContainer = _autoInsertContainer();
+    if (autoContainer) {
+      _placeButton(btn, autoContainer);
       return;
     }
-    _embedInContainer(btn, container);
+
+    _waitForTarget(cfg.insertTarget, function () {
+      var container = _autoInsertContainer();
+      if (container) {
+        _placeButton(btn, container);
+      } else {
+        console.warn('[LayNut] Could not create container for:', cfg.insertTarget);
+      }
+    }, function () {
+      console.warn('[LayNut] insertTarget never appeared:', cfg.insertTarget);
+    });
   }
 
-  /* ── Embed button inside a container element ─────────── */
-  function _embedInContainer(btn, container) {
-    // Make container positionable if it's static
-    var cs = window.getComputedStyle(container);
-    if (cs.position === 'static') container.style.position = 'relative';
+  /* ── Place button inside container via flex layout ──── */
+  function _placeButton(btn, container) {
+    var alignMap = {
+      'top-left': 'flex-start', 'bottom-left': 'flex-start', 'left': 'flex-start',
+      'top-right': 'flex-end',  'bottom-right': 'flex-end',  'right': 'flex-end',
+      'center': 'center',
+    };
+    var justify = alignMap[cfg.align] || 'center';
+    var px = (cfg.padX || 0) + 'px';
+    var py = (cfg.padY || 0) + 'px';
 
-    if (cfg.align === 'inline') {
-      var wrap = document.createElement('div');
-      wrap.id = 'laynut-wrap-inline';
-      wrap.className = 'ln-' + (cfg.align || 'right');
-      wrap.appendChild(btn);
-      container.appendChild(wrap);
-    } else {
-      var corner = cfg.insetCorner || 'bottom-right';
-      var ix = (cfg.insetX || 16) + 'px';
-      var iy = (cfg.insetY || 16) + 'px';
-      if (corner === 'center') {
-        var centerWrap = document.createElement('div');
-        centerWrap.style.cssText = 'display:flex;justify-content:center;margin-top:12px;position:relative;z-index:9999;';
-        centerWrap.appendChild(btn);
-        container.appendChild(centerWrap);
-      } else {
-        btn.style.position = 'absolute';
-        btn.style.zIndex   = '9999';
-        if (corner.indexOf('top')    !== -1) { btn.style.top    = iy; btn.style.bottom = 'auto'; }
-        else                                  { btn.style.bottom = iy; btn.style.top    = 'auto'; }
-        if (corner.indexOf('left')  !== -1)  { btn.style.left  = ix; btn.style.right  = 'auto'; }
-        else                                  { btn.style.right = ix; btn.style.left   = 'auto'; }
-        container.appendChild(btn);
-      }
-    }
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;justify-content:' + justify +
+      ';padding:' + py + ' ' + px + ';position:relative;z-index:9999;';
+    wrap.appendChild(btn);
+    container.appendChild(wrap);
   }
 
   /* ── Wait for a target selector to appear in DOM (SPA support) ── */
@@ -371,20 +395,20 @@
       '<button class="ln-close" id="laynut-close">✕</button>' +
       iconHtml +
       '<div class="ln-ring-wrap">' +
-        '<svg class="ln-ring-svg" width="88" height="88" viewBox="0 0 88 88">' +
-          '<circle class="ln-ring-bg" cx="44" cy="44" r="' + r + '" stroke="' + t.ringBg + '"/>' +
-          '<circle class="ln-ring-prog" id="laynut-ring" cx="44" cy="44" r="' + r + '"' +
-            ' stroke="' + cfg.buttonColor + '"' +
-            ' stroke-dasharray="' + circumference + '"' +
-            ' stroke-dashoffset="0"/>' +
-        '</svg>' +
-        '<div class="ln-ring-num" id="laynut-num" style="color:' + t.modalText + '">' + remaining + '</div>' +
+      '<svg class="ln-ring-svg" width="88" height="88" viewBox="0 0 88 88">' +
+      '<circle class="ln-ring-bg" cx="44" cy="44" r="' + r + '" stroke="' + t.ringBg + '"/>' +
+      '<circle class="ln-ring-prog" id="laynut-ring" cx="44" cy="44" r="' + r + '"' +
+      ' stroke="' + cfg.buttonColor + '"' +
+      ' stroke-dasharray="' + circumference + '"' +
+      ' stroke-dashoffset="0"/>' +
+      '</svg>' +
+      '<div class="ln-ring-num" id="laynut-num" style="color:' + t.modalText + '">' + remaining + '</div>' +
       '</div>' +
       '<h2 class="ln-title" id="laynut-title" style="color:' + t.modalText + '">' + escHtml(revealed ? cfg.title : 'Vui lòng chờ...') + '</h2>' +
       '<p class="ln-msg" id="laynut-msg" style="color:' + t.subText + '">' + escHtml(revealed ? cfg.message : cfg.countdownText.replace('{s}', remaining)) + '</p>' +
       '<div id="laynut-content">' + (revealed ? codeHtml() : waitHtml()) + '</div>' +
       brandHtml +
-    '</div>';
+      '</div>';
 
     applyModalTheme(ov.querySelector('#laynut-modal'));
     document.body.appendChild(ov);
@@ -426,7 +450,7 @@
   }
 
   function escHtml(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   /* ── Copy button ──────────────────────────────────────── */
@@ -506,9 +530,9 @@
   var challengeTimes = []; // pre-scheduled array of remaining-values to trigger challenges
 
   var CHALLENGES = [
-    { id: 'scroll-top',    icon: '⬆️', text: 'Scroll lên đầu trang' },
+    { id: 'scroll-top', icon: '⬆️', text: 'Scroll lên đầu trang' },
     { id: 'scroll-bottom', icon: '⬇️', text: 'Scroll xuống cuối trang' },
-    { id: 'click',         icon: '👆', text: 'Click vào bất kỳ đâu trên trang' },
+    { id: 'click', icon: '👆', text: 'Click vào bất kỳ đâu trên trang' },
   ];
 
   function scheduleChallenges() {
@@ -557,8 +581,8 @@
     if (cont) {
       cont.innerHTML =
         '<div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 0;">' +
-          '<div style="font-size:36px;line-height:1;">' + ch.icon + '</div>' +
-          '<p style="font-size:14px;font-weight:800;color:' + t.modalText + ';">' + ch.text + '</p>' +
+        '<div style="font-size:36px;line-height:1;">' + ch.icon + '</div>' +
+        '<p style="font-size:14px;font-weight:800;color:' + t.modalText + ';">' + ch.text + '</p>' +
         '</div>';
     }
 
@@ -703,10 +727,10 @@
   /* ── Resolve script origin for absolute asset URLs ──── */
   var _scriptBase = '';
   (function resolveBase() {
-    var scripts = document.querySelectorAll('script[src*="laynut"]');
+    var scripts = document.querySelectorAll('script[src*="laynut"], script[src*="api_seo_traffic68"]');
     for (var i = 0; i < scripts.length; i++) {
       var src = scripts[i].src || '';
-      if (src) { _scriptBase = src.replace(/\/laynut\.js.*$/, ''); break; }
+      if (src) { _scriptBase = src.replace(/\/[^\/]*$/, ''); break; }
     }
   })();
 
@@ -716,12 +740,12 @@
 
   /* ── Auto-init from data-token ───────────────────────── */
   (function autoInit() {
-    var scripts = document.querySelectorAll('script[src*="laynut"]');
+    var scripts = document.querySelectorAll('script[src*="laynut"], script[src*="api_seo_traffic68"]');
     for (var i = 0; i < scripts.length; i++) {
       var token = scripts[i].getAttribute('data-token');
       if (token) {
         var base = _scriptBase;
-        var apiUrl = base + '/api/widgets/' + token;
+        var apiUrl = base + '/api/widgets/public/' + token;
 
         (function (url) {
           var xhr = new XMLHttpRequest();
@@ -729,7 +753,8 @@
           xhr.onload = function () {
             if (xhr.status === 200) {
               try {
-                var config = JSON.parse(xhr.responseText);
+                var resp = JSON.parse(xhr.responseText);
+                var config = resp.config || resp;
                 window.LayNut.init(config);
               } catch (e) {
                 console.error('[LayNut] Invalid config:', e);
