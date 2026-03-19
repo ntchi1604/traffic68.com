@@ -115,7 +115,7 @@ router.post('/', async (req, res) => {
       const refCode = 'CMP-' + Date.now();
       await pool.execute(
         `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [req.userId, 'main', 'withdraw', 'system', realBudget, 'completed', refCode, `Tạo chiến dịch: ${name}`]
+        [req.userId, 'main', 'campaign', 'system', realBudget, 'completed', refCode, `Tạo chiến dịch: ${name}`]
       );
     }
 
