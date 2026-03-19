@@ -1,455 +1,948 @@
-import { useState, useEffect } from 'react';
-import usePageTitle from '../hooks/usePageTitle';
-import { Rocket, ExternalLink, Search, CheckCircle, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  Search, Globe, Target, ShieldCheck, Copy, Check,
+  ExternalLink, ArrowRight, Eye,
+  Sparkles, AlertCircle, CheckCircle2, Timer, MousePointerClick,
+  Loader2, WifiOff
+} from 'lucide-react';
 
-export default function VuotLink() {
-  usePageTitle('Vượt Link');
-  const [glowing, setGlowing] = useState(false);
-  const [keyword, setKeyword] = useState('');
-  const [taskId, setTaskId] = useState(null);
-  const [campaignImg, setCampaignImg] = useState('');
-  const [codeInput, setCodeInput] = useState('');
-  const [codeResult, setCodeResult] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
+/* ─── AES-256-GCM crypto helpers (Web Crypto API) ──── */
+const KEY_RAW = import.meta.env.VITE_CHALLENGE_KEY || 't68vLsecur3Chall3ng3Key2026xZqWx';
 
-  const handleCodeSubmit = async () => {
-    if (!taskId || !codeInput.trim() || submitting) return;
-    setSubmitting(true);
-    setCodeResult(null);
-    try {
-      const res = await fetch(`/api/vuot-link/task/${taskId}/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: codeInput.trim(), timeOnSite: Math.floor((Date.now() - performance.now()) / 1000) })
-      });
-      const data = await res.json();
-      if (res.ok && data.code) {
-        setCodeResult({ success: true, message: `✅ Thành công! Mã của bạn: ${data.code} — Bạn nhận được ${data.earning}đ` });
-      } else {
-        setCodeResult({ success: false, message: data.error || 'Xác nhận thất bại. Vui lòng thử lại.' });
-      }
-    } catch (err) {
-      setCodeResult({ success: false, message: 'Lỗi kết nối. Vui lòng thử lại.' });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+async function getCryptoKey() {
+  let keyBytes = new TextEncoder().encode(KEY_RAW);
+  if (keyBytes.length < 32) {
+    const padded = new Uint8Array(32);
+    padded.set(keyBytes);
+    keyBytes = padded;
+  } else if (keyBytes.length > 32) {
+    keyBytes = keyBytes.slice(0, 32);
+  }
+  return crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
 
+function b64ToUint8(b64) {
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
+function uint8ToB64(arr) {
+  let bin = '';
+  for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i]);
+  return btoa(bin);
+}
+
+async function decryptPayload(encStr) {
+  const [ivB64, dataB64, tagB64] = encStr.split('.');
+  const iv = b64ToUint8(ivB64);
+  const encrypted = b64ToUint8(dataB64);
+  const tag = b64ToUint8(tagB64);
+  const combined = new Uint8Array(encrypted.length + tag.length);
+  combined.set(encrypted);
+  combined.set(tag, encrypted.length);
+  const key = await getCryptoKey();
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, combined);
+  return JSON.parse(new TextDecoder().decode(decrypted));
+}
+
+async function encryptPayload(data) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await getCryptoKey();
+  const encoded = new TextEncoder().encode(JSON.stringify(data));
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+  const encArr = new Uint8Array(encrypted);
+  const ciphertext = encArr.slice(0, encArr.length - 16);
+  const tag = encArr.slice(encArr.length - 16);
+  return uint8ToB64(iv) + '.' + uint8ToB64(ciphertext) + '.' + uint8ToB64(tag);
+}
+
+/* ─── Browser proof (anti-bot) ──────────────────────── */
+function collectBrowserProof() {
+  const sw = window.screen?.width || 0;
+  const sh = window.screen?.height || 0;
+  let botScore = 0;
+  if (navigator.webdriver) botScore += 20;
+  if (!window.chrome && /Chrome/.test(navigator.userAgent)) botScore += 15;
+  if (sw === 0 || sh === 0) botScore += 20;
+  return { sw, sh, botScore, ts: Date.now() };
+}
+
+/* ─── API base ──────────────────────────────────────── */
+const API = '/api/vuot-link';
+
+/* ─── Countdown hook ────────────────────────────────── */
+function useCountdown(seconds, start = true) {
+  const [left, setLeft] = useState(seconds);
   useEffect(() => {
-    let botScore = 0;
-    if (navigator.webdriver) botScore += 50;
-    if (window._phantom || window.__nightmare || window.callPhantom) botScore += 50;
-    if (navigator.plugins && navigator.plugins.length === 0 && !/mobile/i.test(navigator.userAgent)) botScore += 20;
-    if (window.screen.width === 0 || window.screen.height === 0) botScore += 30;
-    if (window.outerWidth === 0 && window.outerHeight === 0) botScore += 20;
-    if (/Chrome/.test(navigator.userAgent) && !window.chrome) botScore += 25;
+    if (!start || left <= 0) return;
+    const t = setTimeout(() => setLeft((p) => p - 1), 1000);
+    return () => clearTimeout(t);
+  }, [left, start]);
+  return left;
+}
 
-    try {
-      const c = document.createElement('canvas');
-      c.width = 200; c.height = 50;
-      const ctx = c.getContext('2d');
-      ctx.textBaseline = 'top';
-      ctx.font = '14px Arial';
-      ctx.fillStyle = '#f60';
-      ctx.fillRect(0, 0, 200, 50);
-      ctx.fillStyle = '#069';
-      ctx.fillText('AB test', 2, 15);
-      if (c.toDataURL().length < 1000) botScore += 20;
-    } catch (e) { botScore += 10; }
+/* ─── Main Component ────────────────────────────────── */
+export default function VuotLink() {
+  // Set tab title
+  useEffect(() => {
+    document.title = 'Vượt Link — traffic68.com';
+  }, []);
 
-    try {
-      const gl = document.createElement('canvas').getContext('webgl');
-      if (gl) {
-        const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-        if (dbg) {
-          const r = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
-          if (/swiftshader|llvmpipe|software|mesa/i.test(r)) botScore += 30;
+  // Task state from API
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [task, setTask] = useState(null); // { id, keyword, image1_url, session, startedAt, expiresAt }
+
+  // UI state
+  const [activeStep, setActiveStep] = useState(1);
+  const [copied, setCopied] = useState(false);
+  const [inputCode, setInputCode] = useState('');
+  const [verified, setVerified] = useState(false);
+  const [showError, setShowError] = useState(false);
+  const [completionResult, setCompletionResult] = useState(null); // { code, earning }
+  const [completing, setCompleting] = useState(false);
+  const taskStartTime = useRef(Date.now());
+
+  // Countdown: only starts when step 4 is active
+  const countdown = useCountdown(30, activeStep === 4);
+
+  // Verification code (generated locally for display, actual verify via API)
+  const [verifyCode, setVerifyCode] = useState('');
+
+  /* ─── Fetch task from API on mount ─────────────── */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setError('');
+
+        // Step 1: Get challenge
+        const chRes = await fetch(`${API}/challenge`);
+        if (!chRes.ok) throw new Error('Không thể lấy challenge');
+        const chData = await chRes.json();
+        const challenge = await decryptPayload(chData.d);
+
+        // Step 2: Execute JS challenge
+        // eslint-disable-next-line no-eval
+        const jsResult = eval(challenge.j);
+
+        // Step 3: Collect browser proof
+        const proof = collectBrowserProof();
+
+        // Step 4: Request task
+        const token = localStorage.getItem('token');
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const encBody = await encryptPayload({
+          challengeId: challenge.c,
+          jsResult,
+          proof,
+        });
+
+        const taskRes = await fetch(`${API}/task`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ d: encBody }),
+        });
+
+        if (taskRes.status === 404) {
+          if (!cancelled) setError('Hiện tại không có nhiệm vụ nào. Vui lòng thử lại sau.');
+          return;
         }
-      } else { botScore += 15; }
-    } catch (e) { botScore += 5; }
+        if (!taskRes.ok) throw new Error('Không thể lấy task');
 
-    if (!navigator.language) botScore += 15;
-    try { if (!Intl.DateTimeFormat().resolvedOptions().timeZone) botScore += 10; } catch (e) { botScore += 10; }
+        const taskData = await taskRes.json();
+        const decryptedTask = await decryptPayload(taskData.d);
 
-    if (botScore >= 40) {
-      setKeyword('Trình duyệt không hợp lệ');
+        if (!cancelled) {
+          setTask(decryptedTask);
+          taskStartTime.current = Date.now();
+
+          // Generate a random 6-char code for UI verification
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+          let code = '';
+          for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+          setVerifyCode(code);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Đã xảy ra lỗi');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  /* ─── Report step progress ────────────────────── */
+  const reportStep = useCallback(async (stepName) => {
+    if (!task?.id) return;
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      await fetch(`${API}/task/${task.id}/step`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ step: stepName }),
+      });
+    } catch { /* silent */ }
+  }, [task]);
+
+  /* ─── Handle step navigation ──────────────────── */
+  const goToStep = useCallback((step) => {
+    setActiveStep(step);
+    // Report to API
+    if (step === 1) reportStep('step1');
+    if (step === 2) reportStep('step2');
+    if (step === 3) reportStep('step3');
+  }, [reportStep]);
+
+  /* ─── Copy keyword ────────────────────────────── */
+  const handleCopy = useCallback(() => {
+    if (!task?.keyword) return;
+    navigator.clipboard.writeText(task.keyword);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [task]);
+
+  /* ─── Verify code & complete task ─────────────── */
+  const handleVerify = useCallback(async () => {
+    if (inputCode.toUpperCase().trim() !== verifyCode) {
+      setShowError(true);
+      setTimeout(() => setShowError(false), 3000);
       return;
     }
 
-    let interacted = false;
-    let mouseCount = 0;
-    const loadTime = Date.now();
+    // Complete task via API
+    setCompleting(true);
+    try {
+      const timeOnSite = Math.floor((Date.now() - taskStartTime.current) / 1000);
+      const token = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const trackM = () => { mouseCount++; };
-    window.addEventListener('mousemove', trackM);
-    window.addEventListener('touchmove', trackM);
+      const res = await fetch(`${API}/task/${task.id}/complete`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ timeOnSite }),
+      });
 
-    const doFetch = async () => {
-      if (interacted) return;
-      interacted = true;
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Lỗi hoàn thành task');
+      }
 
-      setKeyword('Đang xác minh...');
+      const result = await res.json();
+      setCompletionResult(result);
+      setVerified(true);
+      setShowError(false);
+    } catch (err) {
+      setShowError(true);
+      setError(err.message);
+      setTimeout(() => setShowError(false), 5000);
+    } finally {
+      setCompleting(false);
+    }
+  }, [inputCode, verifyCode, task]);
 
-      try {
-        const decrypt = async (enc) => {
-          const [ivB64, dataB64, tagB64] = enc.split('.');
-          const keyData = new TextEncoder().encode(import.meta.env.VITE_CHALLENGE_KEY);
-          const k = await crypto.subtle.importKey('raw', keyData, 'AES-GCM', false, ['decrypt']);
-          const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
-          const ct = Uint8Array.from(atob(dataB64), c => c.charCodeAt(0));
-          const tg = Uint8Array.from(atob(tagB64), c => c.charCodeAt(0));
-          const buf = new Uint8Array(ct.length + tg.length);
-          buf.set(ct); buf.set(tg, ct.length);
-          const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, k, buf);
-          return JSON.parse(new TextDecoder().decode(dec));
-        };
+  /* ─── Derived values ──────────────────────────── */
+  const keyword = task?.keyword || '';
+  const campaignImage = task?.image1_url || '';
+  const canVerify = countdown <= 0;
+  const progress = verified ? 100 : ((activeStep - 1) / 4) * 100;
 
-        const chRes = await fetch('/api/vuot-link/challenge');
-        const { d: encCh } = await chRes.json();
-        const { c: challengeId, j: jsCode } = await decrypt(encCh);
+  const steps = [
+    { id: 1, icon: Globe, title: 'MỞ GOOGLE', subtitle: 'Mở trình duyệt và truy cập Google', color: '#3b82f6', bgColor: 'rgba(59,130,246,0.08)', borderColor: 'rgba(59,130,246,0.2)' },
+    { id: 2, icon: Search, title: 'NHẬP TỪ KHÓA', subtitle: 'Tìm kiếm từ khóa trên Google', color: '#f97316', bgColor: 'rgba(249,115,22,0.08)', borderColor: 'rgba(249,115,22,0.2)' },
+    { id: 3, icon: Target, title: 'TÌM TRANG ĐÍCH', subtitle: 'Tìm và click vào trang đích', color: '#8b5cf6', bgColor: 'rgba(139,92,246,0.08)', borderColor: 'rgba(139,92,246,0.2)' },
+    { id: 4, icon: ShieldCheck, title: 'MÃ XÁC NHẬN', subtitle: 'Đợi và nhập code xác nhận', color: '#10b981', bgColor: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.2)' },
+  ];
 
-        const jsResult = new Function('return ' + jsCode)();
+  /* ─── Loading State ────────────────────────────── */
+  if (loading) {
+    return (
+      <PageWrapper>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '20px' }}>
+          <div style={{
+            width: '64px', height: '64px', borderRadius: '50%',
+            background: 'rgba(249,115,22,0.1)', border: '2px solid rgba(249,115,22,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            animation: 'spin 1.5s linear infinite',
+          }}>
+            <Loader2 size={28} style={{ color: '#f97316' }} />
+          </div>
+          <p style={{ color: '#94a3b8', fontSize: '15px', fontWeight: 500 }}>Đang tải nhiệm vụ...</p>
+        </div>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </PageWrapper>
+    );
+  }
 
-        const payload = {
-          challengeId,
-          jsResult,
-          proof: { botScore, mouseCount, timeOnPage: Date.now() - loadTime, sw: window.screen.width, sh: window.screen.height, plugins: navigator.plugins?.length || 0 }
-        };
-        const ck = import.meta.env.VITE_CHALLENGE_KEY;
-        const ek = await crypto.subtle.importKey('raw', new TextEncoder().encode(ck), 'AES-GCM', false, ['encrypt']);
-        const eiv = crypto.getRandomValues(new Uint8Array(12));
-        const enc = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: eiv }, ek, new TextEncoder().encode(JSON.stringify(payload)));
-        const encArr = new Uint8Array(enc);
-        const eCt = encArr.slice(0, encArr.length - 16);
-        const eTag = encArr.slice(encArr.length - 16);
-        const toB64 = arr => btoa(String.fromCharCode(...arr));
-        const encBody = toB64(eiv) + '.' + toB64(eCt) + '.' + toB64(eTag);
-
-        const taskRes = await fetch('/api/vuot-link/task', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ d: encBody })
-        });
-        const taskJson = await taskRes.json();
-        if (taskJson.d) {
-          const task = await decrypt(taskJson.d);
-          setKeyword(task.keyword); setTaskId(task.id);
-          if (task.image1_url) setCampaignImg(task.image1_url);
-        } else {
-          setKeyword(taskJson.error || 'Không có task');
-        }
-      } catch (err) { console.error('VuotLink error:', err); setKeyword('Không có task'); }
-    };
-
-    doFetch();
-
-    return () => {
-      window.removeEventListener('mousemove', trackM);
-      window.removeEventListener('touchmove', trackM);
-    };
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-gray-50 font-sans">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-6 md:py-10 flex flex-col gap-6">
-
-        {/* ── Title + Lấy Mã ── */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black uppercase text-center leading-tight tracking-wide" style={{ color: '#166534' }}>
-            QUY TRÌNH HOÀN TẤT VƯỢT LINK 4 BƯỚC
-          </h2>
+  /* ─── Error State ──────────────────────────────── */
+  if (error && !task) {
+    return (
+      <PageWrapper>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '20px', textAlign: 'center', padding: '0 20px' }}>
+          <div style={{
+            width: '72px', height: '72px', borderRadius: '50%',
+            background: 'rgba(239,68,68,0.1)', border: '2px solid rgba(239,68,68,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <WifiOff size={30} style={{ color: '#ef4444' }} />
+          </div>
+          <h2 style={{ color: '#f1f5f9', fontSize: '20px', fontWeight: 700, margin: 0 }}>Không thể tải nhiệm vụ</h2>
+          <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0, maxWidth: '360px' }}>{error}</p>
           <button
-            onMouseEnter={() => setGlowing(true)}
-            onMouseLeave={() => setGlowing(false)}
-            className="relative flex-shrink-0 flex items-center gap-2 text-white font-black uppercase text-xs sm:text-sm px-4 py-2 rounded-xl cursor-pointer select-none transition-all duration-300 hover:scale-105 active:scale-95"
+            onClick={() => window.location.reload()}
             style={{
-              background: 'linear-gradient(135deg,#f97316 0%,#ea580c 100%)',
-              boxShadow: glowing ? '0 0 32px 10px rgba(249,115,22,.65),0 4px 18px rgba(249,115,22,.4)' : '0 0 16px 4px rgba(249,115,22,.4)',
-            }}>
-            <Rocket size={16} /> LẤY MÃ
-            <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-yellow-300 rounded-full animate-ping opacity-80" />
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              background: 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff',
+              padding: '12px 28px', borderRadius: '12px', border: 'none',
+              fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 4px 20px rgba(249,115,22,0.3)',
+              transition: 'all 0.25s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
+          >
+            Thử lại
           </button>
         </div>
+      </PageWrapper>
+    );
+  }
 
-        {/* ══════ DESKTOP LAYOUT ══════ */}
-        <div className="hidden lg:grid gap-4" style={{ gridTemplateColumns: '160px 1fr 160px' }}>
+  return (
+    <PageWrapper>
+      {/* Main Content */}
+      <main style={{ position: 'relative', zIndex: 10, maxWidth: '780px', margin: '0 auto', padding: '0 16px 60px' }}>
 
-          {/* ── Left Features ── */}
-          <div className="flex flex-col gap-4">
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm flex-1">
-              <p className="font-black text-center text-xs uppercase leading-snug" style={{ color: '#166534' }}>CPM CAO NHẤT</p>
-              <img src="/feat_cpm.png" alt="CPM Cao Nhất" className="h-20 w-auto object-contain" />
-            </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm flex-1">
-              <p className="font-black text-center text-xs uppercase leading-snug whitespace-pre-line" style={{ color: '#166534' }}>{'THANH TOÁN\nMOMO/PAYPAL'}</p>
-              <img src="/feat_wallet.png" alt="Thanh Toán" className="h-20 w-auto object-contain" />
-            </div>
+        {/* Title Section */}
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '8px',
+            background: 'rgba(249,115,22,0.15)', border: '1px solid rgba(249,115,22,0.3)',
+            borderRadius: '100px', padding: '6px 18px', marginBottom: '16px',
+          }}>
+            <Sparkles size={14} style={{ color: '#f97316' }} />
+            <span style={{ color: '#fb923c', fontSize: '12px', fontWeight: 600, letterSpacing: '0.5px' }}>
+              HƯỚNG DẪN VƯỢT LINK
+            </span>
           </div>
+          <h1 style={{
+            color: '#f1f5f9', fontSize: 'clamp(22px, 4vw, 30px)',
+            fontWeight: 800, margin: '0 0 8px', lineHeight: 1.3,
+          }}>
+            Hoàn thành <span style={{ color: '#f97316' }}>4 bước</span> bên dưới
+          </h1>
+          <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+            Vui lòng thực hiện theo thứ tự từng bước để hoàn tất nhiệm vụ.
+          </p>
+        </div>
 
-          {/* ── Center: Steps 2×2 + Character ── */}
-          <div className="relative">
-            {/* Character guide */}
-            <div className="absolute z-10 pointer-events-none" style={{ top: '50%', left: '50%', transform: 'translate(-50%, -70%)', width: '100px' }}>
-              <img src="/character_guide.png" alt="Hướng dẫn viên" className="w-full h-auto object-contain drop-shadow-2xl" />
+        {/* Progress Bar */}
+        <div style={{ marginBottom: '36px', padding: '0 4px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 500 }}>Tiến độ</span>
+            <span style={{ color: '#f97316', fontSize: '12px', fontWeight: 700 }}>
+              {verified ? '4' : activeStep - 1}/4 bước hoàn thành
+            </span>
+          </div>
+          <div style={{
+            height: '6px', borderRadius: '100px',
+            background: 'rgba(255,255,255,0.08)', overflow: 'hidden',
+          }}>
+            <div style={{
+              height: '100%', borderRadius: '100px',
+              background: verified ? 'linear-gradient(90deg, #10b981, #34d399)' : 'linear-gradient(90deg, #f97316, #fb923c)',
+              width: `${progress}%`, transition: 'width 0.5s ease',
+            }} />
+          </div>
+        </div>
+
+        {/* Step Navigation Tabs */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '28px' }}>
+          {steps.map((step) => {
+            const isActive = activeStep === step.id;
+            const isDone = verified || activeStep > step.id;
+            const Icon = step.icon;
+            return (
+              <button
+                key={step.id}
+                onClick={() => !verified && goToStep(step.id)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  gap: '6px', padding: '14px 6px',
+                  borderRadius: '14px', border: 'none', cursor: verified ? 'default' : 'pointer',
+                  background: isActive && !verified
+                    ? `linear-gradient(135deg, ${step.bgColor}, rgba(255,255,255,0.05))`
+                    : isDone ? 'rgba(16,185,129,0.06)' : 'rgba(255,255,255,0.03)',
+                  borderWidth: '1.5px', borderStyle: 'solid',
+                  borderColor: isActive && !verified ? step.borderColor : isDone ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
+                  transition: 'all 0.3s ease',
+                  transform: isActive && !verified ? 'translateY(-2px)' : 'none',
+                  boxShadow: isActive && !verified ? `0 8px 24px ${step.bgColor}` : 'none',
+                }}
+              >
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '10px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: isDone ? 'rgba(16,185,129,0.15)' : isActive ? step.bgColor : 'rgba(255,255,255,0.05)',
+                }}>
+                  {isDone ? (
+                    <CheckCircle2 size={18} style={{ color: '#10b981' }} />
+                  ) : (
+                    <Icon size={18} style={{ color: isActive ? step.color : '#64748b' }} />
+                  )}
+                </div>
+                <span style={{
+                  fontSize: '10px', fontWeight: 700,
+                  color: isDone ? '#10b981' : isActive ? step.color : '#64748b',
+                  letterSpacing: '0.3px', textAlign: 'center',
+                }}>
+                  BƯỚC {step.id}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Step Content Cards */}
+        <div style={{
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '20px', backdropFilter: 'blur(20px)', overflow: 'hidden',
+        }}>
+          {/* ── STEP 1: Open Google ──────── */}
+          {activeStep === 1 && !verified && (
+            <div style={{ padding: 'clamp(24px, 4vw, 40px)' }}>
+              <StepHeader step={steps[0]} number={1} desc="Mở trình duyệt và truy cập trang chủ Google." />
+              <div style={{
+                background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.12)',
+                borderRadius: '16px', padding: '24px',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px',
+              }}>
+                <div style={{
+                  width: '72px', height: '72px', borderRadius: '50%',
+                  background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(59,130,246,0.05))',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Globe size={32} style={{ color: '#3b82f6' }} />
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ color: '#e2e8f0', fontSize: '15px', fontWeight: 600, margin: '0 0 4px' }}>
+                    Truy cập Google.com
+                  </p>
+                  <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>
+                    Mở tab mới và vào trang tìm kiếm Google
+                  </p>
+                </div>
+                <a
+                  href="https://www.google.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => reportStep('step1')}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '8px',
+                    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                    color: '#fff', textDecoration: 'none',
+                    padding: '12px 28px', borderRadius: '12px',
+                    fontSize: '14px', fontWeight: 700,
+                    boxShadow: '0 4px 20px rgba(59,130,246,0.3)',
+                    transition: 'all 0.25s ease',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(59,130,246,0.4)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(59,130,246,0.3)'; }}
+                >
+                  <ExternalLink size={16} /> Mở Google
+                </a>
+              </div>
+              <NextStepButton onClick={() => goToStep(2)} color="#3b82f6" />
             </div>
+          )}
 
-            <div className="grid grid-cols-2 gap-4">
-
-              {/* ── STEP 1 ── */}
-              <div className="relative flex rounded-2xl border-2 shadow-md overflow-hidden" style={{ borderColor: '#166534' }}>
-                <div className="absolute top-2 left-2 z-20 w-8 h-8 rounded-full flex items-center justify-center shadow-lg" style={{ background: '#166534' }}>
-                  <span className="text-white font-black text-sm leading-none">1</span>
-                </div>
-                <div className="flex-shrink-0 flex items-center justify-center" style={{ background: '#dcfce7', width: '140px' }}>
-                  <img src="/step1_google.png" alt="Mở Google" className="w-full h-full object-contain p-2" />
-                </div>
-                <div className="bg-white p-3 flex flex-col gap-1.5 flex-1 justify-center">
-                  <p className="font-black text-xs leading-snug" style={{ color: '#166534' }}>BƯỚC 1: MỞ GOOGLE</p>
-                  <p className="text-gray-600 text-[11px] leading-relaxed">Mở trình duyệt và truy cập trang chủ Google.</p>
-                  <a href="https://www.google.com" target="_blank" rel="noopener noreferrer"
-                    className="mt-0.5 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-[11px] font-bold transition-all hover:scale-[1.02] active:scale-95 shadow-md w-fit"
-                    style={{ background: 'linear-gradient(135deg, #4285F4, #34A853)' }}>
-                    <ExternalLink size={12} /> Mở Google.com
-                  </a>
-                </div>
-              </div>
-
-              {/* ── STEP 2 ── */}
-              <div className="relative flex rounded-2xl border-2 shadow-md overflow-hidden" style={{ borderColor: '#166534' }}>
-                <div className="absolute top-2 left-2 z-20 w-8 h-8 rounded-full flex items-center justify-center shadow-lg" style={{ background: '#166534' }}>
-                  <span className="text-white font-black text-sm leading-none">2</span>
-                </div>
-                <div className="bg-white p-3 flex flex-col gap-1.5 flex-1 justify-center">
-                  <p className="font-black text-xs leading-snug" style={{ color: '#166534' }}>BƯỚC 2: NHẬP TỪ KHÓA TÌM KIẾM</p>
-                  <p className="text-gray-600 text-[11px] leading-relaxed">Tìm kiếm từ khóa bên dưới trên Google.</p>
-                  <div className="mt-0.5 flex items-center gap-1.5 bg-amber-50 border-2 border-amber-300 rounded-lg p-1.5"
-                    style={{ userSelect: 'none', WebkitUserSelect: 'none' }} onCopy={e => e.preventDefault()}>
-                    <Search size={13} className="text-amber-600 flex-shrink-0" />
-                    <span className="flex-1 font-black text-amber-800 text-[11px]">{keyword || 'Đang tải...'}</span>
+          {/* ── STEP 2: Search Keyword ──────── */}
+          {activeStep === 2 && !verified && (
+            <div style={{ padding: 'clamp(24px, 4vw, 40px)' }}>
+              <StepHeader step={steps[1]} number={2} desc="Tìm kiếm từ khóa bên dưới trên Google." />
+              <div style={{
+                background: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.12)',
+                borderRadius: '16px', padding: '24px',
+              }}>
+                <p style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600, letterSpacing: '0.5px', margin: '0 0 12px', textTransform: 'uppercase' }}>
+                  Từ khóa tìm kiếm
+                </p>
+                <div style={{
+                  background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(249,115,22,0.25)',
+                  borderRadius: '12px', padding: '16px 20px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                    <Search size={18} style={{ color: '#f97316', flexShrink: 0 }} />
+                    <span style={{
+                      color: '#f97316', fontSize: 'clamp(15px, 3vw, 18px)',
+                      fontWeight: 700, wordBreak: 'break-word',
+                    }}>
+                      {keyword}
+                    </span>
                   </div>
-                </div>
-                <div className="flex-shrink-0 flex items-center justify-center" style={{ background: '#dcfce7', width: '140px' }}>
-                  <img src="/step2_search.png" alt="Nhập từ khóa" className="w-full h-full object-contain p-2" />
-                </div>
-              </div>
-
-              {/* ── STEP 3 ── */}
-              <div className="relative flex rounded-2xl border-2 shadow-md overflow-hidden" style={{ borderColor: '#166534' }}>
-                <div className="absolute top-2 left-2 z-20 w-8 h-8 rounded-full flex items-center justify-center shadow-lg" style={{ background: '#166534' }}>
-                  <span className="text-white font-black text-sm leading-none">3</span>
-                </div>
-                <div className="bg-white p-3 flex flex-col gap-1.5 flex-1 justify-center">
-                  <p className="font-black text-xs leading-snug" style={{ color: '#166534' }}>BƯỚC 3: TÌM KIẾM TRANG ĐÍCH</p>
-                  <p className="text-gray-600 text-[11px] leading-relaxed">Tìm kiếm trang đích.</p>
-                </div>
-                <div className="flex-shrink-0 flex items-center justify-center" style={{ background: '#dcfce7', width: '180px' }}>
-                  <img src={campaignImg || '/step3_getcode.png'} alt="Tìm kiếm trang đích" className="w-full h-full object-contain p-2" />
-                </div>
-              </div>
-
-              {/* ── STEP 4 ── */}
-              <div className="relative flex rounded-2xl border-2 shadow-md overflow-hidden" style={{ borderColor: '#166534' }}>
-                <div className="absolute top-2 left-2 z-20 w-8 h-8 rounded-full flex items-center justify-center shadow-lg" style={{ background: '#166534' }}>
-                  <span className="text-white font-black text-sm leading-none">4</span>
-                </div>
-                <div className="flex-shrink-0 flex items-center justify-center" style={{ background: '#dcfce7', width: '130px' }}>
-                  <img src="/step4_code.png" alt="Nhập mã xác nhận" className="w-full h-full object-contain p-2" />
-                </div>
-                <div className="bg-white p-3 flex flex-col gap-1.5 flex-1 justify-center">
-                  <p className="font-black text-xs leading-snug" style={{ color: '#166534' }}>BƯỚC 4: NHẬP MÃ XÁC NHẬN</p>
-                  <p className="text-gray-600 text-[11px] leading-relaxed">Tìm kiếm nút - Đợi và nhập code</p>
-                  <input
-                    type="text"
-                    placeholder="Nhập mã code tại đây..."
-                    value={codeInput}
-                    onChange={e => setCodeInput(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded-lg border-2 border-green-300 text-[11px] font-bold focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
-                    style={{ background: '#f0fdf4' }}
-                    disabled={submitting || (codeResult && codeResult.success)}
-                  />
                   <button
-                    onClick={handleCodeSubmit}
-                    disabled={submitting || !codeInput.trim() || (codeResult && codeResult.success)}
-                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-[11px] font-bold transition-all hover:scale-[1.02] active:scale-95 shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    style={{ background: codeResult?.success ? '#16a34a' : 'linear-gradient(135deg, #f97316, #ea580c)' }}
+                    onClick={handleCopy}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      background: copied ? 'rgba(16,185,129,0.2)' : 'rgba(249,115,22,0.15)',
+                      border: `1px solid ${copied ? 'rgba(16,185,129,0.3)' : 'rgba(249,115,22,0.3)'}`,
+                      color: copied ? '#10b981' : '#fb923c',
+                      padding: '8px 14px', borderRadius: '8px',
+                      fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                      transition: 'all 0.2s ease', flexShrink: 0,
+                    }}
                   >
-                    {submitting ? (
-                      <><Loader2 size={12} className="animate-spin" /> Đang xác nhận...</>
-                    ) : codeResult?.success ? (
-                      <><CheckCircle size={12} /> Đã xác nhận!</>
-                    ) : (
-                      <><CheckCircle size={12} /> Xác Nhận</>
-                    )}
+                    {copied ? <Check size={14} /> : <Copy size={14} />}
+                    {copied ? 'Đã copy' : 'Copy'}
                   </button>
-                  {codeResult && (
-                    <div className={`text-[10px] font-bold rounded-md px-2 py-1 ${codeResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
-                      {codeResult.message}
+                </div>
+
+                <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <InstructionItem icon={<span style={{ color: '#f97316', fontWeight: 800 }}>1</span>} text="Copy từ khóa bên trên" />
+                  <InstructionItem icon={<span style={{ color: '#f97316', fontWeight: 800 }}>2</span>} text="Dán vào ô tìm kiếm Google" />
+                  <InstructionItem icon={<span style={{ color: '#f97316', fontWeight: 800 }}>3</span>} text="Nhấn Enter để tìm kiếm" />
+                </div>
+              </div>
+              <NextStepButton onClick={() => goToStep(3)} color="#f97316" />
+            </div>
+          )}
+
+          {/* ── STEP 3: Find Target ──────── */}
+          {activeStep === 3 && !verified && (
+            <div style={{ padding: 'clamp(24px, 4vw, 40px)' }}>
+              <StepHeader step={steps[2]} number={3} desc="Tìm trang đích trong kết quả tìm kiếm Google và click vào." />
+              <div style={{
+                background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.12)',
+                borderRadius: '16px', padding: '24px',
+              }}>
+                <p style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600, letterSpacing: '0.5px', margin: '0 0 12px', textTransform: 'uppercase' }}>
+                  Trang đích cần tìm
+                </p>
+                <div style={{
+                  background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(139,92,246,0.2)',
+                  borderRadius: '12px', padding: '14px 18px',
+                  display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px',
+                }}>
+                  <Target size={18} style={{ color: '#8b5cf6', flexShrink: 0 }} />
+                  <span style={{ color: '#a78bfa', fontSize: '14px', fontWeight: 600, wordBreak: 'break-all' }}>
+                    Tìm trang có giao diện giống hình bên dưới
+                  </span>
+                </div>
+
+                {/* Campaign Image */}
+                {campaignImage && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <p style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600, letterSpacing: '0.5px', margin: '0 0 12px', textTransform: 'uppercase' }}>
+                      <Eye size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '6px' }} />
+                      Hình ảnh trang đích — Tìm trang có giao diện giống hình bên dưới
+                    </p>
+                    <div style={{
+                      position: 'relative', borderRadius: '14px', overflow: 'hidden',
+                      border: '2px solid rgba(139,92,246,0.25)', background: 'rgba(0,0,0,0.2)',
+                    }}>
+                      <img
+                        src={campaignImage}
+                        alt="Campaign Target"
+                        style={{ width: '100%', display: 'block', borderRadius: '12px' }}
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                      <div style={{
+                        position: 'absolute', top: '12px', left: '12px',
+                        background: 'rgba(139,92,246,0.85)', backdropFilter: 'blur(8px)',
+                        borderRadius: '8px', padding: '6px 12px',
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                      }}>
+                        <MousePointerClick size={13} style={{ color: '#fff' }} />
+                        <span style={{ color: '#fff', fontSize: '11px', fontWeight: 700 }}>CLICK VÀO TRANG NÀY</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* No image fallback */}
+                {!campaignImage && (
+                  <div style={{
+                    background: 'rgba(139,92,246,0.06)', border: '1px dashed rgba(139,92,246,0.25)',
+                    borderRadius: '12px', padding: '28px',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px',
+                    marginBottom: '20px',
+                  }}>
+                    <div style={{
+                      width: '56px', height: '56px', borderRadius: '14px',
+                      background: 'rgba(139,92,246,0.1)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Target size={24} style={{ color: '#8b5cf6' }} />
+                    </div>
+                    <p style={{ color: '#a78bfa', fontSize: '13px', fontWeight: 600, margin: 0, textAlign: 'center' }}>
+                      Tìm trang web phù hợp với từ khóa <span style={{ color: '#c4b5fd' }}>"{keyword}"</span> trong kết quả Google
+                    </p>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <InstructionItem icon={<span style={{ color: '#8b5cf6', fontWeight: 800 }}>1</span>} text="Cuộn tìm trong kết quả Google" />
+                  <InstructionItem icon={<span style={{ color: '#8b5cf6', fontWeight: 800 }}>2</span>} text="Tìm trang có giao diện giống hình trên" />
+                  <InstructionItem icon={<span style={{ color: '#8b5cf6', fontWeight: 800 }}>3</span>} text="Click vào kết quả để truy cập trang" />
+                </div>
+              </div>
+              <NextStepButton onClick={() => goToStep(4)} color="#8b5cf6" />
+            </div>
+          )}
+
+          {/* ── STEP 4: Verification ──────── */}
+          {activeStep === 4 && (
+            <div style={{ padding: 'clamp(24px, 4vw, 40px)' }}>
+              <StepHeader step={steps[3]} number={4} desc="Đợi hết thời gian sau đó nhập mã xác nhận." />
+
+              {verified ? (
+                /* ── Success state ── */
+                <div style={{
+                  background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)',
+                  borderRadius: '16px', padding: '40px 24px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', textAlign: 'center',
+                }}>
+                  <div style={{
+                    width: '80px', height: '80px', borderRadius: '50%',
+                    background: 'linear-gradient(135deg, rgba(16,185,129,0.2), rgba(16,185,129,0.05))',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    animation: 'pulse 2s ease-in-out infinite',
+                  }}>
+                    <CheckCircle2 size={40} style={{ color: '#10b981' }} />
+                  </div>
+                  <h3 style={{ color: '#10b981', fontSize: '22px', fontWeight: 800, margin: 0 }}>
+                    Xác nhận thành công!
+                  </h3>
+                  <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0, maxWidth: '320px' }}>
+                    Bạn đã hoàn thành tất cả các bước. Cảm ơn bạn đã thực hiện nhiệm vụ!
+                  </p>
+
+                  {/* Show completion result */}
+                  {completionResult && (
+                    <div style={{
+                      background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.2)',
+                      borderRadius: '12px', padding: '16px 24px', marginTop: '8px',
+                      display: 'flex', flexDirection: 'column', gap: '8px',
+                    }}>
+                      {completionResult.code && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: '#94a3b8', fontSize: '13px' }}>Mã hoàn thành:</span>
+                          <span style={{ color: '#10b981', fontSize: '15px', fontWeight: 700, fontFamily: 'monospace' }}>{completionResult.code}</span>
+                        </div>
+                      )}
+                      {completionResult.earning > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: '#94a3b8', fontSize: '13px' }}>Tiền thưởng:</span>
+                          <span style={{ color: '#f97316', fontSize: '15px', fontWeight: 700 }}>{Number(completionResult.earning).toLocaleString('vi-VN')} VNĐ</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <Link
+                    to="/"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '8px',
+                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                      color: '#fff', textDecoration: 'none',
+                      padding: '12px 28px', borderRadius: '12px',
+                      fontSize: '14px', fontWeight: 700, marginTop: '8px',
+                      boxShadow: '0 4px 20px rgba(16,185,129,0.3)',
+                      transition: 'all 0.25s ease',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
+                  >
+                    Quay về trang chủ
+                  </Link>
+                </div>
+              ) : (
+                /* ── Verification form ── */
+                <div style={{
+                  background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.12)',
+                  borderRadius: '16px', padding: '24px',
+                }}>
+                  {/* Timer */}
+                  <div style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', marginBottom: '24px',
+                  }}>
+                    <div style={{
+                      width: '64px', height: '64px', borderRadius: '50%',
+                      background: canVerify
+                        ? 'linear-gradient(135deg, rgba(16,185,129,0.2), rgba(16,185,129,0.05))'
+                        : 'linear-gradient(135deg, rgba(249,115,22,0.2), rgba(249,115,22,0.05))',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 0.5s ease',
+                    }}>
+                      {canVerify ? (
+                        <ShieldCheck size={28} style={{ color: '#10b981' }} />
+                      ) : (
+                        <Timer size={28} style={{ color: '#f97316' }} />
+                      )}
+                    </div>
+                    {!canVerify ? (
+                      <div style={{ textAlign: 'center' }}>
+                        <p style={{ color: '#f97316', fontSize: '28px', fontWeight: 800, margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+                          {String(Math.floor(countdown / 60)).padStart(2, '0')}:{String(countdown % 60).padStart(2, '0')}
+                        </p>
+                        <p style={{ color: '#94a3b8', fontSize: '12px', margin: '4px 0 0', fontWeight: 500 }}>
+                          Vui lòng đợi hết thời gian
+                        </p>
+                      </div>
+                    ) : (
+                      <p style={{ color: '#10b981', fontSize: '14px', fontWeight: 600, margin: 0 }}>
+                        ✓ Bạn có thể nhập mã xác nhận ngay bây giờ
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Code display */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <p style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600, letterSpacing: '0.5px', margin: '0 0 10px', textTransform: 'uppercase' }}>
+                      Mã xác nhận
+                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
+                      {verifyCode.split('').map((char, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            width: '44px', height: '52px',
+                            background: 'rgba(0,0,0,0.4)',
+                            border: '1.5px solid rgba(16,185,129,0.3)',
+                            borderRadius: '10px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#10b981', fontSize: '22px', fontWeight: 800,
+                            fontFamily: "'Inter', monospace", letterSpacing: '1px',
+                          }}
+                        >
+                          {canVerify ? char : '•'}
+                        </div>
+                      ))}
+                    </div>
+                    {!canVerify && (
+                      <p style={{ color: '#64748b', fontSize: '11px', textAlign: 'center', margin: '6px 0 0' }}>
+                        Mã sẽ hiện khi hết thời gian đếm ngược
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Input */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <p style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600, letterSpacing: '0.5px', margin: '0 0 10px', textTransform: 'uppercase' }}>
+                      Nhập mã xác nhận
+                    </p>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={inputCode}
+                        onChange={(e) => setInputCode(e.target.value.toUpperCase())}
+                        disabled={!canVerify || completing}
+                        placeholder={canVerify ? 'Nhập mã...' : 'Đợi hết thời gian...'}
+                        style={{
+                          flex: 1, padding: '14px 16px',
+                          background: 'rgba(0,0,0,0.3)',
+                          border: `1.5px solid ${showError ? 'rgba(239,68,68,0.5)' : 'rgba(16,185,129,0.2)'}`,
+                          borderRadius: '12px', outline: 'none',
+                          color: '#e2e8f0', fontSize: '16px', fontWeight: 700,
+                          letterSpacing: '4px', textAlign: 'center',
+                          fontFamily: "'Inter', monospace",
+                          transition: 'all 0.2s ease',
+                          opacity: canVerify ? 1 : 0.5,
+                        }}
+                        onFocus={(e) => { if (canVerify) e.target.style.borderColor = 'rgba(16,185,129,0.5)'; }}
+                        onBlur={(e) => { e.target.style.borderColor = showError ? 'rgba(239,68,68,0.5)' : 'rgba(16,185,129,0.2)'; }}
+                      />
+                      <button
+                        onClick={handleVerify}
+                        disabled={!canVerify || inputCode.length < 6 || completing}
+                        style={{
+                          padding: '14px 24px', borderRadius: '12px', border: 'none',
+                          background: canVerify && inputCode.length >= 6 && !completing
+                            ? 'linear-gradient(135deg, #10b981, #059669)'
+                            : 'rgba(255,255,255,0.05)',
+                          color: canVerify && inputCode.length >= 6 ? '#fff' : '#475569',
+                          fontSize: '14px', fontWeight: 700,
+                          cursor: canVerify && inputCode.length >= 6 && !completing ? 'pointer' : 'not-allowed',
+                          transition: 'all 0.25s ease',
+                          boxShadow: canVerify && inputCode.length >= 6 ? '0 4px 20px rgba(16,185,129,0.3)' : 'none',
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                        }}
+                        onMouseEnter={(e) => { if (canVerify && inputCode.length >= 6 && !completing) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
+                      >
+                        {completing && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+                        {completing ? 'Đang xử lý...' : 'Xác nhận'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Error message */}
+                  {showError && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+                      borderRadius: '10px', padding: '10px 14px',
+                    }}>
+                      <AlertCircle size={16} style={{ color: '#ef4444' }} />
+                      <span style={{ color: '#fca5a5', fontSize: '13px', fontWeight: 500 }}>
+                        {error || 'Mã xác nhận không đúng. Vui lòng kiểm tra và thử lại.'}
+                      </span>
                     </div>
                   )}
                 </div>
-              </div>
-
-            </div>
-          </div>
-
-          {/* ── Right Features ── */}
-          <div className="flex flex-col gap-4">
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm flex-1">
-              <p className="font-black text-center text-xs uppercase leading-snug" style={{ color: '#166534' }}>THỐNG KÊ CHI TIẾT</p>
-              <img src="/feat_dashboard.png" alt="Thống Kê" className="h-20 w-auto object-contain" />
-            </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm flex-1">
-              <p className="font-black text-center text-xs uppercase leading-snug" style={{ color: '#166534' }}>TÙY CHỈNH LINK</p>
-              <img src="/feat_link.png" alt="Tùy Chỉnh Link" className="h-20 w-auto object-contain" />
-            </div>
-          </div>
-
-        </div>
-
-        {/* ══════ MOBILE / TABLET LAYOUT ══════ */}
-        <div className="flex flex-col gap-4 lg:hidden">
-
-          {/* Step 1 */}
-          <div className="relative flex flex-col sm:flex-row rounded-2xl border-2 shadow-md overflow-hidden" style={{ borderColor: '#166534' }}>
-            <div className="absolute top-2 left-2 z-20 w-9 h-9 rounded-full flex items-center justify-center shadow-lg" style={{ background: '#166534' }}>
-              <span className="text-white font-black text-base leading-none">1</span>
-            </div>
-            <div className="flex-shrink-0 flex items-center justify-center sm:w-40" style={{ background: '#dcfce7', minHeight: '140px' }}>
-              <img src="/step1_google.png" alt="Mở Google" className="h-32 sm:h-full w-auto sm:w-full object-contain p-3" />
-            </div>
-            <div className="bg-white p-4 flex flex-col gap-2 flex-1">
-              <p className="font-black text-sm leading-snug" style={{ color: '#166534' }}>BƯỚC 1: MỞ GOOGLE</p>
-              <p className="text-gray-600 text-xs leading-relaxed">Mở trình duyệt và truy cập trang chủ Google.</p>
-              <a href="https://www.google.com" target="_blank" rel="noopener noreferrer"
-                className="mt-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-white text-xs font-bold transition-all hover:scale-[1.02] active:scale-95 shadow-md w-fit"
-                style={{ background: 'linear-gradient(135deg, #4285F4, #34A853)' }}>
-                <ExternalLink size={14} /> Mở Google.com
-              </a>
-            </div>
-          </div>
-
-          {/* Step 2 */}
-          <div className="relative flex flex-col sm:flex-row rounded-2xl border-2 shadow-md overflow-hidden" style={{ borderColor: '#166534' }}>
-            <div className="absolute top-2 left-2 z-20 w-9 h-9 rounded-full flex items-center justify-center shadow-lg" style={{ background: '#166534' }}>
-              <span className="text-white font-black text-base leading-none">2</span>
-            </div>
-            <div className="bg-white p-4 flex flex-col gap-2 flex-1 order-2 sm:order-1">
-              <p className="font-black text-sm leading-snug" style={{ color: '#166534' }}>BƯỚC 2: NHẬP TỪ KHÓA TÌM KIẾM</p>
-              <p className="text-gray-600 text-xs leading-relaxed">Tìm kiếm từ khóa bên dưới trên Google.</p>
-              <div className="mt-1 flex items-center gap-2 bg-amber-50 border-2 border-amber-300 rounded-xl p-2"
-                style={{ userSelect: 'none', WebkitUserSelect: 'none' }} onCopy={e => e.preventDefault()}>
-                <Search size={14} className="text-amber-600 flex-shrink-0" />
-                <span className="flex-1 font-black text-amber-800 text-xs">{keyword || 'Đang tải...'}</span>
-              </div>
-            </div>
-            <div className="flex-shrink-0 flex items-center justify-center sm:w-40 order-1 sm:order-2" style={{ background: '#dcfce7', minHeight: '140px' }}>
-              <img src="/step2_search.png" alt="Nhập từ khóa" className="h-32 sm:h-full w-auto sm:w-full object-contain p-3" />
-            </div>
-          </div>
-
-          {/* Character guide mobile */}
-          <div className="flex justify-center">
-            <img src="/character_guide.png" alt="Hướng dẫn viên" className="h-32 w-auto object-contain drop-shadow" />
-          </div>
-
-          {/* Step 3 */}
-          <div className="relative flex flex-col sm:flex-row rounded-2xl border-2 shadow-md overflow-hidden" style={{ borderColor: '#166534' }}>
-            <div className="absolute top-2 left-2 z-20 w-9 h-9 rounded-full flex items-center justify-center shadow-lg" style={{ background: '#166534' }}>
-              <span className="text-white font-black text-base leading-none">3</span>
-            </div>
-            <div className="bg-white p-4 flex flex-col gap-2 flex-1">
-              <p className="font-black text-sm leading-snug" style={{ color: '#166534' }}>BƯỚC 3: TÌM KIẾM TRANG ĐÍCH</p>
-              <p className="text-gray-600 text-xs leading-relaxed">Tìm kiếm trang đích.</p>
-            </div>
-            <div className="flex-shrink-0 flex items-center justify-center sm:w-48" style={{ background: '#dcfce7', minHeight: '140px' }}>
-              <img src={campaignImg || '/step3_getcode.png'} alt="Tìm kiếm trang đích" className="h-32 sm:h-full w-auto sm:w-full object-contain p-3" />
-            </div>
-          </div>
-
-          {/* Step 4 */}
-          <div className="relative flex flex-col sm:flex-row rounded-2xl border-2 shadow-md overflow-hidden" style={{ borderColor: '#166534' }}>
-            <div className="absolute top-2 left-2 z-20 w-9 h-9 rounded-full flex items-center justify-center shadow-lg" style={{ background: '#166534' }}>
-              <span className="text-white font-black text-base leading-none">4</span>
-            </div>
-            <div className="flex-shrink-0 flex items-center justify-center sm:w-40" style={{ background: '#dcfce7', minHeight: '140px' }}>
-              <img src="/step4_code.png" alt="Nhập mã xác nhận" className="h-32 sm:h-full w-auto sm:w-full object-contain p-3" />
-            </div>
-            <div className="bg-white p-4 flex flex-col gap-2 flex-1">
-              <p className="font-black text-sm leading-snug" style={{ color: '#166534' }}>BƯỚC 4: NHẬP MÃ XÁC NHẬN</p>
-              <p className="text-gray-600 text-xs leading-relaxed">Tìm kiếm nút - Đợi và nhập code</p>
-              <input
-                type="text"
-                placeholder="Nhập mã code tại đây..."
-                value={codeInput}
-                onChange={e => setCodeInput(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border-2 border-green-300 text-xs font-bold focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
-                style={{ background: '#f0fdf4' }}
-                disabled={submitting || (codeResult && codeResult.success)}
-              />
-              <button
-                onClick={handleCodeSubmit}
-                disabled={submitting || !codeInput.trim() || (codeResult && codeResult.success)}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-white text-xs font-bold transition-all hover:scale-[1.02] active:scale-95 shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                style={{ background: codeResult?.success ? '#16a34a' : 'linear-gradient(135deg, #f97316, #ea580c)' }}
-              >
-                {submitting ? (
-                  <><Loader2 size={14} className="animate-spin" /> Đang xác nhận...</>
-                ) : codeResult?.success ? (
-                  <><CheckCircle size={14} /> Đã xác nhận!</>
-                ) : (
-                  <><CheckCircle size={14} /> Xác Nhận</>
-                )}
-              </button>
-              {codeResult && (
-                <div className={`text-[11px] font-bold rounded-lg px-2.5 py-1.5 ${codeResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
-                  {codeResult.message}
-                </div>
               )}
             </div>
-          </div>
-
-          {/* Features mobile 2x2 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm">
-              <p className="font-black text-center text-xs uppercase leading-snug" style={{ color: '#166534' }}>CPM CAO NHẤT</p>
-              <img src="/feat_cpm.png" alt="CPM Cao Nhất" className="h-16 w-auto object-contain" />
-            </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm">
-              <p className="font-black text-center text-xs uppercase leading-snug" style={{ color: '#166534' }}>THỐNG KÊ CHI TIẾT</p>
-              <img src="/feat_dashboard.png" alt="Thống Kê" className="h-16 w-auto object-contain" />
-            </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm">
-              <p className="font-black text-center text-xs uppercase leading-snug whitespace-pre-line" style={{ color: '#166534' }}>{'THANH TOÁN\nMOMO/PAYPAL'}</p>
-              <img src="/feat_wallet.png" alt="Thanh Toán" className="h-16 w-auto object-contain" />
-            </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm">
-              <p className="font-black text-center text-xs uppercase leading-snug" style={{ color: '#166534' }}>TÙY CHỈNH LINK</p>
-              <img src="/feat_link.png" alt="Tùy Chỉnh Link" className="h-16 w-auto object-contain" />
-            </div>
-          </div>
-
+          )}
         </div>
 
-        {/* ── Footer Bar ── */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl px-4 sm:px-8 py-3 flex flex-col sm:flex-row items-center gap-3 sm:gap-6 shadow-[0_-4px_30px_rgba(0,0,0,0.3)]" style={{ background: '#1e3a8a' }}>
-          <div className="flex-shrink-0 flex items-center gap-2">
-            <img src="/footer_coins.png" alt="Coin" className="h-10 sm:h-14 w-auto object-contain drop-shadow" />
-            <img src="/momo_logo.png" alt="Momo" className="h-8 sm:h-11 w-8 sm:w-11 rounded-full object-cover shadow border-2 border-white/30" />
-          </div>
-          <p className="flex-1 text-white font-black text-center uppercase text-sm sm:text-xl md:text-2xl tracking-wide leading-snug">
-            HƯỚNG DẪN VƯỢT LINK AN TOÀN &amp; HIỆU QUẢ
+        {/* Footer Note */}
+        <div style={{ textAlign: 'center', marginTop: '32px', padding: '0 20px' }}>
+          <p style={{ color: '#475569', fontSize: '12px', margin: 0 }}>
+            Được cung cấp bởi{' '}
+            <a href="https://traffic68.com" target="_blank" rel="noopener noreferrer" style={{ color: '#f97316', textDecoration: 'none', fontWeight: 600 }}>
+              traffic68.com
+            </a>{' '}
+            — Traffic User Thật 100%
           </p>
-          <div className="flex-shrink-0 flex items-center gap-3">
-            <img src="/momo_logo.png" alt="Momo" className="h-10 sm:h-12 w-10 sm:w-12 rounded-full object-cover shadow border-2 border-white/30" />
-            <div className="h-10 sm:h-12 px-3 sm:px-4 rounded-xl flex items-center justify-center shadow-lg" style={{ background: '#fff' }}>
-              <span className="font-extrabold text-base sm:text-lg" style={{ color: '#003087' }}>Pay</span>
-              <span className="font-extrabold text-base sm:text-lg" style={{ color: '#009cde' }}>Pal</span>
-            </div>
-          </div>
         </div>
+      </main>
 
+      {/* Global keyframe animations */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.05); opacity: 0.9; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </PageWrapper>
+  );
+}
+
+/* ─── Page Wrapper ──────────────────────────────────── */
+function PageWrapper({ children }) {
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0b1a3e 0%, #101d42 40%, #0f2359 100%)',
+        fontFamily: "'Inter', sans-serif",
+        position: 'relative', overflow: 'hidden',
+      }}
+    >
+      {/* Background decorations */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        <div style={{
+          position: 'absolute', top: '-15%', right: '-10%',
+          width: '600px', height: '600px', borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)',
+          filter: 'blur(60px)',
+        }} />
+        <div style={{
+          position: 'absolute', bottom: '-10%', left: '-5%',
+          width: '500px', height: '500px', borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 70%)',
+          filter: 'blur(50px)',
+        }} />
+        <div style={{
+          position: 'absolute', inset: 0, opacity: 0.04,
+          backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
+          backgroundSize: '60px 60px',
+        }} />
       </div>
-      <div className="h-32 sm:h-24" />
+
+      {/* Header */}
+      <header style={{
+        position: 'relative', zIndex: 10,
+        padding: '20px 16px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
+      }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+          <img src="/traffic68_com.gif" alt="traffic68.com" style={{ height: '44px', objectFit: 'contain' }} />
+        </Link>
+      </header>
+
+      {children}
+    </div>
+  );
+}
+
+/* ─── Sub-components ────────────────────────────────── */
+function StepHeader({ step, number, desc }) {
+  const Icon = step.icon;
+  return (
+    <div style={{ marginBottom: '24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '8px' }}>
+        <div style={{
+          width: '44px', height: '44px', borderRadius: '12px',
+          background: `linear-gradient(135deg, ${step.bgColor}, rgba(255,255,255,0.02))`,
+          border: `1.5px solid ${step.borderColor}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Icon size={20} style={{ color: step.color }} />
+        </div>
+        <div>
+          <p style={{ color: step.color, fontSize: '11px', fontWeight: 700, letterSpacing: '1px', margin: '0 0 2px' }}>BƯỚC {number}</p>
+          <h2 style={{ color: '#f1f5f9', fontSize: 'clamp(18px, 3.5vw, 22px)', fontWeight: 800, margin: 0 }}>{step.title}</h2>
+        </div>
+      </div>
+      <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0, paddingLeft: '58px' }}>{desc}</p>
+    </div>
+  );
+}
+
+function NextStepButton({ onClick, color }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: '100%', marginTop: '20px', padding: '14px',
+        borderRadius: '12px', border: 'none',
+        background: `linear-gradient(135deg, ${color}, ${color}cc)`,
+        color: '#fff', fontSize: '14px', fontWeight: 700,
+        cursor: 'pointer', display: 'flex',
+        alignItems: 'center', justifyContent: 'center', gap: '8px',
+        boxShadow: `0 4px 20px ${color}40`,
+        transition: 'all 0.25s ease',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 8px 30px ${color}50`; }}
+      onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = `0 4px 20px ${color}40`; }}
+    >
+      Tiếp tục bước tiếp theo <ArrowRight size={16} />
+    </button>
+  );
+}
+
+function InstructionItem({ icon, text }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '12px',
+      background: 'rgba(0,0,0,0.15)', borderRadius: '10px', padding: '10px 14px',
+    }}>
+      <div style={{
+        width: '28px', height: '28px', borderRadius: '8px',
+        background: 'rgba(255,255,255,0.06)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '13px', flexShrink: 0,
+      }}>
+        {icon}
+      </div>
+      <span style={{ color: '#cbd5e1', fontSize: '13px', fontWeight: 500 }}>{text}</span>
     </div>
   );
 }
