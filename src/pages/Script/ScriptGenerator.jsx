@@ -21,10 +21,10 @@ const THEMES = [
 ];
 
 const INSERT_MODES = [
-  { id: 'before', label: 'Trước', arrow: '↑', desc: 'Phía trên phần tử' },
-  { id: 'after', label: 'Sau', arrow: '↓', desc: 'Phía dưới phần tử' },
-  { id: 'prepend', label: 'Đầu (trong)', arrow: '↱', desc: 'Con đầu tiên bên trong' },
-  { id: 'append', label: 'Cuối (trong)', arrow: '↳', desc: 'Con cuối cùng bên trong' },
+  { id: 'before', label: 'Trước', arrow: '↑', desc: 'Chèn nút phía trên phần tử' },
+  { id: 'after', label: 'Sau', arrow: '↓', desc: 'Chèn nút phía dưới phần tử' },
+  { id: 'prepend', label: 'Đầu', arrow: '↱', desc: 'Chèn nút đầu tiên bên trong phần tử' },
+  { id: 'append', label: 'Cuối', arrow: '↳', desc: 'Chèn nút cuối cùng bên trong phần tử' },
 ];
 
 const ALIGNS = [
@@ -506,6 +506,11 @@ export default function ScriptGenerator() {
                     );
                   })}
                 </div>
+                <p className="text-[11px] text-violet-500 font-medium mt-1">
+                  {INSERT_MODES.find(m => m.id === cfg.insertMode)?.arrow}{' '}
+                  <strong>{INSERT_MODES.find(m => m.id === cfg.insertMode)?.label}</strong>
+                  {' — '}{INSERT_MODES.find(m => m.id === cfg.insertMode)?.desc}
+                </p>
               </div>
 
               {/* ── 3. Căn chỉnh + Padding ── */}

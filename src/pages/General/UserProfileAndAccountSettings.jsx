@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import usePageTitle from '../../hooks/usePageTitle';
 import { User, Lock, Mail, Phone, Save, Camera, Check } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
@@ -6,7 +7,8 @@ import api from '../../lib/api';
 
 export default function UserProfileAndAccountSettings() {
   usePageTitle('Hồ sơ & Tài khoản');
-  const [activeTab, setActiveTab] = useState('profile');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile');
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', avatar: '' });
   const [passwordForm, setPasswordForm] = useState({
     current: '',

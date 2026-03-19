@@ -125,7 +125,7 @@ export default function DashboardHeader({ onMenuClick }) {
                 </div>
 
                 <a href="/dashboard/profile" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Hồ sơ của tôi</a>
-                <a href="/dashboard/settings" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Cài đặt tài khoản</a>
+                <a href="/dashboard/profile?tab=password" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Cài đặt tài khoản</a>
                 {user.role === 'admin' && (
                   <a href="/admin" className="flex items-center gap-2 px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 transition font-semibold">
                     🛡️ Admin Panel

@@ -47,8 +47,12 @@ export default function DangNhap() {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
 
-      // Redirect to dashboard
-      navigate('/dashboard');
+      // Redirect based on role
+      if (data.user.role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError('Không thể kết nối đến máy chủ');
     } finally {
