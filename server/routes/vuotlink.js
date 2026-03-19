@@ -5,7 +5,13 @@ const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
-const CHALLENGE_KEY = Buffer.from(process.env.CHALLENGE_KEY || 't68vL$ecur3Ch@ll3ng3K3y!2026xZqW', 'utf8');
+let CHALLENGE_KEY = Buffer.from(process.env.CHALLENGE_KEY || 't68vLsecur3Chall3ng3Key2026xZqWx', 'utf8');
+if (CHALLENGE_KEY.length < 32) {
+  CHALLENGE_KEY = Buffer.concat([CHALLENGE_KEY, Buffer.alloc(32 - CHALLENGE_KEY.length, 0)]);
+} else if (CHALLENGE_KEY.length > 32) {
+  CHALLENGE_KEY = CHALLENGE_KEY.slice(0, 32);
+}
+console.log('CHALLENGE_KEY length:', CHALLENGE_KEY.length, 'bytes');
 
 const ipTaskCount = {};
 setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 3600000);
@@ -66,7 +72,7 @@ router.post('/task', optionalAuth, async (req, res) => {
 
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
   ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
-  if (ipTaskCount[ip] > 10) return res.status(403).json(ERR);
+  if (ipTaskCount[ip] > 30) { console.log('VuotLink blocked: IP rate limit exceeded', ip); return res.status(403).json(ERR); }
 
   let challengeId, jsResult, proof;
   try {
@@ -74,19 +80,18 @@ router.post('/task', optionalAuth, async (req, res) => {
     challengeId = body.challengeId;
     jsResult = body.jsResult;
     proof = body.proof;
-  } catch { return res.status(403).json(ERR); }
+  } catch (err) { console.log('VuotLink blocked: decrypt failed', err.message); return res.status(403).json(ERR); }
 
-  if (!challengeId || jsResult === undefined) return res.status(403).json(ERR);
+  if (!challengeId || jsResult === undefined) { console.log('VuotLink blocked: missing challengeId or jsResult'); return res.status(403).json(ERR); }
 
   const ch = challenges[challengeId];
-  if (!ch || ch.used || Date.now() - ch.createdAt > 60000) {
-    if (ch) delete challenges[challengeId];
-    return res.status(403).json(ERR);
-  }
-  if (Number(jsResult) !== ch.expected) return res.status(403).json(ERR);
+  if (!ch) { console.log('VuotLink blocked: challenge not found', challengeId); return res.status(403).json(ERR); }
+  if (ch.used) { delete challenges[challengeId]; console.log('VuotLink blocked: challenge already used', challengeId); return res.status(403).json(ERR); }
+  if (Date.now() - ch.createdAt > 120000) { delete challenges[challengeId]; console.log('VuotLink blocked: challenge expired', challengeId); return res.status(403).json(ERR); }
+  if (Number(jsResult) !== ch.expected) { console.log('VuotLink blocked: jsResult mismatch', jsResult, 'expected', ch.expected); return res.status(403).json(ERR); }
   ch.used = true;
 
-  if (proof && (proof.botScore >= 40 || proof.sw === 0 || proof.sh === 0)) return res.status(403).json(ERR);
+  if (proof && (proof.botScore >= 40 || proof.sw === 0 || proof.sh === 0)) { console.log('VuotLink blocked: bot proof', proof); return res.status(403).json(ERR); }
 
   const pool = getPool();
   const [campaigns] = await pool.execute(
