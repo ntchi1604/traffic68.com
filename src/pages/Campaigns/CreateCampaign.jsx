@@ -206,6 +206,7 @@ export default function CreateCampaign() {
   // Pricing from API
   const [pricingTiers, setPricingTiers] = useState([]);
   const [pricingConfig, setPricingConfig] = useState({});
+  const [discountApplied, setDiscountApplied] = useState(false);
 
   useEffect(() => {
     api.get('/finance').then(data => {
@@ -237,8 +238,20 @@ export default function CreateCampaign() {
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
+  /* ── Discount apply logic ── */
+  const adminDiscountEnabled = pricingConfig.discount_enabled === 'true';
+  const applyDiscount = () => {
+    if (!form.discountCode.trim()) return;
+    if (form.discountCode.trim().toUpperCase() === (pricingConfig.discount_code || '').toUpperCase()) {
+      setDiscountApplied(true);
+    } else {
+      setDiscountApplied(false);
+      setError('Mã giảm giá không hợp lệ!');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   /* ── Find matching price per 1000 views from DB ── */
-  const discountEnabled = pricingConfig.discount_enabled === 'true';
   const findTier = () => {
     const durSec = form.duration ? form.duration + 's' : '';
     const match = pricingTiers.find(t => t.traffic_type === form.trafficType && t.duration === durSec);
@@ -248,7 +261,8 @@ export default function CreateCampaign() {
   const tier = findTier();
   const getPricePerKViews = () => {
     if (!tier) return form.version === 'v1' ? 700 : 600; // fallback
-    if (discountEnabled) return form.version === 'v1' ? tier.v1_discount : tier.v2_discount;
+    // Only use discount price if user has applied a valid code
+    if (discountApplied) return form.version === 'v1' ? tier.v1_discount : tier.v2_discount;
     return form.version === 'v1' ? tier.v1_price : tier.v2_price;
   };
 
@@ -274,6 +288,8 @@ export default function CreateCampaign() {
         daily_views: form.dailyViews,
         duration: Number(form.duration),
         version: form.version,
+        discount_applied: discountApplied,
+        discount_code: discountApplied ? form.discountCode.trim() : '',
         cpc: Math.round(pricePerKViews / 1000 * 100) / 100,
         budget: totalPrice,
         device: form.devices.join(','),
@@ -608,23 +624,36 @@ export default function CreateCampaign() {
                     <TextInput
                       placeholder="Nhập mã giảm giá..."
                       value={form.discountCode}
-                      onChange={e => set('discountCode', e.target.value)}
+                      onChange={e => { set('discountCode', e.target.value); setDiscountApplied(false); }}
                       className="flex-1"
                     />
                     <button
                       type="button"
-                      className="px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold
-                                 rounded-xl transition-all active:scale-95 flex-shrink-0"
+                      onClick={applyDiscount}
+                      className={`px-4 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-95 flex-shrink-0
+                                 ${discountApplied
+                          ? 'bg-green-500 hover:bg-green-600 text-white'
+                          : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
                     >
-                      Áp dụng
+                      {discountApplied ? '✓ Đã áp dụng' : 'Áp dụng'}
                     </button>
                   </div>
-                  <div className="mt-2 flex items-start gap-1.5 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
-                    <AlertCircle size={13} className="text-orange-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-xs text-orange-700">
-                      Chú ý: Nhớ áp mã giảm giá để được giá tốt nhất. <strong>(DISCOUNT_40)</strong>
-                    </p>
-                  </div>
+                  {discountApplied && (
+                    <div className="mt-2 flex items-start gap-1.5 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                      <CheckCircle2 size={13} className="text-green-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-green-700">
+                        Mã <strong>{form.discountCode}</strong> đã được áp dụng! Giảm <strong>{pricingConfig.discount_percent}%</strong>.
+                      </p>
+                    </div>
+                  )}
+                  {!discountApplied && adminDiscountEnabled && (
+                    <div className="mt-2 flex items-start gap-1.5 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
+                      <AlertCircle size={13} className="text-orange-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-orange-700">
+                        Chú ý: Nhớ áp mã giảm giá để được giá tốt nhất. <strong>({pricingConfig.discount_code})</strong>
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Note */}
@@ -665,8 +694,8 @@ export default function CreateCampaign() {
                 <SummaryRow label="View/ngày" value={fmt(form.dailyViews)} />
                 <SummaryRow label="Tổng view" value={fmt(form.totalViews)} />
                 <SummaryRow label="Đơn giá/1000 view" value={`${fmt(pricePerKViews)} VNĐ`} />
-                {discountEnabled && (
-                  <SummaryRow label="Giảm giá" value={`Đã áp dụng (-${pricingConfig.discount_percent}%)`} accent />
+                {discountApplied && (
+                  <SummaryRow label="Giảm giá" value={`✓ Đã áp dụng (-${pricingConfig.discount_percent}%)`} accent />
                 )}
               </div>
 

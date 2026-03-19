@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
 // ── POST /api/campaigns ──
 router.post('/', async (req, res) => {
   const pool = getPool();
-  const { name, url, budget, cpc, keyword, note, trafficType, traffic_type, dailyViews, daily_views, totalViews, total_views, viewByHour, view_by_hour, version, targetPage, target_page, timeOnSite, time_on_site, duration } = req.body;
+  const { name, url, budget, cpc, keyword, note, trafficType, traffic_type, dailyViews, daily_views, totalViews, total_views, viewByHour, view_by_hour, version, targetPage, target_page, timeOnSite, time_on_site, duration, discount_applied, discount_code } = req.body;
 
   const _trafficType = trafficType || traffic_type || 'google_search';
   const _dailyViews = dailyViews || daily_views || 500;
@@ -45,16 +45,20 @@ router.post('/', async (req, res) => {
     );
     if (tiers.length > 0) {
       const tier = tiers[0];
-      // Check discount enabled
-      const [settings] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'discount_enabled'");
-      const discountEnabled = settings.length > 0 && settings[0].setting_value === 'true';
+      // Validate discount: must be enabled AND code must match
+      let useDiscount = false;
+      if (discount_applied && discount_code) {
+        const [dcSettings] = await pool.execute("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('discount_enabled','discount_code')");
+        const cfg = {};
+        dcSettings.forEach(s => { cfg[s.setting_key] = s.setting_value; });
+        useDiscount = cfg.discount_enabled === 'true' && cfg.discount_code && cfg.discount_code.toUpperCase() === discount_code.trim().toUpperCase();
+      }
       const price = _version === 'v1'
-        ? (discountEnabled ? tier.v1_discount : tier.v1_price)
-        : (discountEnabled ? tier.v2_discount : tier.v2_price);
+        ? (useDiscount ? tier.v1_discount : tier.v1_price)
+        : (useDiscount ? tier.v2_discount : tier.v2_price);
       realBudget = Math.round((_totalViews / 1000) * price);
     }
   } catch (e) {
-    // If pricing table doesn't exist, use submitted budget
     console.log('Pricing lookup failed, using submitted budget:', e.message);
   }
 
