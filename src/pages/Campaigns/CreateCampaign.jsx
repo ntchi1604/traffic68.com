@@ -400,7 +400,7 @@ export default function CreateCampaign() {
                     type="text"
                     value={form.campaignName}
                     onChange={e => set('campaignName', e.target.value)}
-                    placeholder="VD: SEO traffictot.com"
+                    placeholder="VD: SEO traffic68.com"
                     className="w-full mt-1 px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white
                                shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                   />
