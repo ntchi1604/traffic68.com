@@ -12,12 +12,41 @@ const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axio
 const ipTaskCount = {};
 setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 60 * 60 * 1000);
 
-// Challenge store: challengeId -> { challenge, prefix, createdAt }
+// Challenge store
 const challenges = {};
 setInterval(() => {
   const now = Date.now();
   Object.keys(challenges).forEach(k => { if (now - challenges[k].createdAt > 120000) delete challenges[k]; });
 }, 30000);
+
+// Generate random JS challenge that only a real browser can evaluate
+function generateJsChallenge() {
+  const vars = 'abcdefghijklmnopqrstuvwxyz'.split('').sort(() => Math.random() - 0.5);
+  const ops = [
+    () => { const a = Math.floor(Math.random()*100), b = Math.floor(Math.random()*100); return { code: `${vars[0]}=${a};${vars[1]}=${b};${vars[0]}*${vars[1]}+${vars[0]}`, answer: a*b+a }; },
+    () => { const a = Math.floor(Math.random()*50)+10, b = Math.floor(Math.random()*20)+1; return { code: `${vars[2]}=${a};${vars[3]}=${b};(${vars[2]}<<${vars[3]})>>>${vars[3]}`, answer: (a<<b)>>>b }; },
+    () => { const a = Math.floor(Math.random()*1000), b = Math.floor(Math.random()*100)+1; return { code: `${vars[4]}=${a};${vars[5]}=${b};(${vars[4]}%${vars[5]})+${vars[4]}`, answer: (a%b)+a }; },
+    () => { const a = Math.floor(Math.random()*50)+2, b = Math.floor(Math.random()*10)+1; return { code: `${vars[6]}=${a};${vars[7]}=${b};Math.pow(${vars[6]},${vars[7]})%9999`, answer: Math.pow(a,b)%9999 }; },
+  ];
+
+  // Pick 2-3 random operations and chain them
+  const count = 2 + Math.floor(Math.random() * 2);
+  let totalCode = '';
+  let finalAnswer = 0;
+  for (let i = 0; i < count; i++) {
+    const op = ops[Math.floor(Math.random() * ops.length)]();
+    totalCode += (i > 0 ? ';' : '') + op.code;
+    finalAnswer += op.answer;
+  }
+
+  // Wrap in a function with DOM check (only works in browser)
+  const domCheck = Math.floor(Math.random() * 1000);
+  const fnName = '_' + crypto.randomBytes(4).toString('hex');
+  const jsCode = `(function(){var _d=typeof document!=='undefined'&&document.createElement?${domCheck}:0;${totalCode};return _d+${totalCode.split(';').pop()}})()`;
+  const expected = domCheck + finalAnswer;
+
+  return { jsCode, expected };
+}
 
 // ── GET /api/vuot-link/challenge ──
 router.get('/challenge', (req, res) => {
@@ -25,45 +54,37 @@ router.get('/challenge', (req, res) => {
   if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
 
   const challengeId = crypto.randomBytes(16).toString('hex');
-  const challenge = crypto.randomBytes(32).toString('hex');
-  const difficulty = 4; // SHA256(challenge+nonce) must start with '0000'
+  const { jsCode, expected } = generateJsChallenge();
+  const salt = crypto.randomBytes(8).toString('hex');
 
-  challenges[challengeId] = { challenge, difficulty, createdAt: Date.now(), used: false };
+  challenges[challengeId] = { expected, salt, createdAt: Date.now(), used: false };
 
-  res.json({ challengeId, challenge, difficulty });
+  res.json({ c: challengeId, j: jsCode, s: salt });
 });
 
 // ── POST /api/vuot-link/task (PUBLIC) ──
 router.post('/task', optionalAuth, async (req, res) => {
+  const ERR = { error: 'Yêu cầu không hợp lệ' };
   const ua = req.headers['user-agent'] || '';
-  if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Trình duyệt không hợp lệ' });
+  if (!ua || BOT_UA.test(ua)) return res.status(403).json(ERR);
 
-  // Rate limit by IP
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
   ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
-  if (ipTaskCount[ip] > 10) return res.status(429).json({ error: 'Quá nhiều yêu cầu, vui lòng thử lại sau' });
+  if (ipTaskCount[ip] > 10) return res.status(403).json(ERR);
 
-  // ── Verify challenge-response ──
-  const { challengeId, nonce, proof } = req.body || {};
-  if (!challengeId || nonce === undefined) return res.status(400).json({ error: 'Thiếu challenge' });
+  const { challengeId, jsResult, proof } = req.body || {};
+  if (!challengeId || jsResult === undefined) return res.status(403).json(ERR);
 
   const ch = challenges[challengeId];
-  if (!ch) return res.status(403).json({ error: 'Challenge không hợp lệ hoặc hết hạn' });
-  if (ch.used) return res.status(403).json({ error: 'Challenge đã sử dụng' });
-  if (Date.now() - ch.createdAt > 60000) { delete challenges[challengeId]; return res.status(403).json({ error: 'Challenge hết hạn' }); }
-
-  // Verify proof-of-work: SHA256(challenge + nonce) must start with '0'.repeat(difficulty)
-  const hash = crypto.createHash('sha256').update(ch.challenge + String(nonce)).digest('hex');
-  const prefix = '0'.repeat(ch.difficulty);
-  if (!hash.startsWith(prefix)) return res.status(403).json({ error: 'Proof-of-work sai' });
-
-  ch.used = true; // Single use
-
-  // Validate frontend proof
-  if (proof) {
-    if (proof.botScore >= 40) return res.status(403).json({ error: 'Trình duyệt không hợp lệ' });
-    if (proof.sw === 0 || proof.sh === 0) return res.status(403).json({ error: 'Trình duyệt không hợp lệ' });
+  if (!ch || ch.used || Date.now() - ch.createdAt > 60000) {
+    if (ch) delete challenges[challengeId];
+    return res.status(403).json(ERR);
   }
+  if (Number(jsResult) !== ch.expected) return res.status(403).json(ERR);
+
+  ch.used = true;
+
+  if (proof && (proof.botScore >= 40 || proof.sw === 0 || proof.sh === 0)) return res.status(403).json(ERR);
 
   const pool = getPool();
   const [campaigns] = await pool.execute(
