@@ -26,7 +26,7 @@ router.get('/challenge', (req, res) => {
 
   const challengeId = crypto.randomBytes(16).toString('hex');
   const challenge = crypto.randomBytes(32).toString('hex');
-  const difficulty = 3; // must find nonce where SHA256(challenge+nonce) starts with '000'
+  const difficulty = 4; // SHA256(challenge+nonce) must start with '0000'
 
   challenges[challengeId] = { challenge, difficulty, createdAt: Date.now(), used: false };
 
