@@ -79,6 +79,7 @@
     brandUrl: 'https://traffic68.com',
     brandLogo: '',
     customCSS: '',
+    overlapFix: 'auto',  // 'auto' | 'zindex' | 'fixed' | 'none'
     onReveal: null,
     onCopy: null,
   };
@@ -340,10 +341,88 @@
     var py = (cfg.padY || 0) + 'px';
 
     var wrap = document.createElement('div');
+    wrap.id = 'laynut-wrap-inline';
     wrap.style.cssText = 'display:flex;justify-content:' + justify +
       ';padding:' + py + ' ' + px + ';position:relative;z-index:9999;';
     wrap.appendChild(btn);
     container.appendChild(wrap);
+
+    // Auto-check visibility after a short delay to let layout settle
+    if (cfg.overlapFix !== 'none') {
+      setTimeout(function () { _checkVisibility(btn, wrap); }, 500);
+      // Also re-check on scroll & resize (elements may overlap after scroll)
+      var recheckTimer = null;
+      var recheck = function () {
+        if (recheckTimer) clearTimeout(recheckTimer);
+        recheckTimer = setTimeout(function () { _checkVisibility(btn, wrap); }, 200);
+      };
+      window.addEventListener('scroll', recheck, { passive: true });
+      window.addEventListener('resize', recheck, { passive: true });
+    }
+  }
+
+  /* ── Check if button is visible or covered by other elements ── */
+  function _checkVisibility(btn, wrap) {
+    if (!btn || !btn.getBoundingClientRect) return;
+
+    var rect = btn.getBoundingClientRect();
+
+    // Skip if button is not in viewport
+    if (rect.bottom < 0 || rect.top > window.innerHeight ||
+      rect.right < 0 || rect.left > window.innerWidth) return;
+
+    // Check if button center is clickable
+    var cx = rect.left + rect.width / 2;
+    var cy = rect.top + rect.height / 2;
+    var topEl = document.elementFromPoint(cx, cy);
+
+    // If topEl is the button itself or a child of it → visible, all good
+    if (topEl && (topEl === btn || btn.contains(topEl))) return;
+
+    // Button is covered! Apply fix based on config
+    var mode = cfg.overlapFix || 'auto';
+    console.warn('[LayNut] Button is covered by another element. Applying fix: ' + mode);
+
+    if (mode === 'zindex' || mode === 'auto') {
+      // First try: boost z-index on wrapper and button
+      wrap.style.zIndex = '2147483647';
+      wrap.style.position = 'relative';
+      btn.style.zIndex = '2147483647';
+      btn.style.position = 'relative';
+
+      // Re-check after z-index boost
+      setTimeout(function () {
+        var topEl2 = document.elementFromPoint(cx, cy);
+        if (topEl2 && (topEl2 === btn || btn.contains(topEl2))) return; // fixed!
+
+        if (mode === 'auto') {
+          // z-index didn't help → fallback to fixed position
+          _switchToFixed(btn, wrap);
+        }
+      }, 100);
+      return;
+    }
+
+    if (mode === 'fixed') {
+      _switchToFixed(btn, wrap);
+    }
+  }
+
+  /* ── Fallback: move button to fixed position (bottom-right corner) ── */
+  function _switchToFixed(btn, wrap) {
+    console.warn('[LayNut] Switching button to fixed position (bottom-right)');
+    // Remove from inline flow
+    if (wrap && wrap.parentNode) {
+      wrap.parentNode.removeChild(wrap);
+    }
+    // Re-attach as fixed
+    btn.style.position = 'fixed';
+    btn.style.bottom = '20px';
+    btn.style.right = '20px';
+    btn.style.top = 'auto';
+    btn.style.left = 'auto';
+    btn.style.zIndex = '2147483647';
+    document.body.appendChild(btn);
   }
 
   /* ── Wait for a target selector to appear in DOM (SPA support) ── */
@@ -774,4 +853,3 @@
   })();
 
 })(window);
-abcxyz
