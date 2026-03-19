@@ -95,16 +95,12 @@ function StepCard({ num, title, subtitle, desc, img, alt, action, keyword }) {
 
         {/* Step 2: Show keyword */}
         {action === 'keyword' && (
-          <div className="mt-1 flex items-center gap-2 bg-amber-50 border-2 border-amber-300 rounded-xl p-2.5">
+          <div className="mt-1 flex items-center gap-2 bg-amber-50 border-2 border-amber-300 rounded-xl p-2.5"
+               style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+               onCopy={e => e.preventDefault()}
+          >
             <Search size={16} className="text-amber-600 flex-shrink-0" />
             <span className="flex-1 font-black text-amber-800 text-sm">{keyword || 'Đang tải...'}</span>
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600
-                         text-white text-xs font-bold rounded-lg transition-all active:scale-95 flex-shrink-0"
-            >
-              {copied ? <><Check size={12} /> Đã chép</> : <><Copy size={12} /> Chép</>}
-            </button>
           </div>
         )}
       </div>
