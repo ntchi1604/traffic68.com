@@ -34,6 +34,9 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
   },
 }));
 
+// ── Serve uploads (avatars, etc.) ──
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), { maxAge: '7d' }));
+
 // ── Health check ──
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

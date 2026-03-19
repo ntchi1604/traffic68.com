@@ -4,7 +4,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar,
 } from 'recharts';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Eye, TrendingUp, Zap, Wallet } from 'lucide-react';
 import Breadcrumb from '../components/Breadcrumb';
 import { formatMoney as fmt } from '../lib/format';
 import api from '../lib/api';
@@ -16,6 +16,13 @@ const deviceTraffic = [
 ];
 
 const DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+const STAT_CARDS = [
+  { key: 'todayViews', label: 'Lưu lượng hôm nay', suffix: ' views', Icon: Eye, iconBg: 'bg-blue-100', iconColor: 'text-blue-600', border: 'border-blue-200' },
+  { key: 'totalViews', label: 'Tổng lượt xem', suffix: ' views', Icon: TrendingUp, iconBg: 'bg-green-100', iconColor: 'text-green-600', border: 'border-green-200' },
+  { key: 'runningCampaigns', label: 'Chiến dịch đang chạy', suffix: '', Icon: Zap, iconBg: 'bg-orange-100', iconColor: 'text-orange-600', border: 'border-orange-200' },
+  { key: 'mainBalance', label: 'Số dư ví', suffix: ' ₫', Icon: Wallet, iconBg: 'bg-purple-100', iconColor: 'text-purple-600', border: 'border-purple-200' },
+];
 
 export default function TrafficDashboard() {
   usePageTitle('Tổng quan');
@@ -65,27 +72,18 @@ export default function TrafficDashboard() {
         <h1 className="text-2xl font-bold text-slate-900">Tổng quan</h1>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 min-w-0">
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="text-sm text-slate-500">Lưu lượng hôm nay</div>
-          <div className="mt-2 flex items-center justify-between">
-            <p className="text-2xl font-semibold text-slate-900">{fmt(ov.todayViews)} views</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 min-w-0">
+        {STAT_CARDS.map(({ key, label, suffix, Icon, iconBg, iconColor, border }) => (
+          <div key={key} className={`bg-white rounded-xl border-l-4 ${border} border border-slate-200 p-5 flex items-center gap-4 hover:shadow-md transition-shadow`}>
+            <div className={`w-12 h-12 ${iconBg} rounded-xl flex items-center justify-center shrink-0`}>
+              <Icon size={22} className={iconColor} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</p>
+              <p className="text-2xl font-black text-slate-900 mt-0.5">{fmt(ov[key] || 0)}{suffix}</p>
+            </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="text-sm text-slate-500">Tổng lượt xem</div>
-          <div className="mt-2 flex items-center justify-between">
-            <p className="text-2xl font-semibold text-slate-900">{fmt(ov.totalViews)} views</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="text-sm text-slate-500">Chiến dịch đang chạy</div>
-          <div className="mt-2 text-2xl font-semibold text-slate-900">{ov.runningCampaigns || 0}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="text-sm text-slate-500">Số dư ví</div>
-          <div className="mt-2 text-2xl font-semibold text-slate-900">{fmt(ov.mainBalance)} ₫</div>
-        </div>
+        ))}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 min-w-0">

@@ -1,10 +1,58 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(authMiddleware);
+
+// ── Multer config for avatars ──
+const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'avatars');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `avatar-${req.userId}-${Date.now()}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) cb(null, true);
+    else cb(new Error('Chỉ chấp nhận file ảnh (jpg, png, gif, webp)'));
+  },
+});
+
+// ── POST /api/users/avatar ──
+router.post('/avatar', upload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Chưa chọn file ảnh' });
+
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+
+    // Delete old avatar file if exists
+    const pool = getPool();
+    const [users] = await pool.execute('SELECT avatar_url FROM users WHERE id = ?', [req.userId]);
+    if (users[0]?.avatar_url && users[0].avatar_url.startsWith('/uploads/avatars/')) {
+      const oldPath = path.join(__dirname, '..', '..', users[0].avatar_url);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+
+    await pool.execute('UPDATE users SET avatar_url = ? WHERE id = ?', [avatarUrl, req.userId]);
+    res.json({ message: 'Cập nhật ảnh đại diện thành công', avatarUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── GET /api/users/profile ──
 router.get('/profile', async (req, res) => {

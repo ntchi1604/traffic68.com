@@ -95,17 +95,24 @@ export default function UserProfileAndAccountSettings() {
     }
   };
 
-  const handleAvatarChange = (e) => {
+  const handleAvatarChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setFormData(prev => ({
-          ...prev,
-          avatar: event.target.result
-        }));
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    const formPayload = new FormData();
+    formPayload.append('avatar', file);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/users/avatar', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formPayload,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload thất bại');
+      setFormData(prev => ({ ...prev, avatar: data.avatarUrl }));
+      toast.success('Đã cập nhật ảnh đại diện');
+    } catch (err) {
+      toast.error(err.message);
     }
   };
 
