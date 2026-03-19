@@ -93,15 +93,15 @@ router.post('/transfer', async (req, res) => {
     // Add to main
     await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [num, req.userId, 'main']);
 
-    // Transaction record
-    const refCode = 'TRF-' + Date.now();
+    // Transaction records
+    const ts = Date.now();
     await conn.execute(
       `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.userId, 'commission', 'withdraw', 'transfer', num, 'completed', refCode, 'Chuyển sang Ví Traffic']
+      [req.userId, 'commission', 'withdraw', 'transfer', num, 'completed', 'TRF-OUT-' + ts, 'Chuyển sang Ví Traffic']
     );
     await conn.execute(
       `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.userId, 'main', 'deposit', 'transfer', num, 'completed', refCode, 'Nhận từ Ví Hoa Hồng']
+      [req.userId, 'main', 'deposit', 'transfer', num, 'completed', 'TRF-IN-' + ts, 'Nhận từ Ví Hoa Hồng']
     );
 
     // Notification
