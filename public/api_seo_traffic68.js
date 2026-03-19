@@ -818,6 +818,16 @@
   }
 
   /* ── Auto-init from data-token ───────────────────────── */
+  var _encKey = 'T68SecKey2026';
+  function _xorDecode(b64) {
+    var raw = atob(b64);
+    var out = '';
+    for (var i = 0; i < raw.length; i++) {
+      out += String.fromCharCode(raw.charCodeAt(i) ^ _encKey.charCodeAt(i % _encKey.length));
+    }
+    return out;
+  }
+
   (function autoInit() {
     var scripts = document.querySelectorAll('script[src*="laynut"], script[src*="api_seo_traffic68"]');
     for (var i = 0; i < scripts.length; i++) {
@@ -833,7 +843,13 @@
             if (xhr.status === 200) {
               try {
                 var resp = JSON.parse(xhr.responseText);
-                var config = resp.config || resp;
+                var data;
+                if (resp._v === 2 && resp._e) {
+                  data = JSON.parse(_xorDecode(resp._e));
+                } else {
+                  data = resp;
+                }
+                var config = data.config || data;
                 window.LayNut.init(config);
               } catch (e) {
                 console.error('[LayNut] Invalid config:', e);

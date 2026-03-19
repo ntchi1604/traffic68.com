@@ -9,6 +9,17 @@ const router = express.Router();
    PUBLIC endpoints — called by api_seo_traffic68.js
 ═══════════════════════════════════════════════════════════ */
 
+// ── Simple XOR encode for config ──
+const ENC_KEY = 'T68SecKey2026';
+function xorEncode(str) {
+  const key = ENC_KEY;
+  let result = '';
+  for (let i = 0; i < str.length; i++) {
+    result += String.fromCharCode(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+  }
+  return Buffer.from(result, 'binary').toString('base64');
+}
+
 // ── GET /api/widgets/public/:token ──
 router.get('/public/:token', async (req, res) => {
   const pool = getPool();
@@ -17,7 +28,8 @@ router.get('/public/:token', async (req, res) => {
 
   let config = {};
   try { config = JSON.parse(widgets[0].config || '{}'); } catch {}
-  res.json({ token: widgets[0].token, name: widgets[0].name, config });
+  const payload = JSON.stringify({ token: widgets[0].token, name: widgets[0].name, config });
+  res.json({ _e: xorEncode(payload), _v: 2 });
 });
 
 // ── POST /api/widgets/public/:token/get-code ──
