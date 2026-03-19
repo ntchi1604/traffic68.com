@@ -99,7 +99,7 @@ export default function DashboardHeader({ onMenuClick }) {
               onClick={() => setProfileOpen(o => !o)}
               className="flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900"
             >
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs overflow-hidden bg-blue-600 flex-shrink-0">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs overflow-hidden flex-shrink-0 ${user.avatar_url ? '' : 'bg-blue-600'}`}>
                 {user.avatar_url ? (
                   <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
                 ) : (
