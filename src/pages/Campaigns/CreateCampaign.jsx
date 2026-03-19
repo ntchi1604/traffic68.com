@@ -19,12 +19,10 @@ const TRAFFIC_TYPES = [
 
 const DURATIONS = [
   { value: '', label: 'Chọn thời gian' },
-  { value: '30', label: '30 giây' },
-  { value: '60', label: '60 giây' },
-  { value: '90', label: '90 giây' },
-  { value: '120', label: '2 phút' },
-  { value: '180', label: '3 phút' },
-  { value: '300', label: '5 phút' },
+  { value: '60', label: 'Gói 60s' },
+  { value: '120', label: 'Gói 120s' },
+  { value: '150', label: 'Gói 150s' },
+  { value: '200', label: 'Gói 200s' },
 ];
 
 const DEVICES = [
@@ -259,15 +257,15 @@ export default function CreateCampaign() {
   };
 
   const tier = findTier();
+  const hasPricing = !!(form.trafficType && form.duration && tier);
   const getPricePerKViews = () => {
-    if (!tier) return form.version === 'v1' ? 700 : 600; // fallback
-    // Only use discount price if user has applied a valid code
+    if (!tier) return 0;
     if (discountApplied) return form.version === 'v1' ? tier.v1_discount : tier.v2_discount;
     return form.version === 'v1' ? tier.v1_price : tier.v2_price;
   };
 
   const pricePerKViews = getPricePerKViews();
-  const totalPrice = Math.round((form.totalViews / 1000) * pricePerKViews);
+  const totalPrice = hasPricing ? Math.round((form.totalViews / 1000) * pricePerKViews) : 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -693,7 +691,11 @@ export default function CreateCampaign() {
                   value={DURATIONS.find(d => d.value === form.duration)?.label || '—'} />
                 <SummaryRow label="View/ngày" value={fmt(form.dailyViews)} />
                 <SummaryRow label="Tổng view" value={fmt(form.totalViews)} />
-                <SummaryRow label="Đơn giá/1000 view" value={`${fmt(pricePerKViews)} VNĐ`} />
+                {hasPricing ? (
+                  <SummaryRow label="Đơn giá/1000 view" value={`${fmt(pricePerKViews)} VNĐ`} />
+                ) : (
+                  <SummaryRow label="Đơn giá/1000 view" value="Chọn loại traffic & thời gian" />
+                )}
                 {discountApplied && (
                   <SummaryRow label="Giảm giá" value={`✓ Đã áp dụng (-${pricingConfig.discount_percent}%)`} accent />
                 )}
@@ -702,10 +704,10 @@ export default function CreateCampaign() {
               <div className="border-t border-gray-100 pt-4 mb-5">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-gray-600">Tổng tiền</span>
-                  <span className="text-xl font-black text-blue-700">{fmt(totalPrice)} <span className="text-sm font-semibold">VNĐ</span></span>
+                  <span className="text-xl font-black text-blue-700">{hasPricing ? fmt(totalPrice) : '—'} <span className="text-sm font-semibold">VNĐ</span></span>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  Số tiền sẽ trừ từ ví chính khi tạo chiến dịch.
+                  {hasPricing ? 'Số tiền sẽ trừ từ ví chính khi tạo chiến dịch.' : 'Vui lòng chọn loại traffic và thời gian để xem giá.'}
                 </p>
               </div>
 
