@@ -22,20 +22,29 @@ export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/dang-nhap');
+      return;
+    }
     api.get('/auth/me').then(data => {
       if (data.user?.role !== 'admin') {
-        navigate('/dashboard');
+        navigate('/dang-nhap');
         return;
       }
       setAdmin(data.user);
-    }).catch(() => navigate('/dang-nhap'))
-      .finally(() => setLoading(false));
-  }, []);
+      setLoading(false);
+    }).catch(() => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      navigate('/dang-nhap');
+    });
+  }, [navigate]);
 
   // Close sidebar on route change (mobile)
   const closeSidebar = () => setSidebarOpen(false);
 
-  if (loading) {
+  if (loading || !admin) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />

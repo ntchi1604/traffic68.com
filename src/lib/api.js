@@ -40,7 +40,6 @@ async function apiFetch(endpoint, options = {}) {
   // Auto logout on 401
   if (res.status === 401) {
     clearAuth();
-    window.location.href = '/dang-nhap';
     throw new Error('Phiên đăng nhập hết hạn');
   }
 

@@ -43,16 +43,9 @@ export default function DangNhap() {
         return;
       }
 
-      // Save token + user to localStorage
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-
-      // Redirect based on role
-      if (data.user.role === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/dashboard');
-      }
+      navigate('/dashboard');
     } catch (err) {
       setError('Không thể kết nối đến máy chủ');
     } finally {
