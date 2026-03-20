@@ -105,19 +105,17 @@ router.post('/task', optionalAuth, async (req, res) => {
 
   if (proof && (proof.botScore >= 40 || proof.sw === 0 || proof.sh === 0)) { console.log('VuotLink blocked: bot proof', proof); return res.status(403).json(ERR); }
 
-  // Anti-cheat: behavioral analysis (if tracker.js is loaded)
+  // Behavioral analysis — log only (tracker data may be incomplete on auto-init)
   const { bt } = req.body || {};
   if (bt) {
     try {
       const behavior = xorDecode(bt);
       const result = validateBehavior(behavior);
       if (result.isBot) {
-        console.log(`VuotLink blocked: behavioral bot score=${result.score}`, result.reasons);
-        return res.status(403).json(ERR);
+        console.log(`[VuotLink] ⚠️ Behavioral warning: score=${result.score}, reasons=${result.reasons.join(',')}, IP=${ip}`);
       }
     } catch (e) {
-      console.log('VuotLink blocked: invalid behavioral data', e.message);
-      return res.status(403).json(ERR);
+      console.log('[VuotLink] Behavioral decode error:', e.message);
     }
   }
 
