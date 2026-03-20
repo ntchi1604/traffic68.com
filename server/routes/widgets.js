@@ -5,20 +5,6 @@ const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
-// AES-256-GCM encryption (same key as vuotlink.js)
-let ENC_KEY = Buffer.from(process.env.CHALLENGE_KEY || 't68vLsecur3Chall3ng3Key2026xZqWx', 'utf8');
-if (ENC_KEY.length < 32) ENC_KEY = Buffer.concat([ENC_KEY, Buffer.alloc(32 - ENC_KEY.length, 0)]);
-else if (ENC_KEY.length > 32) ENC_KEY = ENC_KEY.slice(0, 32);
-
-function encryptResponse(data) {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', ENC_KEY, iv);
-  let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'base64');
-  encrypted += cipher.final('base64');
-  const tag = cipher.getAuthTag().toString('base64');
-  return iv.toString('base64') + '.' + encrypted + '.' + tag;
-}
-
 // Fields no longer used by embed script v3
 const DEPRECATED_FIELDS = ['code', 'icon'];
 
@@ -48,14 +34,13 @@ function stripDefaults(config) {
 
 /* ═══════════════════════════════════════════════════════════
    PUBLIC endpoints — called by api_seo_traffic68.js
-   All responses encrypted with AES-256-GCM → { d: "iv.ciphertext.tag" }
 ═══════════════════════════════════════════════════════════ */
 
 // ── GET /api/widgets/public/:token ──
 router.get('/public/:token', async (req, res) => {
   const pool = getPool();
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
-  if (widgets.length === 0) return res.status(404).json({ d: encryptResponse({ error: 'Widget không tồn tại hoặc đã bị tắt' }) });
+  if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại hoặc đã bị tắt' });
 
   let config = {};
   try { config = JSON.parse(widgets[0].config || '{}'); } catch { }
@@ -99,7 +84,7 @@ router.get('/public/:token', async (req, res) => {
   // Build minimal response
   const resp = { campaignFound: !!campaignInfo };
   if (Object.keys(overrides).length > 0) resp.config = overrides;
-  res.json({ d: encryptResponse(resp) });
+  res.json(resp);
 });
 
 // ── POST /api/widgets/public/:token/check-session ──
@@ -112,7 +97,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   const ua = req.headers['user-agent'] || '';
 
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
-  if (widgets.length === 0) return res.status(404).json({ d: encryptResponse({ error: 'Widget không tồn tại' }) });
+  if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
   const [tasks] = await pool.execute(
     `SELECT vt.id FROM vuot_link_tasks vt
@@ -126,10 +111,10 @@ router.post('/public/:token/check-session', async (req, res) => {
   );
 
   if (tasks.length === 0) {
-    return res.status(404).json({ d: encryptResponse({ hasSession: false }) });
+    return res.status(404).json({ hasSession: false });
   }
 
-  res.json({ d: encryptResponse({ hasSession: true }) });
+  res.json({ hasSession: true });
 });
 
 // ── POST /api/widgets/public/:token/get-code ──
@@ -143,7 +128,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   const ua = req.headers['user-agent'] || '';
 
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
-  if (widgets.length === 0) return res.status(404).json({ d: encryptResponse({ error: 'Widget không tồn tại' }) });
+  if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
   // Find pending/active vuot_link_task matching this IP + UA
   const [tasks] = await pool.execute(
@@ -158,7 +143,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   );
 
   if (tasks.length === 0) {
-    return res.status(404).json({ d: encryptResponse({ error: 'Không tìm thấy session.' }) });
+    return res.status(404).json({ error: 'Không tìm thấy session.' });
   }
 
   const task = tasks[0];
@@ -178,7 +163,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (elapsedSeconds < requiredSeconds) {
     const remaining = requiredSeconds - elapsedSeconds;
     console.log(`[Widget] Code request TOO EARLY — IP: ${ip}, task: #${task.id}, elapsed: ${elapsedSeconds}s < required: ${requiredSeconds}s`);
-    return res.status(403).json({ d: encryptResponse({ error: 'Phát hiện gian lận!', remaining }) });
+    return res.status(403).json({ error: 'Phát hiện gian lận!', remaining });
   }
 
   // Update task status to step3 (reached target website) if not already
@@ -189,7 +174,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   console.log(`[Widget] Code given — IP: ${ip}, task: #${task.id}, code: ${task.code_given}, elapsed: ${elapsedSeconds}s`);
 
-  res.json({ d: encryptResponse({ success: true, code: task.code_given }) });
+  res.json({ success: true, code: task.code_given });
 });
 
 /* ═══════════════════════════════════════════════════════════

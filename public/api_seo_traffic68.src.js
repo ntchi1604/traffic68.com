@@ -53,44 +53,6 @@
 (function (window) {
   'use strict';
 
-  /* ── AES-256-GCM decryption (Web Crypto API) ──────────── */
-  var _aesKeyHex = '74363876 4c736563 75723343 68616c6c 336e6733 4b657932 30323678 5a715778'.replace(/ /g, '');
-  var _aesKeyBytes = new Uint8Array(_aesKeyHex.match(/.{2}/g).map(function (b) { return parseInt(b, 16); }));
-  var _cryptoKey = null;
-
-  function _b64toUint8(b64) {
-    var bin = atob(b64);
-    var arr = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    return arr;
-  }
-
-  function _getKey() {
-    if (_cryptoKey) return Promise.resolve(_cryptoKey);
-    return crypto.subtle.importKey('raw', _aesKeyBytes, 'AES-GCM', false, ['decrypt']).then(function (k) {
-      _cryptoKey = k;
-      return k;
-    });
-  }
-
-  function _decryptAES(encStr) {
-    var parts = encStr.split('.');
-    if (parts.length !== 3) return Promise.reject('bad format');
-    var iv = _b64toUint8(parts[0]);
-    var ct = _b64toUint8(parts[1]);
-    var tag = _b64toUint8(parts[2]);
-    // Combine ciphertext + tag (GCM expects them concatenated)
-    var combined = new Uint8Array(ct.length + tag.length);
-    combined.set(ct, 0);
-    combined.set(tag, ct.length);
-    return _getKey().then(function (key) {
-      return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, combined);
-    }).then(function (plainBuf) {
-      var decoder = new TextDecoder();
-      return JSON.parse(decoder.decode(plainBuf));
-    });
-  }
-
   /* ── Defaults ─────────────────────────────────────────── */
   var D = {
     /* Vị trí chèn */
@@ -831,21 +793,12 @@
     xhr.open('POST', url, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.onload = function () {
-      try {
-        var resp = JSON.parse(xhr.responseText);
-        if (resp.d) {
-          _decryptAES(resp.d).then(function (data) {
-            if (data.hasSession) {
-              _sessionVerified = true;
-              callback(true);
-            } else {
-              callback(false);
-            }
-          }).catch(function () { callback(false); });
-        } else {
-          callback(false);
-        }
-      } catch (e) { callback(false); }
+      if (xhr.status === 200) {
+        _sessionVerified = true;
+        callback(true);
+      } else {
+        callback(false);
+      }
     };
     xhr.onerror = function () { callback(false); };
     xhr.send('{}');
@@ -892,28 +845,17 @@
     xhr.open('POST', url, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.onload = function () {
-      try {
-        var resp = JSON.parse(xhr.responseText);
-        if (resp.d) {
-          _decryptAES(resp.d).then(function (data) {
-            if (data.code) {
-              sessionCode = data.code;
-            } else {
-              sessionCode = 'ERR';
-            }
-            if (callback) callback();
-          }).catch(function () {
-            sessionCode = 'ERR';
-            if (callback) callback();
-          });
-        } else {
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          sessionCode = resp.code || '';
+        } catch (e) {
           sessionCode = 'ERR';
-          if (callback) callback();
         }
-      } catch (e) {
+      } else {
         sessionCode = 'ERR';
-        if (callback) callback();
       }
+      if (callback) callback();
     };
     xhr.onerror = function () {
       sessionCode = 'ERR';
@@ -991,16 +933,14 @@
           var xhr = new XMLHttpRequest();
           xhr.open('GET', url, true);
           xhr.onload = function () {
-            try {
-              var resp = JSON.parse(xhr.responseText);
-              if (resp.d) {
-                _decryptAES(resp.d).then(function (data) {
-                  var config = data.config || {};
-                  if (!data.campaignFound) return;
-                  window.LayNut.init(config);
-                }).catch(function () {});
-              }
-            } catch (e) {}
+            if (xhr.status === 200) {
+              try {
+                var resp = JSON.parse(xhr.responseText);
+                var config = resp.config || {};
+                if (!resp.campaignFound) return;
+                window.LayNut.init(config);
+              } catch (e) {}
+            }
           };
           xhr.onerror = function () {};
           xhr.send();
