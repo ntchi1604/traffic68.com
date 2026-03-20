@@ -2,7 +2,6 @@ const express = require('express');
 const crypto = require('crypto');
 const { getPool } = require('../db');
 const { authMiddleware, optionalAuth } = require('../middleware/auth');
-const { xorDecodeWithKey, validateBehavior } = require('../lib/validator');
 
 const router = express.Router();
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
@@ -244,32 +243,29 @@ router.post('/task', optionalAuth, async (req, res) => {
 
   ch.used = true;
 
-  // Server-side only: check raw proof data (don't trust botScore from client!)
-  if (proof) {
-    // Only check objective facts the client can't hide
-    if (proof.sw === 0 || proof.sh === 0) {
-      console.log('VuotLink blocked: zero screen size from proof'); return res.status(403).json(ERR);
+  // ── BotD detection result (from @fingerprintjs/botd) ──
+  const { botDetection, fingerprint, behavioral } = req.body || {};
+  if (botDetection && botDetection.bot === true) {
+    console.log(`[VuotLink] 🤖 BotD detected bot: IP=${ip}, deviceId=${deviceId?.substring(0,8)}`);
+    return res.status(403).json(ERR);
+  }
+
+  // ── Behavioral analysis (inline tracker data) ──
+  if (behavioral) {
+    if (behavioral.screen?.w === 0 || behavioral.screen?.h === 0) {
+      console.log('[VuotLink] blocked: zero screen size'); return res.status(403).json(ERR);
+    }
+    if (behavioral.mousePoints === 0 && behavioral.clicks === 0 && behavioral.keys === 0) {
+      console.log(`[VuotLink] ⚠️ No interaction detected: IP=${ip}`);
+    }
+    if (behavioral.loadTime < 1000) {
+      console.log(`[VuotLink] ⚠️ Suspiciously fast: ${behavioral.loadTime}ms, IP=${ip}`);
     }
   }
 
-  // Behavioral analysis — server does ALL judgment (client only sends raw data)
-  const { bt } = req.body || {};
-  if (bt && ch.xorKey) {
-    try {
-      const behavior = xorDecodeWithKey(bt, ch.xorKey);
-      const result = validateBehavior(behavior);
-
-      // Check DevTools detection flags
-      if (behavior.dt === 1 || behavior.tn === 1) {
-        console.log(`[VuotLink] ⚠️ DevTools detected: dt=${behavior.dt}, tainted=${behavior.tn}, IP=${ip}`);
-      }
-
-      if (result.isBot) {
-        console.log(`[VuotLink] ⚠️ Behavioral warning: score=${result.score}, reasons=${result.reasons.join(',')}, IP=${ip}`);
-      }
-    } catch (e) {
-      console.log('[VuotLink] Behavioral decode error:', e.message);
-    }
+  // ── FingerprintJS components log ──
+  if (fingerprint) {
+    console.log(`[VuotLink] FP: fonts=${fingerprint.fonts}, plugins=${fingerprint.plugins}, platform=${fingerprint.platform}, tz=${fingerprint.timezone}`);
   }
 
   const pool = getPool();

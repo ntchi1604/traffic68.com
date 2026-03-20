@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
+import { load as loadBotd } from '@fingerprintjs/botd';
 import {
   Search, Globe, Target, ShieldCheck, Copy, Check,
   ExternalLink, ArrowRight, Eye,
@@ -8,15 +9,23 @@ import {
   Loader2, WifiOff
 } from 'lucide-react';
 
-/* ─── Browser proof (anti-bot) ──────────────────────── */
-function collectBrowserProof() {
-  const sw = window.screen?.width || 0;
-  const sh = window.screen?.height || 0;
-  let botScore = 0;
-  if (navigator.webdriver) botScore += 20;
-  if (!window.chrome && /Chrome/.test(navigator.userAgent)) botScore += 15;
-  if (sw === 0 || sh === 0) botScore += 20;
-  return { sw, sh, botScore, ts: Date.now() };
+/* ─── Behavioral tracker (inline, no external file) ────── */
+const behaviorData = {
+  mouse: [],
+  clicks: 0,
+  keys: 0,
+  scrolls: 0,
+  startTime: Date.now(),
+};
+if (typeof window !== 'undefined') {
+  const MAX = 50;
+  document.addEventListener('mousemove', (e) => {
+    behaviorData.mouse.push({ x: e.clientX, y: e.clientY, t: Date.now() - behaviorData.startTime });
+    if (behaviorData.mouse.length > MAX) behaviorData.mouse.shift();
+  }, { passive: true });
+  document.addEventListener('click', () => { behaviorData.clicks++; }, { passive: true });
+  document.addEventListener('keydown', () => { behaviorData.keys++; }, { passive: true });
+  window.addEventListener('scroll', () => { behaviorData.scrolls++; }, { passive: true });
 }
 
 /* ─── API base ──────────────────────────────────────── */
@@ -46,27 +55,39 @@ export default function VuotLink() {
   const [completing, setCompleting] = useState(false);
   const taskStartTime = useRef(Date.now());
   const [deviceId, setDeviceId] = useState('');
+  const [botResult, setBotResult] = useState(null);
+  const [fpComponents, setFpComponents] = useState(null);
 
   const waitTime = task?.waitTime || 60;
 
-  /* ─── Load FingerprintJS → deviceId ──────────── */
+  /* ─── FingerprintJS + BotD on mount ──────────── */
   useEffect(() => {
     (async () => {
       try {
+        // FingerprintJS — device identification
         const fp = await FingerprintJS.load();
-        const result = await fp.get();
-        setDeviceId(result.visitorId);
+        const fpResult = await fp.get();
+        setDeviceId(fpResult.visitorId);
+        setFpComponents({
+          canvas: fpResult.components?.canvas?.value,
+          webgl: fpResult.components?.webgl?.value,
+          audio: fpResult.components?.audio?.value,
+          fonts: fpResult.components?.fonts?.value?.length || 0,
+          plugins: fpResult.components?.plugins?.value?.length || 0,
+          screen: fpResult.components?.screenResolution?.value,
+          platform: fpResult.components?.platform?.value,
+          timezone: fpResult.components?.timezone?.value,
+          touchSupport: fpResult.components?.touchSupport?.value,
+        });
       } catch { setDeviceId('unknown'); }
-    })();
-  }, []);
 
-  /* ─── Load tracker.js on mount ────────────────── */
-  useEffect(() => {
-    const s = document.createElement('script');
-    s.src = '/tracker.js?v=2';
-    s.async = true;
-    document.head.appendChild(s);
-    return () => { try { document.head.removeChild(s); } catch { } };
+      try {
+        // BotD — bot detection
+        const botd = await loadBotd();
+        const result = botd.detect();
+        setBotResult(result);
+      } catch { setBotResult(null); }
+    })();
   }, []);
 
   /* ─── Fetch task from API on mount ─────────────── */
@@ -194,8 +215,16 @@ export default function VuotLink() {
           }
         } catch { webglHash = ''; }
 
-        // Step 5: Collect browser proof
-        const proof = collectBrowserProof();
+        // Step 5: Collect behavioral + fingerprint data
+        const behavioral = {
+          mousePoints: behaviorData.mouse.length,
+          mouseTrail: behaviorData.mouse.slice(-20),
+          clicks: behaviorData.clicks,
+          keys: behaviorData.keys,
+          scrolls: behaviorData.scrolls,
+          loadTime: Date.now() - behaviorData.startTime,
+          screen: { w: window.screen?.width, h: window.screen?.height, dpr: window.devicePixelRatio },
+        };
 
         // Step 6: Request task
         const token = localStorage.getItem('token');
@@ -208,12 +237,13 @@ export default function VuotLink() {
           body: JSON.stringify({
             challengeId: challenge.c,
             jsResult,
-            proof,
             powNonce,
             canvasHash,
             webglHash,
             deviceId,
-            bt: window.BotTracker ? window.BotTracker.collect(challenge.xk) : undefined,
+            botDetection: botResult,
+            fingerprint: fpComponents,
+            behavioral,
           }),
         });
 
