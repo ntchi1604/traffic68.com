@@ -182,10 +182,9 @@
     fpScript.onerror = function () { callback(); };
     document.head.appendChild(fpScript);
 
-    // CreepJS — hook console.log to capture output (it doesn't set window globals)
+    // CreepJS — suppress console output, capture data silently
     var _origLog = console.log;
     console.log = function () {
-      _origLog.apply(console, arguments);
       for (var i = 0; i < arguments.length; i++) {
         var arg = arguments[i];
         if (arg && typeof arg === 'object' && arg.workerScope && arg.workerScope.lied !== undefined) {
@@ -205,8 +204,15 @@
             stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null),
           };
           console.log = _origLog;
+          return;
         }
       }
+      // Filter CreepJS status messages
+      if (arguments.length === 1 && typeof arguments[0] === 'string') {
+        var s = arguments[0].toLowerCase();
+        if (s.indexOf('fingerprint') >= 0 || s.indexOf('hashing') >= 0 || s.indexOf('creep') >= 0 || s.indexOf('diff check') >= 0) return;
+      }
+      _origLog.apply(console, arguments);
     };
 
     var crScript = document.createElement('script');

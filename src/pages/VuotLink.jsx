@@ -42,11 +42,9 @@ function _resolveCreep(result) {
 }
 
 if (typeof window !== 'undefined') {
-  // Hook console.log to capture CreepJS fingerprint output
+  // Suppress CreepJS console output — capture data silently
   const _origLog = console.log;
   console.log = function (...args) {
-    _origLog.apply(console, args);
-    // CreepJS logs the fingerprint object (has workerScope with lied property)
     for (const arg of args) {
       if (arg && typeof arg === 'object' && arg.workerScope && arg.workerScope.lied !== undefined) {
         let totalLied = 0;
@@ -64,10 +62,16 @@ if (typeof window !== 'undefined') {
           headless: arg.headless || (arg.headlessness ? arg.headlessness.lied : null),
           stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null),
         });
-        // Restore original console.log
         console.log = _origLog;
+        return; // Don't output CreepJS data to console
       }
     }
+    // Non-CreepJS logs: check if it's a CreepJS status message (string starting with known prefixes)
+    if (args.length === 1 && typeof args[0] === 'string') {
+      const s = args[0].toLowerCase();
+      if (s.includes('fingerprint') || s.includes('hashing') || s.includes('creep') || s.includes('diff check')) return;
+    }
+    _origLog.apply(console, args);
   };
 
   loadScript('/creep.js').catch(() => {
