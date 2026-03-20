@@ -189,20 +189,21 @@
       var tries = 0;
       var poll = setInterval(function () {
         tries++;
-        if (window.Fingerprint || tries >= 30) {
+        var raw = window.Fingerprint || window.Creep;
+        if (raw || tries >= 40) {
           clearInterval(poll);
-          if (window.Fingerprint) {
+          if (raw) {
             try {
-              var fp = JSON.parse(window.Fingerprint);
+              var fp = typeof raw === 'string' ? JSON.parse(raw) : raw;
+              var lies = fp.lies || fp.liesCount || [];
               _botDetection = {
-                bot: !!(fp.lies && fp.lies.length > 0),
-                creepHash: fp.fingerprint || null,
-                lies: fp.lies || [],
-                headless: fp.headless || null,
-                stealth: fp.stealth || null,
+                bot: !!(Array.isArray(lies) ? lies.length > 0 : lies > 0),
+                lies: lies,
+                headless: fp.headless || fp.headlessRating || null,
+                stealth: fp.stealth || fp.stealthRating || null,
               };
             } catch (e) {
-              _botDetection = { bot: false, raw: window.Fingerprint };
+              _botDetection = { bot: false, raw: String(raw).substring(0, 500) };
             }
           }
         }
