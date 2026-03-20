@@ -182,56 +182,51 @@
     fpScript.onerror = function () { callback(); };
     document.head.appendChild(fpScript);
 
-    // CreepJS — for bot detection only (async, don't block)
+    // CreepJS — hook console.log to capture output (it doesn't set window globals)
+    var _origLog = console.log;
+    console.log = function () {
+      _origLog.apply(console, arguments);
+      for (var i = 0; i < arguments.length; i++) {
+        var arg = arguments[i];
+        if (arg && typeof arg === 'object' && arg.workerScope && arg.workerScope.lied !== undefined) {
+          var totalLied = 0;
+          var liedSections = [];
+          for (var key in arg) {
+            if (arg[key] && typeof arg[key] === 'object' && typeof arg[key].lied === 'number') {
+              totalLied += arg[key].lied;
+              if (arg[key].lied > 0) liedSections.push(key + ':' + arg[key].lied);
+            }
+          }
+          _botDetection = {
+            bot: totalLied > 0,
+            totalLied: totalLied,
+            liedSections: liedSections,
+            headless: arg.headless || (arg.headlessness ? arg.headlessness.lied : null),
+            stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null),
+          };
+          console.log = _origLog;
+        }
+      }
+    };
+
     var crScript = document.createElement('script');
     crScript.src = _scriptBase + '/creep.js';
-    crScript.onload = function () {
-      var tries = 0;
-      var poll = setInterval(function () {
-        tries++;
-        var fp = window.Fingerprint || window.Creep;
-        // CreepJS structure: { workerScope: { lied: 0, lies: {...} }, navigator: {...}, ... }
-        // Wait until object has sections with 'lied' property
-        var ready = false;
-        if (fp && typeof fp === 'object') {
-          for (var k in fp) {
-            if (fp[k] && typeof fp[k] === 'object' && fp[k].lied !== undefined) {
-              ready = true;
-              break;
-            }
-          }
-        }
-        if (ready || tries >= 150) { // 30s max (150 * 200ms)
-          clearInterval(poll);
-          if (fp && typeof fp === 'object') {
-            try {
-              // Sum all lied counts across sections
-              var totalLied = 0;
-              var liedSections = [];
-              for (var key in fp) {
-                if (fp[key] && typeof fp[key] === 'object' && typeof fp[key].lied === 'number') {
-                  totalLied += fp[key].lied;
-                  if (fp[key].lied > 0) liedSections.push(key + ':' + fp[key].lied);
-                }
-              }
-              _botDetection = {
-                bot: totalLied > 0,
-                totalLied: totalLied,
-                liedSections: liedSections,
-                headless: fp.headless || (fp.headlessness ? fp.headlessness.lied : null),
-                stealth: fp.stealth || (fp.resistance ? fp.resistance.lied : null),
-              };
-            } catch (e) {
-              _botDetection = { bot: false, parseError: e.message };
-            }
-          } else {
-            _botDetection = { bot: false, creepTimeout: true };
-          }
-        }
-      }, 200);
+    crScript.onerror = function () {
+      console.log = _origLog;
+      _botDetection = { bot: false, creepError: true };
     };
-    crScript.onerror = function () { _botDetection = { bot: false, creepError: true }; };
     document.head.appendChild(crScript);
+
+    // Safety timeout: 10s
+    setTimeout(function () {
+      if (!_botDetection) {
+        console.log = _origLog;
+        _botDetection = { bot: false, creepTimeout: true };
+      }
+    }, 10000);
+
+    // Callback immediately — visitorId is ready, CreepJS runs in background
+    callback();
   }
 
   /* ── Behavioral tracker (same as VuotLink.jsx) ────────── */

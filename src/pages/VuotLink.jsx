@@ -28,12 +28,13 @@ async function getFingerprintData() {
   return await fp.get();
 }
 
-// CreepJS — for bot detection only (async background)
+// CreepJS — for bot detection (intercept console.log since it doesn't set globals)
 let _creepResult = null;
 let _creepDone = false;
 let _creepResolvers = [];
 
 function _resolveCreep(result) {
+  if (_creepDone) return;
   _creepResult = result;
   _creepDone = true;
   _creepResolvers.forEach(r => r(result));
@@ -41,55 +42,55 @@ function _resolveCreep(result) {
 }
 
 if (typeof window !== 'undefined') {
-  loadScript('/creep.js').then(() => {
-    let tries = 0;
-    const poll = setInterval(() => {
-      tries++;
-      const fp = window.Fingerprint || window.Creep;
-      let ready = false;
-      if (fp && typeof fp === 'object') {
-        for (const k in fp) {
-          if (fp[k] && typeof fp[k] === 'object' && fp[k].lied !== undefined) { ready = true; break; }
-        }
-      }
-      if (ready || tries >= 150) { // 30s max (150 * 200ms)
-        clearInterval(poll);
-        if (fp && typeof fp === 'object') {
-          try {
-            let totalLied = 0;
-            const liedSections = [];
-            for (const key in fp) {
-              if (fp[key] && typeof fp[key] === 'object' && typeof fp[key].lied === 'number') {
-                totalLied += fp[key].lied;
-                if (fp[key].lied > 0) liedSections.push(key + ':' + fp[key].lied);
-              }
-            }
-            _resolveCreep({
-              bot: totalLied > 0,
-              totalLied,
-              liedSections,
-              headless: fp.headless || (fp.headlessness ? fp.headlessness.lied : null),
-              stealth: fp.stealth || (fp.resistance ? fp.resistance.lied : null),
-            });
-          } catch (e) {
-            _resolveCreep({ bot: false, parseError: e.message });
+  // Hook console.log to capture CreepJS fingerprint output
+  const _origLog = console.log;
+  console.log = function (...args) {
+    _origLog.apply(console, args);
+    // CreepJS logs the fingerprint object (has workerScope with lied property)
+    for (const arg of args) {
+      if (arg && typeof arg === 'object' && arg.workerScope && arg.workerScope.lied !== undefined) {
+        let totalLied = 0;
+        const liedSections = [];
+        for (const key in arg) {
+          if (arg[key] && typeof arg[key] === 'object' && typeof arg[key].lied === 'number') {
+            totalLied += arg[key].lied;
+            if (arg[key].lied > 0) liedSections.push(key + ':' + arg[key].lied);
           }
-        } else {
-          _resolveCreep({ bot: false, creepTimeout: true });
         }
+        _resolveCreep({
+          bot: totalLied > 0,
+          totalLied,
+          liedSections,
+          headless: arg.headless || (arg.headlessness ? arg.headlessness.lied : null),
+          stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null),
+        });
+        // Restore original console.log
+        console.log = _origLog;
       }
-    }, 200);
-  }).catch(() => { _resolveCreep({ bot: false, creepError: true }); });
+    }
+  };
+
+  loadScript('/creep.js').catch(() => {
+    console.log = _origLog;
+    _resolveCreep({ bot: false, creepError: true });
+  });
+
+  // Safety timeout: 10s max
+  setTimeout(() => {
+    if (!_creepDone) {
+      console.log = _origLog;
+      _resolveCreep({ bot: false, creepTimeout: true });
+    }
+  }, 10000);
 }
 
 function getBotDetection() {
   if (_creepDone) return Promise.resolve(_creepResult);
   return new Promise(resolve => {
     _creepResolvers.push(resolve);
-    // Safety: max 30s wait
     setTimeout(() => {
       if (!_creepDone) _resolveCreep({ bot: false, creepTimeout: true });
-    }, 30000);
+    }, 10000);
   });
 }
 
