@@ -284,27 +284,12 @@ router.post('/task', optionalAuth, async (req, res) => {
     warnings.push(`mouse_warning(score=${mouseScore})`);
   }
 
-  // b) No interaction at all (0 clicks, 0 scrolls, 0 keys) → likely script
+  // b) No interaction at all (0 clicks, 0 scrolls, 0 keys, 0 mouse) → likely script
   if (mousePoints === 0 && clicks === 0 && scrolls === 0 && keys === 0) {
     warnings.push('zero_interaction');
   }
 
-  // c) No mouse data sent → script might not collect behavioral
-  if (!behavioral || !behavioral.mouseTrail || behavioral.mouseTrail.length === 0) {
-    warnings.push('no_mouse_data');
-  }
-
-  // d) botDetection null → BotD library didn't load (script might block it)
-  if (!botDetection) {
-    warnings.push('botd_null');
-  }
-
-  // e) visitorId is 'unknown' → FingerprintJS didn't load
-  if (!visitorId || visitorId === 'unknown') {
-    warnings.push('fp_failed');
-  }
-
-  // f) Very fast completion (behavioral.loadTime < 3s AND already at check-session)
+  // c) Very fast completion (< 2s) → script auto
   if (behavioral?.loadTime && behavioral.loadTime < 2000) {
     warnings.push(`fast_load(${behavioral.loadTime}ms)`);
   }

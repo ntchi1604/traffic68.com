@@ -453,22 +453,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     warnings.push('zero_interaction');
   }
 
-  // c) No mouse data → script doesn't collect behavioral
-  if (!behavioral || !behavioral.mouseTrail || behavioral.mouseTrail.length === 0) {
-    warnings.push('no_mouse_data');
-  }
-
-  // d) BotD null → library didn't load (script might block it)
-  if (!botDetection) {
-    warnings.push('botd_null');
-  }
-
-  // e) FingerprintJS failed
-  if (!visitorId || visitorId === 'unknown') {
-    warnings.push('fp_failed');
-  }
-
-  // f) No mouse during countdown (human always moves mouse)
+  // c) No mouse during countdown (human always moves mouse)
   if (mousePoints < 3 && countdownTime > 10) {
     warnings.push('no_mouse_during_countdown');
   }
