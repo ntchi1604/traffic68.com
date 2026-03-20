@@ -290,7 +290,7 @@
 
     btn.innerHTML = iconHtml +
       '<span class="ln-label">' + escHtml(cfg.buttonText) + '</span>' +
-      '<span class="ln-badge" id="laynut-badge">' + remaining + '</span>';
+      '<span class="ln-badge" id="laynut-badge" style="display:none">' + remaining + '</span>';
 
     // Click handler — check session first, then start countdown
     btn.onclick = function () {
@@ -876,9 +876,11 @@
     countdownRunning = true;
     scheduleChallenges();
     bindVisibility();
-    // Change button text to "Vui lòng chờ"
+    // Change button text to "Vui lòng chờ" and show badge
     var label = document.querySelector('#laynut-btn .ln-label');
     if (label) label.textContent = 'Vui lòng chờ';
+    var badge = document.getElementById('laynut-badge');
+    if (badge) badge.style.display = '';
     doTick();
   }
 
