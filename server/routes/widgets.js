@@ -49,49 +49,71 @@ setInterval(() => {
 ═══════════════════════════════════════════════════════════ */
 function analyzeMouseTrail(trail) {
   if (!trail || !Array.isArray(trail) || trail.length < 5) return { score: 0, reasons: [] };
-  
   let score = 0;
   const reasons = [];
 
-  // 1. Check for perfectly linear movement
+  // 1. Linear movement
   let linearCount = 0;
   for (let i = 2; i < trail.length; i++) {
-    const dx1 = trail[i].x - trail[i-1].x;
-    const dy1 = trail[i].y - trail[i-1].y;
-    const dx0 = trail[i-1].x - trail[i-2].x;
-    const dy0 = trail[i-1].y - trail[i-2].y;
+    const dx1 = trail[i].x - trail[i-1].x, dy1 = trail[i].y - trail[i-1].y;
+    const dx0 = trail[i-1].x - trail[i-2].x, dy0 = trail[i-1].y - trail[i-2].y;
     if (Math.abs(dx1 * dy0 - dy1 * dx0) < 2) linearCount++;
   }
-  if (linearCount / (trail.length - 2) > 0.8) {
-    score += 30;
-    reasons.push('linear_mouse');
+  if (linearCount / (trail.length - 2) > 0.8) { score += 30; reasons.push('linear_mouse'); }
+
+  // 2. Constant velocity (speed variance)
+  const speeds = [];
+  for (let i = 1; i < trail.length; i++) {
+    const dx = trail[i].x - trail[i-1].x, dy = trail[i].y - trail[i-1].y;
+    const dt = trail[i].t - trail[i-1].t;
+    if (dt > 0) speeds.push(Math.sqrt(dx*dx + dy*dy) / dt);
+  }
+  if (speeds.length > 3) {
+    const avg = speeds.reduce((a,b) => a+b, 0) / speeds.length;
+    const v = speeds.reduce((a,b) => a + (b - avg) ** 2, 0) / speeds.length;
+    if (avg > 0 && v / (avg ** 2) < 0.1) { score += 25; reasons.push('constant_velocity'); }
   }
 
-  // 2. Check for constant velocity
-  let constantV = 0;
-  for (let i = 2; i < trail.length; i++) {
-    const s1 = Math.sqrt((trail[i].x-trail[i-1].x)**2 + (trail[i].y-trail[i-1].y)**2);
-    const s0 = Math.sqrt((trail[i-1].x-trail[i-2].x)**2 + (trail[i-1].y-trail[i-2].y)**2);
-    if (s0 > 0 && Math.abs(s1 - s0) < 1) constantV++;
-  }
-  if (constantV / (trail.length - 2) > 0.7) {
-    score += 25;
-    reasons.push('constant_velocity');
+  // 3. Fake timestamps
+  const uT = new Set(trail.map(p => p.t)).size;
+  if (uT <= 2 && trail.length > 5) { score += 35; reasons.push('fake_timestamps'); }
+
+  // 4. Timestamp regularity
+  if (trail.length > 10) {
+    const ints = []; for (let i = 1; i < trail.length; i++) ints.push(trail[i].t - trail[i-1].t);
+    const ai = ints.reduce((a,b) => a+b, 0) / ints.length;
+    const iv = ints.reduce((a,b) => a + (b - ai) ** 2, 0) / ints.length;
+    if (ai > 0 && iv < 2 && trail.length > 15) { score += 25; reasons.push('regular_intervals'); }
   }
 
-  // 3. Fake timestamps (all same or only 1-2 unique)
-  const uniqueTimes = new Set(trail.map(p => p.t)).size;
-  if (uniqueTimes <= 2 && trail.length > 5) {
-    score += 35;
-    reasons.push('fake_timestamps');
-  }
-
-  // 4. Out of bounds coordinates
+  // 5. Out of bounds
   const oob = trail.filter(p => p.x < 0 || p.y < 0 || p.x > 4000 || p.y > 3000).length;
-  if (oob > trail.length * 0.3) {
-    score += 20;
-    reasons.push('out_of_bounds');
+  if (oob > trail.length * 0.3) { score += 20; reasons.push('out_of_bounds'); }
+
+  // 6. No direction changes
+  let dc = 0;
+  for (let i = 2; i < trail.length; i++) {
+    const dx1 = trail[i].x - trail[i-1].x, dy1 = trail[i].y - trail[i-1].y;
+    const dx0 = trail[i-1].x - trail[i-2].x, dy0 = trail[i-1].y - trail[i-2].y;
+    if ((dx1*dx0 + dy1*dy0) < 0 || (Math.sign(dx1) !== Math.sign(dx0) && dx0 !== 0)) dc++;
   }
+  if (trail.length > 15 && dc < 2) { score += 15; reasons.push('no_direction_changes'); }
+
+  // 7. Bezier curve pattern
+  let ed = 0;
+  for (let i = 1; i < trail.length; i++) {
+    const dx = Math.abs(trail[i].x - trail[i-1].x), dy = Math.abs(trail[i].y - trail[i-1].y);
+    if (dx === dy && dx > 2) ed++;
+  }
+  if (ed > trail.length * 0.3 && trail.length > 10) { score += 20; reasons.push('bezier_pattern'); }
+
+  // 8. Single axis movement
+  let xO = 0, yO = 0;
+  for (let i = 1; i < trail.length; i++) {
+    if (trail[i].x !== trail[i-1].x && trail[i].y === trail[i-1].y) xO++;
+    if (trail[i].y !== trail[i-1].y && trail[i].x === trail[i-1].x) yO++;
+  }
+  if ((xO > trail.length * 0.9 || yO > trail.length * 0.9) && trail.length > 10) { score += 20; reasons.push('single_axis'); }
 
   return { score, reasons };
 }
@@ -349,6 +371,22 @@ router.post('/public/:token/get-code', async (req, res) => {
     console.log(`[Widget] 🤖 BotD detected: IP=${ip}`);
     logSecurityEvent('botd_detected', ip, ua, visitorId, { botKind: botDetection.botKind });
     return res.status(403).json(ERR);
+  }
+
+  // ── 2b. Client-side automation probes ──
+  const probes = behavioral?.probes || {};
+  if (probes.webdriver === true || probes.cdc === true || probes.selenium === true) {
+    console.log(`[Widget] 🤖 Automation probe hit: IP=${ip}`);
+    logSecurityEvent('automation_probes', ip, ua, visitorId, probes);
+    return res.status(403).json(ERR);
+  }
+  const probeWarnings = [];
+  if (probes.pluginCount === 0) probeWarnings.push('zero_plugins');
+  if (probes.rtt === 0) probeWarnings.push('zero_rtt');
+  if (probes.langCount === 0) probeWarnings.push('zero_languages');
+  if (probes.hasChrome === true && probes.hasChromeRuntime === false) probeWarnings.push('no_chrome_runtime');
+  if (probeWarnings.length > 0) {
+    logSecurityEvent('probe_warning', ip, ua, visitorId, { ...probes, probeWarnings });
   }
 
   // ── 3. VisitorId rate limit (5 code fetches / 24h per device — same as vuotlink.js) ──

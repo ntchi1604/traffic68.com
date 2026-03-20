@@ -43,6 +43,7 @@ const behaviorData = {
   keys: 0,
   scrolls: 0,
   startTime: Date.now(),
+  probes: {},
 };
 if (typeof window !== 'undefined') {
   const MAX = 50;
@@ -53,6 +54,20 @@ if (typeof window !== 'undefined') {
   document.addEventListener('click', () => { behaviorData.clicks++; }, { passive: true });
   document.addEventListener('keydown', () => { behaviorData.keys++; }, { passive: true });
   window.addEventListener('scroll', () => { behaviorData.scrolls++; }, { passive: true });
+
+  // Automation probes (same as embed script)
+  try {
+    const p = behaviorData.probes;
+    p.webdriver = !!navigator.webdriver;
+    p.cdc = !!(window.cdc_adoQpoasnfa76pfcZLmcfl_ || window.cdc_adoQpoasnfa76pfcZLmcfl_Array || window.cdc_adoQpoasnfa76pfcZLmcfl_Promise || window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol);
+    p.selenium = !!(document.__selenium_unwrapped || document.__webdriver_evaluate || document.__driver_evaluate || window._Selenium_IDE_Recorder || window.__nightmare);
+    p.pluginCount = navigator.plugins ? navigator.plugins.length : -1;
+    p.langCount = navigator.languages ? navigator.languages.length : 0;
+    p.hasChrome = !!window.chrome;
+    p.hasChromeRuntime = !!(window.chrome && window.chrome.runtime);
+    if (window.Notification) p.notifPerm = Notification.permission;
+    if (navigator.connection) p.rtt = navigator.connection.rtt;
+  } catch (e) { /* probes failed */ }
 }
 
 /* ─── API base ──────────────────────────────────────── */

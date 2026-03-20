@@ -211,7 +211,8 @@
     clicks: 0,
     keys: 0,
     scrolls: 0,
-    startTime: 0, // set when countdown starts
+    startTime: 0,
+    probes: {}, // automation detection probes
   };
   var _bhvBound = false;
   function _bindBehavior() {
@@ -226,6 +227,39 @@
     document.addEventListener('click', function () { _bhv.clicks++; }, { passive: true });
     document.addEventListener('keydown', function () { _bhv.keys++; }, { passive: true });
     window.addEventListener('scroll', function () { _bhv.scrolls++; }, { passive: true });
+
+    // ── Automation detection probes ──
+    try {
+      var p = _bhv.probes;
+      // 1. navigator.webdriver (patched by undetected_chrome but check anyway)
+      p.webdriver = !!navigator.webdriver;
+      // 2. Chrome DevTools Protocol traces
+      p.cdc = !!(window.cdc_adoQpoasnfa76pfcZLmcfl_ || window.cdc_adoQpoasnfa76pfcZLmcfl_Array || window.cdc_adoQpoasnfa76pfcZLmcfl_Promise || window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol);
+      // 3. Selenium / automation properties
+      p.selenium = !!(document.__selenium_unwrapped || document.__webdriver_evaluate || document.__driver_evaluate || window._Selenium_IDE_Recorder || window.__nightmare);
+      // 4. navigator.plugins (headless often has 0)
+      p.pluginCount = navigator.plugins ? navigator.plugins.length : -1;
+      // 5. navigator.languages
+      p.langCount = navigator.languages ? navigator.languages.length : 0;
+      // 6. Chrome runtime check — real Chrome has window.chrome
+      p.hasChrome = !!window.chrome;
+      p.hasChromeRuntime = !!(window.chrome && window.chrome.runtime);
+      // 7. Notification permission anomaly (headless gives denied + prompt)
+      if (window.Notification) {
+        p.notifPerm = Notification.permission;
+      }
+      // 8. Connection rtt (headless often has rtt=0)
+      if (navigator.connection) {
+        p.rtt = navigator.connection.rtt;
+      }
+      // 9. devtools open detection (debugger timing)
+      var t1 = performance.now();
+      // Regex that takes longer with devtools open
+      var devtoolsRegex = /./;
+      devtoolsRegex.toString = function () { return 'devtools'; };
+      // Just collect timing, server analyzes
+      p.perfTiming = Math.round(performance.now() - t1);
+    } catch (e) { /* probes failed, that's ok */ }
   }
 
 

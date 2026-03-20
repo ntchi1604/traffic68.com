@@ -61,16 +61,22 @@ function analyzeMouseTrail(trail) {
     reasons.push('linear_mouse');
   }
 
-  // 2. Check for constant velocity
-  let constantV = 0;
-  for (let i = 2; i < trail.length; i++) {
-    const s1 = Math.sqrt((trail[i].x-trail[i-1].x)**2 + (trail[i].y-trail[i-1].y)**2);
-    const s0 = Math.sqrt((trail[i-1].x-trail[i-2].x)**2 + (trail[i-1].y-trail[i-2].y)**2);
-    if (s0 > 0 && Math.abs(s1 - s0) < 1) constantV++;
+  // 2. Check for constant velocity (using speed variance)
+  const speeds = [];
+  for (let i = 1; i < trail.length; i++) {
+    const dx = trail[i].x - trail[i-1].x;
+    const dy = trail[i].y - trail[i-1].y;
+    const dt = trail[i].t - trail[i-1].t;
+    if (dt > 0) speeds.push(Math.sqrt(dx*dx + dy*dy) / dt);
   }
-  if (constantV / (trail.length - 2) > 0.7) {
-    score += 25;
-    reasons.push('constant_velocity');
+  if (speeds.length > 3) {
+    const avgSpeed = speeds.reduce((a,b) => a+b, 0) / speeds.length;
+    const speedVar = speeds.reduce((a,b) => a + (b - avgSpeed) ** 2, 0) / speeds.length;
+    // Real humans have high variance (start/stop/accelerate), bots are smooth
+    if (avgSpeed > 0 && speedVar / (avgSpeed ** 2) < 0.1) {
+      score += 25;
+      reasons.push('constant_velocity');
+    }
   }
 
   // 3. Fake timestamps (all same or only 1-2 unique)
@@ -80,11 +86,62 @@ function analyzeMouseTrail(trail) {
     reasons.push('fake_timestamps');
   }
 
-  // 4. Out of bounds coordinates
+  // 4. Timestamp regularity — scripts fire mousemove at fixed intervals
+  if (trail.length > 10) {
+    const intervals = [];
+    for (let i = 1; i < trail.length; i++) intervals.push(trail[i].t - trail[i-1].t);
+    const avgInt = intervals.reduce((a,b) => a+b, 0) / intervals.length;
+    const intVar = intervals.reduce((a,b) => a + (b - avgInt) ** 2, 0) / intervals.length;
+    if (avgInt > 0 && intVar < 2 && trail.length > 15) {
+      score += 25;
+      reasons.push('regular_intervals');
+    }
+  }
+
+  // 5. Out of bounds coordinates
   const oob = trail.filter(p => p.x < 0 || p.y < 0 || p.x > 4000 || p.y > 3000).length;
   if (oob > trail.length * 0.3) {
     score += 20;
     reasons.push('out_of_bounds');
+  }
+
+  // 6. No direction changes — humans change direction frequently
+  let dirChanges = 0;
+  for (let i = 2; i < trail.length; i++) {
+    const dx1 = trail[i].x - trail[i-1].x;
+    const dy1 = trail[i].y - trail[i-1].y;
+    const dx0 = trail[i-1].x - trail[i-2].x;
+    const dy0 = trail[i-1].y - trail[i-2].y;
+    if ((dx1 * dx0 + dy1 * dy0) < 0 || (Math.sign(dx1) !== Math.sign(dx0) && dx0 !== 0)) {
+      dirChanges++;
+    }
+  }
+  if (trail.length > 15 && dirChanges < 2) {
+    score += 15;
+    reasons.push('no_direction_changes');
+  }
+
+  // 7. Bezier curve pattern — automation libs move in perfect diagonal ratios
+  let exactDiag = 0;
+  for (let i = 1; i < trail.length; i++) {
+    const dx = Math.abs(trail[i].x - trail[i-1].x);
+    const dy = Math.abs(trail[i].y - trail[i-1].y);
+    if (dx === dy && dx > 2) exactDiag++;
+  }
+  if (exactDiag > trail.length * 0.3 && trail.length > 10) {
+    score += 20;
+    reasons.push('bezier_pattern');
+  }
+
+  // 8. Single axis movement (only X or only Y changes) — script moves linearly
+  let xOnly = 0, yOnly = 0;
+  for (let i = 1; i < trail.length; i++) {
+    if (trail[i].x !== trail[i-1].x && trail[i].y === trail[i-1].y) xOnly++;
+    if (trail[i].y !== trail[i-1].y && trail[i].x === trail[i-1].x) yOnly++;
+  }
+  if ((xOnly > trail.length * 0.9 || yOnly > trail.length * 0.9) && trail.length > 10) {
+    score += 20;
+    reasons.push('single_axis');
   }
 
   return { score, reasons };
@@ -145,6 +202,24 @@ router.post('/task', optionalAuth, async (req, res) => {
     console.log(`[VuotLink] 🤖 BotD detected: IP=${ip}`);
     logSecurityEvent('botd_detected', ip, ua, visitorId, { botKind: botDetection.botKind });
     return res.status(403).json(ERR);
+  }
+
+  // ── 2b. Client-side automation probes ──
+  const probes = behavioral?.probes || {};
+  if (probes.webdriver === true || probes.cdc === true || probes.selenium === true) {
+    console.log(`[VuotLink] 🤖 Automation probe hit: IP=${ip}, webdriver=${probes.webdriver}, cdc=${probes.cdc}, selenium=${probes.selenium}`);
+    logSecurityEvent('automation_probes', ip, ua, visitorId, probes);
+    return res.status(403).json(ERR);
+  }
+  // Probe warnings (not blocking but logged)
+  const probeWarnings = [];
+  if (probes.pluginCount === 0) probeWarnings.push('zero_plugins');
+  if (probes.rtt === 0) probeWarnings.push('zero_rtt');
+  if (probes.langCount === 0) probeWarnings.push('zero_languages');
+  if (probes.hasChrome === true && probes.hasChromeRuntime === false) probeWarnings.push('no_chrome_runtime');
+  if (probeWarnings.length > 0) {
+    console.log(`[VuotLink] ⚠️ Probe warnings: IP=${ip}, ${probeWarnings.join(',')}`);
+    logSecurityEvent('probe_warning', ip, ua, visitorId, { ...probes, probeWarnings });
   }
 
   // ── 3. VisitorId rate limit (5 tasks / 24h per device — from DB) ──
