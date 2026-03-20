@@ -18,7 +18,15 @@ export default function DashboardLayout() {
       return;
     }
     api.get('/auth/me')
-      .then(() => setAuthChecked(true))
+      .then((data) => {
+        const user = data.user;
+        // Only traffic buyers and admins can access buyer dashboard
+        if (user.role !== 'admin' && user.service_type === 'shortlink') {
+          navigate('/worker/dashboard');
+          return;
+        }
+        setAuthChecked(true);
+      })
       .catch(() => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');

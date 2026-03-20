@@ -20,7 +20,8 @@ export default function DangNhap() {
     if (localStorage.getItem('token')) {
       try {
         const u = JSON.parse(localStorage.getItem('user') || '{}');
-        navigate(u.service_type === 'shortlink' ? '/worker/dashboard' : '/buyer/dashboard');
+        if (u.role === 'admin') navigate('/admin');
+        else navigate(u.service_type === 'shortlink' ? '/worker/dashboard' : '/buyer/dashboard');
       } catch {
         navigate('/buyer/dashboard');
       }
@@ -62,8 +63,8 @@ export default function DangNhap() {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       toast.success(`Chào mừng ${data.user.name || 'bạn'}!`, 'Đăng nhập thành công');
-      const dashPath = data.user.service_type === 'shortlink' ? '/worker/dashboard' : '/buyer/dashboard';
-      navigate(dashPath);
+      if (data.user.role === 'admin') navigate('/admin');
+      else navigate(data.user.service_type === 'shortlink' ? '/worker/dashboard' : '/buyer/dashboard');
     } catch (err) {
       setError('Không thể kết nối đến máy chủ');
     } finally {

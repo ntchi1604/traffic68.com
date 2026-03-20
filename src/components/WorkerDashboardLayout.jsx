@@ -17,7 +17,15 @@ export default function WorkerDashboardLayout() {
       return;
     }
     api.get('/auth/me')
-      .then(() => setAuthChecked(true))
+      .then((data) => {
+        const user = data.user;
+        // Only shortlink workers and admins can access worker dashboard
+        if (user.role !== 'admin' && user.service_type !== 'shortlink') {
+          navigate('/buyer/dashboard');
+          return;
+        }
+        setAuthChecked(true);
+      })
       .catch(() => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
