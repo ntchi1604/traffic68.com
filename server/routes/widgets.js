@@ -99,6 +99,8 @@ router.post('/public/:token/check-session', async (req, res) => {
   const pool = getPool();
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
 
+  const ua = req.headers['user-agent'] || '';
+
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
@@ -106,10 +108,11 @@ router.post('/public/:token/check-session', async (req, res) => {
     `SELECT vt.id FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
      WHERE vt.ip_address = ? 
+       AND vt.user_agent = ?
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
        AND vt.expires_at > NOW()
      ORDER BY vt.created_at DESC LIMIT 1`,
-    [ip]
+    [ip, ua]
   );
 
   if (tasks.length === 0) {
@@ -127,18 +130,21 @@ router.post('/public/:token/get-code', async (req, res) => {
   const pool = getPool();
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
 
+  const ua = req.headers['user-agent'] || '';
+
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
-  // Find pending/active vuot_link_task matching this IP, include campaign time_on_site
+  // Find pending/active vuot_link_task matching this IP + UA
   const [tasks] = await pool.execute(
     `SELECT vt.*, c.url as campaign_url, c.time_on_site FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
      WHERE vt.ip_address = ? 
+       AND vt.user_agent = ?
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
        AND vt.expires_at > NOW()
      ORDER BY vt.created_at DESC LIMIT 1`,
-    [ip]
+    [ip, ua]
   );
 
   if (tasks.length === 0) {
