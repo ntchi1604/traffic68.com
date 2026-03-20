@@ -76,49 +76,20 @@ const API = '/api/vuot-link';
 
 /* ─── Incognito / Private browsing detection ────── */
 async function detectIncognito() {
-  let score = 0;
-
-  // Signal 1: Storage quota (Chrome/Edge/Safari)
-  // Normal: 50-300+ GB (60% of disk), Incognito: 100MB - 2GB (temp space)
+  // Chrome/Edge: storage quota is the most reliable signal
+  // Normal mode: quota = 60% of total disk (50-300+ GB)
+  // Incognito:   quota = temp storage only (100MB - 2GB)
+  // Threshold 4GB cleanly separates the two cases
   if (navigator.storage && navigator.storage.estimate) {
     try {
       const { quota } = await navigator.storage.estimate();
-      if (quota && quota < 2 * 1024 * 1024 * 1024) score += 3; // < 2GB → very likely incognito
-    } catch { score += 1; }
+      console.log('[VuotLink] Storage quota:', Math.round((quota || 0) / 1024 / 1024), 'MB');
+      if (quota && quota < 4 * 1024 * 1024 * 1024) return true; // < 4GB → incognito
+    } catch {
+      return false; // can't detect, allow through
+    }
   }
-
-  // Signal 2: Persistent storage request (always false in incognito)
-  if (navigator.storage && navigator.storage.persist) {
-    try {
-      const persisted = await navigator.storage.persist();
-      if (!persisted) score += 1;
-    } catch { score += 1; }
-  }
-
-  // Signal 3: Chrome webkitTemporaryStorage quota
-  if (navigator.webkitTemporaryStorage && navigator.webkitTemporaryStorage.queryUsageAndQuota) {
-    try {
-      const quota = await new Promise((resolve) => {
-        navigator.webkitTemporaryStorage.queryUsageAndQuota(
-          (_used, remaining) => resolve(remaining),
-          () => resolve(0)
-        );
-      });
-      if (quota < 2 * 1024 * 1024 * 1024) score += 2; // < 2GB
-    } catch { score += 1; }
-  }
-
-  // Signal 4: performance.memory (Chrome only — smaller heap in incognito)
-  if (performance && performance.memory) {
-    if (performance.memory.jsHeapSizeLimit < 1073741824) score += 1; // < 1GB
-  }
-
-  // Signal 5: Service worker unavailable (some Firefox private)
-  if (!navigator.serviceWorker) score += 2;
-
-  // Threshold: score >= 2 means likely incognito
-  console.log('[VuotLink] Incognito detection score:', score);
-  return score >= 2;
+  return false;
 }
 
 /* ─── Main Component ────────────────────────────────── */
