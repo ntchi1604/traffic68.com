@@ -101,7 +101,6 @@ export default function AdminSecurity() {
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
             <Shield size={24} className="text-orange-500" /> Bảo mật & Chống Bot
           </h1>
-          <p className="text-xs text-slate-500 mt-1">Đánh giá từ FingerprintJS, BotD, Behavioral Analysis</p>
         </div>
         <button onClick={fetchData}
           className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 text-white text-sm font-bold rounded-xl hover:bg-orange-600 transition">
@@ -221,13 +220,12 @@ export default function AdminSecurity() {
                           {log.visitor_id ? `${log.visitor_id.substring(0, 12)}...` : '—'}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                            log.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
+                          <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-full ${log.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
                             log.status === 'pending' ? 'bg-blue-50 text-blue-700' :
-                            log.status === 'expired' ? 'bg-slate-100 text-slate-500' :
-                            log.status?.startsWith('step') ? 'bg-cyan-50 text-cyan-700' :
-                            'bg-red-50 text-red-700'
-                          }`}>
+                              log.status === 'expired' ? 'bg-slate-100 text-slate-500' :
+                                log.status?.startsWith('step') ? 'bg-cyan-50 text-cyan-700' :
+                                  'bg-red-50 text-red-700'
+                            }`}>
                             {log.status}
                           </span>
                         </td>
