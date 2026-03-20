@@ -120,6 +120,38 @@ export default function VuotLink() {
           } catch { canvasHash = ''; }
         }
 
+        // Step 4b: WebGL 3D fingerprint (requires real GPU)
+        let webglHash = '';
+        try {
+          const glCanvas = document.createElement('canvas');
+          glCanvas.width = 64; glCanvas.height = 64;
+          const gl = glCanvas.getContext('webgl') || glCanvas.getContext('experimental-webgl');
+          if (gl) {
+            const vs = gl.createShader(gl.VERTEX_SHADER);
+            gl.shaderSource(vs, 'attribute vec2 p;varying vec2 v;void main(){v=p;gl_Position=vec4(p,0,1);}');
+            gl.compileShader(vs);
+            const fs = gl.createShader(gl.FRAGMENT_SHADER);
+            gl.shaderSource(fs, 'precision mediump float;varying vec2 v;void main(){gl_FragColor=vec4(v.x*0.5+0.5,v.y*0.5+0.5,0.3,1.0);}');
+            gl.compileShader(fs);
+            const prog = gl.createProgram();
+            gl.attachShader(prog, vs); gl.attachShader(prog, fs);
+            gl.linkProgram(prog); gl.useProgram(prog);
+            const buf = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0.8,-0.7,-0.6,0.7,-0.6]), gl.STATIC_DRAW);
+            const loc = gl.getAttribLocation(prog, 'p');
+            gl.enableVertexAttribArray(loc);
+            gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+            gl.clearColor(0.1, 0.1, 0.1, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+            const px = new Uint8Array(64 * 64 * 4);
+            gl.readPixels(0, 0, 64, 64, gl.RGBA, gl.UNSIGNED_BYTE, px);
+            const glBuf = await crypto.subtle.digest('SHA-256', px.buffer);
+            webglHash = Array.from(new Uint8Array(glBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+          }
+        } catch { webglHash = ''; }
+
         // Step 5: Collect browser proof
         const proof = collectBrowserProof();
 
@@ -137,6 +169,7 @@ export default function VuotLink() {
             proof,
             powNonce,
             canvasHash,
+            webglHash,
             bt: window.BotTracker ? window.BotTracker.collect() : undefined,
           }),
         });
