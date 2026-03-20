@@ -73,43 +73,43 @@ router.get('/public/:token', async (req, res) => {
 });
 
 // ── POST /api/widgets/public/:token/get-code ──
+// Called by embed script on target website after countdown finishes
+// Finds pending vuot_link_task matching visitor's IP → returns the code
+// Does NOT count as view — view is counted when user verifies code on VuotLink page
 router.post('/public/:token/get-code', async (req, res) => {
   const pool = getPool();
-  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-  const ua = req.headers['user-agent'] || '';
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
 
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
-  const widget = widgets[0];
 
-  const [campaigns] = await pool.execute(
-    `SELECT * FROM campaigns WHERE user_id = ? AND status = 'running' AND views_done < total_views ORDER BY RAND() LIMIT 1`,
-    [widget.user_id]
+  // Find pending/active vuot_link_task matching this IP
+  // Tasks are created by VuotLink page with status pending/step1/step2/step3
+  const [tasks] = await pool.execute(
+    `SELECT vt.*, c.url as campaign_url FROM vuot_link_tasks vt
+     JOIN campaigns c ON c.id = vt.campaign_id
+     WHERE vt.ip_address = ? 
+       AND vt.status IN ('pending', 'step1', 'step2', 'step3')
+       AND vt.expires_at > NOW()
+     ORDER BY vt.created_at DESC LIMIT 1`,
+    [ip]
   );
 
-  const randomCode = 'T68-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-  const campaign = campaigns[0];
-
-  if (campaign) {
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    await pool.execute(
-      `INSERT INTO vuot_link_tasks (campaign_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, completed_at, expires_at) VALUES (?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?)`,
-      [campaign.id, campaign.keyword || '', campaign.url, campaign.target_page || '', ip, ua, randomCode, now, expiresAt]
-    );
-
-    await pool.execute('UPDATE campaigns SET views_done = views_done + 1 WHERE id = ?', [campaign.id]);
-
-    const today = new Date().toISOString().slice(0, 10);
-    const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [campaign.id, today]);
-    if (logs.length > 0) {
-      await pool.execute('UPDATE traffic_logs SET views = views + 1, clicks = clicks + 1 WHERE id = ?', [logs[0].id]);
-    } else {
-      await pool.execute('INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source) VALUES (?, ?, 1, 1, 1, ?)', [campaign.id, today, campaign.traffic_type || 'google_search']);
-    }
+  if (tasks.length === 0) {
+    return res.status(404).json({ error: 'Không tìm thấy session. Vui lòng bắt đầu từ trang vượt link.' });
   }
 
-  res.json({ success: true, code: randomCode, message: 'Lấy mã thành công!' });
+  const task = tasks[0];
+
+  // Update task status to step3 (reached target website) if not already
+  if (task.status !== 'step3') {
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await pool.execute("UPDATE vuot_link_tasks SET status = 'step3', step3_at = ? WHERE id = ?", [now, task.id]);
+  }
+
+  console.log(`[Widget] Code requested — IP: ${ip}, task: #${task.id}, code: ${task.code_given}`);
+
+  res.json({ success: true, code: task.code_given, message: 'Mã của bạn! Hãy copy và nhập vào trang vượt link.' });
 });
 
 /* ═══════════════════════════════════════════════════════════

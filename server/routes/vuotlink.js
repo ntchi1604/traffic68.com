@@ -11,7 +11,6 @@ if (CHALLENGE_KEY.length < 32) {
 } else if (CHALLENGE_KEY.length > 32) {
   CHALLENGE_KEY = CHALLENGE_KEY.slice(0, 32);
 }
-console.log('CHALLENGE_KEY length:', CHALLENGE_KEY.length, 'bytes');
 
 const ipTaskCount = {};
 setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 3600000);
@@ -55,6 +54,9 @@ function decryptPayload(encStr) {
   return JSON.parse(decrypted);
 }
 
+/* ═════════════════════════════════════════════════════════
+   STEP 1: GET challenge
+═════════════════════════════════════════════════════════ */
 router.get('/challenge', (req, res) => {
   const ua = req.headers['user-agent'] || '';
   if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
@@ -65,6 +67,11 @@ router.get('/challenge', (req, res) => {
   res.json({ d: encryptPayload({ c: challengeId, j: jsCode }) });
 });
 
+/* ═════════════════════════════════════════════════════════
+   STEP 2: POST task — create session + generate code
+   - Stores IP, UA, random code in vuot_link_tasks
+   - Code will be shown on the target website embed script
+═════════════════════════════════════════════════════════ */
 router.post('/task', optionalAuth, async (req, res) => {
   const ERR = { error: 'Yêu cầu không hợp lệ' };
   const ua = req.headers['user-agent'] || '';
@@ -100,22 +107,49 @@ router.post('/task', optionalAuth, async (req, res) => {
   if (campaigns.length === 0) return res.status(404).json(ERR);
   const campaign = campaigns[0];
 
-  const startedAt = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + 600000).toISOString().slice(0, 19).replace('T', ' ');
-  const session = crypto.randomBytes(16).toString('hex');
+  // Generate random verification code
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let randomCode = '';
+  for (let i = 0; i < 6; i++) randomCode += chars[Math.floor(Math.random() * chars.length)];
+
+  // Parse campaign duration from time_on_site
+  let waitTime = 60; // default
+  const tos = campaign.time_on_site || '';
+  if (tos.includes('-')) {
+    waitTime = parseInt(tos.split('-')[0]) || 60;
+  } else {
+    waitTime = parseInt(tos) || 60;
+  }
+
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   const [result] = await pool.execute(
-    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, expires_at) VALUES (?, ?, ?, ?, ?, 'assigned', ?)`,
-    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', expiresAt]
+    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, expires_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', ip, ua, randomCode, expiresAt]
   );
 
-  res.json({ d: encryptPayload({ id: result.insertId, keyword: campaign.keyword, image1_url: campaign.image1_url || '', session, startedAt, expiresAt }) });
+  console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, waitTime: ${waitTime}s`);
+
+  res.json({
+    d: encryptPayload({
+      id: result.insertId,
+      keyword: campaign.keyword,
+      image1_url: campaign.image1_url || '',
+      waitTime,
+      startedAt: now,
+      expiresAt,
+    })
+  });
 });
 
+/* ═════════════════════════════════════════════════════════
+   STEP 3: PUT /task/:id/step — report step progress
+═════════════════════════════════════════════════════════ */
 router.put('/task/:id/step', optionalAuth, async (req, res) => {
   const pool = getPool();
   const { step } = req.body;
-  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
   const ua = req.headers['user-agent'] || '';
 
   const [tasks] = await pool.execute('SELECT * FROM vuot_link_tasks WHERE id = ?', [req.params.id]);
@@ -141,30 +175,55 @@ router.put('/task/:id/step', optionalAuth, async (req, res) => {
   res.json({ status: step });
 });
 
-router.post('/task/:id/complete', optionalAuth, async (req, res) => {
+/* ═════════════════════════════════════════════════════════
+   STEP 4: POST /task/:id/verify — verify code & complete
+   - User enters code from target website
+   - Server verifies it matches code_given
+   - If correct → count as 1 view, pay worker
+═════════════════════════════════════════════════════════ */
+router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   const pool = getPool();
-  const { timeOnSite } = req.body;
+  const { code } = req.body;
+
+  if (!code || code.trim().length < 4) {
+    return res.status(400).json({ error: 'Mã xác nhận không hợp lệ' });
+  }
 
   const [tasks] = await pool.execute('SELECT * FROM vuot_link_tasks WHERE id = ?', [req.params.id]);
   if (tasks.length === 0) return res.status(404).json({ error: 'Task không tồn tại' });
   const task = tasks[0];
+
   if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
 
-  const [campaigns] = await pool.execute('SELECT cpc, user_id FROM campaigns WHERE id = ?', [task.campaign_id]);
+  // Check expiry
+  if (task.expires_at && new Date(task.expires_at) < new Date()) {
+    await pool.execute("UPDATE vuot_link_tasks SET status = 'expired' WHERE id = ?", [task.id]);
+    return res.status(410).json({ error: 'Task đã hết hạn' });
+  }
+
+  // Verify code matches
+  if (code.trim().toUpperCase() !== (task.code_given || '').toUpperCase()) {
+    return res.status(400).json({ error: 'Mã xác nhận không đúng. Vui lòng kiểm tra lại.' });
+  }
+
+  // Code correct! → Complete task, count as 1 view
+  const [campaigns] = await pool.execute('SELECT cpc, user_id, traffic_type FROM campaigns WHERE id = ?', [task.campaign_id]);
   if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
   const campaign = campaigns[0];
 
   const earning = campaign.cpc;
-  const code = 'CODE-' + Math.random().toString(36).substring(2, 10).toUpperCase();
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const timeOnSite = task.step3_at ? Math.floor((new Date(now) - new Date(task.step3_at)) / 1000) : 0;
 
   await pool.execute(
-    `UPDATE vuot_link_tasks SET status = 'completed', completed_at = ?, time_on_site = ?, earning = ?, code_given = ? WHERE id = ?`,
-    [now, timeOnSite || 0, earning, code, task.id]
+    `UPDATE vuot_link_tasks SET status = 'completed', completed_at = ?, time_on_site = ?, earning = ? WHERE id = ?`,
+    [now, timeOnSite, earning, task.id]
   );
 
+  // Count view for campaign
   await pool.execute('UPDATE campaigns SET views_done = views_done + 1 WHERE id = ?', [task.campaign_id]);
 
+  // Update traffic log
   const today = new Date().toISOString().slice(0, 10);
   const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [task.campaign_id, today]);
   if (logs.length > 0) {
@@ -173,6 +232,7 @@ router.post('/task/:id/complete', optionalAuth, async (req, res) => {
     await pool.execute('INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source) VALUES (?, ?, 1, 1, 1, ?)', [task.campaign_id, today, campaign.traffic_type || 'google_search']);
   }
 
+  // Pay worker commission
   if (task.worker_id) {
     await pool.execute("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'commission'", [earning, task.worker_id]);
     const refCode = 'VL-' + Date.now();
@@ -182,9 +242,23 @@ router.post('/task/:id/complete', optionalAuth, async (req, res) => {
     );
   }
 
-  res.json({ code, earning });
+  console.log(`[VuotLink] Task #${task.id} VERIFIED — code=${code}, earning=${earning}`);
+
+  res.json({ success: true, earning });
 });
 
+/* ═════════════════════════════════════════════════════════
+   Keep old /task/:id/complete for backward compat (redirect to verify)
+═════════════════════════════════════════════════════════ */
+router.post('/task/:id/complete', optionalAuth, async (req, res) => {
+  // Redirect old flow to verify
+  req.body.code = req.body.code || '';
+  return res.status(400).json({ error: 'Vui lòng sử dụng flow xác nhận mã mới.' });
+});
+
+/* ═════════════════════════════════════════════════════════
+   PROTECTED endpoints
+═════════════════════════════════════════════════════════ */
 router.use(authMiddleware);
 
 router.get('/stats', async (req, res) => {
@@ -192,7 +266,7 @@ router.get('/stats', async (req, res) => {
   const [total] = await pool.execute(
     `SELECT COUNT(*) as total,
       SUM(CASE WHEN vt.status = 'completed' THEN 1 ELSE 0 END) as completed,
-      SUM(CASE WHEN vt.status IN ('pending','assigned') THEN 1 ELSE 0 END) as pending,
+      SUM(CASE WHEN vt.status IN ('pending','assigned','step1','step2','step3') THEN 1 ELSE 0 END) as pending,
       SUM(CASE WHEN vt.status = 'expired' THEN 1 ELSE 0 END) as expired,
       SUM(CASE WHEN vt.status = 'completed' THEN vt.earning ELSE 0 END) as totalEarning
     FROM vuot_link_tasks vt JOIN campaigns c ON c.id = vt.campaign_id WHERE c.user_id = ?`,

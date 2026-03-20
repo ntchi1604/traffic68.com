@@ -94,7 +94,7 @@ export default function VuotLink() {
   // Task state from API
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [task, setTask] = useState(null); // { id, keyword, image1_url, session, startedAt, expiresAt }
+  const [task, setTask] = useState(null); // { id, keyword, image1_url, waitTime, startedAt, expiresAt }
 
   // UI state
   const [activeStep, setActiveStep] = useState(1);
@@ -102,15 +102,13 @@ export default function VuotLink() {
   const [inputCode, setInputCode] = useState('');
   const [verified, setVerified] = useState(false);
   const [showError, setShowError] = useState(false);
-  const [completionResult, setCompletionResult] = useState(null); // { code, earning }
+  const [completionResult, setCompletionResult] = useState(null); // { earning }
   const [completing, setCompleting] = useState(false);
   const taskStartTime = useRef(Date.now());
 
-  // Countdown: only starts when step 4 is active
-  const countdown = useCountdown(30, activeStep === 4);
-
-  // Verification code (generated locally for display, actual verify via API)
-  const [verifyCode, setVerifyCode] = useState('');
+  // Countdown: uses campaign duration from API, starts when step 4 is active
+  const waitTime = task?.waitTime || 60;
+  const countdown = useCountdown(waitTime, activeStep === 4);
 
   /* ─── Fetch task from API on mount ─────────────── */
   useEffect(() => {
@@ -162,12 +160,6 @@ export default function VuotLink() {
         if (!cancelled) {
           setTask(decryptedTask);
           taskStartTime.current = Date.now();
-
-          // Generate a random 6-char code for UI verification
-          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-          let code = '';
-          for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-          setVerifyCode(code);
         }
       } catch (err) {
         if (!cancelled) setError(err.message || 'Đã xảy ra lỗi');
@@ -210,35 +202,34 @@ export default function VuotLink() {
     setTimeout(() => setCopied(false), 2000);
   }, [task]);
 
-  /* ─── Verify code & complete task ─────────────── */
+  /* ─── Verify code entered by user ─────────────── */
   const handleVerify = useCallback(async () => {
-    if (inputCode.toUpperCase().trim() !== verifyCode) {
+    if (!inputCode.trim() || inputCode.trim().length < 4) {
       setShowError(true);
+      setError('Vui lòng nhập mã xác nhận.');
       setTimeout(() => setShowError(false), 3000);
       return;
     }
 
-    // Complete task via API
+    // Verify code via API — server checks against code_given in vuot_link_tasks
     setCompleting(true);
     try {
-      const timeOnSite = Math.floor((Date.now() - taskStartTime.current) / 1000);
       const token = localStorage.getItem('token');
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`${API}/task/${task.id}/complete`, {
+      const res = await fetch(`${API}/task/${task.id}/verify`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ timeOnSite }),
+        body: JSON.stringify({ code: inputCode.trim() }),
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Lỗi hoàn thành task');
+        throw new Error(data.error || 'Mã xác nhận không đúng');
       }
 
-      const result = await res.json();
-      setCompletionResult(result);
+      setCompletionResult(data);
       setVerified(true);
       setShowError(false);
     } catch (err) {
@@ -248,7 +239,7 @@ export default function VuotLink() {
     } finally {
       setCompleting(false);
     }
-  }, [inputCode, verifyCode, task]);
+  }, [inputCode, task]);
 
   /* ─── Derived values ──────────────────────────── */
   const keyword = task?.keyword || '';
@@ -604,7 +595,7 @@ export default function VuotLink() {
           {/* ── STEP 4: Verification ──────── */}
           {activeStep === 4 && (
             <div style={{ padding: 'clamp(24px, 4vw, 40px)' }}>
-              <StepHeader step={steps[3]} number={4} desc="Đợi hết thời gian sau đó nhập mã xác nhận." />
+              <StepHeader step={steps[3]} number={4} desc={`Vào trang đích, đợi ${waitTime}s để hiện mã. Quay lại đây nhập mã xác nhận.`} />
 
               {verified ? (
                 /* ── Success state ── */
@@ -629,24 +620,14 @@ export default function VuotLink() {
                   </p>
 
                   {/* Show completion result */}
-                  {completionResult && (
+                  {completionResult && completionResult.earning > 0 && (
                     <div style={{
                       background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.2)',
                       borderRadius: '12px', padding: '16px 24px', marginTop: '8px',
-                      display: 'flex', flexDirection: 'column', gap: '8px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                     }}>
-                      {completionResult.code && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ color: '#94a3b8', fontSize: '13px' }}>Mã hoàn thành:</span>
-                          <span style={{ color: '#10b981', fontSize: '15px', fontWeight: 700, fontFamily: 'monospace' }}>{completionResult.code}</span>
-                        </div>
-                      )}
-                      {completionResult.earning > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ color: '#94a3b8', fontSize: '13px' }}>Tiền thưởng:</span>
-                          <span style={{ color: '#f97316', fontSize: '15px', fontWeight: 700 }}>{Number(completionResult.earning).toLocaleString('vi-VN')} VNĐ</span>
-                        </div>
-                      )}
+                      <span style={{ color: '#94a3b8', fontSize: '13px' }}>Tiền thưởng:</span>
+                      <span style={{ color: '#f97316', fontSize: '15px', fontWeight: 700 }}>{Number(completionResult.earning).toLocaleString('vi-VN')} VNĐ</span>
                     </div>
                   )}
 
@@ -707,34 +688,21 @@ export default function VuotLink() {
                     )}
                   </div>
 
-                  {/* Code display */}
-                  <div style={{ marginBottom: '20px' }}>
-                    <p style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600, letterSpacing: '0.5px', margin: '0 0 10px', textTransform: 'uppercase' }}>
-                      Mã xác nhận
-                    </p>
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
-                      {verifyCode.split('').map((char, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            width: '44px', height: '52px',
-                            background: 'rgba(0,0,0,0.4)',
-                            border: '1.5px solid rgba(16,185,129,0.3)',
-                            borderRadius: '10px',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#10b981', fontSize: '22px', fontWeight: 800,
-                            fontFamily: "'Inter', monospace", letterSpacing: '1px',
-                          }}
-                        >
-                          {canVerify ? char : '•'}
-                        </div>
-                      ))}
-                    </div>
-                    {!canVerify && (
-                      <p style={{ color: '#64748b', fontSize: '11px', textAlign: 'center', margin: '6px 0 0' }}>
-                        Mã sẽ hiện khi hết thời gian đếm ngược
+                  {/* Instructions */}
+                  <div style={{
+                    background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)',
+                    borderRadius: '12px', padding: '14px 18px', marginBottom: '20px',
+                    display: 'flex', alignItems: 'flex-start', gap: '10px',
+                  }}>
+                    <AlertCircle size={16} style={{ color: '#f97316', marginTop: '2px', flexShrink: 0 }} />
+                    <div>
+                      <p style={{ color: '#fb923c', fontSize: '13px', fontWeight: 600, margin: '0 0 4px' }}>
+                        Mã hiển thị trên trang đích
                       </p>
-                    )}
+                      <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0, lineHeight: 1.5 }}>
+                        Sau khi vào đúng trang web và đợi hết {waitTime} giây, nút trên trang sẽ hiện mã xác nhận. Hãy copy mã đó và quay lại đây nhập vào.
+                      </p>
+                    </div>
                   </div>
 
                   {/* Input */}
@@ -766,20 +734,20 @@ export default function VuotLink() {
                       />
                       <button
                         onClick={handleVerify}
-                        disabled={!canVerify || inputCode.length < 6 || completing}
+                        disabled={!canVerify || inputCode.length < 4 || completing}
                         style={{
                           padding: '14px 24px', borderRadius: '12px', border: 'none',
-                          background: canVerify && inputCode.length >= 6 && !completing
+                          background: canVerify && inputCode.length >= 4 && !completing
                             ? 'linear-gradient(135deg, #10b981, #059669)'
                             : 'rgba(255,255,255,0.05)',
-                          color: canVerify && inputCode.length >= 6 ? '#fff' : '#475569',
+                          color: canVerify && inputCode.length >= 4 ? '#fff' : '#475569',
                           fontSize: '14px', fontWeight: 700,
-                          cursor: canVerify && inputCode.length >= 6 && !completing ? 'pointer' : 'not-allowed',
+                          cursor: canVerify && inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed',
                           transition: 'all 0.25s ease',
-                          boxShadow: canVerify && inputCode.length >= 6 ? '0 4px 20px rgba(16,185,129,0.3)' : 'none',
+                          boxShadow: canVerify && inputCode.length >= 4 ? '0 4px 20px rgba(16,185,129,0.3)' : 'none',
                           display: 'flex', alignItems: 'center', gap: '6px',
                         }}
-                        onMouseEnter={(e) => { if (canVerify && inputCode.length >= 6 && !completing) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                        onMouseEnter={(e) => { if (canVerify && inputCode.length >= 4 && !completing) e.currentTarget.style.transform = 'translateY(-2px)'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
                       >
                         {completing && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
