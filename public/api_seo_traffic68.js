@@ -168,11 +168,11 @@
     function check() { done++; if (done >= total) callback(); }
 
     // Load FingerprintJS (same library as: import FingerprintJS from '@fingerprintjs/fingerprintjs')
+    // Uses UMD build which exposes window.FingerprintJS
     var fpScript = document.createElement('script');
-    fpScript.src = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@4/dist/fp.min.js';
+    fpScript.src = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@4/dist/fp.umd.min.js';
     fpScript.onload = function () {
       try {
-        // CDN version exposes FingerprintJS global
         var FP = window.FingerprintJS;
         if (FP) {
           FP.load().then(function (fp) {
@@ -188,24 +188,21 @@
     document.head.appendChild(fpScript);
 
     // Load BotD (same library as: import { load as loadBotd } from '@fingerprintjs/botd')
-    var bdScript = document.createElement('script');
-    bdScript.src = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/botd@1/dist/botd.min.js';
-    bdScript.onload = function () {
-      try {
-        // CDN version exposes Botd global
-        var Botd = window.Botd;
-        if (Botd && Botd.load) {
-          Botd.load().then(function (botd) {
+    // BotD has no UMD build — use dynamic import() with the ESM dist file
+    try {
+      import('https://cdn.jsdelivr.net/npm/@fingerprintjs/botd@1.9.1/dist/botd.esm.js').then(function (module) {
+        // BotD exports: { load, default: { load } }
+        var loadBotd = module.load;
+        if (loadBotd) {
+          loadBotd().then(function (botd) {
             return botd.detect();
           }).then(function (result) {
             _botDetection = result;
             check();
           }).catch(function () { check(); });
         } else { check(); }
-      } catch (e) { check(); }
-    };
-    bdScript.onerror = function () { check(); };
-    document.head.appendChild(bdScript);
+      }).catch(function () { check(); });
+    } catch (e) { check(); }
   }
 
   /* ── Behavioral tracker (same as VuotLink.jsx) ────────── */
