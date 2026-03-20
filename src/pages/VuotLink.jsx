@@ -74,6 +74,37 @@ function collectBrowserProof() {
 const API = '/api/vuot-link';
 
 
+/* ─── Incognito / Private browsing detection ────── */
+async function detectIncognito() {
+  // Chrome / Edge: StorageManager estimate
+  if (navigator.storage && navigator.storage.estimate) {
+    try {
+      const est = await navigator.storage.estimate();
+      // In incognito, quota is usually ≤ 120MB vs several GB normally
+      if (est.quota && est.quota < 200 * 1024 * 1024) return true;
+    } catch {}
+  }
+  // Firefox: IndexedDB fails in private mode
+  try {
+    const db = indexedDB.open('_incognito_test');
+    await new Promise((resolve, reject) => {
+      db.onerror = () => reject();
+      db.onsuccess = () => resolve();
+    });
+  } catch {
+    return true;
+  }
+  // Safari: try writing to localStorage (will throw in private on old Safari)
+  try {
+    const key = '_t68_priv_test';
+    localStorage.setItem(key, '1');
+    localStorage.removeItem(key);
+  } catch {
+    return true;
+  }
+  return false;
+}
+
 /* ─── Main Component ────────────────────────────────── */
 export default function VuotLink() {
   // Set tab title
@@ -85,6 +116,7 @@ export default function VuotLink() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [task, setTask] = useState(null); // { id, keyword, image1_url, waitTime, startedAt, expiresAt }
+  const [isIncognito, setIsIncognito] = useState(false);
 
   // UI state
   const [activeStep, setActiveStep] = useState(1);
@@ -105,6 +137,13 @@ export default function VuotLink() {
       try {
         setLoading(true);
         setError('');
+
+        // Check for incognito/private browsing
+        const incognito = await detectIncognito();
+        if (incognito) {
+          if (!cancelled) setIsIncognito(true);
+          return;
+        }
 
         // Step 1: Get challenge
         const chRes = await fetch(`${API}/challenge`);
@@ -263,6 +302,43 @@ export default function VuotLink() {
           <p style={{ color: '#94a3b8', fontSize: '15px', fontWeight: 500 }}>Đang tải nhiệm vụ...</p>
         </div>
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </PageWrapper>
+    );
+  }
+
+  /* ─── Incognito Block ────────────────────────────── */
+  if (isIncognito) {
+    return (
+      <PageWrapper>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '20px', textAlign: 'center', padding: '0 20px' }}>
+          <div style={{
+            width: '72px', height: '72px', borderRadius: '50%',
+            background: 'rgba(249,115,22,0.1)', border: '2px solid rgba(249,115,22,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <ShieldCheck size={30} style={{ color: '#f97316' }} />
+          </div>
+          <h2 style={{ color: '#f1f5f9', fontSize: '20px', fontWeight: 700, margin: 0 }}>Không hỗ trợ trình duyệt ẩn danh</h2>
+          <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0, maxWidth: '400px', lineHeight: 1.6 }}>
+            Trang vượt link không hoạt động trong chế độ ẩn danh (Incognito / Private).
+            Vui lòng mở bằng cửa sổ trình duyệt bình thường.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              background: 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff',
+              padding: '12px 28px', borderRadius: '12px', border: 'none',
+              fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 4px 20px rgba(249,115,22,0.3)',
+              transition: 'all 0.25s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
+          >
+            Thử lại
+          </button>
+        </div>
       </PageWrapper>
     );
   }
