@@ -5,12 +5,6 @@ const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
-let CHALLENGE_KEY = Buffer.from(process.env.CHALLENGE_KEY || 't68vLsecur3Chall3ng3Key2026xZqWx', 'utf8');
-if (CHALLENGE_KEY.length < 32) {
-  CHALLENGE_KEY = Buffer.concat([CHALLENGE_KEY, Buffer.alloc(32 - CHALLENGE_KEY.length, 0)]);
-} else if (CHALLENGE_KEY.length > 32) {
-  CHALLENGE_KEY = CHALLENGE_KEY.slice(0, 32);
-}
 
 const ipTaskCount = {};
 setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 3600000);
@@ -33,26 +27,7 @@ function generateJsChallenge() {
   return { jsCode, expected };
 }
 
-function encryptPayload(data) {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', CHALLENGE_KEY, iv);
-  let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'base64');
-  encrypted += cipher.final('base64');
-  const tag = cipher.getAuthTag().toString('base64');
-  return iv.toString('base64') + '.' + encrypted + '.' + tag;
-}
 
-function decryptPayload(encStr) {
-  const [ivB64, dataB64, tagB64] = encStr.split('.');
-  const iv = Buffer.from(ivB64, 'base64');
-  const encrypted = Buffer.from(dataB64, 'base64');
-  const tag = Buffer.from(tagB64, 'base64');
-  const decipher = crypto.createDecipheriv('aes-256-gcm', CHALLENGE_KEY, iv);
-  decipher.setAuthTag(tag);
-  let decrypted = decipher.update(encrypted, null, 'utf8');
-  decrypted += decipher.final('utf8');
-  return JSON.parse(decrypted);
-}
 
 /* ═════════════════════════════════════════════════════════
    STEP 1: GET challenge
@@ -64,7 +39,7 @@ router.get('/challenge', (req, res) => {
   const challengeId = crypto.randomBytes(16).toString('hex');
   const { jsCode, expected } = generateJsChallenge();
   challenges[challengeId] = { expected, createdAt: Date.now(), used: false };
-  res.json({ d: encryptPayload({ c: challengeId, j: jsCode }) });
+  res.json({ c: challengeId, j: jsCode });
 });
 
 /* ═════════════════════════════════════════════════════════
@@ -81,13 +56,7 @@ router.post('/task', optionalAuth, async (req, res) => {
   ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
   if (ipTaskCount[ip] > 30) { console.log('VuotLink blocked: IP rate limit exceeded', ip); return res.status(403).json(ERR); }
 
-  let challengeId, jsResult, proof;
-  try {
-    const body = decryptPayload(req.body.d);
-    challengeId = body.challengeId;
-    jsResult = body.jsResult;
-    proof = body.proof;
-  } catch (err) { console.log('VuotLink blocked: decrypt failed', err.message); return res.status(403).json(ERR); }
+  const { challengeId, jsResult, proof } = req.body || {};
 
   if (!challengeId || jsResult === undefined) { console.log('VuotLink blocked: missing challengeId or jsResult'); return res.status(403).json(ERR); }
 
@@ -148,13 +117,11 @@ router.post('/task', optionalAuth, async (req, res) => {
   console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, waitTime: ${waitTime}s`);
 
   res.json({
-    d: encryptPayload({
-      id: result.insertId,
-      keyword: campaign.keyword,
-      image1_url: campaign.image1_url || '',
-      waitTime,
-      startedAt: now,
-    })
+    id: result.insertId,
+    keyword: campaign.keyword,
+    image1_url: campaign.image1_url || '',
+    waitTime,
+    startedAt: now,
   });
 });
 

@@ -7,58 +7,6 @@ import {
   Loader2, WifiOff
 } from 'lucide-react';
 
-/* ─── AES-256-GCM crypto helpers (Web Crypto API) ──── */
-const KEY_RAW = import.meta.env.VITE_CHALLENGE_KEY || 't68vLsecur3Chall3ng3Key2026xZqWx';
-
-async function getCryptoKey() {
-  let keyBytes = new TextEncoder().encode(KEY_RAW);
-  if (keyBytes.length < 32) {
-    const padded = new Uint8Array(32);
-    padded.set(keyBytes);
-    keyBytes = padded;
-  } else if (keyBytes.length > 32) {
-    keyBytes = keyBytes.slice(0, 32);
-  }
-  return crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-}
-
-function b64ToUint8(b64) {
-  const bin = atob(b64);
-  const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-  return arr;
-}
-
-function uint8ToB64(arr) {
-  let bin = '';
-  for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i]);
-  return btoa(bin);
-}
-
-async function decryptPayload(encStr) {
-  const [ivB64, dataB64, tagB64] = encStr.split('.');
-  const iv = b64ToUint8(ivB64);
-  const encrypted = b64ToUint8(dataB64);
-  const tag = b64ToUint8(tagB64);
-  const combined = new Uint8Array(encrypted.length + tag.length);
-  combined.set(encrypted);
-  combined.set(tag, encrypted.length);
-  const key = await getCryptoKey();
-  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, combined);
-  return JSON.parse(new TextDecoder().decode(decrypted));
-}
-
-async function encryptPayload(data) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await getCryptoKey();
-  const encoded = new TextEncoder().encode(JSON.stringify(data));
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
-  const encArr = new Uint8Array(encrypted);
-  const ciphertext = encArr.slice(0, encArr.length - 16);
-  const tag = encArr.slice(encArr.length - 16);
-  return uint8ToB64(iv) + '.' + uint8ToB64(ciphertext) + '.' + uint8ToB64(tag);
-}
-
 /* ─── Browser proof (anti-bot) ──────────────────────── */
 function collectBrowserProof() {
   const sw = window.screen?.width || 0;
@@ -121,8 +69,7 @@ export default function VuotLink() {
         // Step 1: Get challenge
         const chRes = await fetch(`${API}/challenge`);
         if (!chRes.ok) throw new Error('Không thể lấy challenge');
-        const chData = await chRes.json();
-        const challenge = await decryptPayload(chData.d);
+        const challenge = await chRes.json();
 
         // Step 2: Execute JS challenge
         // eslint-disable-next-line no-eval
@@ -136,16 +83,14 @@ export default function VuotLink() {
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const encBody = await encryptPayload({
-          challengeId: challenge.c,
-          jsResult,
-          proof,
-        });
-
         const taskRes = await fetch(`${API}/task`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ d: encBody }),
+          body: JSON.stringify({
+            challengeId: challenge.c,
+            jsResult,
+            proof,
+          }),
         });
 
         if (taskRes.status === 404) {
@@ -160,10 +105,9 @@ export default function VuotLink() {
         if (!taskRes.ok) throw new Error('Không thể lấy task');
 
         const taskData = await taskRes.json();
-        const decryptedTask = await decryptPayload(taskData.d);
 
         if (!cancelled) {
-          setTask(decryptedTask);
+          setTask(taskData);
           taskStartTime.current = Date.now();
         }
       } catch (err) {
