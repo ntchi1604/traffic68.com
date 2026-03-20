@@ -85,8 +85,12 @@ export default function VuotLink() {
         // BotD — bot detection
         const botd = await loadBotd();
         const result = botd.detect();
+        console.log('[BotD] result:', JSON.stringify(result));
         setBotResult(result);
-      } catch { setBotResult(null); }
+      } catch (e) {
+        console.warn('[BotD] error:', e);
+        setBotResult({ bot: false, error: e.message });
+      }
     })();
   }, []);
 
