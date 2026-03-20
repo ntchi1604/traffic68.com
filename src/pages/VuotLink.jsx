@@ -74,22 +74,12 @@ function collectBrowserProof() {
 const API = '/api/vuot-link';
 
 
-/* ─── Incognito / Private browsing detection ────── */
-async function detectIncognito() {
-  // Chrome/Edge: storage quota is the most reliable signal
-  // Normal mode: quota = 60% of total disk (50-300+ GB)
-  // Incognito:   quota = temp storage only (100MB - 2GB)
-  // Threshold 4GB cleanly separates the two cases
-  if (navigator.storage && navigator.storage.estimate) {
-    try {
-      const { quota } = await navigator.storage.estimate();
-      console.log('[VuotLink] Storage quota:', Math.round((quota || 0) / 1024 / 1024), 'MB');
-      if (quota && quota < 4 * 1024 * 1024 * 1024) return true; // < 4GB → incognito
-    } catch {
-      return false; // can't detect, allow through
-    }
-  }
-  return false;
+/* ─── Incognito detection via persistent cookie ─── */
+// Cookie `_t68_v` is set from App Layout on every page visit (max-age=1year).
+// Normal users: cookie exists from previous page visits.
+// Incognito: cookies from previous sessions don't carry over → no cookie.
+function detectIncognito() {
+  return !document.cookie.split(';').some(c => c.trim().startsWith('_t68_v='));
 }
 
 /* ─── Main Component ────────────────────────────────── */
@@ -125,8 +115,8 @@ export default function VuotLink() {
         setLoading(true);
         setError('');
 
-        // Check for incognito/private browsing
-        const incognito = await detectIncognito();
+        // Check for incognito/private browsing (cookie-based)
+        const incognito = detectIncognito();
         if (incognito) {
           if (!cancelled) setIsIncognito(true);
           return;
