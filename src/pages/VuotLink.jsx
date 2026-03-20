@@ -7,27 +7,33 @@ import {
   Loader2, WifiOff
 } from 'lucide-react';
 
-/* ─── Load self-hosted FingerprintJS + BotD (same files as embed script) ── */
-function loadFingerprintJS() {
+/* ─── Load FingerprintJS + BotD from server files (same as embed script) ── */
+function loadScript(src) {
   return new Promise((resolve) => {
-    if (window.FingerprintJS) { resolve(window.FingerprintJS); return; }
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
     const s = document.createElement('script');
-    s.src = '/fp.js';
-    s.onload = () => resolve(window.FingerprintJS || null);
-    s.onerror = () => resolve(null);
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => resolve();
     document.head.appendChild(s);
   });
 }
 
-function loadBotdLib() {
-  return new Promise((resolve) => {
-    fetch('/botd.js').then(r => r.text()).then(code => {
-      const mod = { exports: {} };
-      (new Function('module', 'exports', code))(mod, mod.exports);
-      const loadFn = mod.exports.load || (mod.exports.default && mod.exports.default.load);
-      resolve(loadFn || null);
-    }).catch(() => resolve(null));
-  });
+async function getFingerprintData() {
+  await loadScript('/fp.js');
+  const FP = window.FingerprintJS;
+  if (!FP) return { visitorId: 'unknown' };
+  const fp = await FP.load();
+  return await fp.get();
+}
+
+async function getBotDetection() {
+  await loadScript('/botd.js');
+  const Botd = window.Botd;
+  const loadBotd = Botd && (Botd.load || (Botd.default && Botd.default.load));
+  if (!loadBotd) return null;
+  const botd = await loadBotd();
+  return botd.detect();
 }
 
 /* ─── Behavioral tracker (inline, no external file) ────── */
@@ -97,23 +103,13 @@ export default function VuotLink() {
           }
         }
 
-        // Step 1: Load FingerprintJS + BotD from self-hosted files (same as embed script)
+        // Step 1: Load FingerprintJS + BotD from server files (same as embed script)
         let visitorId = 'unknown';
         let botDetectionResult = null;
 
         const [fpResult, botdResult] = await Promise.allSettled([
-          (async () => {
-            const FP = await loadFingerprintJS();
-            if (!FP) return null;
-            const fp = await FP.load();
-            return await fp.get();
-          })(),
-          (async () => {
-            const loadBotd = await loadBotdLib();
-            if (!loadBotd) return null;
-            const botd = await loadBotd();
-            return botd.detect();
-          })(),
+          getFingerprintData(),
+          getBotDetection(),
         ]);
 
         if (fpResult.status === 'fulfilled' && fpResult.value) {
