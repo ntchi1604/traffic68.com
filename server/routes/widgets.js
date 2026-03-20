@@ -5,6 +5,14 @@ const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Fields no longer used by embed script v3
+const DEPRECATED_FIELDS = ['code', 'icon'];
+function stripDeprecated(config) {
+  const clean = { ...config };
+  for (const f of DEPRECATED_FIELDS) delete clean[f];
+  return clean;
+}
+
 /* ═══════════════════════════════════════════════════════════
    PUBLIC endpoints — called by api_seo_traffic68.js
 ═══════════════════════════════════════════════════════════ */
@@ -58,14 +66,13 @@ router.get('/public/:token', async (req, res) => {
     }
   }
 
-  // Override waitTime from campaign if found
+  // Strip deprecated fields & override waitTime from campaign
+  config = stripDeprecated(config);
   if (campaignInfo) {
     config.waitTime = campaignInfo.waitTime;
   }
 
   res.json({
-    token: widgets[0].token,
-    name: widgets[0].name,
     config,
     campaignFound: !!campaignInfo,
     campaignId: campaignInfo?.campaignId || null,
@@ -137,7 +144,8 @@ router.post('/', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'Tên widget là bắt buộc' });
 
   const token = 'T68-' + crypto.randomBytes(6).toString('hex').toUpperCase();
-  const configStr = typeof config === 'string' ? config : JSON.stringify(config || {});
+  const cleanConfig = stripDeprecated(typeof config === 'string' ? JSON.parse(config) : (config || {}));
+  const configStr = JSON.stringify(cleanConfig);
 
   const [result] = await pool.execute(`INSERT INTO widgets (user_id, token, name, config) VALUES (?, ?, ?, ?)`, [req.userId, token, name, configStr]);
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE id = ?', [result.insertId]);
@@ -154,7 +162,11 @@ router.put('/:id', async (req, res) => {
   if (existing.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
   const { name, config, is_active } = req.body;
-  const configStr = config ? (typeof config === 'string' ? config : JSON.stringify(config)) : null;
+  let configStr = null;
+  if (config) {
+    const cleanConfig = stripDeprecated(typeof config === 'string' ? JSON.parse(config) : config);
+    configStr = JSON.stringify(cleanConfig);
+  }
   await pool.execute(
     `UPDATE widgets SET name=COALESCE(?,name), config=COALESCE(?,config), is_active=COALESCE(?,is_active) WHERE id = ? AND user_id = ?`,
     [name, configStr, is_active, req.params.id, req.userId]
