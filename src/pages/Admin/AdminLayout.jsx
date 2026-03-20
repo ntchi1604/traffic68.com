@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Megaphone, Receipt, LifeBuoy,
-  ChevronLeft, Shield, Settings, Menu, X, DollarSign, Fingerprint,
+  ChevronLeft, Shield, Settings, Menu, X, DollarSign, Fingerprint, LogOut,
 } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -100,7 +100,6 @@ export default function AdminLayout() {
           ))}
         </nav>
 
-        {/* Footer */}
         <div className="px-3 py-4 border-t border-white/10 space-y-2 shrink-0">
           <button onClick={() => { closeSidebar(); navigate('/buyer/dashboard'); }}
             className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:bg-white/5 hover:text-white transition">
@@ -109,6 +108,10 @@ export default function AdminLayout() {
           <button onClick={() => { closeSidebar(); navigate('/worker/dashboard'); }}
             className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:bg-white/5 hover:text-white transition">
             <ChevronLeft size={18} /> Worker Dashboard
+          </button>
+          <button onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); navigate('/dang-nhap'); }}
+            className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 hover:text-red-300 transition">
+            <LogOut size={18} /> Đăng xuất
           </button>
           <div className="flex items-center gap-3 px-4 py-2">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0">
