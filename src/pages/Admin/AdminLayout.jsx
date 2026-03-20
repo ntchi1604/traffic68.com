@@ -70,15 +70,7 @@ export default function AdminLayout() {
       `}>
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-white/10 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
-              <Shield size={16} className="text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-black tracking-tight">TRAFFIC68</p>
-              <p className="text-[10px] text-orange-400 font-semibold">ADMIN PANEL</p>
-            </div>
-          </div>
+          <img src="/traffic68_com.gif" alt="Traffic68" className="h-10 w-auto" />
           <button onClick={closeSidebar} className="lg:hidden p-1.5 hover:bg-white/10 rounded-lg">
             <X size={18} className="text-slate-400" />
           </button>
@@ -114,9 +106,13 @@ export default function AdminLayout() {
             <LogOut size={18} /> Đăng xuất
           </button>
           <div className="flex items-center gap-3 px-4 py-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0">
-              {admin?.name?.charAt(0) || 'A'}
-            </div>
+            {admin?.avatar_url ? (
+              <img src={admin.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+            ) : (
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0">
+                {admin?.name?.charAt(0) || 'A'}
+              </div>
+            )}
             <div className="min-w-0">
               <p className="text-xs font-bold text-white truncate">{admin?.name}</p>
               <p className="text-[10px] text-slate-500 truncate">{admin?.email}</p>
@@ -132,15 +128,14 @@ export default function AdminLayout() {
           <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-slate-100 rounded-lg">
             <Menu size={20} className="text-slate-700" />
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
-              <Shield size={12} className="text-white" />
+          <img src="/traffic68_com.gif" alt="Traffic68" className="h-8 w-auto" />
+          {admin?.avatar_url ? (
+            <img src={admin.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+          ) : (
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-[10px] font-black">
+              {admin?.name?.charAt(0) || 'A'}
             </div>
-            <span className="text-sm font-black text-slate-800">ADMIN</span>
-          </div>
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-[10px] font-black">
-            {admin?.name?.charAt(0) || 'A'}
-          </div>
+          )}
         </header>
 
         {/* Page content */}
