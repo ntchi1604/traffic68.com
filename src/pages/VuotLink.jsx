@@ -75,10 +75,27 @@ export default function VuotLink() {
         // eslint-disable-next-line no-eval
         const jsResult = eval(challenge.j);
 
-        // Step 3: Collect browser proof
+        // Step 3: Proof-of-Work mining
+        let powNonce = '';
+        if (challenge.pow) {
+          const encoder = new TextEncoder();
+          for (let n = 0; n < 10000000; n++) {
+            const candidate = String(n);
+            const data = encoder.encode(challenge.pow + candidate);
+            const hashBuf = await crypto.subtle.digest('SHA-256', data);
+            const hashArr = new Uint8Array(hashBuf);
+            // Check if first 2 bytes are 0 (= 4 hex zeros = '0000')
+            if (hashArr[0] === 0 && hashArr[1] === 0) {
+              powNonce = candidate;
+              break;
+            }
+          }
+        }
+
+        // Step 4: Collect browser proof
         const proof = collectBrowserProof();
 
-        // Step 4: Request task
+        // Step 5: Request task
         const token = localStorage.getItem('token');
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -90,6 +107,7 @@ export default function VuotLink() {
             challengeId: challenge.c,
             jsResult,
             proof,
+            powNonce,
           }),
         });
 

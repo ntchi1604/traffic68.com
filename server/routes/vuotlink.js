@@ -50,8 +50,10 @@ router.get('/challenge', (req, res) => {
 
   const challengeId = crypto.randomBytes(16).toString('hex');
   const { jsCode, expected } = generateJsChallenge();
-  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip };
-  res.json({ c: challengeId, j: jsCode });
+  // PoW: client must find nonce where SHA256(pow + nonce) starts with '0000'
+  const pow = crypto.randomBytes(16).toString('hex');
+  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip, pow };
+  res.json({ c: challengeId, j: jsCode, pow });
 });
 
 /* ═════════════════════════════════════════════════════════
@@ -68,7 +70,7 @@ router.post('/task', optionalAuth, async (req, res) => {
   ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
   if (ipTaskCount[ip] > 30) { console.log('VuotLink blocked: IP rate limit exceeded', ip); return res.status(403).json(ERR); }
 
-  const { challengeId, jsResult, proof } = req.body || {};
+  const { challengeId, jsResult, proof, powNonce } = req.body || {};
 
   if (!challengeId || jsResult === undefined) { console.log('VuotLink blocked: missing challengeId or jsResult'); return res.status(403).json(ERR); }
 
@@ -79,6 +81,10 @@ router.post('/task', optionalAuth, async (req, res) => {
   if (Number(jsResult) !== ch.expected) { console.log('VuotLink blocked: jsResult mismatch', jsResult, 'expected', ch.expected); return res.status(403).json(ERR); }
   // Anti-cheat: challenge must come from same IP
   if (ch.ip && ch.ip !== ip) { console.log('VuotLink blocked: IP mismatch', ip, '!=', ch.ip); return res.status(403).json(ERR); }
+  // Anti-cheat: verify Proof-of-Work
+  if (!powNonce || typeof powNonce !== 'string') { console.log('VuotLink blocked: no PoW nonce'); return res.status(403).json(ERR); }
+  const powHash = crypto.createHash('sha256').update(ch.pow + powNonce).digest('hex');
+  if (!powHash.startsWith('0000')) { console.log('VuotLink blocked: PoW invalid', powHash.substring(0, 8)); return res.status(403).json(ERR); }
   ch.used = true;
 
   if (proof && (proof.botScore >= 40 || proof.sw === 0 || proof.sh === 0)) { console.log('VuotLink blocked: bot proof', proof); return res.status(403).json(ERR); }
