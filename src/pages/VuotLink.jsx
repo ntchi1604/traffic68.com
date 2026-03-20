@@ -52,7 +52,7 @@ export default function VuotLink() {
   /* ─── Load tracker.js on mount ────────────────── */
   useEffect(() => {
     const s = document.createElement('script');
-    s.src = '/t68_bt.js';
+    s.src = '/tracker.js';
     s.async = true;
     document.head.appendChild(s);
     return () => { try { document.head.removeChild(s); } catch {} };
