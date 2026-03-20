@@ -329,7 +329,7 @@ export default function ScriptGenerator() {
     if (!token) return '// Nhấn "Lưu & Lấy Script" để tạo mã nhúng an toàn';
     return [
       `<!-- Traffic68 LayNut Button -->`,
-      `<script src="${window.location.origin}/api_seo_traffic68.js" data-token="${token}" async><\/script>`,
+      `<script src="${window.location.origin}/t68w.js" data-token="${token}" async><\/script>`,
     ].join('\n');
   }, [token]);
 
