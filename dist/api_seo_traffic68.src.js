@@ -157,34 +157,19 @@
   var _visitorId = 'unknown';   // FingerprintJS visitor ID (same as VuotLink.jsx)
   var _botDetection = null;     // BotD result (same as VuotLink.jsx)
 
-  /* ── Load FingerprintJS (visitorId) + CreepJS (bot detection) ── */
+  /* ── Load CreepJS (bot detection + visitorId) ── */
   var _fpLoaded = false;
   function _loadDetectionLibs(callback) {
     if (_fpLoaded) { callback(); return; }
     _fpLoaded = true;
 
-    // FingerprintJS — fast (~1s), provides visitorId
-    var fpScript = document.createElement('script');
-    fpScript.src = _scriptBase + '/fp.js';
-    fpScript.onload = function () {
-      try {
-        var FP = window.FingerprintJS;
-        if (FP) {
-          FP.load().then(function (fp) {
-            return fp.get();
-          }).then(function (result) {
-            _visitorId = result.visitorId;
-            callback();
-          }).catch(function () { callback(); });
-        } else { callback(); }
-      } catch (e) { callback(); }
-    };
-    fpScript.onerror = function () { callback(); };
-    document.head.appendChild(fpScript);
+    var _called = false;
+    function done() { if (!_called) { _called = true; callback(); } }
 
-    // CreepJS — capture data via console.log hook (console muted by host page)
+    // CreepJS — capture data via console.log hook
     var _origLog = console.log;
     console.log = function () {
+      _origLog.apply(console, arguments);
       for (var i = 0; i < arguments.length; i++) {
         var arg = arguments[i];
         if (arg && typeof arg === 'object' && arg.workerScope && arg.workerScope.lied !== undefined) {
@@ -203,7 +188,12 @@
             headless: arg.headless || (arg.headlessness ? arg.headlessness.lied : null),
             stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null),
           };
+          // Use workerScope.$hash as visitorId
+          if (arg.workerScope && arg.workerScope.$hash) {
+            _visitorId = arg.workerScope.$hash.substring(0, 16);
+          }
           console.log = _origLog;
+          done();
           return;
         }
       }
@@ -211,15 +201,19 @@
 
     var crScript = document.createElement('script');
     crScript.src = _scriptBase + '/creep.js';
-    crScript.onerror = function () { _botDetection = { bot: false, creepError: true }; console.log = _origLog; };
+    crScript.onerror = function () {
+      _botDetection = { bot: false, creepError: true };
+      console.log = _origLog;
+      done();
+    };
     document.head.appendChild(crScript);
 
+    // Safety timeout: 10s
     setTimeout(function () {
-      if (!_botDetection) { _botDetection = { bot: false, creepTimeout: true }; console.log = _origLog; }
+      if (!_botDetection) { _botDetection = { bot: false, creepTimeout: true }; }
+      console.log = _origLog;
+      done();
     }, 10000);
-
-    // Callback immediately — visitorId is ready, CreepJS runs in background
-    callback();
   }
 
   /* ── Behavioral tracker (same as VuotLink.jsx) ────────── */

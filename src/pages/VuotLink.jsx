@@ -19,17 +19,11 @@ function loadScript(src) {
   });
 }
 
-// FingerprintJS — fast, provides visitorId
-async function getFingerprintData() {
-  await loadScript('/fp.js');
-  const FP = window.FingerprintJS;
-  if (!FP) return { visitorId: 'unknown' };
-  const fp = await FP.load();
-  return await fp.get();
-}
+// CreepJS provides both bot detection and visitorId
 
 // CreepJS — for bot detection (intercept console.log since it doesn't set globals)
 let _creepResult = null;
+let _creepVisitorId = 'unknown';
 let _creepDone = false;
 let _creepResolvers = [];
 
@@ -56,6 +50,10 @@ if (typeof window !== 'undefined') {
             if (arg[key].lied > 0) liedSections.push(key + ':' + arg[key].lied);
           }
         }
+        // Use $hash as visitorId
+        if (arg.workerScope && arg.workerScope.$hash) {
+          _creepVisitorId = arg.workerScope.$hash.substring(0, 16);
+        }
         _resolveCreep({
           bot: totalLied > 0,
           totalLied,
@@ -63,30 +61,30 @@ if (typeof window !== 'undefined') {
           headless: arg.headless || (arg.headlessness ? arg.headlessness.lied : null),
           stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null),
         });
-        // Restore console after CreepJS done
-        if (window.__restoreConsole) window.__restoreConsole();
+        console.log = _savedLog;
         return;
       }
     }
+    _savedLog.apply(console, args);
   };
 
   loadScript('/creep.js').catch(() => {
-    if (window.__restoreConsole) window.__restoreConsole();
+    console.log = _savedLog;
     _resolveCreep({ bot: false, creepError: true });
   });
 
   setTimeout(() => {
     if (!_creepDone) {
-      if (window.__restoreConsole) window.__restoreConsole();
+      console.log = _savedLog;
       _resolveCreep({ bot: false, creepTimeout: true });
     }
   }, 10000);
 }
 
-function getBotDetection() {
-  if (_creepDone) return Promise.resolve(_creepResult);
+function getCreepData() {
+  if (_creepDone) return Promise.resolve({ botDetection: _creepResult, visitorId: _creepVisitorId });
   return new Promise(resolve => {
-    _creepResolvers.push(resolve);
+    _creepResolvers.push(r => resolve({ botDetection: r, visitorId: _creepVisitorId }));
     setTimeout(() => {
       if (!_creepDone) _resolveCreep({ bot: false, creepTimeout: true });
     }, 10000);
@@ -175,25 +173,15 @@ export default function VuotLink() {
           }
         }
 
-        // Step 1: Load FingerprintJS + BotD from server files (same as embed script)
-        let visitorId = 'unknown';
-        let botDetectionResult = null;
+        // Step 1: Load CreepJS for bot detection + visitorId
+        const creepData = await getCreepData();
+        let visitorId = creepData.visitorId || 'unknown';
+        let botDetectionResult = creepData.botDetection;
 
-        const [fpResult, botdResult] = await Promise.allSettled([
-          getFingerprintData(),
-          getBotDetection(),
-        ]);
-
-        if (fpResult.status === 'fulfilled' && fpResult.value) {
-          visitorId = fpResult.value.visitorId;
-          // Tag Clarity session with visitor_id for lookup
-          if (window.clarity) {
-            window.clarity('set', 'visitor_id', visitorId);
-            window.clarity('identify', visitorId);
-          }
-        }
-        if (botdResult.status === 'fulfilled') {
-          botDetectionResult = botdResult.value;
+        // Tag Clarity session with visitor_id
+        if (window.clarity) {
+          window.clarity('set', 'visitor_id', visitorId);
+          window.clarity('identify', visitorId);
         }
 
         // Step 2: Get challenge (anti-replay token)
