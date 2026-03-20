@@ -9,6 +9,17 @@ const router = express.Router();
 const HMAC_SECRET = process.env.CHALLENGE_KEY || crypto.randomBytes(32).toString('hex');
 const BOT_UA = /curl|wget|python|httpie|postman|insomnia|axios|node-fetch|got\/|bot|crawler|spider|headlesschrome|phantomjs|selenium/i;
 
+// Log security events to DB for admin visibility
+async function logSecurityEvent(reason, ip, ua, visitorId, extra) {
+  try {
+    const pool = getPool();
+    await pool.execute(
+      `INSERT INTO security_logs (source, reason, ip_address, user_agent, visitor_id, details, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      ['widget', reason, ip || null, (ua || '').substring(0, 500), visitorId || null, JSON.stringify(extra || {}).substring(0, 2000)]
+    );
+  } catch (e) { /* ignore DB errors to not break main flow */ }
+}
+
 /* ═══════════════════════════════════════════════════════════
    ANTI-CHEAT: Rate limiter (same approach as vuotlink.js)
 ═══════════════════════════════════════════════════════════ */
@@ -297,7 +308,10 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Invalid session' });
   }
 
-  if (BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
+  if (BOT_UA.test(ua)) {
+    logSecurityEvent('bot_ua', ip, ua, null, {});
+    return res.status(403).json({ error: 'Blocked' });
+  }
 
   const { challengeId, _ck, visitorId, botDetection, behavioral } = req.body || {};
 
@@ -333,6 +347,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     botDetected = true;
     detectionLog.push('botd_detected');
     console.log(`[Widget] 🤖 BotD detected: IP=${ip}`);
+    logSecurityEvent('botd_detected', ip, ua, visitorId, { botKind: botDetection.botKind });
     return res.status(403).json(ERR);
   }
 
@@ -357,6 +372,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     if (mouseResult.score >= 50) {
       detectionLog.push('mouse_bot');
       console.log(`[Widget] 🤖 Mouse bot: score=${mouseResult.score}, reasons=${mouseReasons}, IP=${ip}`);
+      logSecurityEvent('mouse_bot', ip, ua, visitorId, { score: mouseResult.score, reasons: mouseReasons });
       return res.status(403).json(ERR);
     }
     if (mouseResult.score > 0) {
@@ -368,20 +384,70 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (behavioral && (!behavioral.screen?.w || !behavioral.screen?.h)) {
     detectionLog.push('zero_screen');
     console.log(`[Widget] 🤖 Zero screen: IP=${ip}`);
+    logSecurityEvent('zero_screen', ip, ua, visitorId, {});
     return res.status(403).json(ERR);
   }
 
-  // ── 6. Minimum behavioral thresholds ──
+  // ── 6. Suspicious pattern warnings (NOT blocked, but logged for admin) ──
   const mousePoints = behavioral?.mousePoints || 0;
   const clicks = behavioral?.clicks || 0;
   const scrolls = behavioral?.scrolls || 0;
+  const keys = behavioral?.keys || 0;
   const countdownTime = behavioral?.countdownTime || 0;
+  const warnings = [];
 
-  // Must have SOME mouse movement during countdown (human always moves mouse)
+  // a) Mouse score > 0 → partially suspicious
+  if (mouseScore > 0) {
+    warnings.push(`mouse_warning(score=${mouseScore})`);
+  }
+
+  // b) No interaction at all → likely script
+  if (mousePoints === 0 && clicks === 0 && scrolls === 0 && keys === 0) {
+    warnings.push('zero_interaction');
+  }
+
+  // c) No mouse data → script doesn't collect behavioral
+  if (!behavioral || !behavioral.mouseTrail || behavioral.mouseTrail.length === 0) {
+    warnings.push('no_mouse_data');
+  }
+
+  // d) BotD null → library didn't load (script might block it)
+  if (!botDetection) {
+    warnings.push('botd_null');
+  }
+
+  // e) FingerprintJS failed
+  if (!visitorId || visitorId === 'unknown') {
+    warnings.push('fp_failed');
+  }
+
+  // f) No mouse during countdown (human always moves mouse)
   if (mousePoints < 3 && countdownTime > 10) {
-    detectionLog.push('no_mouse');
-    console.log(`[Widget] ⚠️ No mouse movement during ${countdownTime}s countdown: IP=${ip}`);
-    // Don't block — just flag (some mobile users won't have mouse)
+    warnings.push('no_mouse_during_countdown');
+  }
+
+  // g) VM-like screen resolution
+  if (behavioral?.screen) {
+    const { w, h } = behavioral.screen;
+    if ((w === 800 && h === 600) || (w === 1024 && h === 768 && behavioral.screen.dpr === 1)) {
+      warnings.push(`vm_screen(${w}x${h})`);
+    }
+  }
+
+  // Log all warnings
+  if (warnings.length > 0) {
+    console.log(`[Widget] ⚠️ SUSPICIOUS: IP=${ip}, warnings=${warnings.join(',')}`);
+    logSecurityEvent('suspicious', ip, ua, visitorId, {
+      warnings,
+      mouseScore,
+      mousePoints,
+      clicks,
+      scrolls,
+      keys,
+      countdownTime,
+      screen: behavioral?.screen,
+      botDetection: botDetection || 'null'
+    });
   }
 
   // ── 7. Validate widget + task ──

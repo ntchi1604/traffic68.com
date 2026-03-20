@@ -382,6 +382,21 @@ router.get('/security', async (req, res) => {
     const { filter, search, page = 1, limit = 20 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
+    // Auto-create security_logs table if not exists
+    await pool.execute(`CREATE TABLE IF NOT EXISTS security_logs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      source VARCHAR(20) NOT NULL DEFAULT 'unknown',
+      reason VARCHAR(50) NOT NULL,
+      ip_address VARCHAR(45),
+      user_agent VARCHAR(500),
+      visitor_id VARCHAR(100),
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_created (created_at),
+      INDEX idx_reason (reason),
+      INDEX idx_ip (ip_address)
+    )`);
+
     // ── Stats (24h) ──
     const [totalTasks] = await pool.execute(
       `SELECT COUNT(*) as c FROM vuot_link_tasks WHERE created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
@@ -396,10 +411,18 @@ router.get('/security', async (req, res) => {
       `SELECT COUNT(DISTINCT visitor_id) as c FROM vuot_link_tasks WHERE visitor_id IS NOT NULL AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
     );
 
+    // Bot blocked count from security_logs (24h)
+    const [botBlocked] = await pool.execute(
+      `SELECT COUNT(*) as c FROM security_logs WHERE created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
+    );
+    const [botByReason] = await pool.execute(
+      `SELECT reason, source, COUNT(*) as c FROM security_logs WHERE created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) GROUP BY reason, source ORDER BY c DESC`
+    );
+
     const total24h = totalTasks[0].c || 0;
     const completed24h = completedTasks[0].c || 0;
     const expired24h = expiredTasks[0].c || 0;
-    const blocked24h = total24h - completed24h - (total24h - completed24h - expired24h > 0 ? 0 : 0);
+    const botDetected24h = botBlocked[0].c || 0;
 
     // ── Top devices (high task count in 24h) ──
     const [topDevs] = await pool.execute(
@@ -435,17 +458,30 @@ router.get('/security', async (req, res) => {
 
     const [logs] = await pool.execute(logSql, logParams);
 
+    // ── Recent security events (blocked requests from security_logs) ──
+    let secLogSql = `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at FROM security_logs WHERE 1=1`;
+    const secLogParams = [];
+    if (search) {
+      secLogSql += ` AND (ip_address LIKE ? OR visitor_id LIKE ? OR reason LIKE ?)`;
+      secLogParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    secLogSql += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    secLogParams.push(Number(limit), offset);
+    const [securityLogs] = await pool.execute(secLogSql, secLogParams);
+
     res.json({
       stats: {
         totalTasks24h: total24h,
         completedTasks24h: completed24h,
         blockedTasks24h: expired24h,
         uniqueDevices24h: uniqueDevices[0].c,
-        botDetected24h: 0,
+        botDetected24h,
         blockRate: total24h > 0 ? ((expired24h / total24h) * 100) : 0,
+        botByReason,
       },
       topDevices: topDevs,
       logs,
+      securityLogs,
     });
   } catch (err) {
     console.error('Security API error:', err);

@@ -7,6 +7,17 @@ const router = express.Router();
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
 const HMAC_SECRET = process.env.CHALLENGE_KEY || crypto.randomBytes(32).toString('hex');
 
+// Log security events to DB for admin visibility
+async function logSecurityEvent(reason, ip, ua, visitorId, extra) {
+  try {
+    const pool = getPool();
+    await pool.execute(
+      `INSERT INTO security_logs (source, reason, ip_address, user_agent, visitor_id, details, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      ['vuotlink', reason, ip || null, (ua || '').substring(0, 500), visitorId || null, JSON.stringify(extra || {}).substring(0, 2000)]
+    );
+  } catch (e) { /* ignore DB errors to not break main flow */ }
+}
+
 // Generate HMAC token for task (binds task to IP)
 function signTask(taskId, ip) {
   return crypto.createHmac('sha256', HMAC_SECRET).update(`${taskId}|${ip}`).digest('hex').substring(0, 24);
@@ -106,6 +117,7 @@ router.post('/task', optionalAuth, async (req, res) => {
   ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
   if (ipTaskCount[ip] > 30) {
     console.log(`[VuotLink] IP rate limit: ${ip}`);
+    logSecurityEvent('ip_rate_limit', ip, ua, null, { count: ipTaskCount[ip] });
     return res.status(429).json({ error: 'Quá nhiều yêu cầu. Thử lại sau.' });
   }
 
@@ -131,6 +143,7 @@ router.post('/task', optionalAuth, async (req, res) => {
     botDetected = true;
     detectionLog.push('botd_detected');
     console.log(`[VuotLink] 🤖 BotD detected: IP=${ip}`);
+    logSecurityEvent('botd_detected', ip, ua, visitorId, { botKind: botDetection.botKind });
     return res.status(403).json(ERR);
   }
 
@@ -161,6 +174,7 @@ router.post('/task', optionalAuth, async (req, res) => {
     if (mouseResult.score >= 50) {
       detectionLog.push('mouse_bot');
       console.log(`[VuotLink] 🤖 Mouse bot: score=${mouseResult.score}, reasons=${mouseReasons}, IP=${ip}`);
+      logSecurityEvent('mouse_bot', ip, ua, visitorId, { score: mouseResult.score, reasons: mouseReasons });
       return res.status(403).json(ERR);
     }
     if (mouseResult.score > 0) {
@@ -172,10 +186,79 @@ router.post('/task', optionalAuth, async (req, res) => {
   if (behavioral && (!behavioral.screen?.w || !behavioral.screen?.h)) {
     detectionLog.push('zero_screen');
     console.log(`[VuotLink] 🤖 Zero screen: IP=${ip}`);
+    logSecurityEvent('zero_screen', ip, ua, visitorId, {});
     return res.status(403).json(ERR);
   }
 
-  console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0,8) || '?'}, mouse=${mousePoints}, clicks=${clicks}, mouseScore=${mouseScore}`);
+  // ── 6. Suspicious pattern warnings (NOT blocked, but logged for admin) ──
+  const warnings = [];
+
+  // a) Mouse score > 0 but < 50 → suspicious but not enough to block
+  if (mouseScore > 0) {
+    warnings.push(`mouse_warning(score=${mouseScore})`);
+  }
+
+  // b) No interaction at all (0 clicks, 0 scrolls, 0 keys) → likely script
+  if (mousePoints === 0 && clicks === 0 && scrolls === 0 && keys === 0) {
+    warnings.push('zero_interaction');
+  }
+
+  // c) No mouse data sent → script might not collect behavioral
+  if (!behavioral || !behavioral.mouseTrail || behavioral.mouseTrail.length === 0) {
+    warnings.push('no_mouse_data');
+  }
+
+  // d) botDetection null → BotD library didn't load (script might block it)
+  if (!botDetection) {
+    warnings.push('botd_null');
+  }
+
+  // e) visitorId is 'unknown' → FingerprintJS didn't load
+  if (!visitorId || visitorId === 'unknown') {
+    warnings.push('fp_failed');
+  }
+
+  // f) Very fast completion (behavioral.loadTime < 3s AND already at check-session)
+  if (behavioral?.loadTime && behavioral.loadTime < 2000) {
+    warnings.push(`fast_load(${behavioral.loadTime}ms)`);
+  }
+
+  // g) Screen resolution commonly used by bots/VMs
+  if (behavioral?.screen) {
+    const { w, h } = behavioral.screen;
+    if ((w === 800 && h === 600) || (w === 1024 && h === 768 && behavioral.screen.dpr === 1)) {
+      warnings.push(`vm_screen(${w}x${h})`);
+    }
+  }
+
+  // h) Same visitorId already has tasks today → repeat device
+  if (visitorId && visitorId !== 'unknown') {
+    const [todayCount] = await pool.execute(
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(created_at) = CURDATE()`,
+      [visitorId]
+    );
+    if (todayCount[0].cnt >= 3) {
+      warnings.push(`repeat_device(${todayCount[0].cnt})`);
+    }
+  }
+
+  // Log all warnings to security_logs for admin review
+  if (warnings.length > 0) {
+    console.log(`[VuotLink] ⚠️ SUSPICIOUS: IP=${ip}, visitor=${visitorId?.substring(0,8) || '?'}, warnings=${warnings.join(',')}`);
+    logSecurityEvent('suspicious', ip, ua, visitorId, {
+      warnings,
+      mouseScore,
+      mousePoints,
+      clicks,
+      scrolls,
+      keys,
+      loadTime: behavioral?.loadTime,
+      screen: behavioral?.screen,
+      botDetection: botDetection || 'null'
+    });
+  }
+
+  console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0,8) || '?'}, mouse=${mousePoints}, clicks=${clicks}, mouseScore=${mouseScore}${warnings.length > 0 ? ', ⚠️warnings=' + warnings.join(',') : ''}`);
 
   // ── Check IP view limit ──
   const [ipSettings] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
