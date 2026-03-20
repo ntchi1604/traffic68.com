@@ -48,6 +48,7 @@ import AdminTransactions from './pages/Admin/AdminTransactions';
 import AdminTickets from './pages/Admin/AdminTickets';
 import AdminPricing from './pages/Admin/AdminPricing';
 import AdminSettings from './pages/Admin/AdminSettings';
+import AdminSecurity from './pages/Admin/AdminSecurity';
 
 const DASHBOARD_ROUTES = ['/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/vuot-link', '/admin'];
 
@@ -120,6 +121,7 @@ function Layout() {
           <Route path="transactions" element={<AdminTransactions />} />
           <Route path="tickets" element={<AdminTickets />} />
           <Route path="pricing" element={<AdminPricing />} />
+          <Route path="security" element={<AdminSecurity />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 

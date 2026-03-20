@@ -375,4 +375,91 @@ router.put('/settings/site', async (req, res) => {
   }
 });
 
+// ── GET /admin/security — Security analytics ──
+router.get('/security', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { filter, search, page = 1, limit = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    // ── Stats (24h) ──
+    const [totalTasks] = await pool.execute(
+      `SELECT COUNT(*) as c FROM vuot_link_tasks WHERE created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
+    );
+    const [completedTasks] = await pool.execute(
+      `SELECT COUNT(*) as c FROM vuot_link_tasks WHERE status = 'completed' AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
+    );
+    const [expiredTasks] = await pool.execute(
+      `SELECT COUNT(*) as c FROM vuot_link_tasks WHERE status = 'expired' AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
+    );
+    const [uniqueDevices] = await pool.execute(
+      `SELECT COUNT(DISTINCT visitor_id) as c FROM vuot_link_tasks WHERE visitor_id IS NOT NULL AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
+    );
+
+    const total24h = totalTasks[0].c || 0;
+    const completed24h = completedTasks[0].c || 0;
+    const expired24h = expiredTasks[0].c || 0;
+    const blocked24h = total24h - completed24h - (total24h - completed24h - expired24h > 0 ? 0 : 0);
+
+    // ── Top devices (high task count in 24h) ──
+    const [topDevs] = await pool.execute(
+      `SELECT visitor_id,
+              COUNT(*) as total,
+              SUM(status = 'completed') as completed,
+              COUNT(DISTINCT ip_address) as ip_count
+       FROM vuot_link_tasks
+       WHERE visitor_id IS NOT NULL AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       GROUP BY visitor_id
+       HAVING total >= 2
+       ORDER BY total DESC LIMIT 10`
+    );
+
+    // ── Task logs with filter ──
+    let logSql = `SELECT id, ip_address, visitor_id, status, user_agent, created_at FROM vuot_link_tasks WHERE 1=1`;
+    const logParams = [];
+
+    if (filter === 'blocked') {
+      logSql += ` AND status NOT IN ('completed', 'pending', 'step1', 'step2', 'step3')`;
+    } else if (filter === 'warning') {
+      logSql += ` AND visitor_id IN (SELECT visitor_id FROM vuot_link_tasks WHERE visitor_id IS NOT NULL GROUP BY visitor_id HAVING COUNT(*) >= 3)`;
+    } else if (filter === 'passed') {
+      logSql += ` AND status = 'completed'`;
+    }
+
+    if (search) {
+      logSql += ` AND (ip_address LIKE ? OR visitor_id LIKE ?)`;
+      logParams.push(`%${search}%`, `%${search}%`);
+    }
+
+    logSql += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    logParams.push(Number(limit), offset);
+
+    const [logs] = await pool.execute(logSql, logParams);
+
+    // Enrich logs with computed fields
+    const enrichedLogs = logs.map(log => ({
+      ...log,
+      bot_detected: false, // server-side, would need logging to DB
+      mouse_points: null,
+      mouse_score: 0,
+    }));
+
+    res.json({
+      stats: {
+        totalTasks24h: total24h,
+        completedTasks24h: completed24h,
+        blockedTasks24h: expired24h,
+        uniqueDevices24h: uniqueDevices[0].c,
+        botDetected24h: 0, // would need separate logging
+        blockRate: total24h > 0 ? ((expired24h / total24h) * 100) : 0,
+      },
+      topDevices: topDevs,
+      logs: enrichedLogs,
+    });
+  } catch (err) {
+    console.error('Security API error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
