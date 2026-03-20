@@ -167,10 +167,10 @@
     var total = 2;
     function check() { done++; if (done >= total) callback(); }
 
-    // Load FingerprintJS (same library as: import FingerprintJS from '@fingerprintjs/fingerprintjs')
-    // Uses UMD build which exposes window.FingerprintJS
+    // Load FingerprintJS (same library as VuotLink.jsx: @fingerprintjs/fingerprintjs)
+    // Self-hosted UMD build from same server
     var fpScript = document.createElement('script');
-    fpScript.src = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@4/dist/fp.umd.min.js';
+    fpScript.src = _scriptBase + '/fp.js';
     fpScript.onload = function () {
       try {
         var FP = window.FingerprintJS;
@@ -188,21 +188,18 @@
     document.head.appendChild(fpScript);
 
     // Load BotD (same library as: import { load as loadBotd } from '@fingerprintjs/botd')
-    // BotD has no UMD build — fetch CJS version and eval in controlled scope
+    // Self-hosted CJS build from same server to avoid CORS issues
     var bdXhr = new XMLHttpRequest();
-    bdXhr.open('GET', 'https://cdn.jsdelivr.net/npm/@fingerprintjs/botd@1.9.1/dist/botd.cjs.js', true);
+    bdXhr.open('GET', _scriptBase + '/botd.js', true);
     bdXhr.onload = function () {
+      if (bdXhr.status !== 200) { check(); return; }
       try {
-        // Simulate CommonJS module/exports (same as webpack does internally)
         var mod = { exports: {} };
         (new Function('module', 'exports', bdXhr.responseText))(mod, mod.exports);
-        var botdLib = mod.exports.default || mod.exports;
-        var loadBotd = botdLib.load || mod.exports.load;
+        var loadBotd = mod.exports.load || (mod.exports.default && mod.exports.default.load);
         if (loadBotd) {
           loadBotd().then(function (botd) {
-            return botd.detect();
-          }).then(function (result) {
-            _botDetection = result;
+            _botDetection = botd.detect();
             check();
           }).catch(function () { check(); });
         } else { check(); }
