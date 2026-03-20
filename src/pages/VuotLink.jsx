@@ -23,8 +23,6 @@ function collectBrowserProof() {
 const API = '/api/vuot-link';
 
 
-/* ─── Main Component ──────────────────────────────── */
-
 /* ─── Main Component ────────────────────────────────── */
 export default function VuotLink() {
   // Set tab title
