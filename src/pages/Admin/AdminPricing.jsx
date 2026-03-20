@@ -194,7 +194,8 @@ export default function AdminPricing() {
                   </span>
                 </div>
 
-                <table className="min-w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="min-w-[700px] w-full text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="px-5 py-3 text-left font-semibold text-slate-500">Thời gian</th>
@@ -272,6 +273,7 @@ export default function AdminPricing() {
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             );
           })}
