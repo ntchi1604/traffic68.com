@@ -188,11 +188,16 @@
     document.head.appendChild(fpScript);
 
     // Load BotD (same library as: import { load as loadBotd } from '@fingerprintjs/botd')
-    // BotD has no UMD build — use dynamic import() with the ESM dist file
-    try {
-      import('https://cdn.jsdelivr.net/npm/@fingerprintjs/botd@1.9.1/dist/botd.esm.js').then(function (module) {
-        // BotD exports: { load, default: { load } }
-        var loadBotd = module.load;
+    // BotD has no UMD build — fetch CJS version and eval in controlled scope
+    var bdXhr = new XMLHttpRequest();
+    bdXhr.open('GET', 'https://cdn.jsdelivr.net/npm/@fingerprintjs/botd@1.9.1/dist/botd.cjs.js', true);
+    bdXhr.onload = function () {
+      try {
+        // Simulate CommonJS module/exports (same as webpack does internally)
+        var mod = { exports: {} };
+        (new Function('module', 'exports', bdXhr.responseText))(mod, mod.exports);
+        var botdLib = mod.exports.default || mod.exports;
+        var loadBotd = botdLib.load || mod.exports.load;
         if (loadBotd) {
           loadBotd().then(function (botd) {
             return botd.detect();
@@ -201,8 +206,10 @@
             check();
           }).catch(function () { check(); });
         } else { check(); }
-      }).catch(function () { check(); });
-    } catch (e) { check(); }
+      } catch (e) { check(); }
+    };
+    bdXhr.onerror = function () { check(); };
+    bdXhr.send();
   }
 
   /* ── Behavioral tracker (same as VuotLink.jsx) ────────── */
@@ -798,22 +805,43 @@
   }
 
   /* ── Visibility handling ─────────────────────────────── */
+  var _isPageVisible = true;
   function bindVisibility() {
+    // Track page visibility state
     document.addEventListener('visibilitychange', function () {
+      _isPageVisible = !document.hidden;
       if (!countdownRunning || revealed) return;
-      if (document.hidden) {
-        if (tickTimer) clearTimeout(tickTimer);
+      if (!_isPageVisible) {
+        // Tab hidden → stop timer completely
+        if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
       } else if (!challengeActive) {
+        // Tab visible again → resume
         doTick();
       }
+    });
+    // Also handle window blur/focus (catches minimize, alt-tab)
+    window.addEventListener('blur', function () {
+      _isPageVisible = false;
+      if (!countdownRunning || revealed) return;
+      if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+    });
+    window.addEventListener('focus', function () {
+      _isPageVisible = true;
+      if (!countdownRunning || revealed || challengeActive) return;
+      doTick();
     });
   }
 
   /* ── Countdown tick ──────────────────────────────────── */
   function doTick() {
-    if (tickTimer) clearTimeout(tickTimer);
+    if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
     function tick() {
-      if (revealed || challengeActive || document.hidden) return;
+      // MUST be visible to count — fully stop if hidden
+      if (!_isPageVisible || document.hidden) {
+        // Don't schedule next tick — visibility handler will resume
+        return;
+      }
+      if (revealed || challengeActive) return;
 
       var badge = document.getElementById('laynut-badge');
       if (badge) badge.textContent = remaining;
