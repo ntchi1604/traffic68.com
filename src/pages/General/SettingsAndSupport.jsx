@@ -65,7 +65,7 @@ export default function SettingsAndSupport() {
   return (
     <div className="space-y-6">
       <Breadcrumb items={[
-        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Dashboard', to: '/buyer/dashboard' },
         { label: 'Hỗ trợ' },
       ]} />
       <div className="flex items-center justify-between">

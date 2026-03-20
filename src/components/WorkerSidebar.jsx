@@ -2,15 +2,15 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Megaphone,
+  Link2,
   BarChart3,
   Wallet,
   UserCircle,
   ChevronDown,
   X,
   Code2,
-  PlusCircle,
   List,
+  EyeOff,
   TrendingUp,
   CreditCard,
   History,
@@ -21,9 +21,9 @@ import {
 const linkBase =
   'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors';
 
-export default function Sidebar({ isOpen, onClose }) {
-  const [isCampaignOpen, setIsCampaignOpen] = useState(true);
-  const [isReportOpen, setIsReportOpen] = useState(true);
+export default function WorkerSidebar({ isOpen, onClose }) {
+  const [isLinksOpen, setIsLinksOpen] = useState(true);
+  const [isEarningsOpen, setIsEarningsOpen] = useState(true);
   const [isFinanceOpen, setIsFinanceOpen] = useState(true);
 
   return (
@@ -49,9 +49,9 @@ export default function Sidebar({ isOpen, onClose }) {
           </button>
         </div>
 
-        <nav className="p-4 space-y-1">
+        <nav className="p-4 space-y-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 90px)' }}>
           <NavLink
-            to="/buyer/dashboard"
+            to="/worker/dashboard"
             end
             className={({ isActive }) =>
               `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`
@@ -61,54 +61,54 @@ export default function Sidebar({ isOpen, onClose }) {
             Tổng quan
           </NavLink>
 
-          {/* ── Chiến dịch ── */}
+          {/* ── Quản lý liên kết ── */}
           <div className="mt-2">
             <button
               type="button"
-              onClick={() => setIsCampaignOpen(p => !p)}
+              onClick={() => setIsLinksOpen(p => !p)}
               className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200"
             >
               <div className="flex items-center gap-2">
-                <Megaphone className="w-4 h-4" />
-                Quản lý Chiến dịch
+                <Link2 className="w-4 h-4" />
+                Quản lý liên kết
               </div>
-              <ChevronDown className={`w-4 h-4 transition-transform ${isCampaignOpen ? '' : '-rotate-90'}`} />
+              <ChevronDown className={`w-4 h-4 transition-transform ${isLinksOpen ? '' : '-rotate-90'}`} />
             </button>
-            {isCampaignOpen && (
+            {isLinksOpen && (
               <div className="ml-2 space-y-1">
-                <NavLink to="/buyer/dashboard/campaigns/create"
-                  className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
-                  <PlusCircle className="w-4 h-4" />
-                  Tạo Chiến dịch
-                </NavLink>
-                <NavLink to="/buyer/dashboard/campaigns" end
+                <NavLink to="/worker/dashboard/links"
                   className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
                   <List className="w-4 h-4" />
-                  Xem Chiến dịch
+                  Tất cả liên kết
+                </NavLink>
+                <NavLink to="/worker/dashboard/links/hidden"
+                  className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
+                  <EyeOff className="w-4 h-4" />
+                  Liên kết ẩn
                 </NavLink>
               </div>
             )}
           </div>
 
-          {/* ── Báo cáo ── */}
+          {/* ── Thống kê thu nhập ── */}
           <div className="mt-2">
             <button
               type="button"
-              onClick={() => setIsReportOpen(p => !p)}
+              onClick={() => setIsEarningsOpen(p => !p)}
               className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200"
             >
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" />
-                Báo cáo
+                Thống kê thu nhập
               </div>
-              <ChevronDown className={`w-4 h-4 transition-transform ${isReportOpen ? '' : '-rotate-90'}`} />
+              <ChevronDown className={`w-4 h-4 transition-transform ${isEarningsOpen ? '' : '-rotate-90'}`} />
             </button>
-            {isReportOpen && (
+            {isEarningsOpen && (
               <div className="ml-2 space-y-1">
-                <NavLink to="/buyer/dashboard/reports"
+                <NavLink to="/worker/dashboard/earnings"
                   className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
                   <TrendingUp className="w-4 h-4" />
-                  Theo dõi Traffic
+                  Thu nhập theo ngày
                 </NavLink>
               </div>
             )}
@@ -129,12 +129,12 @@ export default function Sidebar({ isOpen, onClose }) {
             </button>
             {isFinanceOpen && (
               <div className="ml-2 space-y-1">
-                <NavLink to="/buyer/dashboard/finance/deposit"
+                <NavLink to="/worker/dashboard/withdraw"
                   className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
                   <CreditCard className="w-4 h-4" />
-                  Nạp tiền
+                  Rút tiền
                 </NavLink>
-                <NavLink to="/buyer/dashboard/finance/transactions"
+                <NavLink to="/worker/dashboard/transactions"
                   className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
                   <History className="w-4 h-4" />
                   Lịch sử giao dịch
@@ -145,17 +145,17 @@ export default function Sidebar({ isOpen, onClose }) {
 
           {/* ── Bottom ── */}
           <div className="pt-4 mt-4 border-t border-slate-800 space-y-1">
-            <NavLink to="/buyer/dashboard/pricing"
+            <NavLink to="/worker/dashboard/pricing"
               className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
               <DollarSign className="w-5 h-5" />
               Bảng giá
             </NavLink>
-            <NavLink to="/buyer/dashboard/profile"
+            <NavLink to="/worker/dashboard/profile"
               className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
               <UserCircle className="w-5 h-5" />
               Hồ sơ của tôi
             </NavLink>
-            <NavLink to="/buyer/dashboard/support"
+            <NavLink to="/worker/dashboard/support"
               className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
               <HelpCircle className="w-5 h-5" />
               Hỗ trợ
@@ -165,10 +165,10 @@ export default function Sidebar({ isOpen, onClose }) {
           {/* ── Công cụ ── */}
           <div className="mt-2">
             <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Công cụ</p>
-            <NavLink to="/buyer/dashboard/script"
+            <NavLink to="/worker/dashboard/api"
               className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
               <Code2 className="w-5 h-5" />
-              Script Tự động
+              API
             </NavLink>
           </div>
         </nav>

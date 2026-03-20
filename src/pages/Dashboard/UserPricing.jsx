@@ -43,7 +43,7 @@ export default function UserPricing() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-black text-slate-900">Bảng giá dịch vụ</h1>
-        <Link to="/dashboard/campaigns/create"
+        <Link to="/buyer/dashboard/campaigns/create"
           className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition">
           Tạo chiến dịch <ArrowRight size={14} />
         </Link>

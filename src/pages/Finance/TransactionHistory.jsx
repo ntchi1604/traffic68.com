@@ -46,7 +46,7 @@ export default function TransactionHistory() {
   return (
     <div className="space-y-6">
       <Breadcrumb items={[
-        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Dashboard', to: '/buyer/dashboard' },
         { label: 'Tài chính' },
         { label: 'Lịch sử giao dịch' },
       ]} />

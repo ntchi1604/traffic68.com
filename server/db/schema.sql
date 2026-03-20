@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   phone         VARCHAR(50)  DEFAULT '',
   avatar_url    TEXT         DEFAULT NULL,
   role          VARCHAR(20)  NOT NULL DEFAULT 'user',
+  service_type  VARCHAR(20)  NOT NULL DEFAULT 'traffic',
   status        VARCHAR(20)  NOT NULL DEFAULT 'active',
   referral_code VARCHAR(50)  UNIQUE,
   referred_by   INT DEFAULT NULL,

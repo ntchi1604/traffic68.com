@@ -31,7 +31,7 @@ async function verifyHCaptcha(token) {
 // ── POST /api/auth/register ──
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, username, phone, referralCode, captchaToken } = req.body;
+    const { email, password, name, username, phone, referralCode, captchaToken, service } = req.body;
 
     // Verify hCaptcha
     const captchaValid = await verifyHCaptcha(captchaToken);
@@ -72,10 +72,12 @@ router.post('/register', async (req, res) => {
     const hash = bcrypt.hashSync(password, 10);
     const myRefCode = 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
+    const serviceType = service === 'shortlink' ? 'shortlink' : 'traffic';
+
     const [result] = await pool.execute(
-      `INSERT INTO users (email, password_hash, name, username, phone, referral_code, referred_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [email, hash, name || '', username || '', phone || '', myRefCode, referredBy]
+      `INSERT INTO users (email, password_hash, name, username, phone, referral_code, referred_by, service_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [email, hash, name || '', username || '', phone || '', myRefCode, referredBy, serviceType]
     );
 
     const userId = result.insertId;
@@ -96,7 +98,7 @@ router.post('/register', async (req, res) => {
     res.status(201).json({
       message: 'Đăng ký thành công',
       token,
-      user: { id: userId, email, name: name || '', role: 'user' },
+      user: { id: userId, email, name: name || '', role: 'user', service_type: serviceType },
     });
   } catch (err) {
     console.error('Register error:', err);
@@ -148,6 +150,7 @@ router.post('/login', async (req, res) => {
       name: user.name,
       phone: user.phone,
       role: user.role,
+      service_type: user.service_type || 'traffic',
       referralCode: user.referral_code,
     },
   });
@@ -157,7 +160,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   const pool = getPool();
   const [users] = await pool.execute(
-    'SELECT id, email, name, username, phone, avatar_url, role, referral_code, created_at FROM users WHERE id = ?',
+    'SELECT id, email, name, username, phone, avatar_url, role, service_type, referral_code, created_at FROM users WHERE id = ?',
     [req.userId]
   );
 

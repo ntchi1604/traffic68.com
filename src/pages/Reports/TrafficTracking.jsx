@@ -63,8 +63,8 @@ export default function TrafficTracking() {
   return (
     <div className="space-y-6">
       <Breadcrumb items={[
-        { label: 'Dashboard', to: '/dashboard' },
-        { label: 'Báo cáo', to: '/dashboard/reports' },
+        { label: 'Dashboard', to: '/buyer/dashboard' },
+        { label: 'Báo cáo', to: '/buyer/dashboard/reports' },
         { label: 'Theo dõi lưu lượng' },
       ]} />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

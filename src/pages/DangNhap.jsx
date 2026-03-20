@@ -16,9 +16,15 @@ export default function DangNhap() {
   const [error, setError] = useState('');
   const { captchaRef, token: captchaToken, resetCaptcha } = useHCaptcha();
 
-  // Redirect if already logged in
   useEffect(() => {
-    if (localStorage.getItem('token')) navigate('/dashboard');
+    if (localStorage.getItem('token')) {
+      try {
+        const u = JSON.parse(localStorage.getItem('user') || '{}');
+        navigate(u.service_type === 'shortlink' ? '/worker/dashboard' : '/buyer/dashboard');
+      } catch {
+        navigate('/buyer/dashboard');
+      }
+    }
   }, []);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -56,7 +62,8 @@ export default function DangNhap() {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       toast.success(`Chào mừng ${data.user.name || 'bạn'}!`, 'Đăng nhập thành công');
-      navigate('/dashboard');
+      const dashPath = data.user.service_type === 'shortlink' ? '/worker/dashboard' : '/buyer/dashboard';
+      navigate(dashPath);
     } catch (err) {
       setError('Không thể kết nối đến máy chủ');
     } finally {

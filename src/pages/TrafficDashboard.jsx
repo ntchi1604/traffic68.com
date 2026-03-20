@@ -65,7 +65,7 @@ export default function TrafficDashboard() {
   return (
     <div className="space-y-6 w-full min-w-0">
       <Breadcrumb items={[
-        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Dashboard', to: '/buyer/dashboard' },
         { label: 'Tổng quan' },
       ]} />
       <div>

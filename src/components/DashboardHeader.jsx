@@ -66,7 +66,7 @@ export default function DashboardHeader({ onMenuClick }) {
 
           {/* ── Ví chính ── */}
           <button
-            onClick={() => navigate('/dashboard/finance/deposit')}
+            onClick={() => navigate('/buyer/dashboard/finance/deposit')}
             className="hidden sm:flex items-center gap-2 bg-blue-50 hover:bg-blue-100 border border-blue-200
                        text-blue-700 text-xs font-bold px-3 py-2 rounded-xl transition-all"
             title="Ví Traffic – dùng để mua traffic"
@@ -79,7 +79,7 @@ export default function DashboardHeader({ onMenuClick }) {
 
           {/* ── Ví hoa hồng ── */}
           <button
-            onClick={() => navigate('/dashboard/finance/transactions')}
+            onClick={() => navigate('/buyer/dashboard/finance/transactions')}
             className="hidden sm:flex items-center gap-2 bg-orange-50 hover:bg-orange-100 border border-orange-200
                        text-orange-700 text-xs font-bold px-3 py-2 rounded-xl transition-all"
             title="Ví Hoa Hồng – nhận khi giới thiệu thành viên"
@@ -129,8 +129,8 @@ export default function DashboardHeader({ onMenuClick }) {
                   </div>
                 </div>
 
-                <a href="/dashboard/profile" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Hồ sơ của tôi</a>
-                <a href="/dashboard/profile?tab=password" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Cài đặt tài khoản</a>
+                <a href="/buyer/dashboard/profile" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Hồ sơ của tôi</a>
+                <a href="/buyer/dashboard/profile?tab=password" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Cài đặt tài khoản</a>
                 {user.role === 'admin' && (
                   <a href="/admin" className="flex items-center gap-2 px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 transition font-semibold">
                     🛡️ Admin Panel

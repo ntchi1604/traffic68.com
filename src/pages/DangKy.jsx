@@ -146,6 +146,7 @@ export default function DangKy() {
           name: form.fullName,
           username: form.username,
           phone: '',
+          service: form.service,
           captchaToken,
         }),
       });
@@ -156,8 +157,17 @@ export default function DangKy() {
         setLoading(false);
         return;
       }
-      setDone(true);
-      toast.success('Tài khoản đã được tạo thành công!', 'Đăng ký thành công');
+      // Auto-login and redirect to correct dashboard
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        toast.success('Tài khoản đã được tạo thành công!', 'Đăng ký thành công');
+        const dashPath = form.service === 'shortlink' ? '/worker/dashboard' : '/buyer/dashboard';
+        navigate(dashPath);
+      } else {
+        setDone(true);
+        toast.success('Tài khoản đã được tạo thành công!', 'Đăng ký thành công');
+      }
     } catch {
       setError('Không thể kết nối đến máy chủ');
     } finally {

@@ -332,8 +332,8 @@ export default function CreateCampaign() {
 
       {/* Breadcrumb */}
       <Breadcrumb items={[
-        { label: 'Dashboard', to: '/dashboard' },
-        { label: 'Chiến dịch', to: '/dashboard/campaigns' },
+        { label: 'Dashboard', to: '/buyer/dashboard' },
+        { label: 'Chiến dịch', to: '/buyer/dashboard/campaigns' },
         { label: 'Tạo chiến dịch mới' },
       ]} />
 
@@ -356,7 +356,7 @@ export default function CreateCampaign() {
           <button
             type="button"
             className="ml-auto text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl transition"
-            onClick={() => navigate('/dashboard/finance/deposit')}
+            onClick={() => navigate('/buyer/dashboard/finance/deposit')}
           >
             + Nạp tiền
           </button>

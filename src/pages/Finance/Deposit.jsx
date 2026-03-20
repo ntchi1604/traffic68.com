@@ -228,8 +228,8 @@ export default function Deposit() {
 
       {/* Breadcrumb */}
       <Breadcrumb items={[
-        { label: 'Dashboard', to: '/dashboard' },
-        { label: 'Tài chính', to: '/dashboard/finance/deposit' },
+        { label: 'Dashboard', to: '/buyer/dashboard' },
+        { label: 'Tài chính', to: '/buyer/dashboard/finance/deposit' },
         { label: 'Nạp tiền & Quản lý ví' },
       ]} />
 

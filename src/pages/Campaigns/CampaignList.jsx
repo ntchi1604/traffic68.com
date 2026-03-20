@@ -228,14 +228,14 @@ export default function CampaignList() {
   return (
     <div className="space-y-6">
       <Breadcrumb items={[
-        { label: 'Dashboard', to: '/dashboard' },
-        { label: 'Chiến dịch', to: '/dashboard/campaigns' },
+        { label: 'Dashboard', to: '/buyer/dashboard' },
+        { label: 'Chiến dịch', to: '/buyer/dashboard/campaigns' },
         { label: 'Quản lý chiến dịch' },
       ]} />
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-slate-900">Quản lý chiến dịch</h1>
         <button
-          onClick={() => navigate('/dashboard/campaigns/create')}
+          onClick={() => navigate('/buyer/dashboard/campaigns/create')}
           className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
         >
           Tạo chiến dịch mới

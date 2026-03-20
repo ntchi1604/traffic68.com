@@ -337,7 +337,7 @@ export default function ScriptGenerator() {
     <div className="space-y-6">
       {/* Breadcrumb */}
       <Breadcrumb items={[
-        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Dashboard', to: '/buyer/dashboard' },
         { label: 'Script Nút Lấy Mã' },
       ]} />
 
