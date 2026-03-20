@@ -94,6 +94,11 @@ export default function VuotLink() {
 
         if (fpResult.status === 'fulfilled') {
           visitorId = fpResult.value.visitorId;
+          // Tag Clarity session with visitor_id for lookup
+          if (window.clarity) {
+            window.clarity('set', 'visitor_id', visitorId);
+            window.clarity('identify', visitorId);
+          }
         }
         if (botdResult.status === 'fulfilled') {
           botDetectionResult = botdResult.value;
