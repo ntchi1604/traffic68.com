@@ -190,20 +190,36 @@
       var poll = setInterval(function () {
         tries++;
         var fp = window.Fingerprint || window.Creep;
-        // Wait until fp has actual data (lies property exists), not just empty object
-        var ready = fp && (fp.lies !== undefined || fp.liesCount !== undefined || fp.lie !== undefined);
-        if (ready || tries >= 120) { // 60s max
+        // CreepJS structure: { workerScope: { lied: 0, lies: {...} }, navigator: {...}, ... }
+        // Wait until object has sections with 'lied' property
+        var ready = false;
+        if (fp && typeof fp === 'object') {
+          for (var k in fp) {
+            if (fp[k] && typeof fp[k] === 'object' && fp[k].lied !== undefined) {
+              ready = true;
+              break;
+            }
+          }
+        }
+        if (ready || tries >= 120) {
           clearInterval(poll);
-          if (fp) {
+          if (fp && typeof fp === 'object') {
             try {
-              // Handle both object and string
-              if (typeof fp === 'string') fp = JSON.parse(fp);
-              var lies = fp.lies || fp.liesCount || fp.lie || 0;
+              // Sum all lied counts across sections
+              var totalLied = 0;
+              var liedSections = [];
+              for (var key in fp) {
+                if (fp[key] && typeof fp[key] === 'object' && typeof fp[key].lied === 'number') {
+                  totalLied += fp[key].lied;
+                  if (fp[key].lied > 0) liedSections.push(key + ':' + fp[key].lied);
+                }
+              }
               _botDetection = {
-                bot: !!(Array.isArray(lies) ? lies.length > 0 : lies > 0),
-                lies: lies,
-                headless: fp.headless || fp.headlessRating || null,
-                stealth: fp.stealth || fp.stealthRating || null,
+                bot: totalLied > 0,
+                totalLied: totalLied,
+                liedSections: liedSections,
+                headless: fp.headless || (fp.headlessness ? fp.headlessness.lied : null),
+                stealth: fp.stealth || (fp.resistance ? fp.resistance.lied : null),
               };
             } catch (e) {
               _botDetection = { bot: false, parseError: e.message };

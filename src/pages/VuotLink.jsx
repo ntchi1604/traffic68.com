@@ -35,19 +35,31 @@ if (typeof window !== 'undefined') {
     let tries = 0;
     const poll = setInterval(() => {
       tries++;
-      let fp = window.Fingerprint || window.Creep;
-      const ready = fp && (fp.lies !== undefined || fp.liesCount !== undefined || fp.lie !== undefined);
+      const fp = window.Fingerprint || window.Creep;
+      let ready = false;
+      if (fp && typeof fp === 'object') {
+        for (const k in fp) {
+          if (fp[k] && typeof fp[k] === 'object' && fp[k].lied !== undefined) { ready = true; break; }
+        }
+      }
       if (ready || tries >= 120) {
         clearInterval(poll);
-        if (fp) {
+        if (fp && typeof fp === 'object') {
           try {
-            if (typeof fp === 'string') fp = JSON.parse(fp);
-            const lies = fp.lies || fp.liesCount || fp.lie || 0;
+            let totalLied = 0;
+            const liedSections = [];
+            for (const key in fp) {
+              if (fp[key] && typeof fp[key] === 'object' && typeof fp[key].lied === 'number') {
+                totalLied += fp[key].lied;
+                if (fp[key].lied > 0) liedSections.push(key + ':' + fp[key].lied);
+              }
+            }
             _creepResult = {
-              bot: !!(Array.isArray(lies) ? lies.length > 0 : lies > 0),
-              lies,
-              headless: fp.headless || fp.headlessRating || null,
-              stealth: fp.stealth || fp.stealthRating || null,
+              bot: totalLied > 0,
+              totalLied,
+              liedSections,
+              headless: fp.headless || (fp.headlessness ? fp.headlessness.lied : null),
+              stealth: fp.stealth || (fp.resistance ? fp.resistance.lied : null),
             };
           } catch (e) {
             _creepResult = { bot: false, parseError: e.message };
