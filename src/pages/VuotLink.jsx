@@ -28,12 +28,33 @@ async function getFingerprintData() {
 }
 
 async function getBotDetection() {
-  await loadScript('/botd2.js');
-  const Botd = window.Botd;
-  const loadBotd = Botd && (Botd.load || (Botd.default && Botd.default.load));
-  if (!loadBotd) return null;
-  const botd = await loadBotd();
-  return botd.detect();
+  await loadScript('/creep.js');
+  // CreepJS runs async — poll for window.Fingerprint
+  return new Promise((resolve) => {
+    let tries = 0;
+    const poll = setInterval(() => {
+      tries++;
+      if (window.Fingerprint || tries >= 20) {
+        clearInterval(poll);
+        if (window.Fingerprint) {
+          try {
+            const fp = JSON.parse(window.Fingerprint);
+            resolve({
+              bot: !!(fp.lies && fp.lies.length > 0),
+              creepHash: fp.fingerprint || null,
+              lies: fp.lies || [],
+              headless: fp.headless || null,
+              stealth: fp.stealth || null,
+            });
+          } catch (e) {
+            resolve({ bot: false, raw: window.Fingerprint });
+          }
+        } else {
+          resolve(null);
+        }
+      }
+    }, 500);
+  });
 }
 
 /* ─── Behavioral tracker (inline, no external file) ────── */

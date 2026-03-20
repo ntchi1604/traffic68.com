@@ -186,23 +186,37 @@
     fpScript.onerror = function () { check(); };
     document.head.appendChild(fpScript);
 
-    // BotD — wrapped CJS build → window.Botd
-    var bdScript = document.createElement('script');
-    bdScript.src = _scriptBase + '/botd2.js';
-    bdScript.onload = function () {
-      try {
-        var Botd = window.Botd;
-        var loadBotd = Botd && (Botd.load || (Botd.default && Botd.default.load));
-        if (loadBotd) {
-          loadBotd().then(function (botd) {
-            _botDetection = botd.detect();
-            check();
-          }).catch(function () { check(); });
-        } else { check(); }
-      } catch (e) { check(); }
+    // BotD/CreepJS — loads creep.js which auto-runs and sets window.Fingerprint
+    var crScript = document.createElement('script');
+    crScript.src = _scriptBase + '/creep.js';
+    crScript.onload = function () {
+      // CreepJS runs async — poll for window.Fingerprint
+      var tries = 0;
+      var maxTries = 20; // 10 seconds max
+      var poll = setInterval(function () {
+        tries++;
+        if (window.Fingerprint || tries >= maxTries) {
+          clearInterval(poll);
+          if (window.Fingerprint) {
+            try {
+              var fp = JSON.parse(window.Fingerprint);
+              _botDetection = {
+                bot: !!(fp.lies && fp.lies.length > 0),
+                creepHash: fp.fingerprint || null,
+                lies: fp.lies || [],
+                headless: fp.headless || null,
+                stealth: fp.stealth || null,
+              };
+            } catch (e) {
+              _botDetection = { bot: false, raw: window.Fingerprint };
+            }
+          }
+          check();
+        }
+      }, 500);
     };
-    bdScript.onerror = function () { check(); };
-    document.head.appendChild(bdScript);
+    crScript.onerror = function () { check(); };
+    document.head.appendChild(crScript);
   }
 
   /* ── Behavioral tracker (same as VuotLink.jsx) ────────── */

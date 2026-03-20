@@ -195,13 +195,24 @@ router.post('/task', optionalAuth, async (req, res) => {
   if (ch.ip && ch.ip !== ip) return res.status(403).json(ERR);
   ch.used = true;
 
-  // ── 2. BotD check ──
-  if (botDetection && botDetection.bot === true) {
-    botDetected = true;
-    detectionLog.push('botd_detected');
-    console.log(`[VuotLink] 🤖 BotD detected: IP=${ip}`);
-    logSecurityEvent('botd_detected', ip, ua, visitorId, { botKind: botDetection.botKind });
-    return res.status(403).json(ERR);
+  // ── 2. CreepJS / BotD check ──
+  if (botDetection) {
+    // CreepJS format: { bot: true/false, lies: [...], headless, stealth, creepHash }
+    // Old BotD format: { bot: true/false, botKind }
+    const hasLies = botDetection.lies && botDetection.lies.length > 0;
+    const isBot = botDetection.bot === true || hasLies;
+    if (isBot) {
+      botDetected = true;
+      detectionLog.push('creep_detected');
+      console.log(`[VuotLink] 🤖 CreepJS detected: IP=${ip}, lies=${JSON.stringify(botDetection.lies || []).substring(0, 200)}, headless=${botDetection.headless}, stealth=${botDetection.stealth}`);
+      logSecurityEvent('creep_detected', ip, ua, visitorId, {
+        lies: botDetection.lies,
+        headless: botDetection.headless,
+        stealth: botDetection.stealth,
+        creepHash: botDetection.creepHash,
+      });
+      return res.status(403).json(ERR);
+    }
   }
 
   // ── 2b. Client-side automation probes ──
