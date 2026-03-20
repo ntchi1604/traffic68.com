@@ -55,7 +55,7 @@ export default function VuotLink() {
     s.src = '/tracker.js';
     s.async = true;
     document.head.appendChild(s);
-    return () => { try { document.head.removeChild(s); } catch {} };
+    return () => { try { document.head.removeChild(s); } catch { } };
   }, []);
 
   /* ─── Fetch task from API on mount ─────────────── */
@@ -131,9 +131,9 @@ export default function VuotLink() {
         let webglHash = '';
         try {
           const ws = challenge.webgl || {};
-          const verts = ws.v || [0,0.8,-0.7,-0.6,0.7,-0.6];
-          const bg = ws.bg || [0.1,0.1,0.1];
-          const fg = ws.fg || [0.2,0.7,0.3];
+          const verts = ws.v || [0, 0.8, -0.7, -0.6, 0.7, -0.6];
+          const bg = ws.bg || [0.1, 0.1, 0.1];
+          const fg = ws.fg || [0.2, 0.7, 0.3];
           const targetText = ws.text || '';
           const glCanvas = document.createElement('canvas');
           glCanvas.width = 64; glCanvas.height = 64;
@@ -168,7 +168,7 @@ export default function VuotLink() {
               txtCtx.drawImage(glCanvas, 0, 0);
               // Draw target_text on top
               txtCtx.font = '12px monospace';
-              txtCtx.fillStyle = `rgb(${Math.floor(fg[0]*255)},${Math.floor(fg[1]*255)},${Math.floor(fg[2]*255)})`;
+              txtCtx.fillStyle = `rgb(${Math.floor(fg[0] * 255)},${Math.floor(fg[1] * 255)},${Math.floor(fg[2] * 255)})`;
               txtCtx.fillText(targetText, 4, 40);
               // Hash the composited result
               const compositePixels = txtCtx.getImageData(0, 0, 64, 64).data;
