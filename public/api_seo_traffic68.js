@@ -351,9 +351,11 @@
     wrap.appendChild(btn);
     container.appendChild(wrap);
 
-    // Auto-check visibility after a short delay to let layout settle
+    // Auto-check visibility — delay long enough for SPA frameworks to render
     if (cfg.overlapFix !== 'none') {
-      setTimeout(function () { _checkVisibility(btn, wrap); }, 500);
+      setTimeout(function () { _checkVisibility(btn, wrap); }, 2000);
+      // Second check as safety net for slow SPAs
+      setTimeout(function () { _checkVisibility(btn, wrap); }, 4000);
       // Also re-check on scroll & resize (elements may overlap after scroll)
       var recheckTimer = null;
       var recheck = function () {
