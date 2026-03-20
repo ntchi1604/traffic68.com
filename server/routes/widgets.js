@@ -150,9 +150,35 @@ router.post('/public/:token/check-session', async (req, res) => {
   );
 
   if (tasks.length === 0) {
+    // Debug: check if task exists without UA filter
+    const [debugTasks] = await pool.execute(
+      `SELECT vt.id, vt.ip_address, vt.user_agent, vt.status, vt.expires_at FROM vuot_link_tasks vt
+       WHERE vt.ip_address = ? AND vt.status IN ('pending', 'step1', 'step2', 'step3')
+       ORDER BY vt.created_at DESC LIMIT 1`,
+      [ip]
+    );
+    if (debugTasks.length > 0) {
+      const dt = debugTasks[0];
+      console.log(`[Widget] check-session UA MISMATCH — IP: ${ip}`);
+      console.log(`  DB UA: ${dt.user_agent.substring(0, 80)}`);
+      console.log(`  Req UA: ${ua.substring(0, 80)}`);
+      console.log(`  Status: ${dt.status}, Expires: ${dt.expires_at}`);
+    } else {
+      // Check if any task exists for this IP (any status)
+      const [anyTasks] = await pool.execute(
+        `SELECT id, status, expires_at FROM vuot_link_tasks WHERE ip_address = ? ORDER BY created_at DESC LIMIT 1`,
+        [ip]
+      );
+      if (anyTasks.length > 0) {
+        console.log(`[Widget] check-session EXPIRED/COMPLETED — IP: ${ip}, status: ${anyTasks[0].status}, expires: ${anyTasks[0].expires_at}`);
+      } else {
+        console.log(`[Widget] check-session NO TASK AT ALL — IP: ${ip}`);
+      }
+    }
     return res.status(404).json({ hasSession: false });
   }
 
+  console.log(`[Widget] check-session OK — IP: ${ip}, task: #${tasks[0].id}`);
   res.json({ hasSession: true });
 });
 
