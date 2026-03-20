@@ -841,7 +841,8 @@
       var token = scripts[i].getAttribute('data-token');
       if (token) {
         var base = _scriptBase;
-        var apiUrl = base + '/api/widgets/public/' + token;
+        var pageUrl = encodeURIComponent(window.location.href);
+        var apiUrl = base + '/api/widgets/public/' + token + '?pageUrl=' + pageUrl;
 
         (function (url) {
           var xhr = new XMLHttpRequest();
@@ -857,6 +858,14 @@
                   data = resp;
                 }
                 var config = data.config || data;
+
+                // If server found a matching campaign, waitTime is already set from campaign duration
+                if (data.campaignFound) {
+                  console.log('[LayNut] Campaign matched, waitTime=' + config.waitTime + 's');
+                } else {
+                  console.log('[LayNut] No matching campaign found, using default config');
+                }
+
                 window.LayNut.init(config);
               } catch (e) {
                 console.error('[LayNut] Invalid config:', e);

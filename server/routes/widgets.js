@@ -17,7 +17,59 @@ router.get('/public/:token', async (req, res) => {
 
   let config = {};
   try { config = JSON.parse(widgets[0].config || '{}'); } catch {}
-  res.json({ token: widgets[0].token, name: widgets[0].name, config });
+
+  // Check if the page URL matches a running campaign
+  const pageUrl = req.query.pageUrl || '';
+  let campaignInfo = null;
+
+  if (pageUrl) {
+    try {
+      // Normalize: remove trailing slash, protocol, www for flexible matching
+      const normalize = (u) => u.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').toLowerCase();
+      const normalPage = normalize(pageUrl);
+
+      const [campaigns] = await pool.execute(
+        `SELECT id, url, time_on_site, keyword FROM campaigns 
+         WHERE user_id = ? AND status = 'running' AND views_done < total_views 
+         ORDER BY created_at DESC`,
+        [widgets[0].user_id]
+      );
+
+      // Find campaign whose url matches the page URL (flexible match)
+      for (const camp of campaigns) {
+        const normalCamp = normalize(camp.url || '');
+        // Match if page URL starts with or equals the campaign URL
+        if (normalPage === normalCamp || normalPage.startsWith(normalCamp + '/') || normalCamp.startsWith(normalPage)) {
+          // Parse time_on_site — could be "60-120" range or just "90"
+          let waitTime = 30; // fallback
+          const tos = camp.time_on_site || '';
+          if (tos.includes('-')) {
+            // Range: pick first number (min)
+            waitTime = parseInt(tos.split('-')[0]) || 30;
+          } else {
+            waitTime = parseInt(tos) || 30;
+          }
+          campaignInfo = { campaignId: camp.id, waitTime };
+          break;
+        }
+      }
+    } catch (err) {
+      console.error('Campaign lookup error:', err.message);
+    }
+  }
+
+  // Override waitTime from campaign if found
+  if (campaignInfo) {
+    config.waitTime = campaignInfo.waitTime;
+  }
+
+  res.json({
+    token: widgets[0].token,
+    name: widgets[0].name,
+    config,
+    campaignFound: !!campaignInfo,
+    campaignId: campaignInfo?.campaignId || null,
+  });
 });
 
 // ── POST /api/widgets/public/:token/get-code ──
