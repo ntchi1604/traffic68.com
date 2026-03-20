@@ -6,7 +6,7 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
 // Anti-bypass: HMAC session token
-const HMAC_SECRET = process.env.CHALLENGE_KEY || 't68vLsecur3Chall3ng3Key2026xZqWx';
+const HMAC_SECRET = process.env.CHALLENGE_KEY || crypto.randomBytes(32).toString('hex');
 const BOT_UA = /curl|wget|python|httpie|postman|insomnia|axios|node-fetch|got\//i;
 
 function generateSessionToken(ip, ua) {
