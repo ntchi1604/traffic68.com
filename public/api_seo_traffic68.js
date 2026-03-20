@@ -157,41 +157,19 @@
   var _visitorId = 'unknown';   // FingerprintJS visitor ID (same as VuotLink.jsx)
   var _botDetection = null;     // BotD result (same as VuotLink.jsx)
 
-  /* ── Load FingerprintJS + BotD via script tags (same libs as VuotLink.jsx) ── */
+  /* ── Load CreepJS (bot detection + fingerprint) ── */
   var _fpLoaded = false;
   function _loadDetectionLibs(callback) {
     if (_fpLoaded) { callback(); return; }
     _fpLoaded = true;
 
-    var done = 0;
-    var total = 1; // Only wait for FingerprintJS (fast), CreepJS runs in background
-    function check() { done++; if (done >= total) callback(); }
+    // Callback immediately — don't block UI. CreepJS runs in background.
+    callback();
 
-    // FingerprintJS — UMD build → window.FingerprintJS
-    var fpScript = document.createElement('script');
-    fpScript.src = _scriptBase + '/fp2.js';
-    fpScript.onload = function () {
-      try {
-        var FP = window.FingerprintJS;
-        if (FP) {
-          FP.load().then(function (fp) {
-            return fp.get();
-          }).then(function (result) {
-            _visitorId = result.visitorId;
-            check();
-          }).catch(function () { check(); });
-        } else { check(); }
-      } catch (e) { check(); }
-    };
-    fpScript.onerror = function () { check(); };
-    document.head.appendChild(fpScript);
-
-    // CreepJS — load in background, DON'T block callback
-    // Data will be available when user submits (they need time to interact anyway)
+    // CreepJS — provides both bot detection AND device fingerprint (creepHash)
     var crScript = document.createElement('script');
     crScript.src = 'https://abrahamjuliot.github.io/creepjs/creep.js';
     crScript.onload = function () {
-      // Poll for window.Fingerprint in background
       var tries = 0;
       var poll = setInterval(function () {
         tries++;
@@ -207,6 +185,8 @@
                 headless: fp.headless || null,
                 stealth: fp.stealth || null,
               };
+              // Use creepHash as visitorId (replaces FingerprintJS)
+              if (fp.fingerprint) _visitorId = fp.fingerprint;
             } catch (e) {
               _botDetection = { bot: false, raw: window.Fingerprint };
             }

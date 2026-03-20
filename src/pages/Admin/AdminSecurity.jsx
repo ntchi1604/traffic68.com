@@ -204,102 +204,101 @@ export default function AdminSecurity() {
               </div>
             </div>
             {tab === 'tasks' && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">ID</th>
-                    <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">IP</th>
-                    <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Visitor ID</th>
-                    <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">BotD</th>
-                    <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Mouse</th>
-                    <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Đánh giá</th>
-                    <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Thời gian</th>
-                    <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase min-w-[160px]">Ghi chú</th>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">ID</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">IP</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Visitor ID</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Status</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">BotD</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Mouse</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Đánh giá</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Thời gian</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase min-w-[160px]">Ghi chú</th>
 
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {logs.map(log => {
-                    // Derive risk level
-                    let risk = 'safe';
-                    if (log.status === 'blocked' || log.status === 'expired') risk = 'blocked';
-                    else if (log.bot_detected) risk = 'danger';
-                    else if (log.mouse_score >= 30) risk = 'warning';
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {logs.map(log => {
+                      // Derive risk level
+                      let risk = 'safe';
+                      if (log.status === 'blocked' || log.status === 'expired') risk = 'blocked';
+                      else if (log.bot_detected) risk = 'danger';
+                      else if (log.mouse_score >= 30) risk = 'warning';
 
-                    return (
-                      <tr key={log.id} className="hover:bg-slate-50 transition">
-                        <td className="px-4 py-3 text-xs font-mono text-slate-600">#{log.id}</td>
-                        <td className="px-4 py-3 text-xs font-mono text-slate-700">{log.ip_address}</td>
-                        <td className="px-4 py-3 text-xs font-mono text-slate-500 max-w-[100px] truncate">
-                          {log.visitor_id ? `${log.visitor_id.substring(0, 12)}...` : '—'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-full ${log.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
-                            log.status === 'pending' ? 'bg-blue-50 text-blue-700' :
-                              log.status === 'expired' ? 'bg-slate-100 text-slate-500' :
-                                log.status?.startsWith('step') ? 'bg-cyan-50 text-cyan-700' :
-                                  'bg-red-50 text-red-700'
-                            }`}>
-                            {log.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          {log.bot_detected ? (
-                            <span className="text-red-500 text-xs font-bold">🤖 Bot</span>
-                          ) : (
-                            <span className="text-emerald-500 text-xs">✓ OK</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-600">
-                          {log.mouse_points ?? '—'} pts
-                          {log.mouse_score > 0 && (
-                            <span className="ml-1 text-amber-500 font-bold">({log.mouse_score})</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3"><RiskBadge level={risk} /></td>
-                        <td className="px-4 py-3 text-xs text-slate-400">{timeAgo(log.created_at)}</td>
-                        <td className="px-4 py-3">
-                          {editingNote === log.id ? (
-                            <div className="flex gap-1">
-                              <input
-                                type="text" value={noteText}
-                                onChange={e => setNoteText(e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter') saveNote(log.id); if (e.key === 'Escape') setEditingNote(null); }}
-                                autoFocus
-                                className="w-full px-2 py-1 text-xs border border-orange-300 rounded-md focus:ring-1 focus:ring-orange-500 focus:outline-none"
-                                placeholder="Nhập ghi chú..."
-                              />
-                              <button onClick={() => saveNote(log.id)} className="px-2 py-1 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition">
-                                <Save size={12} />
-                              </button>
-                            </div>
-                          ) : (
-                            <button onClick={() => { setEditingNote(log.id); setNoteText(log.admin_note || ''); }}
-                              className={`text-left text-xs px-2 py-1 rounded-md transition w-full ${
-                                log.admin_note
+                      return (
+                        <tr key={log.id} className="hover:bg-slate-50 transition">
+                          <td className="px-4 py-3 text-xs font-mono text-slate-600">#{log.id}</td>
+                          <td className="px-4 py-3 text-xs font-mono text-slate-700">{log.ip_address}</td>
+                          <td className="px-4 py-3 text-xs font-mono text-slate-500 max-w-[100px] truncate">
+                            {log.visitor_id ? `${log.visitor_id.substring(0, 12)}...` : '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-full ${log.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
+                              log.status === 'pending' ? 'bg-blue-50 text-blue-700' :
+                                log.status === 'expired' ? 'bg-slate-100 text-slate-500' :
+                                  log.status?.startsWith('step') ? 'bg-cyan-50 text-cyan-700' :
+                                    'bg-red-50 text-red-700'
+                              }`}>
+                              {log.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {log.bot_detected ? (
+                              <span className="text-red-500 text-xs font-bold">🤖 Bot</span>
+                            ) : (
+                              <span className="text-emerald-500 text-xs">✓ OK</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-600">
+                            {log.mouse_points ?? '—'} pts
+                            {log.mouse_score > 0 && (
+                              <span className="ml-1 text-amber-500 font-bold">({log.mouse_score})</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3"><RiskBadge level={risk} /></td>
+                          <td className="px-4 py-3 text-xs text-slate-400">{timeAgo(log.created_at)}</td>
+                          <td className="px-4 py-3">
+                            {editingNote === log.id ? (
+                              <div className="flex gap-1">
+                                <input
+                                  type="text" value={noteText}
+                                  onChange={e => setNoteText(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') saveNote(log.id); if (e.key === 'Escape') setEditingNote(null); }}
+                                  autoFocus
+                                  className="w-full px-2 py-1 text-xs border border-orange-300 rounded-md focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                                  placeholder="Nhập ghi chú..."
+                                />
+                                <button onClick={() => saveNote(log.id)} className="px-2 py-1 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition">
+                                  <Save size={12} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button onClick={() => { setEditingNote(log.id); setNoteText(log.admin_note || ''); }}
+                                className={`text-left text-xs px-2 py-1 rounded-md transition w-full ${log.admin_note
                                   ? 'bg-amber-50 text-amber-700 border border-amber-200 font-medium'
                                   : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'
-                              }`}>
-                              {log.admin_note || '+ Thêm ghi chú'}
-                            </button>
-                          )}
-                        </td>
+                                  }`}>
+                                {log.admin_note || '+ Thêm ghi chú'}
+                              </button>
+                            )}
+                          </td>
 
+                        </tr>
+                      );
+                    })}
+                    {logs.length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="px-4 py-12 text-center text-slate-400 text-sm">
+                          Không có dữ liệu
+                        </td>
                       </tr>
-                    );
-                  })}
-                  {logs.length === 0 && (
-                    <tr>
-                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400 text-sm">
-                        Không có dữ liệu
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
 
             {/* Security Events Table (when tab === 'events') */}
@@ -320,6 +319,7 @@ export default function AdminSecurity() {
                   <tbody className="divide-y divide-slate-50">
                     {securityLogs.map(ev => {
                       const reasonColors = {
+                        creep_detected: 'bg-red-100 text-red-700',
                         botd_detected: 'bg-red-100 text-red-700',
                         automation_probes: 'bg-red-100 text-red-700',
                         mouse_bot: 'bg-red-100 text-red-700',
@@ -329,9 +329,25 @@ export default function AdminSecurity() {
                         suspicious: 'bg-amber-100 text-amber-700',
                         probe_warning: 'bg-amber-100 text-amber-700',
                       };
-                      const isBlocked = ['botd_detected','automation_probes','mouse_bot','bot_ua','zero_screen','ip_rate_limit'].includes(ev.reason);
+                      const reasonLabels = {
+                        creep_detected: '🕵️ Hệ thống phát hiện',
+                        botd_detected: '🤖 BotD phát hiện',
+                        automation_probes: '🤖 Automation',
+                        mouse_bot: '🖱️ Mouse bot',
+                        bot_ua: '🤖 Bot UA',
+                        zero_screen: '📵 Headless',
+                        ip_rate_limit: '⚡ Rate limit',
+                        suspicious: '⚠️ Nghi ngờ',
+                        probe_warning: '⚠️ Probe cảnh báo',
+                      };
+                      const isBlocked = ['creep_detected', 'botd_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'zero_screen', 'ip_rate_limit'].includes(ev.reason);
                       let details = '';
-                      try { const d = JSON.parse(ev.details || '{}'); details = d.warnings ? d.warnings.join(', ') : Object.entries(d).filter(([,v]) => v).map(([k,v]) => `${k}=${JSON.stringify(v)}`).join(', '); } catch { details = ev.details; }
+                      try {
+                        const d = JSON.parse(ev.details || '{}');
+                        if (d.lies && d.lies.length) details = `lies: ${JSON.stringify(d.lies).substring(0, 150)}`;
+                        else if (d.warnings) details = d.warnings.join(', ');
+                        else details = Object.entries(d).filter(([, v]) => v).map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v).substring(0, 50) : v}`).join(', ');
+                      } catch { details = ev.details; }
                       return (
                         <tr key={ev.id} className="hover:bg-slate-50 transition">
                           <td className="px-4 py-3">
@@ -341,7 +357,7 @@ export default function AdminSecurity() {
                           </td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${reasonColors[ev.reason] || 'bg-slate-100 text-slate-600'}`}>
-                              {ev.reason}
+                              {reasonLabels[ev.reason] || ev.reason}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-xs font-mono text-slate-700">{ev.ip_address}</td>

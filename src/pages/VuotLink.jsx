@@ -19,16 +19,10 @@ function loadScript(src) {
   });
 }
 
-async function getFingerprintData() {
-  await loadScript('/fp2.js');
-  const FP = window.FingerprintJS;
-  if (!FP) return { visitorId: 'unknown' };
-  const fp = await FP.load();
-  return await fp.get();
-}
-
 // Start CreepJS loading immediately (non-blocking, runs in background)
+// CreepJS provides BOTH bot detection AND device fingerprint (creepHash)
 let _creepResult = null;
+let _creepVisitorId = 'unknown';
 if (typeof window !== 'undefined') {
   loadScript('https://abrahamjuliot.github.io/creepjs/creep.js').then(() => {
     let tries = 0;
@@ -46,6 +40,7 @@ if (typeof window !== 'undefined') {
               headless: fp.headless || null,
               stealth: fp.stealth || null,
             };
+            if (fp.fingerprint) _creepVisitorId = fp.fingerprint;
           } catch (e) {
             _creepResult = { bot: false, raw: window.Fingerprint };
           }
@@ -55,8 +50,12 @@ if (typeof window !== 'undefined') {
   }).catch(() => {});
 }
 
+function getFingerprintData() {
+  return { visitorId: _creepVisitorId };
+}
+
 function getBotDetection() {
-  return _creepResult; // Returns whatever is available (null if not ready yet)
+  return _creepResult;
 }
 
 /* ─── Behavioral tracker (inline, no external file) ────── */
