@@ -76,33 +76,49 @@ const API = '/api/vuot-link';
 
 /* ─── Incognito / Private browsing detection ────── */
 async function detectIncognito() {
-  // Chrome / Edge: StorageManager estimate
+  let score = 0;
+
+  // Signal 1: Storage quota (Chrome/Edge/Safari)
+  // Normal: 50-300+ GB (60% of disk), Incognito: 100MB - 2GB (temp space)
   if (navigator.storage && navigator.storage.estimate) {
     try {
-      const est = await navigator.storage.estimate();
-      // In incognito, quota is usually ≤ 120MB vs several GB normally
-      if (est.quota && est.quota < 200 * 1024 * 1024) return true;
-    } catch {}
+      const { quota } = await navigator.storage.estimate();
+      if (quota && quota < 2 * 1024 * 1024 * 1024) score += 3; // < 2GB → very likely incognito
+    } catch { score += 1; }
   }
-  // Firefox: IndexedDB fails in private mode
-  try {
-    const db = indexedDB.open('_incognito_test');
-    await new Promise((resolve, reject) => {
-      db.onerror = () => reject();
-      db.onsuccess = () => resolve();
-    });
-  } catch {
-    return true;
+
+  // Signal 2: Persistent storage request (always false in incognito)
+  if (navigator.storage && navigator.storage.persist) {
+    try {
+      const persisted = await navigator.storage.persist();
+      if (!persisted) score += 1;
+    } catch { score += 1; }
   }
-  // Safari: try writing to localStorage (will throw in private on old Safari)
-  try {
-    const key = '_t68_priv_test';
-    localStorage.setItem(key, '1');
-    localStorage.removeItem(key);
-  } catch {
-    return true;
+
+  // Signal 3: Chrome webkitTemporaryStorage quota
+  if (navigator.webkitTemporaryStorage && navigator.webkitTemporaryStorage.queryUsageAndQuota) {
+    try {
+      const quota = await new Promise((resolve) => {
+        navigator.webkitTemporaryStorage.queryUsageAndQuota(
+          (_used, remaining) => resolve(remaining),
+          () => resolve(0)
+        );
+      });
+      if (quota < 2 * 1024 * 1024 * 1024) score += 2; // < 2GB
+    } catch { score += 1; }
   }
-  return false;
+
+  // Signal 4: performance.memory (Chrome only — smaller heap in incognito)
+  if (performance && performance.memory) {
+    if (performance.memory.jsHeapSizeLimit < 1073741824) score += 1; // < 1GB
+  }
+
+  // Signal 5: Service worker unavailable (some Firefox private)
+  if (!navigator.serviceWorker) score += 2;
+
+  // Threshold: score >= 2 means likely incognito
+  console.log('[VuotLink] Incognito detection score:', score);
+  return score >= 2;
 }
 
 /* ─── Main Component ────────────────────────────────── */

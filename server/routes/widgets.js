@@ -43,7 +43,7 @@ router.get('/public/:token', async (req, res) => {
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại hoặc đã bị tắt' });
 
   let config = {};
-  try { config = JSON.parse(widgets[0].config || '{}'); } catch {}
+  try { config = JSON.parse(widgets[0].config || '{}'); } catch { }
 
   // Check if the page URL matches a running campaign
   const pageUrl = req.query.pageUrl || '';
@@ -92,10 +92,37 @@ router.get('/public/:token', async (req, res) => {
   res.json(resp);
 });
 
+// ── POST /api/widgets/public/:token/check-session ──
+// Called by embed script when button is clicked — checks if IP has a pending task
+// Does NOT return the code — only confirms session exists
+router.post('/public/:token/check-session', async (req, res) => {
+  const pool = getPool();
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+
+  const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
+  if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
+
+  const [tasks] = await pool.execute(
+    `SELECT vt.id FROM vuot_link_tasks vt
+     JOIN campaigns c ON c.id = vt.campaign_id
+     WHERE vt.ip_address = ? 
+       AND vt.status IN ('pending', 'step1', 'step2', 'step3')
+       AND vt.expires_at > NOW()
+     ORDER BY vt.created_at DESC LIMIT 1`,
+    [ip]
+  );
+
+  if (tasks.length === 0) {
+    return res.status(404).json({ hasSession: false });
+  }
+
+  res.json({ hasSession: true });
+});
+
 // ── POST /api/widgets/public/:token/get-code ──
 // Called by embed script on target website after countdown finishes
 // Finds pending vuot_link_task matching visitor's IP → returns the code
-// Does NOT count as view — view is counted when user verifies code on VuotLink page
+// Server-side time check: elapsed since task creation must >= time_on_site
 router.post('/public/:token/get-code', async (req, res) => {
   const pool = getPool();
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
@@ -103,10 +130,9 @@ router.post('/public/:token/get-code', async (req, res) => {
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
-  // Find pending/active vuot_link_task matching this IP
-  // Tasks are created by VuotLink page with status pending/step1/step2/step3
+  // Find pending/active vuot_link_task matching this IP, include campaign time_on_site
   const [tasks] = await pool.execute(
-    `SELECT vt.*, c.url as campaign_url FROM vuot_link_tasks vt
+    `SELECT vt.*, c.url as campaign_url, c.time_on_site FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
      WHERE vt.ip_address = ? 
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
@@ -121,13 +147,34 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   const task = tasks[0];
 
+  // Server-side time check: elapsed time must >= campaign time_on_site
+  const tos = task.time_on_site || '60';
+  let requiredSeconds = 30;
+  if (tos.includes('-')) {
+    requiredSeconds = parseInt(tos.split('-')[0]) || 30;
+  } else {
+    requiredSeconds = parseInt(tos) || 30;
+  }
+
+  const elapsedMs = Date.now() - new Date(task.created_at).getTime();
+  const elapsedSeconds = Math.floor(elapsedMs / 1000);
+
+  if (elapsedSeconds < requiredSeconds) {
+    const remaining = requiredSeconds - elapsedSeconds;
+    console.log(`[Widget] Code request TOO EARLY — IP: ${ip}, task: #${task.id}, elapsed: ${elapsedSeconds}s < required: ${requiredSeconds}s`);
+    return res.status(403).json({
+      error: 'd!t me may cheat con cac',
+      remaining,
+    });
+  }
+
   // Update task status to step3 (reached target website) if not already
   if (task.status !== 'step3') {
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await pool.execute("UPDATE vuot_link_tasks SET status = 'step3', step3_at = ? WHERE id = ?", [now, task.id]);
   }
 
-  console.log(`[Widget] Code requested — IP: ${ip}, task: #${task.id}, code: ${task.code_given}`);
+  console.log(`[Widget] Code given — IP: ${ip}, task: #${task.id}, code: ${task.code_given}, elapsed: ${elapsedSeconds}s (required: ${requiredSeconds}s)`);
 
   res.json({ success: true, code: task.code_given, message: 'Mã của bạn! Hãy copy và nhập vào trang vượt link.' });
 });
@@ -144,7 +191,7 @@ router.get('/', async (req, res) => {
   res.json({
     widgets: widgets.map(w => {
       let config = {};
-      try { config = JSON.parse(w.config || '{}'); } catch {}
+      try { config = JSON.parse(w.config || '{}'); } catch { }
       return { ...w, config };
     }),
   });

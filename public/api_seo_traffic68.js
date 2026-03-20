@@ -786,21 +786,15 @@
     if (!_widgetToken) { callback(false); return; }
 
     var base = _scriptBase;
-    var url = base + '/api/widgets/public/' + _widgetToken + '/get-code';
+    var url = base + '/api/widgets/public/' + _widgetToken + '/check-session';
     var xhr = new XMLHttpRequest();
     xhr.open('POST', url, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.onload = function () {
       if (xhr.status === 200) {
-        try {
-          var resp = JSON.parse(xhr.responseText);
-          sessionCode = resp.code || '';
-          _sessionVerified = true;
-          console.log('[LayNut] Session verified, code: ' + sessionCode);
-          callback(true);
-        } catch (e) {
-          callback(false);
-        }
+        _sessionVerified = true;
+        console.log('[LayNut] Session verified (code hidden until countdown ends)');
+        callback(true);
       } else {
         console.log('[LayNut] No session found for this IP');
         callback(false);
@@ -838,13 +832,8 @@
     document.body.appendChild(ov);
   }
 
-  /* ── Fetch session code from server (used after countdown) ── */
+  /* ── Fetch session code from server (ONLY after countdown) ── */
   function fetchSessionCode(callback) {
-    // If already fetched during checkSession, use cached code
-    if (_sessionVerified && sessionCode) {
-      if (callback) callback();
-      return;
-    }
     if (!_widgetToken) {
       sessionCode = 'Lỗi: Không có token';
       if (callback) callback();
