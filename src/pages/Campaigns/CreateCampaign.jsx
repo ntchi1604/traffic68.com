@@ -20,6 +20,7 @@ const TRAFFIC_TYPES = [
 const DURATIONS = [
   { value: '', label: 'Chọn thời gian' },
   { value: '60', label: 'Gói 60s' },
+  { value: '90', label: 'Gói 90s' },
   { value: '120', label: 'Gói 120s' },
   { value: '150', label: 'Gói 150s' },
   { value: '200', label: 'Gói 200s' },

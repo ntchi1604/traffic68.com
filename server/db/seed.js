@@ -54,16 +54,19 @@ async function seed() {
   const pricingData = [
     // Google Search Traffic
     ['google_search', '60s',  700,  420, 600,  360],
+    ['google_search', '90s',  780,  468, 680,  408],
     ['google_search', '120s', 850,  510, 750,  450],
     ['google_search', '150s', 1000, 600, 900,  550],
     ['google_search', '200s', 1150, 690, 1050, 630],
     // Social Traffic
     ['social', '60s',  700,  420, 600,  360],
+    ['social', '90s',  780,  468, 680,  408],
     ['social', '120s', 850,  510, 750,  450],
     ['social', '150s', 1000, 600, 900,  550],
     ['social', '200s', 1150, 690, 1050, 630],
     // Direct Traffic
     ['direct', '60s',  500, 300, 400, 240],
+    ['direct', '90s',  580, 348, 480, 288],
     ['direct', '120s', 650, 390, 550, 330],
     ['direct', '150s', 800, 480, 700, 420],
     ['direct', '200s', 950, 570, 850, 510],
