@@ -52,7 +52,7 @@ if (typeof window !== 'undefined') {
         }
         // Use $hash as visitorId
         if (arg.workerScope && arg.workerScope.$hash) {
-          _creepVisitorId = arg.workerScope.$hash.substring(0, 16);
+          _creepVisitorId = arg.workerScope.$hash;
         }
         _resolveCreep({
           bot: totalLied > 0,
