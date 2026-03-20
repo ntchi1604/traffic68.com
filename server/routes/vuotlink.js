@@ -86,6 +86,20 @@ function generateCanvasChallenge() {
   return { text, fontSize, color };
 }
 
+// WebGL seed — random vertices + color so each challenge = different render = different hash
+function generateWebGLSeed() {
+  const r = () => (Math.random() * 1.6 - 0.8).toFixed(3);
+  return {
+    v: [parseFloat(r()), parseFloat(r()), parseFloat(r()), parseFloat(r()), parseFloat(r()), parseFloat(r())], // 3 vertex positions
+    bg: [Math.random().toFixed(2), Math.random().toFixed(2), Math.random().toFixed(2)].map(Number), // bg color
+    fg: [Math.random().toFixed(2), Math.random().toFixed(2), Math.random().toFixed(2)].map(Number), // fg color
+  };
+}
+
+// Anti-replay: track used hash pairs per IP
+const usedHashes = {}; // ip -> Set<canvasHash+webglHash>
+setInterval(() => { Object.keys(usedHashes).forEach(k => delete usedHashes[k]); }, 3600000);
+
 /* ── B. Noise fields for bt ──────────────────────────── */
 function generateNoise() {
   // Random structure that client must echo back — makes bt unpredictable
@@ -108,11 +122,12 @@ router.get('/challenge', (req, res) => {
   const { jsCode, expected } = generateJsChallenge();
   const pow = crypto.randomBytes(16).toString('hex');
   const canvas = generateCanvasChallenge();
+  const webgl = generateWebGLSeed();
   const xorKey = crypto.randomBytes(12).toString('base64');
   const noise = generateNoise();
   const powDiff = getPowDifficulty(ip);
-  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip, pow, canvas, xorKey, noise, powDiff };
-  res.json({ c: challengeId, j: jsCode, pow, canvas, xk: xorKey, noise, powDiff });
+  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip, pow, canvas, webgl, xorKey, noise, powDiff };
+  res.json({ c: challengeId, j: jsCode, pow, canvas, webgl, xk: xorKey, noise, powDiff });
 });
 
 /* ═════════════════════════════════════════════════════════
@@ -168,6 +183,15 @@ router.post('/task', optionalAuth, async (req, res) => {
     console.log(`VuotLink blocked: webglHash shared by ${hashIpCount} IPs — bot farm`);
     return res.status(403).json(ERR);
   }
+
+  // Anti-replay: same hash pair can't be used twice from same IP
+  const hashPair = canvasHash + '|' + webglHash;
+  if (!usedHashes[ip]) usedHashes[ip] = new Set();
+  if (usedHashes[ip].has(hashPair)) {
+    console.log('VuotLink blocked: hash replay detected', ip);
+    return res.status(403).json(ERR);
+  }
+  usedHashes[ip].add(hashPair);
 
   ch.used = true;
 
