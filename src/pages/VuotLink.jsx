@@ -84,17 +84,24 @@ export default function VuotLink() {
         // eslint-disable-next-line no-eval
         const jsResult = eval(challenge.j);
 
-        // Step 3: Proof-of-Work mining (4 hex zeros)
+        // Step 3: Proof-of-Work mining (dynamic difficulty)
         let powNonce = '';
         if (challenge.pow) {
+          const diff = challenge.powDiff || '0000';
+          const zeroBytes = Math.floor(diff.length / 2); // 4→2, 5→2, 6→3
+          const halfByte = diff.length % 2 === 1;        // 5→true
           const encoder = new TextEncoder();
-          for (let n = 0; n < 10000000; n++) {
+          for (let n = 0; n < 100000000; n++) {
             const candidate = String(n);
             const data = encoder.encode(challenge.pow + candidate);
             const hashBuf = await crypto.subtle.digest('SHA-256', data);
             const hashArr = new Uint8Array(hashBuf);
-            // Check first 2 bytes are 0 (= 4 hex zeros = '0000')
-            if (hashArr[0] === 0 && hashArr[1] === 0) {
+            let valid = true;
+            for (let b = 0; b < zeroBytes; b++) {
+              if (hashArr[b] !== 0) { valid = false; break; }
+            }
+            if (valid && halfByte && (hashArr[zeroBytes] >> 4) !== 0) valid = false;
+            if (valid) {
               powNonce = candidate;
               break;
             }

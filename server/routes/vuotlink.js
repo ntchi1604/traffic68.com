@@ -27,6 +27,44 @@ setInterval(() => {
   Object.keys(challenges).forEach(k => { if (now - challenges[k].createdAt > 120000) delete challenges[k]; });
 }, 30000);
 
+/* ── A. Hash uniqueness tracking ─────────────────────── */
+const hashIpMap = {};   // webglHash -> Set<ip>
+const hashIpTimers = {}; // webglHash -> timestamp
+setInterval(() => {
+  const now = Date.now();
+  Object.keys(hashIpMap).forEach(h => {
+    if (now - (hashIpTimers[h] || 0) > 3600000) {
+      delete hashIpMap[h]; delete hashIpTimers[h];
+    }
+  });
+}, 300000); // cleanup every 5 min
+
+function trackHash(hash, ip) {
+  if (!hashIpMap[hash]) { hashIpMap[hash] = new Set(); hashIpTimers[hash] = Date.now(); }
+  hashIpMap[hash].add(ip);
+  return hashIpMap[hash].size;
+}
+
+/* ── C. Dynamic PoW difficulty ───────────────────────── */
+const POW_NORMAL = '0000';    // 4 zeros = ~65K iter (normal user)
+const POW_SUSPECT = '00000';  // 5 zeros = ~1M iter (suspicious IP)
+const POW_HARD = '000000';    // 6 zeros = ~16M iter (datacenter IP)
+
+// Simple datacenter/hosting IP detection
+function getIpRisk(ip) {
+  // High request rate = suspicious
+  if ((ipTaskCount[ip] || 0) > 10) return 'hard';
+  if ((ipTaskCount[ip] || 0) > 5) return 'suspect';
+  return 'normal';
+}
+
+function getPowDifficulty(ip) {
+  const risk = getIpRisk(ip);
+  if (risk === 'hard') return POW_HARD;
+  if (risk === 'suspect') return POW_SUSPECT;
+  return POW_NORMAL;
+}
+
 function generateJsChallenge() {
   const v = 'abcdefghijklmnopqrstuvwxyz'.split('').sort(() => Math.random() - 0.5);
   const a = Math.floor(Math.random() * 90) + 10;
@@ -35,12 +73,10 @@ function generateJsChallenge() {
   const domVal = Math.floor(Math.random() * 500) + 100;
   const mathResult = ((a * b) + c) % 9973;
   const expected = domVal + mathResult;
-  // More complex JS — uses canvas check (returns 0 without real browser)
   const jsCode = `(function(){var ${v[0]}=0;try{var ${v[4]}=document.createElement('canvas');var ${v[5]}=${v[4]}.getContext('2d');if(${v[5]}){${v[5]}.fillText('t',0,0);${v[0]}=${domVal}}}catch(e){}var ${v[1]}=${a};var ${v[2]}=${b};var ${v[3]}=${c};return ${v[0]}+((${v[1]}*${v[2]})+${v[3]})%9973})()`;
   return { jsCode, expected };
 }
 
-// Generate random canvas text for fingerprint challenge
 function generateCanvasChallenge() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let text = '';
@@ -50,7 +86,15 @@ function generateCanvasChallenge() {
   return { text, fontSize, color };
 }
 
-const POW_DIFFICULTY = '0000'; // 4 hex zeros = ~65K iterations
+/* ── B. Noise fields for bt ──────────────────────────── */
+function generateNoise() {
+  // Random structure that client must echo back — makes bt unpredictable
+  return {
+    _n: crypto.randomBytes(8).toString('hex'),  // nonce
+    _s: Math.floor(Math.random() * 9999),       // salt
+    _f: crypto.randomBytes(4).toString('base64'), // filler
+  };
+}
 
 /* ═════════════════════════════════════════════════════════
    STEP 1: GET challenge
@@ -64,10 +108,11 @@ router.get('/challenge', (req, res) => {
   const { jsCode, expected } = generateJsChallenge();
   const pow = crypto.randomBytes(16).toString('hex');
   const canvas = generateCanvasChallenge();
-  // Dynamic XOR key for behavioral tracker — different every request
   const xorKey = crypto.randomBytes(12).toString('base64');
-  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip, pow, canvas, xorKey };
-  res.json({ c: challengeId, j: jsCode, pow, canvas, xk: xorKey });
+  const noise = generateNoise();
+  const powDiff = getPowDifficulty(ip);
+  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip, pow, canvas, xorKey, noise, powDiff };
+  res.json({ c: challengeId, j: jsCode, pow, canvas, xk: xorKey, noise, powDiff });
 });
 
 /* ═════════════════════════════════════════════════════════
@@ -95,28 +140,33 @@ router.post('/task', optionalAuth, async (req, res) => {
   if (Number(jsResult) !== ch.expected) { console.log('VuotLink blocked: jsResult mismatch', jsResult, 'expected', ch.expected); return res.status(403).json(ERR); }
   // Anti-cheat: challenge must come from same IP
   if (ch.ip && ch.ip !== ip) { console.log('VuotLink blocked: IP mismatch', ip, '!=', ch.ip); return res.status(403).json(ERR); }
-  // Anti-cheat: verify Proof-of-Work (4 hex zeros)
+  // Anti-cheat: verify Proof-of-Work (dynamic difficulty)
   if (!powNonce || typeof powNonce !== 'string') { console.log('VuotLink blocked: no PoW nonce'); return res.status(403).json(ERR); }
   const powHash = crypto.createHash('sha256').update(ch.pow + powNonce).digest('hex');
-  if (!powHash.startsWith(POW_DIFFICULTY)) { console.log('VuotLink blocked: PoW invalid', powHash.substring(0, 10)); return res.status(403).json(ERR); }
+  const requiredDiff = ch.powDiff || POW_NORMAL;
+  if (!powHash.startsWith(requiredDiff)) { console.log(`VuotLink blocked: PoW invalid (need ${requiredDiff})`, powHash.substring(0, 12)); return res.status(403).json(ERR); }
   // Anti-cheat: verify canvas 2D fingerprint
   if (!canvasHash || typeof canvasHash !== 'string' || !/^[a-f0-9]{64}$/.test(canvasHash)) {
     console.log('VuotLink blocked: invalid canvas hash'); return res.status(403).json(ERR);
   }
-  // Anti-cheat: verify WebGL 3D fingerprint (must be valid 64-char hex hash)
+  // Anti-cheat: verify WebGL 3D fingerprint
   if (!webglHash || typeof webglHash !== 'string' || !/^[a-f0-9]{64}$/.test(webglHash)) {
     console.log('VuotLink blocked: invalid WebGL hash'); return res.status(403).json(ERR);
   }
-
-  // Anti-cheat: cross-validate canvas 2D vs WebGL 3D
-  // Same hash = spoofed (real GPU produces different output for 2D vs 3D rendering)
+  // Cross-validate canvas 2D vs WebGL 3D
   if (canvasHash === webglHash) {
-    console.log('VuotLink blocked: canvas/webgl hash identical — spoofing detected'); return res.status(403).json(ERR);
+    console.log('VuotLink blocked: canvas/webgl identical — spoofing'); return res.status(403).json(ERR);
   }
-  // All-zero data hash = no real rendering happened
   const ZERO_HASH_PREFIX = '0000000000';
   if (canvasHash.startsWith(ZERO_HASH_PREFIX) || webglHash.startsWith(ZERO_HASH_PREFIX)) {
-    console.log('VuotLink blocked: zero-data hash — no real rendering'); return res.status(403).json(ERR);
+    console.log('VuotLink blocked: zero-data hash'); return res.status(403).json(ERR);
+  }
+
+  // A. Hash uniqueness: block if same webglHash used by >50 IPs
+  const hashIpCount = trackHash(webglHash, ip);
+  if (hashIpCount > 50) {
+    console.log(`VuotLink blocked: webglHash shared by ${hashIpCount} IPs — bot farm`);
+    return res.status(403).json(ERR);
   }
 
   ch.used = true;
