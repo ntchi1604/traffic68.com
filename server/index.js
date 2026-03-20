@@ -11,7 +11,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Middleware ──
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({ origin: true, credentials: true, allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Token'] }));
 app.use(express.json());
 app.use(morgan('dev'));
 
