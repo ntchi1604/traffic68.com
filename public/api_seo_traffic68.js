@@ -189,13 +189,16 @@
       var tries = 0;
       var poll = setInterval(function () {
         tries++;
-        var raw = window.Fingerprint || window.Creep;
-        if (raw || tries >= 40) {
+        var fp = window.Fingerprint || window.Creep;
+        // Wait until fp has actual data (lies property exists), not just empty object
+        var ready = fp && (fp.lies !== undefined || fp.liesCount !== undefined || fp.lie !== undefined);
+        if (ready || tries >= 120) { // 60s max
           clearInterval(poll);
-          if (raw) {
+          if (fp) {
             try {
-              var fp = typeof raw === 'string' ? JSON.parse(raw) : raw;
-              var lies = fp.lies || fp.liesCount || [];
+              // Handle both object and string
+              if (typeof fp === 'string') fp = JSON.parse(fp);
+              var lies = fp.lies || fp.liesCount || fp.lie || 0;
               _botDetection = {
                 bot: !!(Array.isArray(lies) ? lies.length > 0 : lies > 0),
                 lies: lies,
@@ -203,10 +206,9 @@
                 stealth: fp.stealth || fp.stealthRating || null,
               };
             } catch (e) {
-              _botDetection = { bot: false, raw: String(raw).substring(0, 500) };
+              _botDetection = { bot: false, parseError: e.message };
             }
           } else {
-            // CreepJS timeout — no data available
             _botDetection = { bot: false, creepTimeout: true };
           }
         }

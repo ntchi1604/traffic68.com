@@ -35,13 +35,14 @@ if (typeof window !== 'undefined') {
     let tries = 0;
     const poll = setInterval(() => {
       tries++;
-      const raw = window.Fingerprint || window.Creep;
-      if (raw || tries >= 40) {
+      let fp = window.Fingerprint || window.Creep;
+      const ready = fp && (fp.lies !== undefined || fp.liesCount !== undefined || fp.lie !== undefined);
+      if (ready || tries >= 120) {
         clearInterval(poll);
-        if (raw) {
+        if (fp) {
           try {
-            const fp = typeof raw === 'string' ? JSON.parse(raw) : raw;
-            const lies = fp.lies || fp.liesCount || [];
+            if (typeof fp === 'string') fp = JSON.parse(fp);
+            const lies = fp.lies || fp.liesCount || fp.lie || 0;
             _creepResult = {
               bot: !!(Array.isArray(lies) ? lies.length > 0 : lies > 0),
               lies,
@@ -49,7 +50,7 @@ if (typeof window !== 'undefined') {
               stealth: fp.stealth || fp.stealthRating || null,
             };
           } catch (e) {
-            _creepResult = { bot: false, raw: String(raw).substring(0, 500) };
+            _creepResult = { bot: false, parseError: e.message };
           }
         } else {
           _creepResult = { bot: false, creepTimeout: true };
