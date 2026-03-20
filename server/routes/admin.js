@@ -414,8 +414,7 @@ router.get('/security', async (req, res) => {
        ORDER BY total DESC LIMIT 10`
     );
 
-    // ── Task logs with filter ──
-    let logSql = `SELECT id, ip_address, visitor_id, status, user_agent, created_at FROM vuot_link_tasks WHERE 1=1`;
+    let logSql = `SELECT id, ip_address, visitor_id, status, user_agent, admin_note, created_at FROM vuot_link_tasks WHERE 1=1`;
     const logParams = [];
 
     if (filter === 'blocked') {
@@ -458,6 +457,18 @@ router.get('/security', async (req, res) => {
     });
   } catch (err) {
     console.error('Security API error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PUT /admin/security/tasks/:id/note — save admin note ──
+router.put('/security/tasks/:id/note', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { note } = req.body;
+    await pool.execute('UPDATE vuot_link_tasks SET admin_note = ? WHERE id = ?', [note || null, req.params.id]);
+    res.json({ message: 'Đã lưu ghi chú' });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

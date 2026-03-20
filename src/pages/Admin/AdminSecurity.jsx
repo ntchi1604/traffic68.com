@@ -4,6 +4,7 @@ import {
   Shield, Fingerprint, Bot, MousePointer2, Eye, AlertTriangle,
   CheckCircle2, XCircle, Clock, RefreshCw, Search, ChevronDown,
   Monitor, Smartphone, Globe, TrendingUp, Users, Activity,
+  MessageSquare, Save,
 } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -63,6 +64,18 @@ export default function AdminSecurity() {
   const [filter, setFilter] = useState('all'); // all, blocked, warning, passed
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [editingNote, setEditingNote] = useState(null); // task id being edited
+  const [noteText, setNoteText] = useState('');
+
+  const saveNote = async (taskId) => {
+    try {
+      await api.put(`/admin/security/tasks/${taskId}/note`, { note: noteText });
+      setLogs(prev => prev.map(l => l.id === taskId ? { ...l, admin_note: noteText || null } : l));
+    } catch (err) {
+      console.error('Save note error:', err);
+    }
+    setEditingNote(null);
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -112,9 +125,9 @@ export default function AdminSecurity() {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard icon={Eye} label="Tổng task (24h)" value={fmt(s.totalTasks24h)} sub={`${fmt(s.completedTasks24h)} hoàn thành`} color="text-blue-600" bg="bg-blue-50" />
-            <StatCard icon={XCircle} label="Bị chặn (24h)" value={fmt(s.blockedTasks24h)} sub={pct(s.blockRate)} color="text-red-600" bg="bg-red-50" />
-            <StatCard icon={Fingerprint} label="Thiết bị duy nhất" value={fmt(s.uniqueDevices24h)} sub="visitor_id khác nhau" color="text-purple-600" bg="bg-purple-50" />
-            <StatCard icon={Bot} label="Bot phát hiện" value={fmt(s.botDetected24h)} sub="BotD + Behavioral" color="text-amber-600" bg="bg-amber-50" />
+            <StatCard icon={XCircle} label="Bị chặn (24h)" value={fmt(s.blockedTasks24h)} color="text-red-600" bg="bg-red-50" />
+            <StatCard icon={Fingerprint} label="Thiết bị duy nhất" value={fmt(s.uniqueDevices24h)} color="text-purple-600" bg="bg-purple-50" />
+            <StatCard icon={Bot} label="Bot phát hiện" value={fmt(s.botDetected24h)} color="text-amber-600" bg="bg-amber-50" />
           </div>
 
           {/* Top Devices Abusing */}
@@ -193,6 +206,7 @@ export default function AdminSecurity() {
                     <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Mouse</th>
                     <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Đánh giá</th>
                     <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Thời gian</th>
+                    <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase min-w-[160px]">Ghi chú</th>
 
                   </tr>
                 </thead>
@@ -236,13 +250,39 @@ export default function AdminSecurity() {
                         </td>
                         <td className="px-4 py-3"><RiskBadge level={risk} /></td>
                         <td className="px-4 py-3 text-xs text-slate-400">{timeAgo(log.created_at)}</td>
+                        <td className="px-4 py-3">
+                          {editingNote === log.id ? (
+                            <div className="flex gap-1">
+                              <input
+                                type="text" value={noteText}
+                                onChange={e => setNoteText(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') saveNote(log.id); if (e.key === 'Escape') setEditingNote(null); }}
+                                autoFocus
+                                className="w-full px-2 py-1 text-xs border border-orange-300 rounded-md focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                                placeholder="Nhập ghi chú..."
+                              />
+                              <button onClick={() => saveNote(log.id)} className="px-2 py-1 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition">
+                                <Save size={12} />
+                              </button>
+                            </div>
+                          ) : (
+                            <button onClick={() => { setEditingNote(log.id); setNoteText(log.admin_note || ''); }}
+                              className={`text-left text-xs px-2 py-1 rounded-md transition w-full ${
+                                log.admin_note
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200 font-medium'
+                                  : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'
+                              }`}>
+                              {log.admin_note || '+ Thêm ghi chú'}
+                            </button>
+                          )}
+                        </td>
 
                       </tr>
                     );
                   })}
                   {logs.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center text-slate-400 text-sm">
+                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400 text-sm">
                         Không có dữ liệu
                       </td>
                     </tr>
