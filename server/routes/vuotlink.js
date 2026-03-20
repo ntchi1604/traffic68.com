@@ -131,15 +131,7 @@ function scoreHeaders(req) {
 const usedHashes = {}; // ip -> Set<canvasHash+webglHash>
 setInterval(() => { Object.keys(usedHashes).forEach(k => delete usedHashes[k]); }, 3600000);
 
-/* ── B. Noise fields for bt ──────────────────────────── */
-function generateNoise() {
-  // Random structure that client must echo back — makes bt unpredictable
-  return {
-    _n: crypto.randomBytes(8).toString('hex'),  // nonce
-    _s: Math.floor(Math.random() * 9999),       // salt
-    _f: crypto.randomBytes(4).toString('base64'), // filler
-  };
-}
+
 
 /* ═════════════════════════════════════════════════════════
    STEP 1: GET challenge
@@ -153,12 +145,10 @@ router.get('/challenge', (req, res) => {
   const { jsCode, expected } = generateJsChallenge();
   const pow = crypto.randomBytes(16).toString('hex');
   const canvas = generateCanvasChallenge();
-  const webgl = generateWebGLSeed(canvas.text); // Same target_text for both!
-  const xorKey = crypto.randomBytes(12).toString('base64');
-  const noise = generateNoise();
+  const webgl = generateWebGLSeed(canvas.text);
   const powDiff = getPowDifficulty(ip);
-  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip, pow, canvas, webgl, xorKey, noise, powDiff };
-  res.json({ c: challengeId, j: jsCode, pow, canvas, webgl, xk: xorKey, noise, powDiff });
+  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip, pow, canvas, webgl, powDiff };
+  res.json({ c: challengeId, j: jsCode, pow, canvas, webgl, powDiff });
 });
 
 /* ═════════════════════════════════════════════════════════
