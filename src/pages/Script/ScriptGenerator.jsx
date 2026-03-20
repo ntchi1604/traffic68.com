@@ -606,33 +606,6 @@ export default function ScriptGenerator() {
                   })}
                 </div>
               </Field>
-
-              <SectionTitle>Thương hiệu</SectionTitle>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Tên thương hiệu">
-                  <TextInput value={cfg.brandName} onChange={e => set('brandName', e.target.value)} placeholder="Traffic68" />
-                </Field>
-                <Field label="URL thương hiệu">
-                  <TextInput value={cfg.brandUrl} onChange={e => set('brandUrl', e.target.value)} placeholder="https://..." mono />
-                </Field>
-              </div>
-              <Field label="Logo URL" hint="Dùng chung làm icon nút và logo thương hiệu trong popup">
-                <TextInput value={cfg.iconUrl} onChange={e => { set('iconUrl', e.target.value); set('brandLogo', e.target.value); }} placeholder="https://... (để trống = logo mặc định)" mono />
-              </Field>
-
-              <SectionTitle>Thời gian chờ</SectionTitle>
-              <Field label={`Thời gian chờ — ${cfg.waitTime}s`}>
-                <input type="range" min="5" max="120" step="5" value={cfg.waitTime}
-                  onChange={e => set('waitTime', +e.target.value)} className="w-full accent-orange-500 cursor-pointer" />
-                <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-                  {[5, 30, 60, 90, 120].map(v => <span key={v}>{v}s</span>)}
-                </div>
-              </Field>
-
-              <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-700">
-                <Info size={13} className="mt-0.5 flex-shrink-0" />
-                <span>Mã hiển thị sau khi hết giờ sẽ do <strong>server tự random</strong>. User nhập mã vào trang <strong>vượt link</strong> để xác nhận.</span>
-              </div>
             </div>
           )}
 
