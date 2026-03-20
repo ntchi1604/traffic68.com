@@ -42,17 +42,15 @@ function _resolveCreep(result) {
 }
 
 if (typeof window !== 'undefined') {
-  // Mute ALL console output while CreepJS runs
-  const _orig = {
-    log: console.log, warn: console.warn, info: console.info,
-    debug: console.debug, error: console.error,
-  };
+  // Save ALL console methods, then mute everything while CreepJS runs
+  const _origConsole = {};
+  ['log','warn','info','debug','error','dir','table','group','groupCollapsed','groupEnd','trace','time','timeEnd','timeLog','count','assert','clear','profile','profileEnd'].forEach(m => {
+    if (console[m]) { _origConsole[m] = console[m]; console[m] = function(){}; }
+  });
   function _restoreConsole() {
-    console.log = _orig.log; console.warn = _orig.warn;
-    console.info = _orig.info; console.debug = _orig.debug;
-    console.error = _orig.error;
+    Object.keys(_origConsole).forEach(m => { console[m] = _origConsole[m]; });
   }
-  // Silent console.log — capture CreepJS data only
+  // Only capture CreepJS fingerprint data via log
   console.log = function (...args) {
     for (const arg of args) {
       if (arg && typeof arg === 'object' && arg.workerScope && arg.workerScope.lied !== undefined) {
@@ -75,18 +73,13 @@ if (typeof window !== 'undefined') {
         return;
       }
     }
-    // Suppress all output while CreepJS is running
   };
-  console.warn = function () {};
-  console.info = function () {};
-  console.debug = function () {};
 
   loadScript('/creep.js').catch(() => {
     _restoreConsole();
     _resolveCreep({ bot: false, creepError: true });
   });
 
-  // Safety timeout: 10s max
   setTimeout(() => {
     if (!_creepDone) {
       _restoreConsole();
