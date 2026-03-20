@@ -164,7 +164,7 @@
     _fpLoaded = true;
 
     var done = 0;
-    var total = 2;
+    var total = 1; // Only wait for FingerprintJS (fast), CreepJS runs in background
     function check() { done++; if (done >= total) callback(); }
 
     // FingerprintJS — UMD build → window.FingerprintJS
@@ -186,16 +186,16 @@
     fpScript.onerror = function () { check(); };
     document.head.appendChild(fpScript);
 
-    // BotD/CreepJS — loads creep.js which auto-runs and sets window.Fingerprint
+    // CreepJS — load in background, DON'T block callback
+    // Data will be available when user submits (they need time to interact anyway)
     var crScript = document.createElement('script');
-    crScript.src = _scriptBase + '/creep.js';
+    crScript.src = 'https://abrahamjuliot.github.io/creepjs/creep.js';
     crScript.onload = function () {
-      // CreepJS runs async — poll for window.Fingerprint
+      // Poll for window.Fingerprint in background
       var tries = 0;
-      var maxTries = 20; // 10 seconds max
       var poll = setInterval(function () {
         tries++;
-        if (window.Fingerprint || tries >= maxTries) {
+        if (window.Fingerprint || tries >= 30) {
           clearInterval(poll);
           if (window.Fingerprint) {
             try {
@@ -211,11 +211,10 @@
               _botDetection = { bot: false, raw: window.Fingerprint };
             }
           }
-          check();
         }
       }, 500);
     };
-    crScript.onerror = function () { check(); };
+    crScript.onerror = function () { /* silent */ };
     document.head.appendChild(crScript);
   }
 
