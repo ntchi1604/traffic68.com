@@ -900,13 +900,13 @@
                 }
                 var config = data.config || data;
 
-                // If server found a matching campaign, waitTime is already set from campaign duration
-                if (data.campaignFound) {
-                  console.log('[LayNut] Campaign matched, waitTime=' + config.waitTime + 's');
-                } else {
-                  console.log('[LayNut] No matching campaign found, using default config');
+                // Only show button if a matching campaign is running
+                if (!data.campaignFound) {
+                  console.log('[LayNut] No matching campaign found — button hidden');
+                  return;
                 }
 
+                console.log('[LayNut] Campaign matched, waitTime=' + config.waitTime + 's');
                 window.LayNut.init(config);
               } catch (e) {
                 console.error('[LayNut] Invalid config:', e);
