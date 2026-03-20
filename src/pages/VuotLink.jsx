@@ -170,7 +170,7 @@ export default function VuotLink() {
             powNonce,
             canvasHash,
             webglHash,
-            bt: window.BotTracker ? window.BotTracker.collect() : undefined,
+            bt: window.BotTracker ? window.BotTracker.collect(challenge.xk) : undefined,
           }),
         });
 

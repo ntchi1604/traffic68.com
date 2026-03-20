@@ -6,14 +6,19 @@
 
 const XOR_KEY = 'T68s3cur1ty';
 
-/* ── Giải mã XOR + Base64 ─────────────────────────────── */
-function xorDecode(encoded) {
+/* ── Giải mã XOR + Base64 (dynamic key) ──────────────── */
+function xorDecodeWithKey(encoded, key) {
   const raw = Buffer.from(encoded, 'base64').toString('binary');
   let out = '';
   for (let i = 0; i < raw.length; i++) {
-    out += String.fromCharCode(raw.charCodeAt(i) ^ XOR_KEY.charCodeAt(i % XOR_KEY.length));
+    out += String.fromCharCode(raw.charCodeAt(i) ^ key.charCodeAt(i % key.length));
   }
   return JSON.parse(out);
+}
+
+/* ── Giải mã XOR + Base64 (static key fallback) ─────── */
+function xorDecode(encoded) {
+  return xorDecodeWithKey(encoded, XOR_KEY);
 }
 
 /* ── Phân tích đường chuột ─────────────────────────────── */
@@ -188,4 +193,4 @@ function validateBehavior(payload) {
 }
 
 /* ── Export ─────────────────────────────────────────────── */
-module.exports = { xorDecode, validateBehavior, analyzeMouseTrail };
+module.exports = { xorDecode, xorDecodeWithKey, validateBehavior, analyzeMouseTrail };

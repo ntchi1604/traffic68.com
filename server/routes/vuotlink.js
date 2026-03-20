@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { getPool } = require('../db');
 const { authMiddleware, optionalAuth } = require('../middleware/auth');
-const { xorDecode, validateBehavior } = require('../lib/validator');
+const { xorDecodeWithKey, validateBehavior } = require('../lib/validator');
 
 const router = express.Router();
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
@@ -64,8 +64,10 @@ router.get('/challenge', (req, res) => {
   const { jsCode, expected } = generateJsChallenge();
   const pow = crypto.randomBytes(16).toString('hex');
   const canvas = generateCanvasChallenge();
-  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip, pow, canvas };
-  res.json({ c: challengeId, j: jsCode, pow, canvas });
+  // Dynamic XOR key for behavioral tracker — different every request
+  const xorKey = crypto.randomBytes(12).toString('base64');
+  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip, pow, canvas, xorKey };
+  res.json({ c: challengeId, j: jsCode, pow, canvas, xk: xorKey });
 });
 
 /* ═════════════════════════════════════════════════════════
@@ -105,15 +107,27 @@ router.post('/task', optionalAuth, async (req, res) => {
   if (!webglHash || typeof webglHash !== 'string' || !/^[a-f0-9]{64}$/.test(webglHash)) {
     console.log('VuotLink blocked: invalid WebGL hash'); return res.status(403).json(ERR);
   }
+
+  // Anti-cheat: cross-validate canvas 2D vs WebGL 3D
+  // Same hash = spoofed (real GPU produces different output for 2D vs 3D rendering)
+  if (canvasHash === webglHash) {
+    console.log('VuotLink blocked: canvas/webgl hash identical — spoofing detected'); return res.status(403).json(ERR);
+  }
+  // All-zero data hash = no real rendering happened
+  const ZERO_HASH_PREFIX = '0000000000';
+  if (canvasHash.startsWith(ZERO_HASH_PREFIX) || webglHash.startsWith(ZERO_HASH_PREFIX)) {
+    console.log('VuotLink blocked: zero-data hash — no real rendering'); return res.status(403).json(ERR);
+  }
+
   ch.used = true;
 
   if (proof && (proof.botScore >= 40 || proof.sw === 0 || proof.sh === 0)) { console.log('VuotLink blocked: bot proof', proof); return res.status(403).json(ERR); }
 
-  // Behavioral analysis — log only (tracker data may be incomplete on auto-init)
+  // Behavioral analysis — decode with dynamic XOR key
   const { bt } = req.body || {};
-  if (bt) {
+  if (bt && ch.xorKey) {
     try {
-      const behavior = xorDecode(bt);
+      const behavior = xorDecodeWithKey(bt, ch.xorKey);
       const result = validateBehavior(behavior);
       if (result.isBot) {
         console.log(`[VuotLink] ⚠️ Behavioral warning: score=${result.score}, reasons=${result.reasons.join(',')}, IP=${ip}`);

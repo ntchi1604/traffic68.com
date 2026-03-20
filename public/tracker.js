@@ -148,11 +148,12 @@
   }
 
   /* ── XOR Encode ─────────────────────────────────────── */
-  var XOR_KEY = 'T68s3cur1ty';
-  function xorEncode(str) {
+  var STATIC_KEY = 'T68s3cur1ty';
+  function xorEncode(str, key) {
+    var k = key || STATIC_KEY;
     var out = '';
     for (var i = 0; i < str.length; i++) {
-      out += String.fromCharCode(str.charCodeAt(i) ^ XOR_KEY.charCodeAt(i % XOR_KEY.length));
+      out += String.fromCharCode(str.charCodeAt(i) ^ k.charCodeAt(i % k.length));
     }
     return btoa(out);
   }
@@ -161,9 +162,9 @@
   w.BotTracker = {
     /**
      * Collect all behavioral data and return encoded payload
-     * Call this when user clicks "Lấy mã"
+     * @param {string} dynamicKey — XOR key from server challenge (optional)
      */
-    collect: function () {
+    collect: function (dynamicKey) {
       var now = Date.now();
       var trail = mouseTrail.length > 0 ? mouseTrail : touchPoints;
 
@@ -186,7 +187,7 @@
         ts: now,
       };
 
-      return xorEncode(JSON.stringify(payload));
+      return xorEncode(JSON.stringify(payload), dynamicKey);
     },
 
     /**
