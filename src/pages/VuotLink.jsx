@@ -75,27 +75,46 @@ export default function VuotLink() {
         // eslint-disable-next-line no-eval
         const jsResult = eval(challenge.j);
 
-        // Step 3: Proof-of-Work mining
+        // Step 3: Proof-of-Work mining (5 hex zeros)
         let powNonce = '';
         if (challenge.pow) {
           const encoder = new TextEncoder();
-          for (let n = 0; n < 10000000; n++) {
+          for (let n = 0; n < 100000000; n++) {
             const candidate = String(n);
             const data = encoder.encode(challenge.pow + candidate);
             const hashBuf = await crypto.subtle.digest('SHA-256', data);
             const hashArr = new Uint8Array(hashBuf);
-            // Check if first 2 bytes are 0 (= 4 hex zeros = '0000')
-            if (hashArr[0] === 0 && hashArr[1] === 0) {
+            // Check first 2.5 bytes = 5 hex zeros (first 2 bytes = 0, 3rd byte < 16)
+            if (hashArr[0] === 0 && hashArr[1] === 0 && (hashArr[2] >> 4) === 0) {
               powNonce = candidate;
               break;
             }
           }
         }
 
-        // Step 4: Collect browser proof
+        // Step 4: Canvas fingerprint challenge (requires real browser)
+        let canvasHash = '';
+        if (challenge.canvas) {
+          try {
+            const cvs = document.createElement('canvas');
+            cvs.width = 200; cvs.height = 50;
+            const ctx = cvs.getContext('2d');
+            ctx.fillStyle = '#f0f0f0';
+            ctx.fillRect(0, 0, 200, 50);
+            ctx.font = `${challenge.canvas.fontSize}px Arial`;
+            ctx.fillStyle = challenge.canvas.color;
+            ctx.fillText(challenge.canvas.text, 10, 35);
+            const pixels = ctx.getImageData(0, 0, 200, 50).data;
+            const pixelBuf = await crypto.subtle.digest('SHA-256', pixels.buffer);
+            const pixelArr = new Uint8Array(pixelBuf);
+            canvasHash = Array.from(pixelArr).map(b => b.toString(16).padStart(2, '0')).join('');
+          } catch { canvasHash = ''; }
+        }
+
+        // Step 5: Collect browser proof
         const proof = collectBrowserProof();
 
-        // Step 5: Request task
+        // Step 6: Request task
         const token = localStorage.getItem('token');
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -108,6 +127,7 @@ export default function VuotLink() {
             jsResult,
             proof,
             powNonce,
+            canvasHash,
           }),
         });
 

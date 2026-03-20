@@ -34,11 +34,22 @@ function generateJsChallenge() {
   const domVal = Math.floor(Math.random() * 500) + 100;
   const mathResult = ((a * b) + c) % 9973;
   const expected = domVal + mathResult;
-  const jsCode = `(function(){var ${v[0]}=typeof document!=='undefined'&&document.createElement?${domVal}:0;var ${v[1]}=${a};var ${v[2]}=${b};var ${v[3]}=${c};return ${v[0]}+((${v[1]}*${v[2]})+${v[3]})%9973})()`;
+  // More complex JS — uses canvas check (returns 0 without real browser)
+  const jsCode = `(function(){var ${v[0]}=0;try{var ${v[4]}=document.createElement('canvas');var ${v[5]}=${v[4]}.getContext('2d');if(${v[5]}){${v[5]}.fillText('t',0,0);${v[0]}=${domVal}}}catch(e){}var ${v[1]}=${a};var ${v[2]}=${b};var ${v[3]}=${c};return ${v[0]}+((${v[1]}*${v[2]})+${v[3]})%9973})()`;
   return { jsCode, expected };
 }
 
+// Generate random canvas text for fingerprint challenge
+function generateCanvasChallenge() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let text = '';
+  for (let i = 0; i < 8; i++) text += chars[Math.floor(Math.random() * chars.length)];
+  const fontSize = Math.floor(Math.random() * 20) + 14;
+  const color = `rgb(${Math.floor(Math.random()*200)+50},${Math.floor(Math.random()*200)+50},${Math.floor(Math.random()*200)+50})`;
+  return { text, fontSize, color };
+}
 
+const POW_DIFFICULTY = '00000'; // 5 hex zeros = ~1M iterations
 
 /* ═════════════════════════════════════════════════════════
    STEP 1: GET challenge
@@ -50,10 +61,10 @@ router.get('/challenge', (req, res) => {
 
   const challengeId = crypto.randomBytes(16).toString('hex');
   const { jsCode, expected } = generateJsChallenge();
-  // PoW: client must find nonce where SHA256(pow + nonce) starts with '0000'
   const pow = crypto.randomBytes(16).toString('hex');
-  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip, pow };
-  res.json({ c: challengeId, j: jsCode, pow });
+  const canvas = generateCanvasChallenge();
+  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip, pow, canvas };
+  res.json({ c: challengeId, j: jsCode, pow, canvas });
 });
 
 /* ═════════════════════════════════════════════════════════
@@ -70,7 +81,7 @@ router.post('/task', optionalAuth, async (req, res) => {
   ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
   if (ipTaskCount[ip] > 30) { console.log('VuotLink blocked: IP rate limit exceeded', ip); return res.status(403).json(ERR); }
 
-  const { challengeId, jsResult, proof, powNonce } = req.body || {};
+  const { challengeId, jsResult, proof, powNonce, canvasHash } = req.body || {};
 
   if (!challengeId || jsResult === undefined) { console.log('VuotLink blocked: missing challengeId or jsResult'); return res.status(403).json(ERR); }
 
@@ -81,10 +92,14 @@ router.post('/task', optionalAuth, async (req, res) => {
   if (Number(jsResult) !== ch.expected) { console.log('VuotLink blocked: jsResult mismatch', jsResult, 'expected', ch.expected); return res.status(403).json(ERR); }
   // Anti-cheat: challenge must come from same IP
   if (ch.ip && ch.ip !== ip) { console.log('VuotLink blocked: IP mismatch', ip, '!=', ch.ip); return res.status(403).json(ERR); }
-  // Anti-cheat: verify Proof-of-Work
+  // Anti-cheat: verify Proof-of-Work (5 hex zeros)
   if (!powNonce || typeof powNonce !== 'string') { console.log('VuotLink blocked: no PoW nonce'); return res.status(403).json(ERR); }
   const powHash = crypto.createHash('sha256').update(ch.pow + powNonce).digest('hex');
-  if (!powHash.startsWith('0000')) { console.log('VuotLink blocked: PoW invalid', powHash.substring(0, 8)); return res.status(403).json(ERR); }
+  if (!powHash.startsWith(POW_DIFFICULTY)) { console.log('VuotLink blocked: PoW invalid', powHash.substring(0, 10)); return res.status(403).json(ERR); }
+  // Anti-cheat: verify canvas fingerprint (must be valid hex hash from real canvas rendering)
+  if (!canvasHash || typeof canvasHash !== 'string' || !/^[a-f0-9]{64}$/.test(canvasHash)) {
+    console.log('VuotLink blocked: invalid canvas hash'); return res.status(403).json(ERR);
+  }
   ch.used = true;
 
   if (proof && (proof.botScore >= 40 || proof.sw === 0 || proof.sh === 0)) { console.log('VuotLink blocked: bot proof', proof); return res.status(403).json(ERR); }
