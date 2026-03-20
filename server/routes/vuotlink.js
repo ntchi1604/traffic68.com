@@ -111,6 +111,12 @@ router.post('/task', optionalAuth, async (req, res) => {
 
   const { challengeId, visitorId, botDetection, behavioral } = req.body || {};
 
+  // ── Collect detection results (saved to DB later) ──
+  let botDetected = false;
+  let mouseScore = 0;
+  let mouseReasons = '';
+  let detectionLog = [];
+
   // ── 1. Challenge validation (anti-replay) ──
   if (!challengeId) return res.status(403).json(ERR);
   const ch = challenges[challengeId];
@@ -122,6 +128,8 @@ router.post('/task', optionalAuth, async (req, res) => {
 
   // ── 2. BotD check ──
   if (botDetection && botDetection.bot === true) {
+    botDetected = true;
+    detectionLog.push('botd_detected');
     console.log(`[VuotLink] 🤖 BotD detected: IP=${ip}`);
     return res.status(403).json(ERR);
   }
@@ -134,30 +142,40 @@ router.post('/task', optionalAuth, async (req, res) => {
       [visitorId]
     );
     if (vCount[0].cnt >= 5) {
+      detectionLog.push('device_limit');
       console.log(`[VuotLink] Device limit: visitorId=${visitorId.substring(0,8)}..., count=${vCount[0].cnt}`);
       return res.status(429).json({ error: 'Thiết bị đã đạt giới hạn 5 lượt/ngày. Thử lại sau.' });
     }
   }
 
   // ── 4. Behavioral analysis (server-side mouse trajectory) ──
+  const mousePoints = behavioral?.mousePoints || 0;
+  const clicks = behavioral?.clicks || 0;
+  const keys = behavioral?.keys || 0;
+  const scrolls = behavioral?.scrolls || 0;
+
   if (behavioral && behavioral.mouseTrail) {
     const mouseResult = analyzeMouseTrail(behavioral.mouseTrail);
+    mouseScore = mouseResult.score;
+    mouseReasons = mouseResult.reasons.join(',');
     if (mouseResult.score >= 50) {
-      console.log(`[VuotLink] 🤖 Mouse bot: score=${mouseResult.score}, reasons=${mouseResult.reasons.join(',')}, IP=${ip}`);
+      detectionLog.push('mouse_bot');
+      console.log(`[VuotLink] 🤖 Mouse bot: score=${mouseResult.score}, reasons=${mouseReasons}, IP=${ip}`);
       return res.status(403).json(ERR);
     }
     if (mouseResult.score > 0) {
-      console.log(`[VuotLink] ⚠️ Mouse warning: score=${mouseResult.score}, reasons=${mouseResult.reasons.join(',')}, IP=${ip}`);
+      console.log(`[VuotLink] ⚠️ Mouse warning: score=${mouseResult.score}, reasons=${mouseReasons}, IP=${ip}`);
     }
   }
 
   // ── 5. Zero screen = headless ──
   if (behavioral && (!behavioral.screen?.w || !behavioral.screen?.h)) {
+    detectionLog.push('zero_screen');
     console.log(`[VuotLink] 🤖 Zero screen: IP=${ip}`);
     return res.status(403).json(ERR);
   }
 
-  console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0,8) || '?'}, mouse=${behavioral?.mousePoints || 0}, clicks=${behavioral?.clicks || 0}`);
+  console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0,8) || '?'}, mouse=${mousePoints}, clicks=${clicks}, mouseScore=${mouseScore}`);
 
   // ── Check IP view limit ──
   const [ipSettings] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
@@ -198,8 +216,8 @@ router.post('/task', optionalAuth, async (req, res) => {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   const [result] = await pool.execute(
-    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, expires_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))`,
-    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', ip, ua, randomCode, visitorId || null, expirySeconds]
+    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, mouse_score, mouse_reasons, mouse_points, clicks, expires_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))`,
+    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, mouseScore, mouseReasons || null, mousePoints, clicks, expirySeconds]
   );
 
   console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, waitTime: ${waitTime}s`);

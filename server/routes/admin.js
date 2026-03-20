@@ -414,7 +414,7 @@ router.get('/security', async (req, res) => {
        ORDER BY total DESC LIMIT 10`
     );
 
-    let logSql = `SELECT id, ip_address, visitor_id, status, user_agent, admin_note, created_at FROM vuot_link_tasks WHERE 1=1`;
+    let logSql = `SELECT id, ip_address, visitor_id, status, user_agent, admin_note, bot_detected, mouse_score, mouse_reasons, mouse_points, clicks, created_at FROM vuot_link_tasks WHERE 1=1`;
     const logParams = [];
 
     if (filter === 'blocked') {
@@ -435,25 +435,17 @@ router.get('/security', async (req, res) => {
 
     const [logs] = await pool.execute(logSql, logParams);
 
-    // Enrich logs with computed fields
-    const enrichedLogs = logs.map(log => ({
-      ...log,
-      bot_detected: false, // server-side, would need logging to DB
-      mouse_points: null,
-      mouse_score: 0,
-    }));
-
     res.json({
       stats: {
         totalTasks24h: total24h,
         completedTasks24h: completed24h,
         blockedTasks24h: expired24h,
         uniqueDevices24h: uniqueDevices[0].c,
-        botDetected24h: 0, // would need separate logging
+        botDetected24h: 0,
         blockRate: total24h > 0 ? ((expired24h / total24h) * 100) : 0,
       },
       topDevices: topDevs,
-      logs: enrichedLogs,
+      logs,
     });
   } catch (err) {
     console.error('Security API error:', err);
