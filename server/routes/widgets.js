@@ -5,6 +5,28 @@ const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Anti-bypass: HMAC session token
+const HMAC_SECRET = process.env.CHALLENGE_KEY || 't68vLsecur3Chall3ng3Key2026xZqWx';
+const BOT_UA = /curl|wget|python|httpie|postman|insomnia|axios|node-fetch|got\//i;
+
+function generateSessionToken(ip, ua) {
+  const ts = Math.floor(Date.now() / 1000);
+  const data = `${ip}|${ua}|${ts}`;
+  const hmac = crypto.createHmac('sha256', HMAC_SECRET).update(data).digest('hex').substring(0, 16);
+  return `${ts}.${hmac}`;
+}
+
+function verifySessionToken(token, ip, ua) {
+  if (!token || !token.includes('.')) return false;
+  const [tsStr, hmac] = token.split('.');
+  const ts = parseInt(tsStr);
+  if (isNaN(ts)) return false;
+  // Token valid for 30 minutes
+  if (Math.abs(Math.floor(Date.now() / 1000) - ts) > 1800) return false;
+  const expected = crypto.createHmac('sha256', HMAC_SECRET).update(`${ip}|${ua}|${ts}`).digest('hex').substring(0, 16);
+  return hmac === expected;
+}
+
 // Fields no longer used by embed script v3
 const DEPRECATED_FIELDS = ['code', 'icon'];
 
@@ -25,8 +47,8 @@ const JS_DEFAULTS = {
 function stripDefaults(config) {
   const out = {};
   for (const [k, v] of Object.entries(config)) {
-    if (DEPRECATED_FIELDS.includes(k)) continue; // skip deprecated
-    if (JS_DEFAULTS[k] !== undefined && JSON.stringify(JS_DEFAULTS[k]) === JSON.stringify(v)) continue; // skip default
+    if (DEPRECATED_FIELDS.includes(k)) continue;
+    if (JS_DEFAULTS[k] !== undefined && JSON.stringify(JS_DEFAULTS[k]) === JSON.stringify(v)) continue;
     out[k] = v;
   }
   return out;
@@ -37,8 +59,15 @@ function stripDefaults(config) {
 ═══════════════════════════════════════════════════════════ */
 
 // ── GET /api/widgets/public/:token ──
+// Returns config + session token (for anti-bypass)
 router.get('/public/:token', async (req, res) => {
   const pool = getPool();
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const ua = req.headers['user-agent'] || '';
+
+  // Block bot UAs
+  if (BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
+
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại hoặc đã bị tắt' });
 
@@ -80,26 +109,31 @@ router.get('/public/:token', async (req, res) => {
     }
   }
 
-  // Only send values that differ from JS defaults
   const overrides = stripDefaults(config);
   if (campaignInfo) {
     overrides.waitTime = campaignInfo.waitTime;
   }
 
-  // Build minimal response
+  // Build response with session token for anti-bypass
   const resp = { campaignFound: !!campaignInfo };
   if (Object.keys(overrides).length > 0) resp.config = overrides;
+  resp._t = generateSessionToken(ip, ua); // session token
   res.json(resp);
 });
 
 // ── POST /api/widgets/public/:token/check-session ──
-// Called by embed script when button is clicked — checks if IP has a pending task
-// Does NOT return the code — only confirms session exists
 router.post('/public/:token/check-session', async (req, res) => {
   const pool = getPool();
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
-
   const ua = req.headers['user-agent'] || '';
+
+  // Anti-bypass: verify session token + referer
+  const sToken = req.headers['x-session-token'] || '';
+  if (!verifySessionToken(sToken, ip, ua)) {
+    return res.status(403).json({ error: 'Invalid session' });
+  }
+
+  if (BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
 
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
@@ -123,19 +157,28 @@ router.post('/public/:token/check-session', async (req, res) => {
 });
 
 // ── POST /api/widgets/public/:token/get-code ──
-// Called by embed script on target website after countdown finishes
-// Finds pending vuot_link_task matching visitor's IP → returns the code
-// Server-side time check: elapsed since task creation must >= time_on_site
 router.post('/public/:token/get-code', async (req, res) => {
   const pool = getPool();
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
-
   const ua = req.headers['user-agent'] || '';
+
+  // Anti-bypass: verify session token
+  const sToken = req.headers['x-session-token'] || '';
+  if (!verifySessionToken(sToken, ip, ua)) {
+    return res.status(403).json({ error: 'Invalid session' });
+  }
+
+  // Anti-bypass: must have Referer (browsers send it, curl doesn't)
+  const referer = req.headers['referer'] || req.headers['referrer'] || '';
+  if (!referer) {
+    return res.status(403).json({ error: 'Blocked' });
+  }
+
+  if (BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
 
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
-  // Find pending/active vuot_link_task matching this IP + UA
   const [tasks] = await pool.execute(
     `SELECT vt.*, c.url as campaign_url, c.time_on_site FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
@@ -153,7 +196,6 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   const task = tasks[0];
 
-  // Server-side time check: elapsed time must >= campaign time_on_site
   const tos = task.time_on_site || '60';
   let requiredSeconds = 30;
   if (tos.includes('-')) {
@@ -171,7 +213,6 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Phát hiện gian lận!', remaining });
   }
 
-  // Update task status to step3 (reached target website) if not already
   if (task.status !== 'step3') {
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await pool.execute("UPDATE vuot_link_tasks SET status = 'step3', step3_at = ? WHERE id = ?", [now, task.id]);

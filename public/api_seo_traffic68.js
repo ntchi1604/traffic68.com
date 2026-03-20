@@ -151,6 +151,7 @@
   var circumference = 0;
   var sessionCode = '';    // code fetched from server (vuot_link_tasks.code_given)
   var _widgetToken = '';   // token for API calls
+  var _sessionToken = '';  // anti-bypass HMAC token from server
 
 
 
@@ -792,6 +793,7 @@
     var xhr = new XMLHttpRequest();
     xhr.open('POST', url, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
+    if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
     xhr.onload = function () {
       if (xhr.status === 200) {
         _sessionVerified = true;
@@ -820,7 +822,7 @@
       '<button class="ln-close" onclick="document.getElementById(\'laynut-overlay\').remove()">✕</button>' +
       '<img src="' + escHtml(effectiveIcon) + '" height="' + cfg.iconSize + '" alt="" style="margin:0 auto 14px;display:block;width:auto;max-width:120px;object-fit:contain;' + iconBgStyle + '">' +
       '<h2 class="ln-title" style="color:' + t.modalText + '">Chưa có phiên làm việc</h2>' +
-      '<p class="ln-msg" style="color:' + t.subText + '">Vui lòng bắt đầu từ trang vượt link trước để nhận mã.</p>' +
+      '<p class="ln-msg" style="color:' + t.subText + '">Vui lòng bắt đầu từ trang vượt link trước hoặc cùng trình duyệt để nhận mã.</p>' +
       '<div style="margin-top:16px">' +
       '<button onclick="document.getElementById(\'laynut-overlay\').remove()" ' +
       'style="padding:10px 24px;border:none;border-radius:12px;cursor:pointer;font-weight:700;font-size:13px;' +
@@ -844,6 +846,7 @@
     var xhr = new XMLHttpRequest();
     xhr.open('POST', url, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
+    if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
     xhr.onload = function () {
       if (xhr.status === 200) {
         try {
@@ -938,13 +941,14 @@
             if (xhr.status === 200) {
               try {
                 var resp = JSON.parse(xhr.responseText);
+                if (resp._t) _sessionToken = resp._t; // save session token
                 var config = resp.config || {};
                 if (!resp.campaignFound) return;
                 window.LayNut.init(config);
-              } catch (e) {}
+              } catch (e) { }
             }
           };
-          xhr.onerror = function () {};
+          xhr.onerror = function () { };
           xhr.send();
         })(apiUrl);
         break; // only init once
