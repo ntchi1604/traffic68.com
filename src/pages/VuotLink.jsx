@@ -42,15 +42,9 @@ function _resolveCreep(result) {
 }
 
 if (typeof window !== 'undefined') {
-  // Save ALL console methods, then mute everything while CreepJS runs
-  const _origConsole = {};
-  ['log','warn','info','debug','error','dir','table','group','groupCollapsed','groupEnd','trace','time','timeEnd','timeLog','count','assert','clear','profile','profileEnd'].forEach(m => {
-    if (console[m]) { _origConsole[m] = console[m]; console[m] = function(){}; }
-  });
-  function _restoreConsole() {
-    Object.keys(_origConsole).forEach(m => { console[m] = _origConsole[m]; });
-  }
-  // Only capture CreepJS fingerprint data via log
+  // Console already muted by index.html — just need to capture CreepJS data
+  const _savedLog = console.log; // currently a no-op
+  // Override with capture logic
   console.log = function (...args) {
     for (const arg of args) {
       if (arg && typeof arg === 'object' && arg.workerScope && arg.workerScope.lied !== undefined) {
@@ -69,20 +63,21 @@ if (typeof window !== 'undefined') {
           headless: arg.headless || (arg.headlessness ? arg.headlessness.lied : null),
           stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null),
         });
-        _restoreConsole();
+        // Restore console after CreepJS done
+        if (window.__restoreConsole) window.__restoreConsole();
         return;
       }
     }
   };
 
   loadScript('/creep.js').catch(() => {
-    _restoreConsole();
+    if (window.__restoreConsole) window.__restoreConsole();
     _resolveCreep({ bot: false, creepError: true });
   });
 
   setTimeout(() => {
     if (!_creepDone) {
-      _restoreConsole();
+      if (window.__restoreConsole) window.__restoreConsole();
       _resolveCreep({ bot: false, creepTimeout: true });
     }
   }, 10000);
