@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Save, Edit3, X, DollarSign, Tag, Percent, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Save, Edit3, X, DollarSign, Tag, Percent, ToggleLeft, ToggleRight, Eye } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
@@ -179,6 +179,39 @@ export default function AdminPricing() {
                   {' '}→ Ví dụ: 1.000đ → <strong className="text-green-600">{fmt(calcDiscount(1000))}đ</strong>
                 </span>
               )}
+            </div>
+          </div>
+
+          {/* ── Vượt Link Settings Card ── */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <Eye size={16} className="text-blue-500" />
+              </div>
+              <h2 className="font-bold text-slate-800">Cài đặt Vượt Link</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Số lượt view / IP / ngày</label>
+                <input type="number" value={config.views_per_ip || '2'}
+                  onChange={e => setConfig(c => ({ ...c, views_per_ip: e.target.value }))}
+                  placeholder="2" min="1" max="100"
+                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                <p className="text-xs text-slate-400 mt-1">Mỗi IP được vượt link tối đa số lần này mỗi ngày (mặc định: 2)</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <button onClick={async () => {
+                setConfigSaving(true);
+                try {
+                  await api.put('/admin/settings/site', { settings: { views_per_ip: config.views_per_ip || '2' } });
+                  toast.success('Đã lưu cài đặt vượt link');
+                } catch (err) { toast.error(err.message); }
+                finally { setConfigSaving(false); }
+              }} disabled={configSaving}
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
+                <Save size={14} /> {configSaving ? 'Đang lưu...' : 'Lưu cài đặt'}
+              </button>
             </div>
           </div>
 

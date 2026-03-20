@@ -101,6 +101,20 @@ router.post('/task', optionalAuth, async (req, res) => {
   if (proof && (proof.botScore >= 40 || proof.sw === 0 || proof.sh === 0)) { console.log('VuotLink blocked: bot proof', proof); return res.status(403).json(ERR); }
 
   const pool = getPool();
+
+  // ── Check IP view limit ──
+  const [ipSettings] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
+  const maxViewsPerIp = ipSettings.length > 0 ? parseInt(ipSettings[0].setting_value) || 2 : 2;
+
+  const [ipCount] = await pool.execute(
+    `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
+    [ip]
+  );
+  if (ipCount[0].cnt >= maxViewsPerIp) {
+    console.log(`VuotLink blocked: IP ${ip} reached daily limit (${ipCount[0].cnt}/${maxViewsPerIp})`);
+    return res.status(429).json({ error: `Bạn đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Vui lòng quay lại ngày mai.` });
+  }
+
   const [campaigns] = await pool.execute(
     `SELECT * FROM campaigns WHERE status = 'running' AND traffic_type = 'google_search' AND keyword != '' AND views_done < total_views ORDER BY RAND() LIMIT 1`
   );
@@ -121,12 +135,14 @@ router.post('/task', optionalAuth, async (req, res) => {
     waitTime = parseInt(tos) || 60;
   }
 
-  const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+  // Use MySQL DATE_ADD for consistent timezone
+  // Session expires after campaign waitTime + 3 minutes buffer
+  const expirySeconds = waitTime + 180; // campaign duration + 3 min
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   const [result] = await pool.execute(
-    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, expires_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
-    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', ip, ua, randomCode, expiresAt]
+    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, expires_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))`,
+    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', ip, ua, randomCode, expirySeconds]
   );
 
   console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, waitTime: ${waitTime}s`);
@@ -138,7 +154,6 @@ router.post('/task', optionalAuth, async (req, res) => {
       image1_url: campaign.image1_url || '',
       waitTime,
       startedAt: now,
-      expiresAt,
     })
   });
 });
@@ -156,9 +171,13 @@ router.put('/task/:id/step', optionalAuth, async (req, res) => {
   if (tasks.length === 0) return res.status(404).json({ error: 'Task không tồn tại' });
   const task = tasks[0];
 
-  if (task.expires_at && new Date(task.expires_at) < new Date()) {
-    await pool.execute("UPDATE vuot_link_tasks SET status = 'expired' WHERE id = ?", [task.id]);
-    return res.status(410).json({ error: 'Task đã hết hạn' });
+  // Use MySQL NOW() for consistent timezone comparison
+  if (task.expires_at) {
+    const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
+    if (expCheck[0]?.expired) {
+      await pool.execute("UPDATE vuot_link_tasks SET status = 'expired' WHERE id = ?", [task.id]);
+      return res.status(410).json({ error: 'Task đã hết hạn' });
+    }
   }
 
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -195,10 +214,13 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
 
   if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
 
-  // Check expiry
-  if (task.expires_at && new Date(task.expires_at) < new Date()) {
-    await pool.execute("UPDATE vuot_link_tasks SET status = 'expired' WHERE id = ?", [task.id]);
-    return res.status(410).json({ error: 'Task đã hết hạn' });
+  // Check expiry using MySQL NOW() for consistent timezone
+  if (task.expires_at) {
+    const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
+    if (expCheck[0]?.expired) {
+      await pool.execute("UPDATE vuot_link_tasks SET status = 'expired' WHERE id = ?", [task.id]);
+      return res.status(410).json({ error: 'Task đã hết hạn' });
+    }
   }
 
   // Verify code matches

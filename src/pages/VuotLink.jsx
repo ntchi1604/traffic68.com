@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Search, Globe, Target, ShieldCheck, Copy, Check,
   ExternalLink, ArrowRight, Eye,
-  Sparkles, AlertCircle, CheckCircle2, Timer, MousePointerClick,
+  Sparkles, AlertCircle, CheckCircle2, MousePointerClick,
   Loader2, WifiOff
 } from 'lucide-react';
 
@@ -73,16 +73,6 @@ function collectBrowserProof() {
 /* ─── API base ──────────────────────────────────────── */
 const API = '/api/vuot-link';
 
-/* ─── Countdown hook ────────────────────────────────── */
-function useCountdown(seconds, start = true) {
-  const [left, setLeft] = useState(seconds);
-  useEffect(() => {
-    if (!start || left <= 0) return;
-    const t = setTimeout(() => setLeft((p) => p - 1), 1000);
-    return () => clearTimeout(t);
-  }, [left, start]);
-  return left;
-}
 
 /* ─── Main Component ────────────────────────────────── */
 export default function VuotLink() {
@@ -106,9 +96,7 @@ export default function VuotLink() {
   const [completing, setCompleting] = useState(false);
   const taskStartTime = useRef(Date.now());
 
-  // Countdown: uses campaign duration from API, starts when step 4 is active
   const waitTime = task?.waitTime || 60;
-  const countdown = useCountdown(waitTime, activeStep === 4);
 
   /* ─── Fetch task from API on mount ─────────────── */
   useEffect(() => {
@@ -150,6 +138,11 @@ export default function VuotLink() {
 
         if (taskRes.status === 404) {
           if (!cancelled) setError('Hiện tại không có nhiệm vụ nào. Vui lòng thử lại sau.');
+          return;
+        }
+        if (taskRes.status === 429) {
+          const errData = await taskRes.json();
+          if (!cancelled) setError(errData.error || 'Bạn đã đạt giới hạn lượt vượt link hôm nay.');
           return;
         }
         if (!taskRes.ok) throw new Error('Không thể lấy task');
@@ -244,7 +237,7 @@ export default function VuotLink() {
   /* ─── Derived values ──────────────────────────── */
   const keyword = task?.keyword || '';
   const campaignImage = task?.image1_url || '';
-  const canVerify = countdown <= 0;
+
   const progress = verified ? 100 : ((activeStep - 1) / 4) * 100;
 
   const steps = [
@@ -654,38 +647,20 @@ export default function VuotLink() {
                   background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.12)',
                   borderRadius: '16px', padding: '24px',
                 }}>
-                  {/* Timer */}
+                  {/* Icon */}
                   <div style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', marginBottom: '24px',
                   }}>
                     <div style={{
                       width: '64px', height: '64px', borderRadius: '50%',
-                      background: canVerify
-                        ? 'linear-gradient(135deg, rgba(16,185,129,0.2), rgba(16,185,129,0.05))'
-                        : 'linear-gradient(135deg, rgba(249,115,22,0.2), rgba(249,115,22,0.05))',
+                      background: 'linear-gradient(135deg, rgba(16,185,129,0.2), rgba(16,185,129,0.05))',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      transition: 'all 0.5s ease',
                     }}>
-                      {canVerify ? (
-                        <ShieldCheck size={28} style={{ color: '#10b981' }} />
-                      ) : (
-                        <Timer size={28} style={{ color: '#f97316' }} />
-                      )}
+                      <ShieldCheck size={28} style={{ color: '#10b981' }} />
                     </div>
-                    {!canVerify ? (
-                      <div style={{ textAlign: 'center' }}>
-                        <p style={{ color: '#f97316', fontSize: '28px', fontWeight: 800, margin: 0, fontVariantNumeric: 'tabular-nums' }}>
-                          {String(Math.floor(countdown / 60)).padStart(2, '0')}:{String(countdown % 60).padStart(2, '0')}
-                        </p>
-                        <p style={{ color: '#94a3b8', fontSize: '12px', margin: '4px 0 0', fontWeight: 500 }}>
-                          Vui lòng đợi hết thời gian
-                        </p>
-                      </div>
-                    ) : (
-                      <p style={{ color: '#10b981', fontSize: '14px', fontWeight: 600, margin: 0 }}>
-                        ✓ Bạn có thể nhập mã xác nhận ngay bây giờ
-                      </p>
-                    )}
+                    <p style={{ color: '#10b981', fontSize: '14px', fontWeight: 600, margin: 0 }}>
+                      Nhập mã xác nhận từ trang đích
+                    </p>
                   </div>
 
                   {/* Instructions */}
@@ -716,8 +691,8 @@ export default function VuotLink() {
                         maxLength={6}
                         value={inputCode}
                         onChange={(e) => setInputCode(e.target.value.toUpperCase())}
-                        disabled={!canVerify || completing}
-                        placeholder={canVerify ? 'Nhập mã...' : 'Đợi hết thời gian...'}
+                        disabled={completing}
+                        placeholder="Nhập mã từ trang đích..."
                         style={{
                           flex: 1, padding: '14px 16px',
                           background: 'rgba(0,0,0,0.3)',
@@ -727,27 +702,26 @@ export default function VuotLink() {
                           letterSpacing: '4px', textAlign: 'center',
                           fontFamily: "'Inter', monospace",
                           transition: 'all 0.2s ease',
-                          opacity: canVerify ? 1 : 0.5,
                         }}
-                        onFocus={(e) => { if (canVerify) e.target.style.borderColor = 'rgba(16,185,129,0.5)'; }}
+                        onFocus={(e) => { e.target.style.borderColor = 'rgba(16,185,129,0.5)'; }}
                         onBlur={(e) => { e.target.style.borderColor = showError ? 'rgba(239,68,68,0.5)' : 'rgba(16,185,129,0.2)'; }}
                       />
                       <button
                         onClick={handleVerify}
-                        disabled={!canVerify || inputCode.length < 4 || completing}
+                        disabled={inputCode.length < 4 || completing}
                         style={{
                           padding: '14px 24px', borderRadius: '12px', border: 'none',
-                          background: canVerify && inputCode.length >= 4 && !completing
+                          background: inputCode.length >= 4 && !completing
                             ? 'linear-gradient(135deg, #10b981, #059669)'
                             : 'rgba(255,255,255,0.05)',
-                          color: canVerify && inputCode.length >= 4 ? '#fff' : '#475569',
+                          color: inputCode.length >= 4 ? '#fff' : '#475569',
                           fontSize: '14px', fontWeight: 700,
-                          cursor: canVerify && inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed',
+                          cursor: inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed',
                           transition: 'all 0.25s ease',
-                          boxShadow: canVerify && inputCode.length >= 4 ? '0 4px 20px rgba(16,185,129,0.3)' : 'none',
+                          boxShadow: inputCode.length >= 4 ? '0 4px 20px rgba(16,185,129,0.3)' : 'none',
                           display: 'flex', alignItems: 'center', gap: '6px',
                         }}
-                        onMouseEnter={(e) => { if (canVerify && inputCode.length >= 4 && !completing) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                        onMouseEnter={(e) => { if (inputCode.length >= 4 && !completing) e.currentTarget.style.transform = 'translateY(-2px)'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
                       >
                         {completing && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
