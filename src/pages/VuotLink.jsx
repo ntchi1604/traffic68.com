@@ -60,10 +60,10 @@ export default function VuotLink() {
     })();
   }, []);
 
-  /* ─── Load t68.js (behavioral tracker) on mount ─ */
+  /* ─── Load tracker.js on mount ────────────────── */
   useEffect(() => {
     const s = document.createElement('script');
-    s.src = '/t68.js?v=' + Date.now();
+    s.src = '/tracker.js';
     s.async = true;
     document.head.appendChild(s);
     return () => { try { document.head.removeChild(s); } catch { } };
