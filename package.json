@@ -12,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fingerprintjs/fingerprintjs": "^5.1.0",
     "bcryptjs": "^2.4.3",
     "chart.js": "^4.5.1",
     "cors": "^2.8.5",

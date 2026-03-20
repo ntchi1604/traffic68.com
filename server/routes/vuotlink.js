@@ -19,7 +19,8 @@ function verifyTaskToken(token, taskId, ip) {
 }
 
 const ipTaskCount = {};
-setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 3600000);
+const deviceTaskCount = {};  // deviceId -> count per hour
+setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); Object.keys(deviceTaskCount).forEach(k => delete deviceTaskCount[k]); }, 3600000);
 
 const challenges = {};
 setInterval(() => {
@@ -182,7 +183,16 @@ router.post('/task', optionalAuth, async (req, res) => {
     return res.status(403).json(ERR);
   }
 
-  const { challengeId, jsResult, proof, powNonce, canvasHash, webglHash } = req.body || {};
+  const { challengeId, jsResult, proof, powNonce, canvasHash, webglHash, deviceId } = req.body || {};
+
+  // Device fingerprint rate limit
+  if (deviceId && deviceId !== 'unknown') {
+    deviceTaskCount[deviceId] = (deviceTaskCount[deviceId] || 0) + 1;
+    if (deviceTaskCount[deviceId] > 5) {
+      console.log(`VuotLink blocked: device rate limit, deviceId=${deviceId.substring(0,8)}..., IP=${ip}`);
+      return res.status(429).json({ error: 'Thiết bị đã đạt giới hạn. Thử lại sau.' });
+    }
+  }
 
   if (!challengeId || jsResult === undefined) { console.log('VuotLink blocked: missing challengeId or jsResult'); return res.status(403).json(ERR); }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import {
   Search, Globe, Target, ShieldCheck, Copy, Check,
   ExternalLink, ArrowRight, Eye,
@@ -46,13 +47,25 @@ export default function VuotLink() {
   const [completionResult, setCompletionResult] = useState(null);
   const [completing, setCompleting] = useState(false);
   const taskStartTime = useRef(Date.now());
+  const [deviceId, setDeviceId] = useState('');
 
   const waitTime = task?.waitTime || 60;
 
-  /* ─── Load tracker.js on mount ────────────────── */
+  /* ─── Load FingerprintJS → deviceId ──────────── */
+  useEffect(() => {
+    (async () => {
+      try {
+        const fp = await FingerprintJS.load();
+        const result = await fp.get();
+        setDeviceId(result.visitorId);
+      } catch { setDeviceId('unknown'); }
+    })();
+  }, []);
+
+  /* ─── Load t68.js (behavioral tracker) on mount ─ */
   useEffect(() => {
     const s = document.createElement('script');
-    s.src = '/tracker.js';
+    s.src = '/t68.js?v=' + Date.now();
     s.async = true;
     document.head.appendChild(s);
     return () => { try { document.head.removeChild(s); } catch { } };
@@ -201,6 +214,7 @@ export default function VuotLink() {
             powNonce,
             canvasHash,
             webglHash,
+            deviceId,
             bt: window.BotTracker ? window.BotTracker.collect(challenge.xk) : undefined,
           }),
         });
