@@ -19,50 +19,44 @@ function loadScript(src) {
   });
 }
 
-// CreepJS — provides BOTH bot detection AND device fingerprint (creepHash)
-// Returns a promise that resolves when CreepJS finishes (max 15s)
-let _creepResult = null;
-let _creepVisitorId = 'unknown';
-let _creepReady = null; // promise
-if (typeof window !== 'undefined') {
-  _creepReady = new Promise((resolve) => {
-    const timeout = setTimeout(() => resolve(), 15000); // safety 15s
-    loadScript('https://abrahamjuliot.github.io/creepjs/creep.js').then(() => {
-      let tries = 0;
-      const poll = setInterval(() => {
-        tries++;
-        if (window.Fingerprint || tries >= 30) {
-          clearInterval(poll);
-          clearTimeout(timeout);
-          if (window.Fingerprint) {
-            try {
-              const fp = JSON.parse(window.Fingerprint);
-              _creepResult = {
-                bot: !!(fp.lies && fp.lies.length > 0),
-                creepHash: fp.fingerprint || null,
-                lies: fp.lies || [],
-                headless: fp.headless || null,
-                stealth: fp.stealth || null,
-              };
-              if (fp.fingerprint) _creepVisitorId = fp.fingerprint;
-            } catch (e) {
-              _creepResult = { bot: false, raw: window.Fingerprint };
-            }
-          }
-          resolve();
-        }
-      }, 500);
-    }).catch(() => { clearTimeout(timeout); resolve(); });
-  });
-}
-
+// FingerprintJS — fast, provides visitorId
 async function getFingerprintData() {
-  if (_creepReady) await _creepReady;
-  return { visitorId: _creepVisitorId };
+  await loadScript('/fp.js');
+  const FP = window.FingerprintJS;
+  if (!FP) return { visitorId: 'unknown' };
+  const fp = await FP.load();
+  return await fp.get();
 }
 
-async function getBotDetection() {
-  if (_creepReady) await _creepReady;
+// CreepJS — for bot detection only (async background)
+let _creepResult = null;
+if (typeof window !== 'undefined') {
+  loadScript('https://abrahamjuliot.github.io/creepjs/creep.js').then(() => {
+    let tries = 0;
+    const poll = setInterval(() => {
+      tries++;
+      if (window.Fingerprint || tries >= 30) {
+        clearInterval(poll);
+        if (window.Fingerprint) {
+          try {
+            const fp = JSON.parse(window.Fingerprint);
+            _creepResult = {
+              bot: !!(fp.lies && fp.lies.length > 0),
+              creepHash: fp.fingerprint || null,
+              lies: fp.lies || [],
+              headless: fp.headless || null,
+              stealth: fp.stealth || null,
+            };
+          } catch (e) {
+            _creepResult = { bot: false, raw: window.Fingerprint };
+          }
+        }
+      }
+    }, 500);
+  }).catch(() => {});
+}
+
+function getBotDetection() {
   return _creepResult;
 }
 

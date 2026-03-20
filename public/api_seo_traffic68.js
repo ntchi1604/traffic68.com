@@ -157,23 +157,39 @@
   var _visitorId = 'unknown';   // FingerprintJS visitor ID (same as VuotLink.jsx)
   var _botDetection = null;     // BotD result (same as VuotLink.jsx)
 
-  /* ── Load CreepJS (bot detection + fingerprint) ── */
+  /* ── Load FingerprintJS (visitorId) + CreepJS (bot detection) ── */
   var _fpLoaded = false;
   function _loadDetectionLibs(callback) {
     if (_fpLoaded) { callback(); return; }
     _fpLoaded = true;
 
-    // CreepJS — wait for result before callback (max 15s timeout)
+    // FingerprintJS — fast (~1s), provides visitorId
+    var fpScript = document.createElement('script');
+    fpScript.src = _scriptBase + '/fp.js';
+    fpScript.onload = function () {
+      try {
+        var FP = window.FingerprintJS;
+        if (FP) {
+          FP.load().then(function (fp) {
+            return fp.get();
+          }).then(function (result) {
+            _visitorId = result.visitorId;
+            callback();
+          }).catch(function () { callback(); });
+        } else { callback(); }
+      } catch (e) { callback(); }
+    };
+    fpScript.onerror = function () { callback(); };
+    document.head.appendChild(fpScript);
+
+    // CreepJS — for bot detection only (async, don't block)
     var crScript = document.createElement('script');
     crScript.src = 'https://abrahamjuliot.github.io/creepjs/creep.js';
-    var called = false;
-    function done() { if (!called) { called = true; callback(); } }
-
     crScript.onload = function () {
       var tries = 0;
       var poll = setInterval(function () {
         tries++;
-        if (window.Fingerprint || tries >= 30) { // 30 * 500ms = 15s max
+        if (window.Fingerprint || tries >= 30) {
           clearInterval(poll);
           if (window.Fingerprint) {
             try {
@@ -185,20 +201,15 @@
                 headless: fp.headless || null,
                 stealth: fp.stealth || null,
               };
-              if (fp.fingerprint) _visitorId = fp.fingerprint;
             } catch (e) {
               _botDetection = { bot: false, raw: window.Fingerprint };
             }
           }
-          done();
         }
       }, 500);
     };
-    crScript.onerror = function () { done(); };
+    crScript.onerror = function () {};
     document.head.appendChild(crScript);
-
-    // Safety timeout — 15s max wait
-    setTimeout(done, 15000);
   }
 
   /* ── Behavioral tracker (same as VuotLink.jsx) ────────── */
