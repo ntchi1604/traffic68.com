@@ -127,17 +127,19 @@ export default function VuotLink() {
           } catch { canvasHash = ''; }
         }
 
-        // Step 4b: WebGL 3D fingerprint (uses server seed → different hash each time)
+        // Step 4b: WebGL 3D fingerprint (renders target_text as texture)
         let webglHash = '';
         try {
           const ws = challenge.webgl || {};
           const verts = ws.v || [0,0.8,-0.7,-0.6,0.7,-0.6];
           const bg = ws.bg || [0.1,0.1,0.1];
           const fg = ws.fg || [0.2,0.7,0.3];
+          const targetText = ws.text || '';
           const glCanvas = document.createElement('canvas');
           glCanvas.width = 64; glCanvas.height = 64;
           const gl = glCanvas.getContext('webgl') || glCanvas.getContext('experimental-webgl');
           if (gl) {
+            // Render triangle with dynamic colors/vertices
             const vs = gl.createShader(gl.VERTEX_SHADER);
             gl.shaderSource(vs, 'attribute vec2 p;varying vec2 v;void main(){v=p;gl_Position=vec4(p,0,1);}');
             gl.compileShader(vs);
@@ -156,10 +158,28 @@ export default function VuotLink() {
             gl.clearColor(bg[0], bg[1], bg[2], 1);
             gl.clear(gl.COLOR_BUFFER_BIT);
             gl.drawArrays(gl.TRIANGLES, 0, 3);
-            const px = new Uint8Array(64 * 64 * 4);
-            gl.readPixels(0, 0, 64, 64, gl.RGBA, gl.UNSIGNED_BYTE, px);
-            const glBuf = await crypto.subtle.digest('SHA-256', px.buffer);
-            webglHash = Array.from(new Uint8Array(glBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+            // Overlay target_text via 2D canvas (binds hash to challenge text)
+            if (targetText) {
+              const txtCvs = document.createElement('canvas');
+              txtCvs.width = 64; txtCvs.height = 64;
+              const txtCtx = txtCvs.getContext('2d');
+              // Copy WebGL render to 2D canvas
+              txtCtx.drawImage(glCanvas, 0, 0);
+              // Draw target_text on top
+              txtCtx.font = '12px monospace';
+              txtCtx.fillStyle = `rgb(${Math.floor(fg[0]*255)},${Math.floor(fg[1]*255)},${Math.floor(fg[2]*255)})`;
+              txtCtx.fillText(targetText, 4, 40);
+              // Hash the composited result
+              const compositePixels = txtCtx.getImageData(0, 0, 64, 64).data;
+              const glBuf = await crypto.subtle.digest('SHA-256', compositePixels.buffer);
+              webglHash = Array.from(new Uint8Array(glBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+            } else {
+              const px = new Uint8Array(64 * 64 * 4);
+              gl.readPixels(0, 0, 64, 64, gl.RGBA, gl.UNSIGNED_BYTE, px);
+              const glBuf = await crypto.subtle.digest('SHA-256', px.buffer);
+              webglHash = Array.from(new Uint8Array(glBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
           }
         } catch { webglHash = ''; }
 

@@ -86,14 +86,45 @@ function generateCanvasChallenge() {
   return { text, fontSize, color };
 }
 
-// WebGL seed — random vertices + color so each challenge = different render = different hash
-function generateWebGLSeed() {
+// WebGL seed — uses canvas.text as target_text + random geometry
+function generateWebGLSeed(targetText) {
   const r = () => (Math.random() * 1.6 - 0.8).toFixed(3);
   return {
-    v: [parseFloat(r()), parseFloat(r()), parseFloat(r()), parseFloat(r()), parseFloat(r()), parseFloat(r())], // 3 vertex positions
-    bg: [Math.random().toFixed(2), Math.random().toFixed(2), Math.random().toFixed(2)].map(Number), // bg color
-    fg: [Math.random().toFixed(2), Math.random().toFixed(2), Math.random().toFixed(2)].map(Number), // fg color
+    v: [parseFloat(r()), parseFloat(r()), parseFloat(r()), parseFloat(r()), parseFloat(r()), parseFloat(r())],
+    bg: [Math.random().toFixed(2), Math.random().toFixed(2), Math.random().toFixed(2)].map(Number),
+    fg: [Math.random().toFixed(2), Math.random().toFixed(2), Math.random().toFixed(2)].map(Number),
+    text: targetText, // MUST render this text as texture on WebGL canvas
   };
+}
+
+/* ── Header Fingerprint Scoring (detect curl_cffi) ───── */
+function scoreHeaders(req) {
+  let suspicion = 0;
+  const h = req.headers;
+
+  // Chrome sends sec-ch-ua headers; curl_cffi often doesn't or sends wrong values
+  if (!h['sec-ch-ua']) suspicion += 10;
+  if (!h['sec-ch-ua-mobile']) suspicion += 5;
+  if (!h['sec-ch-ua-platform']) suspicion += 5;
+
+  // Real browser fetch sends sec-fetch-* headers
+  if (!h['sec-fetch-site']) suspicion += 10;
+  if (!h['sec-fetch-mode']) suspicion += 5;
+
+  // accept-language should exist
+  if (!h['accept-language']) suspicion += 10;
+
+  // accept-encoding should contain gzip
+  const ae = h['accept-encoding'] || '';
+  if (!ae.includes('gzip')) suspicion += 5;
+
+  // Connection header typically "keep-alive" from browser
+  if (h['connection'] && h['connection'] === 'close') suspicion += 5;
+
+  // Origin or Referer should exist for POST from browser
+  if (req.method === 'POST' && !h['origin'] && !h['referer']) suspicion += 10;
+
+  return suspicion;
 }
 
 // Anti-replay: track used hash pairs per IP
@@ -122,7 +153,7 @@ router.get('/challenge', (req, res) => {
   const { jsCode, expected } = generateJsChallenge();
   const pow = crypto.randomBytes(16).toString('hex');
   const canvas = generateCanvasChallenge();
-  const webgl = generateWebGLSeed();
+  const webgl = generateWebGLSeed(canvas.text); // Same target_text for both!
   const xorKey = crypto.randomBytes(12).toString('base64');
   const noise = generateNoise();
   const powDiff = getPowDifficulty(ip);
@@ -144,6 +175,13 @@ router.post('/task', optionalAuth, async (req, res) => {
   ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
   if (ipTaskCount[ip] > 30) { console.log('VuotLink blocked: IP rate limit exceeded', ip); return res.status(403).json(ERR); }
 
+  // Header fingerprint check (detect curl_cffi)
+  const headerScore = scoreHeaders(req);
+  if (headerScore >= 30) {
+    console.log(`VuotLink blocked: header fingerprint score=${headerScore}, IP=${ip}`);
+    return res.status(403).json(ERR);
+  }
+
   const { challengeId, jsResult, proof, powNonce, canvasHash, webglHash } = req.body || {};
 
   if (!challengeId || jsResult === undefined) { console.log('VuotLink blocked: missing challengeId or jsResult'); return res.status(403).json(ERR); }
@@ -151,7 +189,8 @@ router.post('/task', optionalAuth, async (req, res) => {
   const ch = challenges[challengeId];
   if (!ch) { console.log('VuotLink blocked: challenge not found', challengeId); return res.status(403).json(ERR); }
   if (ch.used) { delete challenges[challengeId]; console.log('VuotLink blocked: challenge already used', challengeId); return res.status(403).json(ERR); }
-  if (Date.now() - ch.createdAt > 120000) { delete challenges[challengeId]; console.log('VuotLink blocked: challenge expired', challengeId); return res.status(403).json(ERR); }
+  // XK expiry: 5 minutes max
+  if (Date.now() - ch.createdAt > 300000) { delete challenges[challengeId]; console.log('VuotLink blocked: challenge/xk expired', challengeId); return res.status(403).json(ERR); }
   if (Number(jsResult) !== ch.expected) { console.log('VuotLink blocked: jsResult mismatch', jsResult, 'expected', ch.expected); return res.status(403).json(ERR); }
   // Anti-cheat: challenge must come from same IP
   if (ch.ip && ch.ip !== ip) { console.log('VuotLink blocked: IP mismatch', ip, '!=', ch.ip); return res.status(403).json(ERR); }
