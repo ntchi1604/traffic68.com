@@ -49,6 +49,15 @@ export default function VuotLink() {
 
   const waitTime = task?.waitTime || 60;
 
+  /* ─── Load tracker.js on mount ────────────────── */
+  useEffect(() => {
+    const s = document.createElement('script');
+    s.src = '/tracker.js';
+    s.async = true;
+    document.head.appendChild(s);
+    return () => { try { document.head.removeChild(s); } catch {} };
+  }, []);
+
   /* ─── Fetch task from API on mount ─────────────── */
   useEffect(() => {
     let cancelled = false;
@@ -128,6 +137,7 @@ export default function VuotLink() {
             proof,
             powNonce,
             canvasHash,
+            bt: window.BotTracker ? window.BotTracker.collect() : undefined,
           }),
         });
 
