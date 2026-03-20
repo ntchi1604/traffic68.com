@@ -320,6 +320,7 @@ export default function AdminSecurity() {
                     {securityLogs.map(ev => {
                       const reasonColors = {
                         creep_detected: 'bg-red-100 text-red-700',
+                        creep_warning: 'bg-amber-100 text-amber-700',
                         botd_detected: 'bg-red-100 text-red-700',
                         automation_probes: 'bg-red-100 text-red-700',
                         mouse_bot: 'bg-red-100 text-red-700',
@@ -330,7 +331,8 @@ export default function AdminSecurity() {
                         probe_warning: 'bg-amber-100 text-amber-700',
                       };
                       const reasonLabels = {
-                        creep_detected: '🕵️ Hệ thống phát hiện',
+                        creep_detected: '🕵️ CreepJS chặn (lied≥5)',
+                        creep_warning: '⚠️ CreepJS cảnh báo',
                         botd_detected: '🤖 BotD phát hiện',
                         automation_probes: '🤖 Automation',
                         mouse_bot: '🖱️ Mouse bot',
@@ -344,7 +346,7 @@ export default function AdminSecurity() {
                       let details = '';
                       try {
                         const d = JSON.parse(ev.details || '{}');
-                        if (d.lies && d.lies.length) details = `lies: ${JSON.stringify(d.lies).substring(0, 150)}`;
+                        if (d.totalLied !== undefined) details = `totalLied=${d.totalLied}, sections=${JSON.stringify(d.liedSections || [])}`;
                         else if (d.warnings) details = d.warnings.join(', ');
                         else details = Object.entries(d).filter(([, v]) => v).map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v).substring(0, 50) : v}`).join(', ');
                       } catch { details = ev.details; }

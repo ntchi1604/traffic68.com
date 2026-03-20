@@ -364,14 +364,13 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
   ch.used = true;
 
-  // ── 2. CreepJS check (same as vuotlink.js) ──
-  if (botDetection) {
-    const isBot = botDetection.bot === true || (botDetection.totalLied && botDetection.totalLied > 0);
-    if (isBot) {
+  // ── 2. CreepJS check (warning only — same as vuotlink.js) ──
+  if (botDetection && botDetection.totalLied > 0) {
+    console.log(`[Widget] ⚠️ CreepJS lies: IP=${ip}, totalLied=${botDetection.totalLied}, sections=${JSON.stringify(botDetection.liedSections)}`);
+    logSecurityEvent('creep_warning', ip, ua, visitorId, botDetection);
+    if (botDetection.totalLied >= 5) {
       botDetected = true;
       detectionLog.push('creep_detected');
-      console.log(`[Widget] 🤖 CreepJS detected: IP=${ip}, totalLied=${botDetection.totalLied}, sections=${JSON.stringify(botDetection.liedSections)}`);
-      logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
       return res.status(403).json(ERR);
     }
   }

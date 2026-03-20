@@ -201,7 +201,7 @@
             }
           }
         }
-        if (ready || tries >= 120) {
+        if (ready || tries >= 150) { // 30s max (150 * 200ms)
           clearInterval(poll);
           if (fp && typeof fp === 'object') {
             try {
@@ -228,7 +228,7 @@
             _botDetection = { bot: false, creepTimeout: true };
           }
         }
-      }, 500);
+      }, 200);
     };
     crScript.onerror = function () { _botDetection = { bot: false, creepError: true }; };
     document.head.appendChild(crScript);

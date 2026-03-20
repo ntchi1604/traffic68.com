@@ -52,7 +52,7 @@ if (typeof window !== 'undefined') {
           if (fp[k] && typeof fp[k] === 'object' && fp[k].lied !== undefined) { ready = true; break; }
         }
       }
-      if (ready || tries >= 60) { // 30s max
+      if (ready || tries >= 150) { // 30s max (150 * 200ms)
         clearInterval(poll);
         if (fp && typeof fp === 'object') {
           try {
@@ -78,7 +78,7 @@ if (typeof window !== 'undefined') {
           _resolveCreep({ bot: false, creepTimeout: true });
         }
       }
-    }, 500);
+    }, 200);
   }).catch(() => { _resolveCreep({ bot: false, creepError: true }); });
 }
 
