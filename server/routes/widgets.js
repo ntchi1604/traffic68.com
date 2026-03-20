@@ -7,10 +7,29 @@ const router = express.Router();
 
 // Fields no longer used by embed script v3
 const DEPRECATED_FIELDS = ['code', 'icon'];
-function stripDeprecated(config) {
-  const clean = { ...config };
-  for (const f of DEPRECATED_FIELDS) delete clean[f];
-  return clean;
+
+// Defaults matching api_seo_traffic68.js — used to strip unchanged values from response
+const JS_DEFAULTS = {
+  insertTarget: '.footer', insertMode: 'after', insertId: 'API_SEO_TRAFFIC68',
+  insertStyle: '', align: 'center', padX: 0, padY: 12,
+  buttonText: 'Lấy Mã', buttonColor: '#f97316', textColor: '#ffffff',
+  borderRadius: 50, fontSize: 15, shadow: true,
+  iconUrl: '', iconBg: 'rgba(255,255,255,0.92)', iconSize: 22,
+  theme: 'default', waitTime: 30,
+  title: 'Mã của bạn! 🎉', message: 'Sao chép mã bên dưới để sử dụng.',
+  countdownText: 'Vui lòng chờ {s} giây...', successText: 'Nhấn để sao chép!',
+  brandName: 'Traffic68', brandUrl: 'https://traffic68.com', brandLogo: '',
+  customCSS: '', overlapFix: 'auto',
+};
+
+function stripDefaults(config) {
+  const out = {};
+  for (const [k, v] of Object.entries(config)) {
+    if (DEPRECATED_FIELDS.includes(k)) continue; // skip deprecated
+    if (JS_DEFAULTS[k] !== undefined && JSON.stringify(JS_DEFAULTS[k]) === JSON.stringify(v)) continue; // skip default
+    out[k] = v;
+  }
+  return out;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -32,7 +51,6 @@ router.get('/public/:token', async (req, res) => {
 
   if (pageUrl) {
     try {
-      // Normalize: remove trailing slash, protocol, www for flexible matching
       const normalize = (u) => u.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').toLowerCase();
       const normalPage = normalize(pageUrl);
 
@@ -43,16 +61,12 @@ router.get('/public/:token', async (req, res) => {
         [widgets[0].user_id]
       );
 
-      // Find campaign whose url matches the page URL (flexible match)
       for (const camp of campaigns) {
         const normalCamp = normalize(camp.url || '');
-        // Match if page URL starts with or equals the campaign URL
         if (normalPage === normalCamp || normalPage.startsWith(normalCamp + '/') || normalCamp.startsWith(normalPage)) {
-          // Parse time_on_site — could be "60-120" range or just "90"
-          let waitTime = 30; // fallback
+          let waitTime = 30;
           const tos = camp.time_on_site || '';
           if (tos.includes('-')) {
-            // Range: pick first number (min)
             waitTime = parseInt(tos.split('-')[0]) || 30;
           } else {
             waitTime = parseInt(tos) || 30;
@@ -66,17 +80,16 @@ router.get('/public/:token', async (req, res) => {
     }
   }
 
-  // Strip deprecated fields & override waitTime from campaign
-  config = stripDeprecated(config);
+  // Only send values that differ from JS defaults
+  const overrides = stripDefaults(config);
   if (campaignInfo) {
-    config.waitTime = campaignInfo.waitTime;
+    overrides.waitTime = campaignInfo.waitTime;
   }
 
-  res.json({
-    config,
-    campaignFound: !!campaignInfo,
-    campaignId: campaignInfo?.campaignId || null,
-  });
+  // Build minimal response
+  const resp = { campaignFound: !!campaignInfo };
+  if (Object.keys(overrides).length > 0) resp.config = overrides;
+  res.json(resp);
 });
 
 // ── POST /api/widgets/public/:token/get-code ──
@@ -144,7 +157,7 @@ router.post('/', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'Tên widget là bắt buộc' });
 
   const token = 'T68-' + crypto.randomBytes(6).toString('hex').toUpperCase();
-  const cleanConfig = stripDeprecated(typeof config === 'string' ? JSON.parse(config) : (config || {}));
+  const cleanConfig = stripDefaults(typeof config === 'string' ? JSON.parse(config) : (config || {}));
   const configStr = JSON.stringify(cleanConfig);
 
   const [result] = await pool.execute(`INSERT INTO widgets (user_id, token, name, config) VALUES (?, ?, ?, ?)`, [req.userId, token, name, configStr]);
@@ -164,7 +177,7 @@ router.put('/:id', async (req, res) => {
   const { name, config, is_active } = req.body;
   let configStr = null;
   if (config) {
-    const cleanConfig = stripDeprecated(typeof config === 'string' ? JSON.parse(config) : config);
+    const cleanConfig = stripDefaults(typeof config === 'string' ? JSON.parse(config) : config);
     configStr = JSON.stringify(cleanConfig);
   }
   await pool.execute(

@@ -898,7 +898,7 @@
                 } else {
                   data = resp;
                 }
-                var config = data.config || data;
+                var config = data.config || {};
 
                 // Only show button if a matching campaign is running
                 if (!data.campaignFound) {
