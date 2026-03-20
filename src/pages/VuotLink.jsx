@@ -76,145 +76,38 @@ export default function VuotLink() {
           }
         }
 
-        // Step 1: Get challenge
+        // Step 1: Load FingerprintJS + BotD (parallel)
+        let visitorId = 'unknown';
+        let botDetectionResult = null;
+
+        const [fpResult, botdResult] = await Promise.allSettled([
+          (async () => {
+            const fp = await FingerprintJS.load();
+            const r = await fp.get();
+            return r;
+          })(),
+          (async () => {
+            const botd = await loadBotd();
+            return botd.detect();
+          })(),
+        ]);
+
+        if (fpResult.status === 'fulfilled') {
+          visitorId = fpResult.value.visitorId;
+        }
+        if (botdResult.status === 'fulfilled') {
+          botDetectionResult = botdResult.value;
+        }
+
+        // Step 2: Get challenge (anti-replay token)
         const chRes = await fetch(`${API}/challenge`);
         if (!chRes.ok) throw new Error('Không thể lấy challenge');
         const challenge = await chRes.json();
 
-        // Step 2: Execute JS challenge
-        // eslint-disable-next-line no-eval
-        const jsResult = eval(challenge.j);
-
-        // Step 3: Proof-of-Work mining (dynamic difficulty)
-        let powNonce = '';
-        if (challenge.pow) {
-          const diff = challenge.powDiff || '0000';
-          const zeroBytes = Math.floor(diff.length / 2); // 4→2, 5→2, 6→3
-          const halfByte = diff.length % 2 === 1;        // 5→true
-          const encoder = new TextEncoder();
-          for (let n = 0; n < 100000000; n++) {
-            const candidate = String(n);
-            const data = encoder.encode(challenge.pow + candidate);
-            const hashBuf = await crypto.subtle.digest('SHA-256', data);
-            const hashArr = new Uint8Array(hashBuf);
-            let valid = true;
-            for (let b = 0; b < zeroBytes; b++) {
-              if (hashArr[b] !== 0) { valid = false; break; }
-            }
-            if (valid && halfByte && (hashArr[zeroBytes] >> 4) !== 0) valid = false;
-            if (valid) {
-              powNonce = candidate;
-              break;
-            }
-          }
-        }
-
-        // Step 4: Canvas fingerprint challenge (requires real browser)
-        let canvasHash = '';
-        if (challenge.canvas) {
-          try {
-            const cvs = document.createElement('canvas');
-            cvs.width = 200; cvs.height = 50;
-            const ctx = cvs.getContext('2d');
-            ctx.fillStyle = '#f0f0f0';
-            ctx.fillRect(0, 0, 200, 50);
-            ctx.font = `${challenge.canvas.fontSize}px Arial`;
-            ctx.fillStyle = challenge.canvas.color;
-            ctx.fillText(challenge.canvas.text, 10, 35);
-            const pixels = ctx.getImageData(0, 0, 200, 50).data;
-            const pixelBuf = await crypto.subtle.digest('SHA-256', pixels.buffer);
-            const pixelArr = new Uint8Array(pixelBuf);
-            canvasHash = Array.from(pixelArr).map(b => b.toString(16).padStart(2, '0')).join('');
-          } catch { canvasHash = ''; }
-        }
-
-        // Step 4b: WebGL 3D fingerprint (renders target_text as texture)
-        let webglHash = '';
-        try {
-          const ws = challenge.webgl || {};
-          const verts = ws.v || [0, 0.8, -0.7, -0.6, 0.7, -0.6];
-          const bg = ws.bg || [0.1, 0.1, 0.1];
-          const fg = ws.fg || [0.2, 0.7, 0.3];
-          const targetText = ws.text || '';
-          const glCanvas = document.createElement('canvas');
-          glCanvas.width = 64; glCanvas.height = 64;
-          const gl = glCanvas.getContext('webgl') || glCanvas.getContext('experimental-webgl');
-          if (gl) {
-            // Render triangle with dynamic colors/vertices
-            const vs = gl.createShader(gl.VERTEX_SHADER);
-            gl.shaderSource(vs, 'attribute vec2 p;varying vec2 v;void main(){v=p;gl_Position=vec4(p,0,1);}');
-            gl.compileShader(vs);
-            const fs = gl.createShader(gl.FRAGMENT_SHADER);
-            gl.shaderSource(fs, `precision mediump float;varying vec2 v;void main(){gl_FragColor=vec4(v.x*${fg[0].toFixed(2)}+0.5,v.y*${fg[1].toFixed(2)}+0.5,${fg[2].toFixed(2)},1.0);}`);
-            gl.compileShader(fs);
-            const prog = gl.createProgram();
-            gl.attachShader(prog, vs); gl.attachShader(prog, fs);
-            gl.linkProgram(prog); gl.useProgram(prog);
-            const buf = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
-            const loc = gl.getAttribLocation(prog, 'p');
-            gl.enableVertexAttribArray(loc);
-            gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-            gl.clearColor(bg[0], bg[1], bg[2], 1);
-            gl.clear(gl.COLOR_BUFFER_BIT);
-            gl.drawArrays(gl.TRIANGLES, 0, 3);
-
-            // Overlay target_text via 2D canvas (binds hash to challenge text)
-            if (targetText) {
-              const txtCvs = document.createElement('canvas');
-              txtCvs.width = 64; txtCvs.height = 64;
-              const txtCtx = txtCvs.getContext('2d');
-              // Copy WebGL render to 2D canvas
-              txtCtx.drawImage(glCanvas, 0, 0);
-              // Draw target_text on top
-              txtCtx.font = '12px monospace';
-              txtCtx.fillStyle = `rgb(${Math.floor(fg[0] * 255)},${Math.floor(fg[1] * 255)},${Math.floor(fg[2] * 255)})`;
-              txtCtx.fillText(targetText, 4, 40);
-              // Hash the composited result
-              const compositePixels = txtCtx.getImageData(0, 0, 64, 64).data;
-              const glBuf = await crypto.subtle.digest('SHA-256', compositePixels.buffer);
-              webglHash = Array.from(new Uint8Array(glBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
-            } else {
-              const px = new Uint8Array(64 * 64 * 4);
-              gl.readPixels(0, 0, 64, 64, gl.RGBA, gl.UNSIGNED_BYTE, px);
-              const glBuf = await crypto.subtle.digest('SHA-256', px.buffer);
-              webglHash = Array.from(new Uint8Array(glBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
-            }
-          }
-        } catch { webglHash = ''; }
-
-        // Step 5: FingerprintJS + BotD (load here to avoid race condition)
-        let fpDeviceId = 'unknown';
-        let fpComponentsData = null;
-        let botDetectionData = null;
-
-        try {
-          const fp = await FingerprintJS.load();
-          const fpResult = await fp.get();
-          fpDeviceId = fpResult.visitorId;
-          fpComponentsData = {
-            canvas: fpResult.components?.canvas?.value,
-            webgl: fpResult.components?.webgl?.value,
-            audio: fpResult.components?.audio?.value,
-            fonts: fpResult.components?.fonts?.value?.length || 0,
-            plugins: fpResult.components?.plugins?.value?.length || 0,
-            screen: fpResult.components?.screenResolution?.value,
-            platform: fpResult.components?.platform?.value,
-            timezone: fpResult.components?.timezone?.value,
-            touchSupport: fpResult.components?.touchSupport?.value,
-          };
-        } catch { /* fallback unknown */ }
-
-        try {
-          const botd = await loadBotd();
-          botDetectionData = botd.detect();
-        } catch { botDetectionData = { bot: false }; }
-
-        // Step 6: Collect behavioral data
+        // Step 3: Collect behavioral data
         const behavioral = {
           mousePoints: behaviorData.mouse.length,
-          mouseTrail: behaviorData.mouse.slice(-20),
+          mouseTrail: behaviorData.mouse.slice(-30),
           clicks: behaviorData.clicks,
           keys: behaviorData.keys,
           scrolls: behaviorData.scrolls,
@@ -222,7 +115,7 @@ export default function VuotLink() {
           screen: { w: window.screen?.width, h: window.screen?.height, dpr: window.devicePixelRatio },
         };
 
-        // Step 7: Request task
+        // Step 4: Request task
         const token = localStorage.getItem('token');
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -232,13 +125,8 @@ export default function VuotLink() {
           headers,
           body: JSON.stringify({
             challengeId: challenge.c,
-            jsResult,
-            powNonce,
-            canvasHash,
-            webglHash,
-            deviceId: fpDeviceId,
-            botDetection: botDetectionData,
-            fingerprint: fpComponentsData,
+            visitorId,
+            botDetection: botDetectionResult,
             behavioral,
           }),
         });
