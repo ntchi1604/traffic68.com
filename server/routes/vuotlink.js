@@ -241,14 +241,17 @@ router.post('/task', optionalAuth, async (req, res) => {
   let serverBotScore = 0;             // 0-100, ≥60 = block
 
   // ── 1. Challenge solve timing ──
-  // Real user: page load + PoW mining + render = at least 3 seconds
+  // PoW 0000 ~ 65K iterations = ~200-800ms in real browser
+  // FP + BotD loading adds ~300-500ms
+  // Total normal: 500ms - 2s
   const solveTime = Date.now() - ch.createdAt;
-  if (solveTime < 3000) {
-    serverBotScore += 40;
+  if (solveTime < 500) {
+    serverBotScore += 40;             // <500ms = impossible for real browser
     console.log(`[VuotLink] ⚠️ Too fast: ${solveTime}ms, IP=${ip}`);
-  } else if (solveTime < 5000) {
-    serverBotScore += 15;
+  } else if (solveTime < 800) {
+    serverBotScore += 15;             // 500-800ms = borderline
   }
+  // Note: >800ms = normal, no penalty
 
   // ── 2. BotD result (signal, not final verdict) ──
   if (botDetection && botDetection.bot === true) {
@@ -265,13 +268,13 @@ router.post('/task', optionalAuth, async (req, res) => {
     if (!behavioral.screen?.w || !behavioral.screen?.h) {
       serverBotScore += 30;
     }
-    // No interaction at all = automated
+    // No interaction: soft warning only (task auto-fetches on mount, user hasn't interacted yet)
     if (behavioral.mousePoints === 0 && behavioral.clicks === 0 && behavioral.keys === 0) {
-      serverBotScore += 35;
-      console.log(`[VuotLink] ⚠️ Zero interaction, IP=${ip}`);
+      serverBotScore += 10;           // Soft penalty — will be checked again at completion
+      console.log(`[VuotLink] ⚠️ Zero interaction (mount), IP=${ip}`);
     }
-    // Suspiciously fast page load
-    if (behavioral.loadTime && behavioral.loadTime < 2000) {
+    // Suspiciously fast page load (< 500ms = no rendering happened)
+    if (behavioral.loadTime && behavioral.loadTime < 500) {
       serverBotScore += 15;
     }
 
