@@ -56,7 +56,6 @@ const DEFAULT_CFG = {
   /* Popup */
   theme: 'default',
   waitTime: 30,
-  code: 'TRAFFIC68-FREE',
   title: 'Mã của bạn! 🎉',
   message: 'Sao chép mã bên dưới để sử dụng.',
   countdownText: 'Vui lòng chờ {s} giây...',
@@ -206,7 +205,7 @@ function LivePreview({ cfg, countdown, revealed }) {
         {revealed ? (
           <div className="flex items-stretch rounded-lg overflow-hidden border text-left"
             style={{ borderColor: cfg.theme === 'minimal' ? '#111827' : cfg.theme === 'dark' ? '#334155' : cfg.theme === 'glass' ? 'rgba(255,255,255,0.3)' : '#e2e8f0' }}>
-            <div className="flex-1 px-2.5 py-2 text-xs font-black font-mono" style={{ background: p.ring, color: p.text }}>{cfg.code}</div>
+            <div className="flex-1 px-2.5 py-2 text-xs font-black font-mono" style={{ background: p.ring, color: p.text }}>AB3X9K</div>
             <div className="px-2.5 py-2 text-[10px] font-bold flex items-center" style={{ background: p.accent, color: cfg.theme === 'glass' ? '#0f172a' : '#fff' }}>COPY</div>
           </div>
         ) : (
@@ -713,7 +712,6 @@ export default function ScriptGenerator() {
                         ['iconUrl', '""', 'URL ảnh icon'],
                         ['theme', 'default', 'default · dark · minimal · glass'],
                         ['waitTime', '30', 'Giây chờ trước khi hiện mã'],
-                        ['code', 'TRAFFIC68', 'Mã/text/URL cần hiện'],
                         ['title', 'Mã của bạn!', 'Tiêu đề popup'],
                         ['message', '...', 'Mô tả popup'],
                         ['countdownText', '...{s}...', 'Text đếm, {s} = giây còn lại'],

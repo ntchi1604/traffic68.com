@@ -1,13 +1,17 @@
 /**
- * LayNut.js — Embeddable Button Script v2
+ * LayNut.js — Embeddable Button Script v3
  * Traffic68.com — https://traffic68.com
  *
  * LayNut.init(config) options:
  *
- * POSITION & LAYOUT
- *   position       'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center'
- *   offsetX        Horizontal offset in px from edge (default 20)
- *   offsetY        Vertical offset in px from edge (default 20)
+ * INSERT POSITION
+ *   insertTarget   CSS selector for reference element    default '.footer'
+ *   insertMode     'before' | 'after' | 'prepend' | 'append'  default 'after'
+ *   insertId       ID for auto-created container div     default 'API_SEO_TRAFFIC68'
+ *   insertStyle    Inline CSS for container div          default ''
+ *   align          Button alignment in container         default 'center'
+ *   padX           Horizontal padding in px              default 0
+ *   padY           Vertical padding in px                default 12
  *
  * BUTTON APPEARANCE
  *   buttonText     Text on button                        default 'Lấy Mã'
@@ -16,8 +20,8 @@
  *   borderRadius   Button & pill radius in px            default 50
  *   fontSize       Button font size in px                default 15
  *   shadow         Show drop shadow on button            default true
- *   icon           Emoji or HTML string for icon         default '🎁'
  *   iconUrl        URL to image used as icon             default ''
+ *   iconBg         Icon background color                 default 'rgba(255,255,255,0.92)'
  *   iconSize       Icon image size in px                 default 22
  *
  * THEME  (affects popup)
@@ -25,11 +29,13 @@
  *
  * POPUP CONTENT
  *   waitTime       Seconds before code is revealed       default 30
- *   code           The code/text/URL to reveal           default 'TRAFFIC68'
  *   title          Popup title after reveal              default 'Mã của bạn!'
  *   message        Popup subtitle after reveal           default '...'
  *   countdownText  Waiting text template — use {s}      default 'Vui lòng chờ {s} giây...'
  *   successText    Hint text under code box              default 'Nhấn để sao chép!'
+ *
+ *   NOTE: Code is fetched dynamically from server per-session
+ *         (vuot_link_tasks.code_given), NOT configured statically.
  *
  * BRANDING
  *   brandName      Brand text in footer                  default 'Traffic68'
@@ -40,7 +46,7 @@
  *   customCSS      Raw CSS string injected after default styles
  *
  * CALLBACKS
- *   onReveal(code)     Called when countdown ends
+ *   onReveal(code)     Called when countdown ends (code from server)
  *   onCopy(code)       Called when user copies the code
  */
 
@@ -64,13 +70,11 @@
     borderRadius: 50,
     fontSize: 15,
     shadow: true,
-    icon: '🎁',
     iconUrl: '',
     iconBg: 'rgba(255,255,255,0.92)',
     iconSize: 22,
     theme: 'default',
     waitTime: 30,
-    code: 'TRAFFIC68',
     title: 'Mã của bạn! 🎉',
     message: 'Sao chép mã bên dưới để sử dụng.',
     countdownText: 'Vui lòng chờ {s} giây...',
@@ -145,20 +149,10 @@
   var revealed = false;
   var globalTimer = null;
   var circumference = 0;
+  var sessionCode = '';    // code fetched from server (vuot_link_tasks.code_given)
+  var _widgetToken = '';   // token for API calls
 
-  /* ── Position calculator ──────────────────────────────── */
-  function posStyle() {
-    var ox = cfg.offsetX + 'px';
-    var oy = cfg.offsetY + 'px';
-    var map = {
-      'top-left': { top: oy, left: ox, bottom: 'auto', right: 'auto' },
-      'top-right': { top: oy, right: ox, bottom: 'auto', left: 'auto' },
-      'bottom-left': { bottom: oy, left: ox, top: 'auto', right: 'auto' },
-      'bottom-right': { bottom: oy, right: ox, top: 'auto', left: 'auto' },
-      'center': { top: '50%', left: '50%', transform: 'translate(-50%,-50%)', bottom: 'auto', right: 'auto' },
-    };
-    return map[cfg.position] || map['bottom-right'];
-  }
+
 
   /* ── CSS injection ────────────────────────────────────── */
   function injectStyles() {
@@ -528,8 +522,9 @@
   }
 
   function codeHtml() {
+    var displayCode = sessionCode || 'Đang tải...';
     return '<div class="ln-code-wrap" style="border-color:' + t.codeBorder + '">' +
-      '<div class="ln-code-val" style="background:' + t.codeBg + ';color:' + t.modalText + '">' + escHtml(cfg.code) + '</div>' +
+      '<div class="ln-code-val" style="background:' + t.codeBg + ';color:' + t.modalText + '">' + escHtml(displayCode) + '</div>' +
       '<button class="ln-copy-btn" id="laynut-copy" style="background:' + t.copyBg + ';color:' + t.copyText + '">SAO CHÉP</button>' +
       '</div>' +
       '<p class="ln-hint" style="color:' + t.hintColor + '">' + escHtml(cfg.successText) + '</p>';
@@ -544,7 +539,8 @@
     var btn = document.getElementById('laynut-copy');
     if (!btn) return;
     btn.addEventListener('click', function () {
-      var code = cfg.code;
+      var code = sessionCode;
+      if (!code) return;
       if (navigator.clipboard) {
         navigator.clipboard.writeText(code).then(function () { flashCopy(btn); });
       } else {
@@ -758,9 +754,12 @@
       if (remaining <= 0) {
         revealed = true;
         if (badge) badge.remove();
-        closeModal();
-        openModal(); // show code
-        if (typeof cfg.onReveal === 'function') cfg.onReveal(cfg.code);
+        // Fetch the session code from server
+        fetchSessionCode(function () {
+          closeModal();
+          openModal(); // show code
+          if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
+        });
         return;
       }
 
@@ -768,6 +767,47 @@
       tickTimer = setTimeout(tick, 1000);
     }
     tick();
+  }
+
+  /* ── Fetch session code from server ────────────────────── */
+  function fetchSessionCode(callback) {
+    if (!_widgetToken) {
+      sessionCode = 'Lỗi: Không có token';
+      if (callback) callback();
+      return;
+    }
+    var base = _scriptBase;
+    var url = base + '/api/widgets/public/' + _widgetToken + '/get-code';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onload = function () {
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          sessionCode = resp.code || '';
+          console.log('[LayNut] Session code received: ' + sessionCode);
+        } catch (e) {
+          sessionCode = 'Lỗi tải mã';
+          console.error('[LayNut] Error parsing code response:', e);
+        }
+      } else {
+        sessionCode = 'Không tìm thấy mã';
+        try {
+          var err = JSON.parse(xhr.responseText);
+          console.warn('[LayNut] get-code failed:', err.error || xhr.status);
+        } catch (e) {
+          console.warn('[LayNut] get-code failed:', xhr.status);
+        }
+      }
+      if (callback) callback();
+    };
+    xhr.onerror = function () {
+      sessionCode = 'Lỗi mạng';
+      console.error('[LayNut] Network error fetching code');
+      if (callback) callback();
+    };
+    xhr.send('{}');
   }
 
   /* ── Button click starts everything ──────────────────── */
@@ -840,6 +880,7 @@
     for (var i = 0; i < scripts.length; i++) {
       var token = scripts[i].getAttribute('data-token');
       if (token) {
+        _widgetToken = token; // store for later get-code calls
         var base = _scriptBase;
         var pageUrl = encodeURIComponent(window.location.href);
         var apiUrl = base + '/api/widgets/public/' + token + '?pageUrl=' + pageUrl;
