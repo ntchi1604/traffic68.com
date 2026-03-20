@@ -131,7 +131,8 @@ export default function VuotLink() {
         // Step 3: Collect browser proof
         const proof = collectBrowserProof();
 
-        // Step 4: Request task (token already checked above)
+        // Step 4: Request task
+        const token = localStorage.getItem('token');
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
