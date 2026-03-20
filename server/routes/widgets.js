@@ -51,28 +51,33 @@ router.get('/public/:token', async (req, res) => {
 
   if (pageUrl) {
     try {
-      const decodedUrl = decodeURIComponent(pageUrl);
+      const normalize = (u) => decodeURIComponent(u).replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').toLowerCase();
+      const normalPage = normalize(pageUrl);
+
       const [campaigns] = await pool.execute(
-        `SELECT c.id, c.url, c.duration, c.time_on_site FROM campaigns c
-         WHERE c.status = 'running' AND c.user_id = ?
-         ORDER BY c.created_at DESC`,
+        `SELECT id, url, time_on_site, keyword FROM campaigns 
+         WHERE user_id = ? AND status = 'running' AND views_done < total_views 
+         ORDER BY created_at DESC`,
         [widgets[0].user_id]
       );
+
       for (const camp of campaigns) {
-        try {
-          const campHost = new URL(camp.url).hostname.replace(/^www\./, '');
-          const pageHost = new URL(decodedUrl).hostname.replace(/^www\./, '');
-          if (campHost === pageHost) {
-            const tos = camp.time_on_site || String(camp.duration || 60);
-            let waitSec = 60;
-            if (tos.includes('-')) waitSec = parseInt(tos.split('-')[0]) || 60;
-            else waitSec = parseInt(tos) || 60;
-            campaignInfo = { campaignId: camp.id, waitTime: waitSec };
-            break;
+        const normalCamp = normalize(camp.url || '');
+        if (normalPage === normalCamp || normalPage.startsWith(normalCamp + '/') || normalCamp.startsWith(normalPage)) {
+          let waitTime = 30;
+          const tos = camp.time_on_site || '';
+          if (tos.includes('-')) {
+            waitTime = parseInt(tos.split('-')[0]) || 30;
+          } else {
+            waitTime = parseInt(tos) || 30;
           }
-        } catch {}
+          campaignInfo = { campaignId: camp.id, waitTime };
+          break;
+        }
       }
-    } catch {}
+    } catch (err) {
+      console.error('Campaign lookup error:', err.message);
+    }
   }
 
   // Only send values that differ from JS defaults
