@@ -112,21 +112,10 @@ export default function VuotLink() {
         // Incognito detection via storage quota
         if (navigator.storage && navigator.storage.estimate) {
           const { quota } = await navigator.storage.estimate();
-          const quotaGB = Math.round((quota || 0) / 1024 / 1024 / 1024 * 100) / 100;
-          console.log('[VuotLink] Storage quota:', quotaGB, 'GB');
-          // In incognito: quota is typically very small (< a few GB)
-          // Normal mode: quota is typically 50-300+ GB (60% of disk)
-          if (quota && quota < 10 * 1024 * 1024 * 1024) { // < 10GB
+          if (quota && quota < 10 * 1024 * 1024 * 1024) {
             if (!cancelled) setIsIncognito(true);
             return;
           }
-        }
-
-        // Must be logged in (blocks guests)
-        const token = localStorage.getItem('token');
-        if (!token) {
-          if (!cancelled) setError('Bạn cần đăng nhập để thực hiện nhiệm vụ này.');
-          return;
         }
 
         // Step 1: Get challenge
