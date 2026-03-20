@@ -233,24 +233,126 @@ router.post('/task', optionalAuth, async (req, res) => {
 
   ch.used = true;
 
-  // ── BotD detection result (from @fingerprintjs/botd) ──
+  // ═══════════════════════════════════════════════════════
+  //  SERVER-SIDE SECURITY (don't trust client data blindly)
+  // ═══════════════════════════════════════════════════════
+
   const { botDetection, fingerprint, behavioral } = req.body || {};
-  if (botDetection && botDetection.bot === true) {
-    console.log(`[VuotLink] 🤖 BotD detected bot: IP=${ip}, deviceId=${deviceId?.substring(0,8)}`);
-    return res.status(403).json(ERR);
+  let serverBotScore = 0;             // 0-100, ≥60 = block
+
+  // ── 1. Challenge solve timing ──
+  // Real user: page load + PoW mining + render = at least 3 seconds
+  const solveTime = Date.now() - ch.createdAt;
+  if (solveTime < 3000) {
+    serverBotScore += 40;
+    console.log(`[VuotLink] ⚠️ Too fast: ${solveTime}ms, IP=${ip}`);
+  } else if (solveTime < 5000) {
+    serverBotScore += 15;
   }
 
-  // ── Behavioral analysis (inline tracker data) ──
-  if (behavioral) {
-    if (behavioral.screen?.w === 0 || behavioral.screen?.h === 0) {
-      console.log('[VuotLink] blocked: zero screen size'); return res.status(403).json(ERR);
+  // ── 2. BotD result (signal, not final verdict) ──
+  if (botDetection && botDetection.bot === true) {
+    serverBotScore += 30;
+    console.log(`[VuotLink] BotD flag: IP=${ip}`);
+  }
+
+  // ── 3. Missing behavioral data = suspicious ──
+  if (!behavioral) {
+    serverBotScore += 25;
+    console.log(`[VuotLink] ⚠️ No behavioral data, IP=${ip}`);
+  } else {
+    // Zero screen = headless
+    if (!behavioral.screen?.w || !behavioral.screen?.h) {
+      serverBotScore += 30;
     }
+    // No interaction at all = automated
     if (behavioral.mousePoints === 0 && behavioral.clicks === 0 && behavioral.keys === 0) {
-      console.log(`[VuotLink] ⚠️ No interaction detected: IP=${ip}`);
+      serverBotScore += 35;
+      console.log(`[VuotLink] ⚠️ Zero interaction, IP=${ip}`);
     }
-    if (behavioral.loadTime < 1000) {
-      console.log(`[VuotLink] ⚠️ Suspiciously fast: ${behavioral.loadTime}ms, IP=${ip}`);
+    // Suspiciously fast page load
+    if (behavioral.loadTime && behavioral.loadTime < 2000) {
+      serverBotScore += 15;
     }
+
+    // ── 4. Mouse trajectory analysis (server-side, can't be easily faked) ──
+    const trail = behavioral.mouseTrail;
+    if (trail && Array.isArray(trail) && trail.length >= 5) {
+      // Check for perfectly linear movement (bot draws straight lines)
+      let linearCount = 0;
+      let constantVelocity = 0;
+      let prevDx = null, prevDy = null;
+
+      for (let i = 2; i < trail.length; i++) {
+        const dx1 = trail[i].x - trail[i - 1].x;
+        const dy1 = trail[i].y - trail[i - 1].y;
+        const dx0 = trail[i - 1].x - trail[i - 2].x;
+        const dy0 = trail[i - 1].y - trail[i - 2].y;
+
+        // Cross product ≈ 0 means collinear (straight line)
+        const cross = Math.abs(dx1 * dy0 - dy1 * dx0);
+        if (cross < 2) linearCount++;
+
+        // Check constant velocity (bots move at exact same speed)
+        const speed1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+        const speed0 = Math.sqrt(dx0 * dx0 + dy0 * dy0);
+        if (speed0 > 0 && Math.abs(speed1 - speed0) < 1) constantVelocity++;
+      }
+
+      const linearRatio = linearCount / (trail.length - 2);
+      const velocityRatio = constantVelocity / (trail.length - 2);
+
+      if (linearRatio > 0.8) {
+        serverBotScore += 25;
+        console.log(`[VuotLink] ⚠️ Linear mouse: ${(linearRatio * 100).toFixed(0)}%, IP=${ip}`);
+      }
+      if (velocityRatio > 0.7) {
+        serverBotScore += 20;
+        console.log(`[VuotLink] ⚠️ Constant velocity: ${(velocityRatio * 100).toFixed(0)}%, IP=${ip}`);
+      }
+
+      // All points have identical timestamps (fake data injection)
+      const uniqueTimes = new Set(trail.map(p => p.t)).size;
+      if (uniqueTimes <= 2 && trail.length > 5) {
+        serverBotScore += 30;
+        console.log(`[VuotLink] ⚠️ Fake timestamps: only ${uniqueTimes} unique, IP=${ip}`);
+      }
+
+      // Points outside reasonable screen range
+      const outOfBounds = trail.filter(p => p.x < 0 || p.y < 0 || p.x > 4000 || p.y > 3000).length;
+      if (outOfBounds > trail.length * 0.3) {
+        serverBotScore += 20;
+      }
+    } else if (behavioral.mousePoints > 0 && (!trail || trail.length < 3)) {
+      // Claims mouse points but no trail data = spoofed
+      serverBotScore += 20;
+    }
+  }
+
+  // ── 5. Missing fingerprint = suspicious ──
+  if (!fingerprint) {
+    serverBotScore += 15;
+  } else {
+    // Headless browsers often have 0 plugins, 0 fonts
+    if (fingerprint.fonts === 0 && fingerprint.plugins === 0) {
+      serverBotScore += 20;
+      console.log(`[VuotLink] ⚠️ Zero fonts+plugins (headless?), IP=${ip}`);
+    }
+  }
+
+  // ── 6. Honeypot: check for fields that shouldn't exist ──
+  const { _hp, email } = req.body || {};
+  if (_hp || email) {
+    serverBotScore += 50;
+    console.log(`[VuotLink] 🍯 Honeypot triggered, IP=${ip}`);
+  }
+
+  // ═══ FINAL VERDICT ═══
+  console.log(`[VuotLink] BotScore=${serverBotScore}, IP=${ip}, device=${deviceId?.substring(0,8) || '?'}, solve=${solveTime}ms`);
+
+  if (serverBotScore >= 60) {
+    console.log(`[VuotLink] 🤖 BLOCKED: score=${serverBotScore}, IP=${ip}`);
+    return res.status(403).json(ERR);
   }
 
   // ── FingerprintJS components log ──
