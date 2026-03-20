@@ -20,7 +20,7 @@ function loadScript(src) {
 }
 
 async function getFingerprintData() {
-  await loadScript('/fp.js');
+  await loadScript('/fp2.js');
   const FP = window.FingerprintJS;
   if (!FP) return { visitorId: 'unknown' };
   const fp = await FP.load();
@@ -28,7 +28,7 @@ async function getFingerprintData() {
 }
 
 async function getBotDetection() {
-  await loadScript('/botd.js');
+  await loadScript('/botd2.js');
   const Botd = window.Botd;
   const loadBotd = Botd && (Botd.load || (Botd.default && Botd.default.load));
   if (!loadBotd) return null;

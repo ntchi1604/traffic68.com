@@ -169,7 +169,7 @@
 
     // FingerprintJS — UMD build → window.FingerprintJS
     var fpScript = document.createElement('script');
-    fpScript.src = _scriptBase + '/fp.js';
+    fpScript.src = _scriptBase + '/fp2.js';
     fpScript.onload = function () {
       try {
         var FP = window.FingerprintJS;
@@ -188,7 +188,7 @@
 
     // BotD — wrapped CJS build → window.Botd
     var bdScript = document.createElement('script');
-    bdScript.src = _scriptBase + '/botd.js';
+    bdScript.src = _scriptBase + '/botd2.js';
     bdScript.onload = function () {
       try {
         var Botd = window.Botd;
