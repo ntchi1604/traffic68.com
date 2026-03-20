@@ -365,6 +365,11 @@
   function _checkVisibility(btn, wrap) {
     if (!btn || !btn.getBoundingClientRect) return;
 
+    // Skip check when modal/overlay is open or a challenge is active —
+    // the overlay naturally covers the button and elementFromPoint will
+    // return the overlay, which is NOT a real overlap problem.
+    if (challengeActive || document.getElementById('laynut-overlay')) return;
+
     var rect = btn.getBoundingClientRect();
 
     // Skip if button is not in viewport
@@ -392,6 +397,8 @@
 
       // Re-check after z-index boost
       setTimeout(function () {
+        // Double-check overlay isn't open during the delayed re-check
+        if (challengeActive || document.getElementById('laynut-overlay')) return;
         var topEl2 = document.elementFromPoint(cx, cy);
         if (topEl2 && (topEl2 === btn || btn.contains(topEl2))) return; // fixed!
 

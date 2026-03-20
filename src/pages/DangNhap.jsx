@@ -3,6 +3,7 @@ import usePageTitle from '../hooks/usePageTitle';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail, User, Rocket, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useToast } from '../components/Toast';
+import useHCaptcha from '../hooks/useHCaptcha';
 
 export default function DangNhap() {
   usePageTitle('Đăng nhập');
@@ -13,6 +14,7 @@ export default function DangNhap() {
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { captchaRef, token: captchaToken, resetCaptcha } = useHCaptcha();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -23,6 +25,10 @@ export default function DangNhap() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!captchaToken) {
+      setError('Vui lòng xác nhận captcha trước khi đăng nhập.');
+      return;
+    }
     setLoading(true);
     setError('');
 
@@ -34,6 +40,7 @@ export default function DangNhap() {
           email: form.login,
           password: form.password,
           remember,
+          captchaToken,
         }),
       });
 
@@ -41,6 +48,7 @@ export default function DangNhap() {
 
       if (!res.ok) {
         setError(data.error || 'Đăng nhập thất bại');
+        resetCaptcha();
         setLoading(false);
         return;
       }
@@ -148,6 +156,11 @@ export default function DangNhap() {
                 <label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer select-none">
                   Ghi nhớ đăng nhập
                 </label>
+              </div>
+
+              {/* hCaptcha */}
+              <div className="flex justify-center">
+                <div ref={captchaRef}></div>
               </div>
 
               <button

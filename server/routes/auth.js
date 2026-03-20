@@ -6,10 +6,38 @@ const { authMiddleware, JWT_SECRET } = require('../middleware/auth');
 
 const router = express.Router();
 
+// ── hCaptcha verification ──
+const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
+
+async function verifyHCaptcha(token) {
+  if (!token) return false;
+  try {
+    const params = new URLSearchParams();
+    params.append('response', token);
+    params.append('secret', HCAPTCHA_SECRET);
+    const res = await fetch('https://api.hcaptcha.com/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    const data = await res.json();
+    return data.success === true;
+  } catch (err) {
+    console.error('hCaptcha verify error:', err.message);
+    return false;
+  }
+}
+
 // ── POST /api/auth/register ──
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, username, phone, referralCode } = req.body;
+    const { email, password, name, username, phone, referralCode, captchaToken } = req.body;
+
+    // Verify hCaptcha
+    const captchaValid = await verifyHCaptcha(captchaToken);
+    if (!captchaValid) {
+      return res.status(400).json({ error: 'Xác nhận captcha không hợp lệ. Vui lòng thử lại.' });
+    }
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email và mật khẩu là bắt buộc' });
@@ -78,7 +106,13 @@ router.post('/register', async (req, res) => {
 
 // ── POST /api/auth/login ──
 router.post('/login', async (req, res) => {
-  const { email, password, remember } = req.body;
+  const { email, password, remember, captchaToken } = req.body;
+
+  // Verify hCaptcha
+  const captchaValid = await verifyHCaptcha(captchaToken);
+  if (!captchaValid) {
+    return res.status(400).json({ error: 'Xác nhận captcha không hợp lệ. Vui lòng thử lại.' });
+  }
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Email/Username và mật khẩu là bắt buộc' });

@@ -3,6 +3,7 @@ import usePageTitle from '../hooks/usePageTitle';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail, User, Rocket, CheckCircle2, TrendingUp, Link2 } from 'lucide-react';
 import { useToast } from '../components/Toast';
+import useHCaptcha from '../hooks/useHCaptcha';
 
 const testimonials = [
   { quote: 'Tăng 500% traffic chỉ sau 2 tháng. Đội ngũ hỗ trợ tuyệt vời!', name: 'Anh Tuấn', role: 'CEO – TechStartup.vn', initials: 'AT', gradient: 'from-orange-400 to-orange-600' },
@@ -113,6 +114,7 @@ export default function DangKy() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
+  const { captchaRef, token: captchaToken, resetCaptcha } = useHCaptcha();
 
 
 
@@ -129,6 +131,10 @@ export default function DangKy() {
       setError('Vui lòng chọn loại dịch vụ bạn muốn sử dụng.');
       return;
     }
+    if (!captchaToken) {
+      setError('Vui lòng xác nhận captcha trước khi đăng ký.');
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/auth/register', {
@@ -140,11 +146,13 @@ export default function DangKy() {
           name: form.fullName,
           username: form.username,
           phone: '',
+          captchaToken,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Đăng ký thất bại');
+        resetCaptcha();
         setLoading(false);
         return;
       }
@@ -341,6 +349,11 @@ export default function DangKy() {
                     ❌ {error}
                   </p>
                 )}
+
+                {/* hCaptcha */}
+                <div className="flex justify-center">
+                  <div ref={captchaRef}></div>
+                </div>
 
                 <button
                   type="submit"
