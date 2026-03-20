@@ -49,7 +49,7 @@ function generateCanvasChallenge() {
   return { text, fontSize, color };
 }
 
-const POW_DIFFICULTY = '00000'; // 5 hex zeros = ~1M iterations
+const POW_DIFFICULTY = '0000'; // 4 hex zeros = ~65K iterations
 
 /* ═════════════════════════════════════════════════════════
    STEP 1: GET challenge
