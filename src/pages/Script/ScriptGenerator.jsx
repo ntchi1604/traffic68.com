@@ -345,7 +345,6 @@ export default function ScriptGenerator() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black text-gray-900">Script Nút Lấy Mã</h1>
-          <p className="text-sm text-gray-500 mt-1">Tạo nút đếm ngược nhúng vào bất kỳ website nào — custom text, logo, CSS, theme.</p>
         </div>
       </div>
 
@@ -410,8 +409,8 @@ export default function ScriptGenerator() {
               {/* Icon section — compact card */}
               <SectionTitle>Icon / Logo nút</SectionTitle>
               <Field label="URL ảnh logo"
-                hint="Để trống sẽ dùng logo mặc định">
-                <TextInput value={cfg.iconUrl} onChange={e => set('iconUrl', e.target.value)}
+                hint="Để trống sẽ dùng logo mặc định — dùng chung icon nút + logo popup">
+                <TextInput value={cfg.iconUrl} onChange={e => { set('iconUrl', e.target.value); set('brandLogo', e.target.value); }}
                   mono />
               </Field>
 
@@ -617,11 +616,11 @@ export default function ScriptGenerator() {
                   <TextInput value={cfg.brandUrl} onChange={e => set('brandUrl', e.target.value)} placeholder="https://..." mono />
                 </Field>
               </div>
-              <Field label="Logo URL (tùy chọn)" hint="Ảnh nhỏ bên cạnh tên thương hiệu trong popup">
-                <TextInput value={cfg.brandLogo} onChange={e => set('brandLogo', e.target.value)} placeholder="https://..." mono />
+              <Field label="Logo URL" hint="Dùng chung làm icon nút và logo thương hiệu trong popup">
+                <TextInput value={cfg.iconUrl} onChange={e => { set('iconUrl', e.target.value); set('brandLogo', e.target.value); }} placeholder="https://... (để trống = logo mặc định)" mono />
               </Field>
 
-              <SectionTitle>Nội dung đếm ngược</SectionTitle>
+              <SectionTitle>Thời gian chờ</SectionTitle>
               <Field label={`Thời gian chờ — ${cfg.waitTime}s`}>
                 <input type="range" min="5" max="120" step="5" value={cfg.waitTime}
                   onChange={e => set('waitTime', +e.target.value)} className="w-full accent-orange-500 cursor-pointer" />
@@ -630,30 +629,9 @@ export default function ScriptGenerator() {
                 </div>
               </Field>
 
-              <Field label="Mã / nội dung hiển thị sau khi chờ"
-                hint="Có thể là mã giảm giá, URL, hoặc bất kỳ text nào">
-                <textarea rows={2} value={cfg.code} onChange={e => set('code', e.target.value)}
-                  placeholder="TRAFFIC68-FREE"
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none
-                             focus:ring-2 focus:ring-blue-500 transition resize-none font-mono bg-white" />
-              </Field>
-
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Tiêu đề popup (sau khi hết giờ)">
-                  <TextInput value={cfg.title} onChange={e => set('title', e.target.value)} />
-                </Field>
-                <Field label="Mô tả popup">
-                  <TextInput value={cfg.message} onChange={e => set('message', e.target.value)} />
-                </Field>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Text đếm ngược" hint="Dùng {s} cho số giây còn lại">
-                  <TextInput value={cfg.countdownText} onChange={e => set('countdownText', e.target.value)} />
-                </Field>
-                <Field label="Gợi ý dưới hộp mã">
-                  <TextInput value={cfg.successText} onChange={e => set('successText', e.target.value)} />
-                </Field>
+              <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-700">
+                <Info size={13} className="mt-0.5 flex-shrink-0" />
+                <span>Mã hiển thị sau khi hết giờ sẽ do <strong>server tự random</strong>. User nhập mã vào trang <strong>vượt link</strong> để xác nhận.</span>
               </div>
             </div>
           )}
