@@ -130,7 +130,7 @@ export default function AdminSecurity() {
             <StatCard icon={Eye} label="Tổng task (24h)" value={fmt(s.totalTasks24h)} sub={`${fmt(s.completedTasks24h)} hoàn thành`} color="text-blue-600" bg="bg-blue-50" />
             <StatCard icon={XCircle} label="Bị chặn (24h)" value={fmt(s.blockedTasks24h)} color="text-red-600" bg="bg-red-50" />
             <StatCard icon={Fingerprint} label="Thiết bị duy nhất" value={fmt(s.uniqueDevices24h)} color="text-purple-600" bg="bg-purple-50" />
-            <StatCard icon={Bot} label="Bot phát hiện" value={fmt(s.botDetected24h)} sub={s.botByReason?.map(r => `${r.reason}: ${r.c}`).join(', ')} color="text-amber-600" bg="bg-amber-50" />
+            <StatCard icon={Bot} label="Bot phát hiện" value={fmt(s.botDetected24h)} color="text-amber-600" bg="bg-amber-50" />
           </div>
 
           {/* Top Devices Abusing */}
