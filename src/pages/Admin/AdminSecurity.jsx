@@ -4,7 +4,12 @@ import {
   Shield, Fingerprint, Bot, MousePointer2, Eye, AlertTriangle,
   CheckCircle2, XCircle, Clock, RefreshCw, Search, ChevronDown,
   Monitor, Smartphone, Globe, TrendingUp, Users, Activity,
+  ExternalLink, Video,
 } from 'lucide-react';
+
+const CLARITY_PROJECT = 'vyua2zk5dc';
+const clarityUrl = (visitorId) =>
+  `https://clarity.microsoft.com/project/${CLARITY_PROJECT}/recordings?CustomUserId=${encodeURIComponent(visitorId)}`;
 import api from '../../lib/api';
 
 /* ── Helpers ── */
@@ -135,6 +140,10 @@ export default function AdminSecurity() {
                       <p className="text-xs font-mono text-slate-700 truncate">{d.visitor_id}</p>
                       <p className="text-[10px] text-slate-400">{d.ip_count} IP · {d.completed} hoàn thành · {d.total} tổng</p>
                     </div>
+                    <a href={clarityUrl(d.visitor_id)} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition">
+                      <Video size={12} /> Xem video
+                    </a>
                     <div className="text-right">
                       <p className="text-sm font-bold text-slate-800">{d.total} task</p>
                       {d.total >= 5 && <RiskBadge level="danger" />}
@@ -193,6 +202,7 @@ export default function AdminSecurity() {
                     <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Mouse</th>
                     <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Đánh giá</th>
                     <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Thời gian</th>
+                    <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Video</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -236,12 +246,22 @@ export default function AdminSecurity() {
                         </td>
                         <td className="px-4 py-3"><RiskBadge level={risk} /></td>
                         <td className="px-4 py-3 text-xs text-slate-400">{timeAgo(log.created_at)}</td>
+                        <td className="px-4 py-3">
+                          {log.visitor_id ? (
+                            <a href={clarityUrl(log.visitor_id)} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition">
+                              <Video size={10} /> Xem
+                            </a>
+                          ) : (
+                            <span className="text-slate-300 text-xs">—</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
                   {logs.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center text-slate-400 text-sm">
+                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400 text-sm">
                         Không có dữ liệu
                       </td>
                     </tr>
