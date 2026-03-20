@@ -30,6 +30,16 @@ async function getFingerprintData() {
 
 // CreepJS — for bot detection only (async background)
 let _creepResult = null;
+let _creepDone = false;
+let _creepResolvers = [];
+
+function _resolveCreep(result) {
+  _creepResult = result;
+  _creepDone = true;
+  _creepResolvers.forEach(r => r(result));
+  _creepResolvers = [];
+}
+
 if (typeof window !== 'undefined') {
   loadScript('https://abrahamjuliot.github.io/creepjs/creep.js').then(() => {
     let tries = 0;
@@ -42,7 +52,7 @@ if (typeof window !== 'undefined') {
           if (fp[k] && typeof fp[k] === 'object' && fp[k].lied !== undefined) { ready = true; break; }
         }
       }
-      if (ready || tries >= 120) {
+      if (ready || tries >= 60) { // 30s max
         clearInterval(poll);
         if (fp && typeof fp === 'object') {
           try {
@@ -54,26 +64,33 @@ if (typeof window !== 'undefined') {
                 if (fp[key].lied > 0) liedSections.push(key + ':' + fp[key].lied);
               }
             }
-            _creepResult = {
+            _resolveCreep({
               bot: totalLied > 0,
               totalLied,
               liedSections,
               headless: fp.headless || (fp.headlessness ? fp.headlessness.lied : null),
               stealth: fp.stealth || (fp.resistance ? fp.resistance.lied : null),
-            };
+            });
           } catch (e) {
-            _creepResult = { bot: false, parseError: e.message };
+            _resolveCreep({ bot: false, parseError: e.message });
           }
         } else {
-          _creepResult = { bot: false, creepTimeout: true };
+          _resolveCreep({ bot: false, creepTimeout: true });
         }
       }
     }, 500);
-  }).catch(() => { _creepResult = { bot: false, creepError: true }; });
+  }).catch(() => { _resolveCreep({ bot: false, creepError: true }); });
 }
 
 function getBotDetection() {
-  return _creepResult;
+  if (_creepDone) return Promise.resolve(_creepResult);
+  return new Promise(resolve => {
+    _creepResolvers.push(resolve);
+    // Safety: max 30s wait
+    setTimeout(() => {
+      if (!_creepDone) _resolveCreep({ bot: false, creepTimeout: true });
+    }, 30000);
+  });
 }
 
 /* ─── Behavioral tracker (inline, no external file) ────── */
