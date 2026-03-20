@@ -54,45 +54,10 @@ export default function VuotLink() {
   const [completionResult, setCompletionResult] = useState(null);
   const [completing, setCompleting] = useState(false);
   const taskStartTime = useRef(Date.now());
-  const [deviceId, setDeviceId] = useState('');
-  const [botResult, setBotResult] = useState(null);
-  const [fpComponents, setFpComponents] = useState(null);
 
   const waitTime = task?.waitTime || 60;
 
-  /* ─── FingerprintJS + BotD on mount ──────────── */
-  useEffect(() => {
-    (async () => {
-      try {
-        // FingerprintJS — device identification
-        const fp = await FingerprintJS.load();
-        const fpResult = await fp.get();
-        setDeviceId(fpResult.visitorId);
-        setFpComponents({
-          canvas: fpResult.components?.canvas?.value,
-          webgl: fpResult.components?.webgl?.value,
-          audio: fpResult.components?.audio?.value,
-          fonts: fpResult.components?.fonts?.value?.length || 0,
-          plugins: fpResult.components?.plugins?.value?.length || 0,
-          screen: fpResult.components?.screenResolution?.value,
-          platform: fpResult.components?.platform?.value,
-          timezone: fpResult.components?.timezone?.value,
-          touchSupport: fpResult.components?.touchSupport?.value,
-        });
-      } catch { setDeviceId('unknown'); }
 
-      try {
-        // BotD — bot detection
-        const botd = await loadBotd();
-        const result = botd.detect();
-        console.log('[BotD] result:', JSON.stringify(result));
-        setBotResult(result);
-      } catch (e) {
-        console.warn('[BotD] error:', e);
-        setBotResult({ bot: false, error: e.message });
-      }
-    })();
-  }, []);
 
   /* ─── Fetch task from API on mount ─────────────── */
   useEffect(() => {
@@ -219,7 +184,34 @@ export default function VuotLink() {
           }
         } catch { webglHash = ''; }
 
-        // Step 5: Collect behavioral + fingerprint data
+        // Step 5: FingerprintJS + BotD (load here to avoid race condition)
+        let fpDeviceId = 'unknown';
+        let fpComponentsData = null;
+        let botDetectionData = null;
+
+        try {
+          const fp = await FingerprintJS.load();
+          const fpResult = await fp.get();
+          fpDeviceId = fpResult.visitorId;
+          fpComponentsData = {
+            canvas: fpResult.components?.canvas?.value,
+            webgl: fpResult.components?.webgl?.value,
+            audio: fpResult.components?.audio?.value,
+            fonts: fpResult.components?.fonts?.value?.length || 0,
+            plugins: fpResult.components?.plugins?.value?.length || 0,
+            screen: fpResult.components?.screenResolution?.value,
+            platform: fpResult.components?.platform?.value,
+            timezone: fpResult.components?.timezone?.value,
+            touchSupport: fpResult.components?.touchSupport?.value,
+          };
+        } catch { /* fallback unknown */ }
+
+        try {
+          const botd = await loadBotd();
+          botDetectionData = botd.detect();
+        } catch { botDetectionData = { bot: false }; }
+
+        // Step 6: Collect behavioral data
         const behavioral = {
           mousePoints: behaviorData.mouse.length,
           mouseTrail: behaviorData.mouse.slice(-20),
@@ -230,7 +222,7 @@ export default function VuotLink() {
           screen: { w: window.screen?.width, h: window.screen?.height, dpr: window.devicePixelRatio },
         };
 
-        // Step 6: Request task
+        // Step 7: Request task
         const token = localStorage.getItem('token');
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -244,9 +236,9 @@ export default function VuotLink() {
             powNonce,
             canvasHash,
             webglHash,
-            deviceId,
-            botDetection: botResult,
-            fingerprint: fpComponents,
+            deviceId: fpDeviceId,
+            botDetection: botDetectionData,
+            fingerprint: fpComponentsData,
             behavioral,
           }),
         });
