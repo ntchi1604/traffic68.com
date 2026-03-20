@@ -52,10 +52,10 @@ const POW_HARD = '000000';    // 6 zeros = ~16M iter (datacenter IP)
 
 // Simple datacenter/hosting IP detection
 function getIpRisk(ip) {
-  // High request rate = suspicious
-  if ((ipTaskCount[ip] || 0) > 10) return 'hard';
-  if ((ipTaskCount[ip] || 0) > 5) return 'suspect';
-  return 'normal';
+  const count = ipTaskCount[ip] || 0;
+  if (count > 25) return 'hard';    // >25 tasks/hour = datacenter/bot
+  if (count > 15) return 'suspect'; // >15 tasks/hour = suspicious
+  return 'normal';                  // ≤15 = normal user (F5 vài lần OK)
 }
 
 function getPowDifficulty(ip) {
