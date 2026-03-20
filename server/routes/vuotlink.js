@@ -166,12 +166,16 @@ router.put('/task/:id/step', optionalAuth, async (req, res) => {
     return res.status(403).json({ error: 'IP mismatch' });
   }
 
-  // Anti-cheat: enforce step order
-  const stepOrder = { 'pending': 0, 'step1': 1, 'step2': 2, 'step3': 3 };
+  // Anti-cheat: don't allow going backward (but allow same or forward)
+  const stepOrder = { 'pending': 0, 'step1': 1, 'step2': 2, 'step3': 3, 'completed': 4 };
   const stepNum = stepOrder[step];
-  const currentNum = stepOrder[task.status] || 0;
-  if (stepNum === undefined || stepNum !== currentNum + 1) {
+  const currentNum = stepOrder[task.status] ?? 0;
+  if (stepNum === undefined || stepNum < currentNum) {
     return res.status(400).json({ error: 'Step order invalid' });
+  }
+  // Already at this step or beyond — just return OK (idempotent)
+  if (stepNum <= currentNum) {
+    return res.json({ status: task.status });
   }
 
   // Anti-cheat: minimum time between steps (prevent instant clicks)
