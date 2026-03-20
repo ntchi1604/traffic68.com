@@ -234,14 +234,26 @@ router.post('/task', optionalAuth, async (req, res) => {
 
   ch.used = true;
 
-  if (proof && (proof.botScore >= 40 || proof.sw === 0 || proof.sh === 0)) { console.log('VuotLink blocked: bot proof', proof); return res.status(403).json(ERR); }
+  // Server-side only: check raw proof data (don't trust botScore from client!)
+  if (proof) {
+    // Only check objective facts the client can't hide
+    if (proof.sw === 0 || proof.sh === 0) {
+      console.log('VuotLink blocked: zero screen size from proof'); return res.status(403).json(ERR);
+    }
+  }
 
-  // Behavioral analysis — decode with dynamic XOR key
+  // Behavioral analysis — server does ALL judgment (client only sends raw data)
   const { bt } = req.body || {};
   if (bt && ch.xorKey) {
     try {
       const behavior = xorDecodeWithKey(bt, ch.xorKey);
       const result = validateBehavior(behavior);
+
+      // Check DevTools detection flags
+      if (behavior.dt === 1 || behavior.tn === 1) {
+        console.log(`[VuotLink] ⚠️ DevTools detected: dt=${behavior.dt}, tainted=${behavior.tn}, IP=${ip}`);
+      }
+
       if (result.isBot) {
         console.log(`[VuotLink] ⚠️ Behavioral warning: score=${result.score}, reasons=${result.reasons.join(',')}, IP=${ip}`);
       }
