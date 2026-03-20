@@ -63,7 +63,7 @@ export default function VuotLink() {
   /* ─── Load tracker.js on mount ────────────────── */
   useEffect(() => {
     const s = document.createElement('script');
-    s.src = '/tracker.js';
+    s.src = '/tracker.js?v=2';
     s.async = true;
     document.head.appendChild(s);
     return () => { try { document.head.removeChild(s); } catch { } };
