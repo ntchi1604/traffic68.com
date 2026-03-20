@@ -4,21 +4,32 @@
  * Phân tích mouse trail, WebGL, headless flags, timing
  */
 
-const XOR_KEY = 'T68s3cur1ty';
+/* ── Key Derivation (mirrors client-side _deriveKey) ──── */
+function deriveKey(serverKey) {
+  if (!serverKey) return '';
+  let h = 0x811c9dc5 | 0; // FNV offset (signed 32-bit)
+  for (let i = 0; i < serverKey.length; i++) {
+    h ^= serverKey.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  let derived = '';
+  for (let j = 0; j < 32; j++) {
+    h = Math.imul(h, 0x5bd1e995);
+    h ^= h >>> 15;
+    derived += String.fromCharCode((h & 0x7F) + 32);
+  }
+  return serverKey + derived;
+}
 
-/* ── Giải mã XOR + Base64 (dynamic key) ──────────────── */
-function xorDecodeWithKey(encoded, key) {
+/* ── Giải mã XOR + Base64 (dynamic key with derivation) ─ */
+function xorDecodeWithKey(encoded, serverKey) {
+  const key = deriveKey(serverKey);
   const raw = Buffer.from(encoded, 'base64').toString('binary');
   let out = '';
   for (let i = 0; i < raw.length; i++) {
     out += String.fromCharCode(raw.charCodeAt(i) ^ key.charCodeAt(i % key.length));
   }
   return JSON.parse(out);
-}
-
-/* ── Giải mã XOR + Base64 (static key fallback) ─────── */
-function xorDecode(encoded) {
-  return xorDecodeWithKey(encoded, XOR_KEY);
 }
 
 /* ── Phân tích đường chuột ─────────────────────────────── */
@@ -193,4 +204,4 @@ function validateBehavior(payload) {
 }
 
 /* ── Export ─────────────────────────────────────────────── */
-module.exports = { xorDecode, xorDecodeWithKey, validateBehavior, analyzeMouseTrail };
+module.exports = { xorDecodeWithKey, validateBehavior, analyzeMouseTrail };
