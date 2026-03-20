@@ -68,7 +68,7 @@ router.post('/', async (req, res) => {
     const _totalViews = totalViews || total_views || 1000;
     const _viewByHour = viewByHour || view_by_hour || 0;
     const _targetPage = targetPage || target_page || '';
-    const _timeOnSite = timeOnSite || time_on_site || '60-120';
+    const _timeOnSite = timeOnSite || time_on_site || (duration ? String(duration) : '60');
     const _version = version || 'v1';
     const _versionInt = _version === 'v2' ? 2 : 1;
 
