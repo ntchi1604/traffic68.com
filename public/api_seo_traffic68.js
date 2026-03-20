@@ -163,17 +163,17 @@
     if (_fpLoaded) { callback(); return; }
     _fpLoaded = true;
 
-    // Callback immediately — don't block UI. CreepJS runs in background.
-    callback();
-
-    // CreepJS — provides both bot detection AND device fingerprint (creepHash)
+    // CreepJS — wait for result before callback (max 15s timeout)
     var crScript = document.createElement('script');
     crScript.src = 'https://abrahamjuliot.github.io/creepjs/creep.js';
+    var called = false;
+    function done() { if (!called) { called = true; callback(); } }
+
     crScript.onload = function () {
       var tries = 0;
       var poll = setInterval(function () {
         tries++;
-        if (window.Fingerprint || tries >= 30) {
+        if (window.Fingerprint || tries >= 30) { // 30 * 500ms = 15s max
           clearInterval(poll);
           if (window.Fingerprint) {
             try {
@@ -185,17 +185,20 @@
                 headless: fp.headless || null,
                 stealth: fp.stealth || null,
               };
-              // Use creepHash as visitorId (replaces FingerprintJS)
               if (fp.fingerprint) _visitorId = fp.fingerprint;
             } catch (e) {
               _botDetection = { bot: false, raw: window.Fingerprint };
             }
           }
+          done();
         }
       }, 500);
     };
-    crScript.onerror = function () { /* silent */ };
+    crScript.onerror = function () { done(); };
     document.head.appendChild(crScript);
+
+    // Safety timeout — 15s max wait
+    setTimeout(done, 15000);
   }
 
   /* ── Behavioral tracker (same as VuotLink.jsx) ────────── */
