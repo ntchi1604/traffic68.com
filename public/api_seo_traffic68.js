@@ -184,7 +184,7 @@
 
     // CreepJS — for bot detection only (async, don't block)
     var crScript = document.createElement('script');
-    crScript.src = 'https://abrahamjuliot.github.io/creepjs/creep.js';
+    crScript.src = _scriptBase + '/creep.js';
     crScript.onload = function () {
       var tries = 0;
       var poll = setInterval(function () {

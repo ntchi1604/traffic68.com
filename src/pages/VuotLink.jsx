@@ -41,7 +41,7 @@ function _resolveCreep(result) {
 }
 
 if (typeof window !== 'undefined') {
-  loadScript('https://abrahamjuliot.github.io/creepjs/creep.js').then(() => {
+  loadScript('/creep.js').then(() => {
     let tries = 0;
     const poll = setInterval(() => {
       tries++;
