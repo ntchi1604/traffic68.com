@@ -197,20 +197,14 @@ router.post('/task', optionalAuth, async (req, res) => {
 
   // ── 2. CreepJS / BotD check ──
   if (botDetection) {
-    // CreepJS format: { bot: true/false, lies: [...], headless, stealth, creepHash }
-    // Old BotD format: { bot: true/false, botKind }
-    const hasLies = botDetection.lies && botDetection.lies.length > 0;
+    const lies = botDetection.lies;
+    const hasLies = Array.isArray(lies) ? lies.length > 0 : (typeof lies === 'number' ? lies > 0 : !!lies);
     const isBot = botDetection.bot === true || hasLies;
     if (isBot) {
       botDetected = true;
       detectionLog.push('creep_detected');
-      console.log(`[VuotLink] 🤖 CreepJS detected: IP=${ip}, lies=${JSON.stringify(botDetection.lies || []).substring(0, 200)}, headless=${botDetection.headless}, stealth=${botDetection.stealth}`);
-      logSecurityEvent('creep_detected', ip, ua, visitorId, {
-        lies: botDetection.lies,
-        headless: botDetection.headless,
-        stealth: botDetection.stealth,
-        creepHash: botDetection.creepHash,
-      });
+      console.log(`[VuotLink] 🤖 CreepJS detected: IP=${ip}, bot=${botDetection.bot}, lies=${JSON.stringify(lies).substring(0, 200)}`);
+      logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
       return res.status(403).json(ERR);
     }
   }
