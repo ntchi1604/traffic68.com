@@ -59,6 +59,8 @@ export default function AdminSecurity() {
   usePageTitle('Admin - Bảo mật');
   const [stats, setStats] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [securityLogs, setSecurityLogs] = useState([]);
+  const [tab, setTab] = useState('tasks'); // 'tasks' or 'events'
   const [topDevices, setTopDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, blocked, warning, passed
@@ -89,6 +91,7 @@ export default function AdminSecurity() {
       const data = await api.get(`/admin/security?${params}`);
       setStats(data.stats);
       setLogs(data.logs || []);
+      setSecurityLogs(data.securityLogs || []);
       setTopDevices(data.topDevices || []);
     } catch (err) {
       console.error('Security fetch error:', err);
@@ -127,7 +130,7 @@ export default function AdminSecurity() {
             <StatCard icon={Eye} label="Tổng task (24h)" value={fmt(s.totalTasks24h)} sub={`${fmt(s.completedTasks24h)} hoàn thành`} color="text-blue-600" bg="bg-blue-50" />
             <StatCard icon={XCircle} label="Bị chặn (24h)" value={fmt(s.blockedTasks24h)} color="text-red-600" bg="bg-red-50" />
             <StatCard icon={Fingerprint} label="Thiết bị duy nhất" value={fmt(s.uniqueDevices24h)} color="text-purple-600" bg="bg-purple-50" />
-            <StatCard icon={Bot} label="Bot phát hiện" value={fmt(s.botDetected24h)} color="text-amber-600" bg="bg-amber-50" />
+            <StatCard icon={Bot} label="Bot phát hiện" value={fmt(s.botDetected24h)} sub={s.botByReason?.map(r => `${r.reason}: ${r.c}`).join(', ')} color="text-amber-600" bg="bg-amber-50" />
           </div>
 
           {/* Top Devices Abusing */}
@@ -186,14 +189,21 @@ export default function AdminSecurity() {
             </div>
           </div>
 
-          {/* Task Logs Table */}
+          {/* Tab switcher: Tasks vs Security Events */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <Activity size={16} className="text-slate-400" /> Lịch sử task gần đây
-              </h3>
-              <span className="text-xs text-slate-400">{logs.length} results</span>
+              <div className="flex gap-2">
+                <button onClick={() => setTab('tasks')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition ${tab === 'tasks' ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                  <Activity size={12} /> Task ({logs.length})
+                </button>
+                <button onClick={() => setTab('events')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition ${tab === 'events' ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                  <Shield size={12} /> Sự kiện bảo mật ({securityLogs.length})
+                </button>
+              </div>
             </div>
+            {tab === 'tasks' && (
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-slate-50">
@@ -290,6 +300,75 @@ export default function AdminSecurity() {
                 </tbody>
               </table>
             </div>
+            )}
+
+            {/* Security Events Table (when tab === 'events') */}
+            {tab === 'events' && (
+              <>
+                <table className="w-full text-left">
+                  <thead className="bg-red-50">
+                    <tr>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Nguồn</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Lý do</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">IP</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Visitor ID</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Chi tiết</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Trạng thái</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Thời gian</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {securityLogs.map(ev => {
+                      const reasonColors = {
+                        botd_detected: 'bg-red-100 text-red-700',
+                        automation_probes: 'bg-red-100 text-red-700',
+                        mouse_bot: 'bg-red-100 text-red-700',
+                        bot_ua: 'bg-red-100 text-red-700',
+                        zero_screen: 'bg-red-100 text-red-700',
+                        ip_rate_limit: 'bg-orange-100 text-orange-700',
+                        suspicious: 'bg-amber-100 text-amber-700',
+                        probe_warning: 'bg-amber-100 text-amber-700',
+                      };
+                      const isBlocked = ['botd_detected','automation_probes','mouse_bot','bot_ua','zero_screen','ip_rate_limit'].includes(ev.reason);
+                      let details = '';
+                      try { const d = JSON.parse(ev.details || '{}'); details = d.warnings ? d.warnings.join(', ') : Object.entries(d).filter(([,v]) => v).map(([k,v]) => `${k}=${JSON.stringify(v)}`).join(', '); } catch { details = ev.details; }
+                      return (
+                        <tr key={ev.id} className="hover:bg-slate-50 transition">
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${ev.source === 'vuotlink' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
+                              {ev.source}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${reasonColors[ev.reason] || 'bg-slate-100 text-slate-600'}`}>
+                              {ev.reason}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs font-mono text-slate-700">{ev.ip_address}</td>
+                          <td className="px-4 py-3 text-xs font-mono text-slate-500 max-w-[100px] truncate">
+                            {ev.visitor_id ? `${ev.visitor_id.substring(0, 12)}...` : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-[10px] text-slate-500 max-w-[200px] truncate" title={details}>
+                            {details || '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <RiskBadge level={isBlocked ? 'blocked' : 'warning'} />
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-400">{timeAgo(ev.created_at)}</td>
+                        </tr>
+                      );
+                    })}
+                    {securityLogs.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-12 text-center text-slate-400 text-sm">
+                          Chưa có sự kiện bảo mật nào
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </>
+            )}
 
             {/* Pagination */}
             <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between">
@@ -298,7 +377,7 @@ export default function AdminSecurity() {
                 ← Trước
               </button>
               <span className="text-xs text-slate-500 font-medium">Trang {page}</span>
-              <button onClick={() => setPage(p => p + 1)} disabled={logs.length < 20}
+              <button onClick={() => setPage(p => p + 1)} disabled={(tab === 'tasks' ? logs.length : securityLogs.length) < 20}
                 className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 disabled:opacity-40 transition">
                 Sau →
               </button>
