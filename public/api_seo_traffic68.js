@@ -157,7 +157,7 @@
   var _visitorId = 'unknown';   // FingerprintJS visitor ID (same as VuotLink.jsx)
   var _botDetection = null;     // BotD result (same as VuotLink.jsx)
 
-  /* ── Load FingerprintJS + BotD via CDN (same as VuotLink.jsx) ── */
+  /* ── Load FingerprintJS + BotD via script tags (same libs as VuotLink.jsx) ── */
   var _fpLoaded = false;
   function _loadDetectionLibs(callback) {
     if (_fpLoaded) { callback(); return; }
@@ -167,8 +167,7 @@
     var total = 2;
     function check() { done++; if (done >= total) callback(); }
 
-    // Load FingerprintJS (same library as VuotLink.jsx: @fingerprintjs/fingerprintjs)
-    // Self-hosted UMD build from same server
+    // FingerprintJS — UMD build → window.FingerprintJS
     var fpScript = document.createElement('script');
     fpScript.src = _scriptBase + '/fp.js';
     fpScript.onload = function () {
@@ -187,16 +186,13 @@
     fpScript.onerror = function () { check(); };
     document.head.appendChild(fpScript);
 
-    // Load BotD (same library as: import { load as loadBotd } from '@fingerprintjs/botd')
-    // Self-hosted CJS build from same server to avoid CORS issues
-    var bdXhr = new XMLHttpRequest();
-    bdXhr.open('GET', _scriptBase + '/botd.js', true);
-    bdXhr.onload = function () {
-      if (bdXhr.status !== 200) { check(); return; }
+    // BotD — wrapped CJS build → window.Botd
+    var bdScript = document.createElement('script');
+    bdScript.src = _scriptBase + '/botd.js';
+    bdScript.onload = function () {
       try {
-        var mod = { exports: {} };
-        (new Function('module', 'exports', bdXhr.responseText))(mod, mod.exports);
-        var loadBotd = mod.exports.load || (mod.exports.default && mod.exports.default.load);
+        var Botd = window.Botd;
+        var loadBotd = Botd && (Botd.load || (Botd.default && Botd.default.load));
         if (loadBotd) {
           loadBotd().then(function (botd) {
             _botDetection = botd.detect();
@@ -205,8 +201,8 @@
         } else { check(); }
       } catch (e) { check(); }
     };
-    bdXhr.onerror = function () { check(); };
-    bdXhr.send();
+    bdScript.onerror = function () { check(); };
+    document.head.appendChild(bdScript);
   }
 
   /* ── Behavioral tracker (same as VuotLink.jsx) ────────── */

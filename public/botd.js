@@ -1,11 +1,12 @@
+﻿(function(){var module={exports:{}};var exports=module.exports;
 /**
  * Fingerprint BotD v2.0.0 - Copyright (c) FingerprintJS, Inc, 2025 (https://fingerprint.com)
  * Licensed under the MIT (http://www.opensource.org/licenses/mit-license.php) license.
  */
 
-'use strict';
 
-Object.defineProperty(exports, '__esModule', { value: true });
+
+
 
 var version = "2.0.0";
 
@@ -820,3 +821,5 @@ exports.detect = detect;
 exports.detectors = detectors;
 exports.load = load;
 exports.sources = sources;
+
+window.Botd=module.exports;})();
