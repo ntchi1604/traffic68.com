@@ -74,13 +74,7 @@ function collectBrowserProof() {
 const API = '/api/vuot-link';
 
 
-/* ─── Incognito detection via persistent cookie ─── */
-// Cookie `_t68_v` is set from App Layout on every page visit (max-age=1year).
-// Normal users: cookie exists from previous page visits.
-// Incognito: cookies from previous sessions don't carry over → no cookie.
-function detectIncognito() {
-  return !document.cookie.split(';').some(c => c.trim().startsWith('_t68_v='));
-}
+/* ─── Main Component ──────────────────────────────── */
 
 /* ─── Main Component ────────────────────────────────── */
 export default function VuotLink() {
@@ -92,7 +86,7 @@ export default function VuotLink() {
   // Task state from API
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [task, setTask] = useState(null); // { id, keyword, image1_url, waitTime, startedAt, expiresAt }
+  const [task, setTask] = useState(null);
   const [isIncognito, setIsIncognito] = useState(false);
 
   // UI state
@@ -101,7 +95,7 @@ export default function VuotLink() {
   const [inputCode, setInputCode] = useState('');
   const [verified, setVerified] = useState(false);
   const [showError, setShowError] = useState(false);
-  const [completionResult, setCompletionResult] = useState(null); // { earning }
+  const [completionResult, setCompletionResult] = useState(null);
   const [completing, setCompleting] = useState(false);
   const taskStartTime = useRef(Date.now());
 
@@ -115,10 +109,23 @@ export default function VuotLink() {
         setLoading(true);
         setError('');
 
-        // Check for incognito/private browsing (cookie-based)
-        const incognito = detectIncognito();
-        if (incognito) {
-          if (!cancelled) setIsIncognito(true);
+        // Incognito detection via storage quota
+        if (navigator.storage && navigator.storage.estimate) {
+          const { quota } = await navigator.storage.estimate();
+          const quotaGB = Math.round((quota || 0) / 1024 / 1024 / 1024 * 100) / 100;
+          console.log('[VuotLink] Storage quota:', quotaGB, 'GB');
+          // In incognito: quota is typically very small (< a few GB)
+          // Normal mode: quota is typically 50-300+ GB (60% of disk)
+          if (quota && quota < 10 * 1024 * 1024 * 1024) { // < 10GB
+            if (!cancelled) setIsIncognito(true);
+            return;
+          }
+        }
+
+        // Must be logged in (blocks guests)
+        const token = localStorage.getItem('token');
+        if (!token) {
+          if (!cancelled) setError('Bạn cần đăng nhập để thực hiện nhiệm vụ này.');
           return;
         }
 
@@ -135,8 +142,7 @@ export default function VuotLink() {
         // Step 3: Collect browser proof
         const proof = collectBrowserProof();
 
-        // Step 4: Request task
-        const token = localStorage.getItem('token');
+        // Step 4: Request task (token already checked above)
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 

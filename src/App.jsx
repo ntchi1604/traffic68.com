@@ -84,12 +84,6 @@ function Layout() {
   const { pathname } = useLocation();
   const isDashboard = DASHBOARD_ROUTES.some((r) => pathname.startsWith(r));
 
-  // Set verification cookie on non-VuotLink pages only
-  // VuotLink checks for this cookie — if missing, user hasn't visited the site normally before (incognito)
-  if (!pathname.startsWith('/vuot-link')) {
-    document.cookie = '_t68_v=1; path=/; max-age=31536000; SameSite=Strict';
-  }
-
   return (
     <>
       {!isDashboard && <Navbar />}
