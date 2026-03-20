@@ -152,6 +152,84 @@
   var sessionCode = '';    // code fetched from server (vuot_link_tasks.code_given)
   var _widgetToken = '';   // token for API calls
   var _sessionToken = '';  // anti-bypass HMAC token from server
+  var _challengeId = '';   // anti-replay challenge token
+  var _challengeKey = '';  // challenge signature
+  var _visitorId = 'unknown';   // FingerprintJS visitor ID (same as VuotLink.jsx)
+  var _botDetection = null;     // BotD result (same as VuotLink.jsx)
+
+  /* ── Load FingerprintJS + BotD via CDN (same as VuotLink.jsx) ── */
+  var _fpLoaded = false;
+  function _loadDetectionLibs(callback) {
+    if (_fpLoaded) { callback(); return; }
+    _fpLoaded = true;
+
+    var done = 0;
+    var total = 2;
+    function check() { done++; if (done >= total) callback(); }
+
+    // Load FingerprintJS (same library as: import FingerprintJS from '@fingerprintjs/fingerprintjs')
+    var fpScript = document.createElement('script');
+    fpScript.src = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@4/dist/fp.min.js';
+    fpScript.onload = function () {
+      try {
+        // CDN version exposes FingerprintJS global
+        var FP = window.FingerprintJS;
+        if (FP) {
+          FP.load().then(function (fp) {
+            return fp.get();
+          }).then(function (result) {
+            _visitorId = result.visitorId;
+            check();
+          }).catch(function () { check(); });
+        } else { check(); }
+      } catch (e) { check(); }
+    };
+    fpScript.onerror = function () { check(); };
+    document.head.appendChild(fpScript);
+
+    // Load BotD (same library as: import { load as loadBotd } from '@fingerprintjs/botd')
+    var bdScript = document.createElement('script');
+    bdScript.src = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/botd@1/dist/botd.min.js';
+    bdScript.onload = function () {
+      try {
+        // CDN version exposes Botd global
+        var Botd = window.Botd;
+        if (Botd && Botd.load) {
+          Botd.load().then(function (botd) {
+            return botd.detect();
+          }).then(function (result) {
+            _botDetection = result;
+            check();
+          }).catch(function () { check(); });
+        } else { check(); }
+      } catch (e) { check(); }
+    };
+    bdScript.onerror = function () { check(); };
+    document.head.appendChild(bdScript);
+  }
+
+  /* ── Behavioral tracker (same as VuotLink.jsx) ────────── */
+  var _bhv = {
+    mouse: [],
+    clicks: 0,
+    keys: 0,
+    scrolls: 0,
+    startTime: 0, // set when countdown starts
+  };
+  var _bhvBound = false;
+  function _bindBehavior() {
+    if (_bhvBound) return;
+    _bhvBound = true;
+    _bhv.startTime = Date.now();
+    var MAX = 50;
+    document.addEventListener('mousemove', function (e) {
+      _bhv.mouse.push({ x: e.clientX, y: e.clientY, t: Date.now() - _bhv.startTime });
+      if (_bhv.mouse.length > MAX) _bhv.mouse.shift();
+    }, { passive: true });
+    document.addEventListener('click', function () { _bhv.clicks++; }, { passive: true });
+    document.addEventListener('keydown', function () { _bhv.keys++; }, { passive: true });
+    window.addEventListener('scroll', function () { _bhv.scrolls++; }, { passive: true });
+  }
 
 
 
@@ -806,6 +884,30 @@
     xhr.send('{}');
   }
 
+  /* ── Fetch challenge token (anti-replay — same as vuotlink) ── */
+  function fetchChallenge(callback) {
+    if (!_widgetToken) { callback(false); return; }
+    var base = _scriptBase;
+    var url = base + '/api/widgets/public/' + _widgetToken + '/challenge';
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
+    xhr.onload = function () {
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          _challengeId = resp.c || '';
+          _challengeKey = resp._ck || '';
+          callback(true);
+        } catch (e) { callback(false); }
+      } else {
+        callback(false);
+      }
+    };
+    xhr.onerror = function () { callback(false); };
+    xhr.send();
+  }
+
   /* ── Show "no session" popup ────────────────────────────── */
   function showNoSessionPopup() {
     closeModal();
@@ -835,6 +937,7 @@
   }
 
   /* ── Fetch session code from server (ONLY after countdown) ── */
+  /* Sends behavioral data + challenge (same as vuotlink.js flow) */
   function fetchSessionCode(callback) {
     if (!_widgetToken) {
       sessionCode = 'ERR';
@@ -847,6 +950,29 @@
     xhr.open('POST', url, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
     if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
+
+    // Collect behavioral data (same fields as VuotLink.jsx)
+    var countdownElapsed = _bhv.startTime ? Math.floor((Date.now() - _bhv.startTime) / 1000) : 0;
+    var payload = {
+      challengeId: _challengeId,
+      _ck: _challengeKey,
+      visitorId: _visitorId,
+      botDetection: _botDetection,
+      behavioral: {
+        mousePoints: _bhv.mouse.length,
+        mouseTrail: _bhv.mouse.slice(-30),
+        clicks: _bhv.clicks,
+        keys: _bhv.keys,
+        scrolls: _bhv.scrolls,
+        countdownTime: countdownElapsed,
+        screen: {
+          w: window.screen ? window.screen.width : 0,
+          h: window.screen ? window.screen.height : 0,
+          dpr: window.devicePixelRatio || 1
+        }
+      }
+    };
+
     xhr.onload = function () {
       if (xhr.status === 200) {
         try {
@@ -864,7 +990,7 @@
       sessionCode = 'ERR';
       if (callback) callback();
     };
-    xhr.send('{}');
+    xhr.send(JSON.stringify(payload));
   }
 
   /* ── Button click starts everything ──────────────────── */
@@ -877,6 +1003,22 @@
   function beginCountdown() {
     if (countdownRunning) return;
     countdownRunning = true;
+
+    // Start behavioral tracking (same as VuotLink.jsx)
+    _bindBehavior();
+
+    // Load FingerprintJS + BotD (same as VuotLink.jsx useEffect)
+    _loadDetectionLibs(function () {
+      // Libraries loaded, visitorId and botDetection are now set
+    });
+
+    // Fetch challenge token (anti-replay — same as vuotlink.js)
+    fetchChallenge(function (ok) {
+      if (!ok) {
+        console.warn('[LayNut] Could not fetch challenge, continuing anyway');
+      }
+    });
+
     scheduleChallenges();
     bindVisibility();
     // Change button text to "Vui lòng chờ" and show badge
