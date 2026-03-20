@@ -205,11 +205,14 @@
             } catch (e) {
               _botDetection = { bot: false, raw: String(raw).substring(0, 500) };
             }
+          } else {
+            // CreepJS timeout — no data available
+            _botDetection = { bot: false, creepTimeout: true };
           }
         }
       }, 500);
     };
-    crScript.onerror = function () {};
+    crScript.onerror = function () { _botDetection = { bot: false, creepError: true }; };
     document.head.appendChild(crScript);
   }
 

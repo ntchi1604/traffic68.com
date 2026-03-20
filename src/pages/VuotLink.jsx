@@ -51,10 +51,12 @@ if (typeof window !== 'undefined') {
           } catch (e) {
             _creepResult = { bot: false, raw: String(raw).substring(0, 500) };
           }
+        } else {
+          _creepResult = { bot: false, creepTimeout: true };
         }
       }
     }, 500);
-  }).catch(() => {});
+  }).catch(() => { _creepResult = { bot: false, creepError: true }; });
 }
 
 function getBotDetection() {
