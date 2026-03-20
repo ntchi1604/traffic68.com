@@ -129,7 +129,7 @@ export default function VuotLink() {
       await fetch(`${API}/task/${task.id}/step`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify({ step: stepName }),
+        body: JSON.stringify({ step: stepName, _tk: task._tk }),
       });
     } catch { /* silent */ }
   }, [task]);
@@ -170,7 +170,7 @@ export default function VuotLink() {
       const res = await fetch(`${API}/task/${task.id}/verify`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ code: inputCode.trim() }),
+        body: JSON.stringify({ code: inputCode.trim(), _tk: task._tk }),
       });
 
       const data = await res.json();

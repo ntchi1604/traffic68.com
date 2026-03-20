@@ -5,6 +5,17 @@ const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
+const HMAC_SECRET = process.env.CHALLENGE_KEY || crypto.randomBytes(32).toString('hex');
+
+// Generate HMAC token for task (binds task to IP+UA)
+function signTask(taskId, ip) {
+  return crypto.createHmac('sha256', HMAC_SECRET).update(`${taskId}|${ip}`).digest('hex').substring(0, 24);
+}
+
+function verifyTaskToken(token, taskId, ip) {
+  const expected = signTask(taskId, ip);
+  return token === expected;
+}
 
 const ipTaskCount = {};
 setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 3600000);
@@ -35,10 +46,11 @@ function generateJsChallenge() {
 router.get('/challenge', (req, res) => {
   const ua = req.headers['user-agent'] || '';
   if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
 
   const challengeId = crypto.randomBytes(16).toString('hex');
   const { jsCode, expected } = generateJsChallenge();
-  challenges[challengeId] = { expected, createdAt: Date.now(), used: false };
+  challenges[challengeId] = { expected, createdAt: Date.now(), used: false, ip };
   res.json({ c: challengeId, j: jsCode });
 });
 
@@ -65,6 +77,8 @@ router.post('/task', optionalAuth, async (req, res) => {
   if (ch.used) { delete challenges[challengeId]; console.log('VuotLink blocked: challenge already used', challengeId); return res.status(403).json(ERR); }
   if (Date.now() - ch.createdAt > 120000) { delete challenges[challengeId]; console.log('VuotLink blocked: challenge expired', challengeId); return res.status(403).json(ERR); }
   if (Number(jsResult) !== ch.expected) { console.log('VuotLink blocked: jsResult mismatch', jsResult, 'expected', ch.expected); return res.status(403).json(ERR); }
+  // Anti-cheat: challenge must come from same IP
+  if (ch.ip && ch.ip !== ip) { console.log('VuotLink blocked: IP mismatch', ip, '!=', ch.ip); return res.status(403).json(ERR); }
   ch.used = true;
 
   if (proof && (proof.botScore >= 40 || proof.sw === 0 || proof.sh === 0)) { console.log('VuotLink blocked: bot proof', proof); return res.status(403).json(ERR); }
@@ -116,12 +130,16 @@ router.post('/task', optionalAuth, async (req, res) => {
 
   console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, waitTime: ${waitTime}s`);
 
+  // Generate signed task token (binds to IP, cannot be forged)
+  const _tk = signTask(result.insertId, ip);
+
   res.json({
     id: result.insertId,
     keyword: campaign.keyword,
     image1_url: campaign.image1_url || '',
     waitTime,
     startedAt: now,
+    _tk, // signed token for subsequent calls
   });
 });
 
@@ -130,15 +148,41 @@ router.post('/task', optionalAuth, async (req, res) => {
 ═════════════════════════════════════════════════════════ */
 router.put('/task/:id/step', optionalAuth, async (req, res) => {
   const pool = getPool();
-  const { step } = req.body;
+  const { step, _tk } = req.body;
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
   const ua = req.headers['user-agent'] || '';
+
+  // Anti-cheat: verify task token
+  if (!_tk || !verifyTaskToken(_tk, req.params.id, ip)) {
+    return res.status(403).json({ error: 'Invalid token' });
+  }
 
   const [tasks] = await pool.execute('SELECT * FROM vuot_link_tasks WHERE id = ?', [req.params.id]);
   if (tasks.length === 0) return res.status(404).json({ error: 'Task không tồn tại' });
   const task = tasks[0];
 
-  // Use MySQL NOW() for consistent timezone comparison
+  // Anti-cheat: IP must match task creator
+  if (task.ip_address && task.ip_address !== ip) {
+    return res.status(403).json({ error: 'IP mismatch' });
+  }
+
+  // Anti-cheat: enforce step order
+  const stepOrder = { 'pending': 0, 'step1': 1, 'step2': 2, 'step3': 3 };
+  const stepNum = stepOrder[step];
+  const currentNum = stepOrder[task.status] || 0;
+  if (stepNum === undefined || stepNum !== currentNum + 1) {
+    return res.status(400).json({ error: 'Step order invalid' });
+  }
+
+  // Anti-cheat: minimum time between steps (prevent instant clicks)
+  if (step === 'step1') {
+    const elapsed = Date.now() - new Date(task.created_at).getTime();
+    if (elapsed < 3000) { // must wait at least 3 seconds
+      return res.status(403).json({ error: 'Too fast' });
+    }
+  }
+
+  // Check expiry
   if (task.expires_at) {
     const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
     if (expCheck[0]?.expired) {
@@ -169,7 +213,13 @@ router.put('/task/:id/step', optionalAuth, async (req, res) => {
 ═════════════════════════════════════════════════════════ */
 router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   const pool = getPool();
-  const { code } = req.body;
+  const { code, _tk } = req.body;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+
+  // Anti-cheat: verify task token
+  if (!_tk || !verifyTaskToken(_tk, req.params.id, ip)) {
+    return res.status(403).json({ error: 'Invalid token' });
+  }
 
   if (!code || code.trim().length < 4) {
     return res.status(400).json({ error: 'Mã xác nhận không hợp lệ' });
@@ -181,7 +231,17 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
 
   if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
 
-  // Check expiry using MySQL NOW() for consistent timezone
+  // Anti-cheat: must have reached step3 (visited target website)
+  if (!['step3'].includes(task.status)) {
+    return res.status(403).json({ error: 'Chưa hoàn thành các bước trước đó' });
+  }
+
+  // Anti-cheat: IP must match
+  if (task.ip_address && task.ip_address !== ip) {
+    return res.status(403).json({ error: 'IP mismatch' });
+  }
+
+  // Check expiry
   if (task.expires_at) {
     const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
     if (expCheck[0]?.expired) {
