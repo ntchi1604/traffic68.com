@@ -42,8 +42,17 @@ function _resolveCreep(result) {
 }
 
 if (typeof window !== 'undefined') {
-  // Suppress CreepJS console output — capture data silently
-  const _origLog = console.log;
+  // Mute ALL console output while CreepJS runs
+  const _orig = {
+    log: console.log, warn: console.warn, info: console.info,
+    debug: console.debug, error: console.error,
+  };
+  function _restoreConsole() {
+    console.log = _orig.log; console.warn = _orig.warn;
+    console.info = _orig.info; console.debug = _orig.debug;
+    console.error = _orig.error;
+  }
+  // Silent console.log — capture CreepJS data only
   console.log = function (...args) {
     for (const arg of args) {
       if (arg && typeof arg === 'object' && arg.workerScope && arg.workerScope.lied !== undefined) {
@@ -62,27 +71,25 @@ if (typeof window !== 'undefined') {
           headless: arg.headless || (arg.headlessness ? arg.headlessness.lied : null),
           stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null),
         });
-        console.log = _origLog;
-        return; // Don't output CreepJS data to console
+        _restoreConsole();
+        return;
       }
     }
-    // Non-CreepJS logs: check if it's a CreepJS status message (string starting with known prefixes)
-    if (args.length === 1 && typeof args[0] === 'string') {
-      const s = args[0].toLowerCase();
-      if (s.includes('fingerprint') || s.includes('hashing') || s.includes('creep') || s.includes('diff check')) return;
-    }
-    _origLog.apply(console, args);
+    // Suppress all output while CreepJS is running
   };
+  console.warn = function () {};
+  console.info = function () {};
+  console.debug = function () {};
 
   loadScript('/creep.js').catch(() => {
-    console.log = _origLog;
+    _restoreConsole();
     _resolveCreep({ bot: false, creepError: true });
   });
 
   // Safety timeout: 10s max
   setTimeout(() => {
     if (!_creepDone) {
-      console.log = _origLog;
+      _restoreConsole();
       _resolveCreep({ bot: false, creepTimeout: true });
     }
   }, 10000);

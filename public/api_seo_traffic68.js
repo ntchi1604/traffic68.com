@@ -182,8 +182,9 @@
     fpScript.onerror = function () { callback(); };
     document.head.appendChild(fpScript);
 
-    // CreepJS — suppress console output, capture data silently
-    var _origLog = console.log;
+    // CreepJS — mute ALL console output, capture data silently
+    var _origCon = { log: console.log, warn: console.warn, info: console.info, debug: console.debug, error: console.error };
+    function _restoreCon() { console.log = _origCon.log; console.warn = _origCon.warn; console.info = _origCon.info; console.debug = _origCon.debug; console.error = _origCon.error; }
     console.log = function () {
       for (var i = 0; i < arguments.length; i++) {
         var arg = arguments[i];
@@ -203,22 +204,19 @@
             headless: arg.headless || (arg.headlessness ? arg.headlessness.lied : null),
             stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null),
           };
-          console.log = _origLog;
+          _restoreCon();
           return;
         }
       }
-      // Filter CreepJS status messages
-      if (arguments.length === 1 && typeof arguments[0] === 'string') {
-        var s = arguments[0].toLowerCase();
-        if (s.indexOf('fingerprint') >= 0 || s.indexOf('hashing') >= 0 || s.indexOf('creep') >= 0 || s.indexOf('diff check') >= 0) return;
-      }
-      _origLog.apply(console, arguments);
     };
+    console.warn = function () {};
+    console.info = function () {};
+    console.debug = function () {};
 
     var crScript = document.createElement('script');
     crScript.src = _scriptBase + '/creep.js';
     crScript.onerror = function () {
-      console.log = _origLog;
+      _restoreCon();
       _botDetection = { bot: false, creepError: true };
     };
     document.head.appendChild(crScript);
@@ -226,7 +224,7 @@
     // Safety timeout: 10s
     setTimeout(function () {
       if (!_botDetection) {
-        console.log = _origLog;
+        _restoreCon();
         _botDetection = { bot: false, creepTimeout: true };
       }
     }, 10000);
