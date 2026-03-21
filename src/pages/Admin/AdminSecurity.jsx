@@ -224,6 +224,7 @@ export default function AdminSecurity() {
     setLoading(true);
     try {
       const { data } = await api.get('/admin/security', { params: { search, page, limit } });
+      console.log('[Security] API response:', data);
       setSecurityLogs(data.securityLogs || []);
       setTotal(data.total || 0);
     } catch (e) { console.error(e); }
