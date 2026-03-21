@@ -101,11 +101,12 @@ function DetailModal({ event: ev, onClose }) {
     if (probes.webdriver) detailItems.push({ label: 'Webdriver', value: 'Có', danger: true });
     if (probes.selenium) detailItems.push({ label: 'Selenium', value: 'Có', danger: true });
     if (probes.cdc) detailItems.push({ label: 'Chrome DevTools Protocol', value: 'Có', danger: true });
-    if (probes.pluginCount !== undefined) detailItems.push({ label: 'Plugin trình duyệt', value: probes.pluginCount, warn: probes.pluginCount === 0 });
-    if (probes.rtt !== undefined) detailItems.push({ label: 'RTT', value: `${probes.rtt}ms`, warn: probes.rtt === 0 });
+    if (probes.pluginCount !== undefined) detailItems.push({ label: 'Số plugin trình duyệt', value: probes.pluginCount, warn: probes.pluginCount === 0 });
+    if (probes.langCount !== undefined) detailItems.push({ label: 'Số ngôn ngữ', value: probes.langCount, warn: probes.langCount === 0 });
+    if (probes.rtt !== undefined) detailItems.push({ label: 'Độ trễ mạng (RTT)', value: `${probes.rtt}ms`, warn: probes.rtt === 0 });
 
     if (d.screen) detailItems.push({ label: 'Màn hình', value: `${d.screen.w}×${d.screen.h} (${d.screen.dpr || 1}x)` });
-    if (d.countdownTime) detailItems.push({ label: 'Đếm ngược', value: `${d.countdownTime}s` });
+    if (d.countdownTime) detailItems.push({ label: 'Thời gian đếm ngược', value: `${d.countdownTime}s` });
 
     if (d.probeWarnings && Array.isArray(d.probeWarnings)) {
       d.probeWarnings.forEach(w => detailItems.push({ label: WARNING_VI[w] || w, value: 'Phát hiện', warn: true }));
@@ -201,6 +202,62 @@ function DetailModal({ event: ev, onClose }) {
           )}
         </div>
 
+          {(() => {
+            let d = {};
+            try { d = JSON.parse(ev.details || '{}'); } catch {}
+            const score = d.behaviorScore ?? d.score ?? 0;
+            const bd = d.botDetection || (d.totalLied !== undefined ? d : null);
+            const creepLied = bd && bd.totalLied > 0;
+            const creepBot = bd && bd.bot === true;
+            const probes = d.probes || {};
+            const hasAutomation = probes.webdriver || probes.selenium || probes.cdc;
+            const flaggedCount = (d.assessments || []).filter(a => a.flagged).length;
+            const totalChecks = (d.assessments || []).length;
+
+            let level, icon, text, bg, border, textColor;
+            if (isBlocked || creepBot || creepLied || hasAutomation || score >= 70) {
+              level = 'bot';
+              icon = '🤖';
+              text = 'Kết luận: Rất có thể là BOT / Tự động hóa';
+              bg = 'bg-red-50'; border = 'border-red-300'; textColor = 'text-red-800';
+            } else if (score >= 30 || flaggedCount >= 3) {
+              level = 'suspicious';
+              icon = '⚠️';
+              text = 'Kết luận: Đáng ngờ — có nhiều dấu hiệu bất thường';
+              bg = 'bg-amber-50'; border = 'border-amber-300'; textColor = 'text-amber-800';
+            } else if (score > 0 || flaggedCount >= 1) {
+              level = 'warning';
+              icon = '🟡';
+              text = 'Kết luận: Có dấu hiệu đáng ngờ nhưng chưa đủ chặn';
+              bg = 'bg-yellow-50'; border = 'border-yellow-300'; textColor = 'text-yellow-800';
+            } else {
+              level = 'clean';
+              icon = '✅';
+              text = 'Kết luận: Người dùng thật — không phát hiện tự động hóa';
+              bg = 'bg-green-50'; border = 'border-green-300'; textColor = 'text-green-800';
+            }
+
+            const details = [];
+            if (score > 0) details.push(`Điểm hành vi: ${score}/70`);
+            if (flaggedCount > 0) details.push(`${flaggedCount}/${totalChecks} kiểm tra bất thường`);
+            if (creepLied) details.push(`Giả mạo ${bd.totalLied} mục trình duyệt`);
+            if (hasAutomation) details.push('Phát hiện công cụ tự động');
+            if (!creepBot && !creepLied && bd && bd.bot === false && bd.totalLied === 0) details.push('Xác minh trình duyệt: Sạch');
+
+            return (
+              <div className={`mx-6 mb-4 p-4 rounded-xl border-2 ${bg} ${border}`}>
+                <p className={`text-sm font-black ${textColor}`}>{icon} {text}</p>
+                {details.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {details.map((d, i) => (
+                      <span key={i} className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${bg} ${textColor} border ${border}`}>{d}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
         <div className="px-6 py-3 border-t border-slate-100">
           <button onClick={onClose} className="w-full py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition">Đóng</button>
         </div>
@@ -226,7 +283,6 @@ export default function AdminSecurity() {
       const params = new URLSearchParams({ page, limit });
       if (search) params.set('search', search);
       const data = await api.get(`/admin/security?${params.toString()}`);
-      console.log('[Security] API response:', data);
       setSecurityLogs(data.securityLogs || []);
       setTotal(data.total || 0);
     } catch (e) { console.error(e); }

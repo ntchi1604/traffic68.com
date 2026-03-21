@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { getPool } = require('../db');
 const { authMiddleware, optionalAuth } = require('../middleware/auth');
+const { analyzeBehavior } = require('../lib/behavior');
 
 const router = express.Router();
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
@@ -37,7 +38,7 @@ setInterval(() => {
   Object.keys(challenges).forEach(k => { if (now - challenges[k].createdAt > 120000) delete challenges[k]; });
 }, 30000);
 
-/* (Behavioral analysis moved to widgets.js — vuotlink only checks CreepJS + probes) */
+
 
 /* ═══════════════════════════════════════════════════════════
    STEP 1: GET /challenge (anti-replay token only)
@@ -70,7 +71,7 @@ router.post('/task', optionalAuth, async (req, res) => {
     return res.status(429).json({ error: 'Quá nhiều yêu cầu. Thử lại sau.' });
   }
 
-  const { challengeId, visitorId, botDetection, probes: clientProbes } = req.body || {};
+  const { challengeId, visitorId, botDetection, probes: clientProbes, behavioral } = req.body || {};
 
   // ── Collect detection results (saved to DB later) ──
   let botDetected = false;
@@ -111,7 +112,30 @@ router.post('/task', optionalAuth, async (req, res) => {
     logSecurityEvent('probe_warning', ip, ua, visitorId, { ...probes, probeWarnings });
   }
 
-  // ── 4. VisitorId rate limit (5 tasks / 24h per device — from DB) ──
+  if (behavioral) {
+    const result = analyzeBehavior(behavioral);
+    const fullDetail = {
+      behaviorScore: result.score,
+      assessments: result.assessments,
+      botDetection: botDetection || null,
+      probes: probes,
+      screen: behavioral.screen || null,
+      countdownTime: behavioral.countdownTime || 0,
+    };
+
+    if (result.score >= 70) {
+      detectionLog.push('behavior_bot');
+      console.log(`[VuotLink] 🤖 Behavior bot: score=${result.score}, IP=${ip}`);
+      logSecurityEvent('mouse_bot', ip, ua, visitorId, fullDetail);
+      return res.status(403).json(ERR);
+    }
+
+    if (result.score > 0) {
+      console.log(`[VuotLink] ⚠️ Behavior warning: score=${result.score}, IP=${ip}`);
+      logSecurityEvent('suspicious', ip, ua, visitorId, fullDetail);
+    }
+  }
+
   const pool = getPool();
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
@@ -125,7 +149,6 @@ router.post('/task', optionalAuth, async (req, res) => {
     }
   }
 
-  // ── 5. Repeat device warning (logged for admin, not blocked) ──
   if (visitorId && visitorId !== 'unknown') {
     const [todayCount] = await pool.execute(
       `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(created_at) = CURDATE()`,

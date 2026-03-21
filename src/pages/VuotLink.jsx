@@ -92,7 +92,6 @@ function getCreepData() {
   });
 }
 
-/* ─── Automation probes only (no mouse tracking on vuotlink page) ── */
 const probeData = {};
 if (typeof window !== 'undefined') {
   try {
@@ -105,10 +104,88 @@ if (typeof window !== 'undefined') {
     probeData.hasChromeRuntime = !!(window.chrome && window.chrome.runtime);
     if (window.Notification) probeData.notifPerm = Notification.permission;
     if (navigator.connection) probeData.rtt = navigator.connection.rtt;
-  } catch (e) { /* probes failed */ }
+  } catch (e) { }
 }
 
-/* ─── API base ──────────────────────────────────────── */
+const _bhv = {
+  startTime: Date.now(),
+  mouseTrail: [], clickPositions: [],
+  keyDwellTimes: [], keyFlightTimes: [], _keyDownMap: {},
+  backspaceCount: 0, totalKeys: 0,
+  scrollEvents: [], scrollPauses: 0, _lastScrollT: 0,
+  totalBlur: 0, rafStable: true, _lastKeyUp: 0,
+  screen: typeof window !== 'undefined' ? { w: screen.width, h: screen.height, dpr: window.devicePixelRatio || 1 } : null,
+};
+let _bhvBound = false;
+function bindBehavior() {
+  if (_bhvBound || typeof document === 'undefined') return;
+  _bhvBound = true;
+  const st = _bhv.startTime;
+  document.addEventListener('mousemove', (e) => {
+    _bhv.mouseTrail.push({ x: e.clientX, y: e.clientY, t: Date.now() - st });
+    if (_bhv.mouseTrail.length > 80) _bhv.mouseTrail.shift();
+  }, { passive: true });
+  document.addEventListener('click', (e) => {
+    const r = e.target ? e.target.getBoundingClientRect() : null;
+    const entry = { x: e.clientX, y: e.clientY, t: Date.now() - st };
+    if (r) { entry.elCenterX = Math.round(r.left + r.width / 2); entry.elCenterY = Math.round(r.top + r.height / 2); }
+    _bhv.clickPositions.push(entry);
+    if (_bhv.clickPositions.length > 20) _bhv.clickPositions.shift();
+  }, { passive: true });
+  document.addEventListener('keydown', (e) => {
+    _bhv.totalKeys++;
+    if (e.key === 'Backspace') _bhv.backspaceCount++;
+    if (!_bhv._keyDownMap[e.key]) _bhv._keyDownMap[e.key] = Date.now();
+  }, { passive: true });
+  document.addEventListener('keyup', (e) => {
+    const d = _bhv._keyDownMap[e.key];
+    if (d) {
+      const dwell = Date.now() - d;
+      _bhv.keyDwellTimes.push(dwell);
+      if (_bhv.keyDwellTimes.length > 30) _bhv.keyDwellTimes.shift();
+      if (_bhv._lastKeyUp) {
+        _bhv.keyFlightTimes.push(Date.now() - _bhv._lastKeyUp);
+        if (_bhv.keyFlightTimes.length > 30) _bhv.keyFlightTimes.shift();
+      }
+      _bhv._lastKeyUp = Date.now();
+      delete _bhv._keyDownMap[e.key];
+    }
+  }, { passive: true });
+  window.addEventListener('scroll', () => {
+    const now = Date.now();
+    if (_bhv._lastScrollT && (now - _bhv._lastScrollT) > 500) _bhv.scrollPauses++;
+    _bhv._lastScrollT = now;
+    _bhv.scrollEvents.push({ y: window.scrollY || 0, t: now - st });
+    if (_bhv.scrollEvents.length > 40) _bhv.scrollEvents.shift();
+  }, { passive: true });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) _bhv.totalBlur++; });
+  let rafCount = 0; const rafStart = performance.now();
+  function checkRaf(ts) {
+    rafCount++;
+    if (rafCount < 60) requestAnimationFrame(checkRaf);
+    else _bhv.rafStable = (ts - rafStart) < 3000;
+  }
+  if (window.requestAnimationFrame) requestAnimationFrame(checkRaf);
+}
+if (typeof window !== 'undefined') bindBehavior();
+
+function getBehavioralData() {
+  return {
+    mouseTrail: _bhv.mouseTrail,
+    clickPositions: _bhv.clickPositions,
+    keyDwellTimes: _bhv.keyDwellTimes,
+    keyFlightTimes: _bhv.keyFlightTimes,
+    backspaceCount: _bhv.backspaceCount,
+    totalKeys: _bhv.totalKeys,
+    scrollEvents: _bhv.scrollEvents,
+    scrollPauses: _bhv.scrollPauses,
+    totalBlur: _bhv.totalBlur,
+    rafStable: _bhv.rafStable,
+    screen: _bhv.screen,
+    probes: probeData,
+  };
+}
+
 const API = '/api/vuot-link';
 
 
@@ -172,7 +249,7 @@ export default function VuotLink() {
         if (!chRes.ok) throw new Error('Không thể lấy challenge');
         const challenge = await chRes.json();
 
-        // Step 3: Request task (no behavioral data — analysis is on embed script side)
+        // Step 3: Request task with behavioral data
         const token = localStorage.getItem('token');
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -185,6 +262,7 @@ export default function VuotLink() {
             visitorId,
             botDetection: botDetectionResult,
             probes: probeData,
+            behavioral: getBehavioralData(),
           }),
         });
 
