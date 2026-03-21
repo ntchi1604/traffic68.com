@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Megaphone, Receipt, LifeBuoy,
   ChevronLeft, Shield, Settings, Menu, X, DollarSign, Fingerprint, LogOut,
-  ChevronDown, Briefcase, HardHat, Gift,
+  ChevronDown, Briefcase, HardHat, Gift, ShieldAlert,
 } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -14,18 +14,18 @@ const BUYER_NAV = [
   { to: '/admin/transactions', icon: Receipt,         label: 'Giao dịch' },
   { to: '/admin/pricing',      icon: DollarSign,      label: 'Bảng giá' },
   { to: '/admin/tickets',      icon: LifeBuoy,        label: 'Hỗ trợ' },
-  { to: '/admin/referrals/buyers', icon: Gift,          label: 'Referral Buyer' },
+  { to: '/admin/referrals/buyers', icon: Gift,         label: 'Referral' },
 ];
 
 const WORKER_NAV = [
-  { to: '/admin/worker-users',    icon: Users,           label: 'Người dùng Worker' },
-  { to: '/admin/worker-tasks',    icon: HardHat,         label: 'Nhiệm vụ Worker' },
-  { to: '/admin/worker-withdrawals', icon: Receipt,       label: 'Rút tiền Worker' },
-  { to: '/admin/referrals/workers', icon: Gift,           label: 'Referral Worker' },
+  { to: '/admin/worker-users',       icon: Users,        label: 'Người dùng' },
+  { to: '/admin/worker-tasks',       icon: HardHat,      label: 'Nhiệm vụ' },
+  { to: '/admin/worker-withdrawals', icon: Receipt,      label: 'Rút tiền' },
+  { to: '/admin/referrals/workers',  icon: Gift,         label: 'Referral' },
+  { to: '/admin/security',           icon: ShieldAlert,  label: 'Anti Cheat' },
 ];
 
 const SYSTEM_NAV = [
-  { to: '/admin/security',     icon: Fingerprint,     label: 'Bảo mật' },
   { to: '/admin/settings',     icon: Settings,        label: 'Cài đặt' },
 ];
 
@@ -108,7 +108,7 @@ export default function AdminLayout() {
             <div className="flex items-center gap-2"><Briefcase className="w-4 h-4" /> Quản lý Buyer</div>
             <ChevronDown className={`w-4 h-4 transition-transform ${buyerOpen ? '' : '-rotate-90'}`} />
           </button>
-          {buyerOpen && BUYER_NAV.map(item => <NavItem key={item.to} {...item} />)}
+          {buyerOpen && <div className="ml-2 space-y-1">{BUYER_NAV.map(item => <NavItem key={item.to} {...item} />)}</div>}
 
           {/* Worker Section */}
           <div className="mt-2">
@@ -117,7 +117,7 @@ export default function AdminLayout() {
               <div className="flex items-center gap-2"><HardHat className="w-4 h-4" /> Quản lý Worker</div>
               <ChevronDown className={`w-4 h-4 transition-transform ${workerOpen ? '' : '-rotate-90'}`} />
             </button>
-            {workerOpen && WORKER_NAV.map(item => <NavItem key={item.to} {...item} />)}
+            {workerOpen && <div className="ml-2 space-y-1">{WORKER_NAV.map(item => <NavItem key={item.to} {...item} />)}</div>}
           </div>
 
           {/* System */}
