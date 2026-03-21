@@ -444,6 +444,172 @@ router.get('/security/:id', async (req, res) => {
   }
 });
 
+// ── GET /api/admin/security/ip/:ip — IP Evaluation ──
+router.get('/security/ip/:ip', async (req, res) => {
+  try {
+    const pool = getPool();
+    const ip = req.params.ip;
+
+    // 1. Tasks from this IP (last 7 days)
+    const [taskStats] = await pool.execute(
+      `SELECT COUNT(*) as total,
+       SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+       SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) as expired,
+       SUM(CASE WHEN bot_detected = 1 THEN 1 ELSE 0 END) as bot_detected,
+       COUNT(DISTINCT worker_id) as unique_workers,
+       COUNT(DISTINCT DATE(created_at)) as active_days,
+       MIN(created_at) as first_seen,
+       MAX(created_at) as last_seen
+       FROM vuot_link_tasks WHERE ip_address = ? AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)`,
+      [ip]
+    );
+
+    // 2. Daily breakdown
+    const [dailyBreakdown] = await pool.execute(
+      `SELECT DATE(created_at) as date, COUNT(*) as tasks,
+       SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+       FROM vuot_link_tasks WHERE ip_address = ? AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+       GROUP BY DATE(created_at) ORDER BY date DESC`,
+      [ip]
+    );
+
+    // 3. Workers using this IP
+    const [workers] = await pool.execute(
+      `SELECT DISTINCT u.id, u.name, u.email, u.status, COUNT(t.id) as task_count
+       FROM vuot_link_tasks t LEFT JOIN users u ON t.worker_id = u.id
+       WHERE t.ip_address = ? AND t.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY) AND t.worker_id IS NOT NULL
+       GROUP BY u.id ORDER BY task_count DESC LIMIT 20`,
+      [ip]
+    );
+
+    // 4. Security events for this IP
+    const [secEvents] = await pool.execute(
+      `SELECT COUNT(*) as total,
+       SUM(CASE WHEN reason IN ('creep_detected','automation_probes','mouse_bot','bot_ua','ip_rate_limit') THEN 1 ELSE 0 END) as blocked,
+       SUM(CASE WHEN reason = 'suspicious' THEN 1 ELSE 0 END) as suspicious
+       FROM security_logs WHERE ip_address = ? AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)`,
+      [ip]
+    );
+
+    // 5. All-time stats
+    const [allTime] = await pool.execute(
+      `SELECT COUNT(*) as total, MIN(created_at) as first_seen FROM vuot_link_tasks WHERE ip_address = ?`,
+      [ip]
+    );
+
+    // 6. VPN/Proxy check via ip-api.com (free, no key needed)
+    let geoData = null;
+    try {
+      const https = require('http');
+      const geoResponse = await new Promise((resolve, reject) => {
+        const url = `http://ip-api.com/json/${ip}?fields=status,message,country,regionName,city,isp,org,as,proxy,hosting,mobile,query`;
+        require('http').get(url, (resp) => {
+          let data = '';
+          resp.on('data', chunk => data += chunk);
+          resp.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve(null); } });
+        }).on('error', () => resolve(null));
+      });
+      if (geoResponse && geoResponse.status === 'success') {
+        geoData = geoResponse;
+      }
+    } catch { }
+
+    // Calculate risk score
+    const stats = taskStats[0];
+    const sec = secEvents[0];
+    let riskScore = 0;
+    const risks = [];
+
+    // Multiple workers same IP
+    if (stats.unique_workers > 3) {
+      riskScore += 25;
+      risks.push({ type: 'multi_worker', label: `${stats.unique_workers} worker dùng chung IP`, severity: 'high' });
+    } else if (stats.unique_workers > 1) {
+      riskScore += 10;
+      risks.push({ type: 'multi_worker', label: `${stats.unique_workers} worker dùng chung IP`, severity: 'medium' });
+    }
+
+    // High task volume
+    if (stats.total > 50) {
+      riskScore += 20;
+      risks.push({ type: 'high_volume', label: `${stats.total} tasks trong 7 ngày`, severity: 'high' });
+    } else if (stats.total > 20) {
+      riskScore += 10;
+      risks.push({ type: 'high_volume', label: `${stats.total} tasks trong 7 ngày`, severity: 'medium' });
+    }
+
+    // Bot detections
+    if (sec.blocked > 0) {
+      riskScore += 30;
+      risks.push({ type: 'blocked', label: `${sec.blocked} lần bị chặn`, severity: 'high' });
+    }
+    if (sec.suspicious > 3) {
+      riskScore += 15;
+      risks.push({ type: 'suspicious', label: `${sec.suspicious} sự kiện đáng ngờ`, severity: 'medium' });
+    }
+
+    // VPN/Proxy/Hosting
+    if (geoData) {
+      if (geoData.proxy) {
+        riskScore += 30;
+        risks.push({ type: 'vpn_proxy', label: 'IP là VPN/Proxy', severity: 'high' });
+      }
+      if (geoData.hosting) {
+        riskScore += 25;
+        risks.push({ type: 'hosting', label: 'IP thuộc dải datacenter/hosting', severity: 'high' });
+      }
+      if (geoData.mobile) {
+        risks.push({ type: 'mobile', label: 'IP mạng di động (chia sẻ NAT)', severity: 'info' });
+      }
+    }
+
+    // Low completion rate
+    if (stats.total > 5) {
+      const completionRate = stats.completed / stats.total;
+      if (completionRate < 0.3) {
+        riskScore += 15;
+        risks.push({ type: 'low_completion', label: `Chỉ ${Math.round(completionRate * 100)}% hoàn thành`, severity: 'medium' });
+      }
+    }
+
+    const riskLevel = riskScore >= 50 ? 'high' : riskScore >= 25 ? 'medium' : 'low';
+
+    res.json({
+      ip,
+      riskScore,
+      riskLevel,
+      risks,
+      stats: {
+        total: stats.total,
+        completed: stats.completed,
+        expired: stats.expired,
+        botDetected: stats.bot_detected,
+        uniqueWorkers: stats.unique_workers,
+        activeDays: stats.active_days,
+        firstSeen: stats.first_seen,
+        lastSeen: stats.last_seen,
+      },
+      allTime: { total: allTime[0].total, firstSeen: allTime[0].first_seen },
+      dailyBreakdown,
+      workers,
+      securityEvents: { total: sec.total, blocked: sec.blocked, suspicious: sec.suspicious },
+      geo: geoData ? {
+        country: geoData.country,
+        region: geoData.regionName,
+        city: geoData.city,
+        isp: geoData.isp,
+        org: geoData.org,
+        as: geoData.as,
+        proxy: !!geoData.proxy,
+        hosting: !!geoData.hosting,
+        mobile: !!geoData.mobile,
+      } : null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /api/admin/referrals/:type (buyers or workers) ──
 router.get('/referrals/:type', async (req, res) => {
   try {

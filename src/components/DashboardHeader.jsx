@@ -11,7 +11,8 @@ export default function DashboardHeader({ onMenuClick }) {
   const dashPrefix = pathname.startsWith('/worker') ? '/worker/dashboard' : '/buyer/dashboard';
   const [profileOpen, setProfileOpen] = useState(false);
   const [user, setUser] = useState(getUser() || { name: '', email: '' });
-  const [wallets, setWallets] = useState({ main: 0, commission: 0 });
+  const [wallets, setWallets] = useState({ main: 0, commission: 0, earning: 0 });
+  const isWorker = pathname.startsWith('/worker');
   const profileRef = useRef(null);
 
   // Fetch wallets + user from API
@@ -20,6 +21,7 @@ export default function DashboardHeader({ onMenuClick }) {
       setWallets({
         main: data.wallets?.main?.balance || 0,
         commission: data.wallets?.commission?.balance || 0,
+        earning: data.wallets?.earning?.balance || 0,
       });
     }).catch(() => {});
 
@@ -68,20 +70,23 @@ export default function DashboardHeader({ onMenuClick }) {
 
           {/* ── Ví chính ── */}
           <button
-            onClick={() => navigate('/buyer/dashboard/finance/deposit')}
-            className="hidden sm:flex items-center gap-2 bg-blue-50 hover:bg-blue-100 border border-blue-200
-                       text-blue-700 text-xs font-bold px-3 py-2 rounded-xl transition-all"
-            title="Ví Traffic – dùng để mua traffic"
+            onClick={() => navigate(isWorker ? '/worker/dashboard/withdraw' : '/buyer/dashboard/finance/deposit')}
+            className={`hidden sm:flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-xl transition-all border ${
+              isWorker
+                ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700'
+                : 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700'
+            }`}
+            title={isWorker ? 'Ví Earning – thu nhập vượt link' : 'Ví Traffic – dùng để mua traffic'}
           >
-            <Wallet size={14} className="text-blue-500 flex-shrink-0" />
-            <span className="hidden md:inline text-slate-500 font-medium">Ví Traffic</span>
-            <span className="font-black">{fmt(wallets.main)}</span>
+            <Wallet size={14} className={`flex-shrink-0 ${isWorker ? 'text-emerald-500' : 'text-blue-500'}`} />
+            <span className="hidden md:inline text-slate-500 font-medium">{isWorker ? 'Ví Earning' : 'Ví Traffic'}</span>
+            <span className="font-black">{fmt(isWorker ? wallets.earning : wallets.main)}</span>
             <span className="text-slate-400 font-normal">đ</span>
           </button>
 
           {/* ── Ví hoa hồng ── */}
           <button
-            onClick={() => navigate('/buyer/dashboard/finance/transactions')}
+            onClick={() => navigate(isWorker ? '/worker/dashboard/transactions' : '/buyer/dashboard/finance/transactions')}
             className="hidden sm:flex items-center gap-2 bg-orange-50 hover:bg-orange-100 border border-orange-200
                        text-orange-700 text-xs font-bold px-3 py-2 rounded-xl transition-all"
             title="Ví Hoa Hồng – nhận khi giới thiệu thành viên"
@@ -122,8 +127,8 @@ export default function DashboardHeader({ onMenuClick }) {
                 {/* Mini wallet info in dropdown */}
                 <div className="px-4 py-2 border-b border-slate-100 space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-1 text-slate-500"><Wallet size={11} /> Ví Traffic</span>
-                    <span className="font-bold text-blue-600">{fmt(wallets.main)} đ</span>
+                    <span className="flex items-center gap-1 text-slate-500"><Wallet size={11} /> {isWorker ? 'Ví Earning' : 'Ví Traffic'}</span>
+                    <span className={`font-bold ${isWorker ? 'text-emerald-600' : 'text-blue-600'}`}>{fmt(isWorker ? wallets.earning : wallets.main)} đ</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1 text-slate-500"><Gift size={11} /> Hoa hồng</span>
