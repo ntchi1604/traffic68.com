@@ -31,3 +31,4 @@ dist-ssr
 # Source JS files (keep obfuscated only)
 public/*.src.js
 obfuscate*.js
+!scripts/obfuscate.js
