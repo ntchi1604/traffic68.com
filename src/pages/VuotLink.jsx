@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Search, Globe, Target, ShieldCheck, Copy, Check,
-  ExternalLink, ArrowRight, Eye,
-  Sparkles, AlertCircle, CheckCircle2, MousePointerClick,
-  Loader2, WifiOff
+  Search, Globe, Target, ShieldCheck,
+  ExternalLink, ArrowRight,
+  AlertCircle, Loader2, WifiOff
 } from 'lucide-react';
 
 /* ─── Load FingerprintJS + BotD from server files (same as embed script) ── */
@@ -208,10 +207,8 @@ export default function VuotLink() {
   const [showError, setShowError] = useState(false);
   const [completionResult, setCompletionResult] = useState(null);
   const [completing, setCompleting] = useState(false);
-  const taskStartTime = useRef(Date.now());
 
   const waitTime = task?.waitTime || 60;
-
 
 
   /* ─── Fetch task from API on mount ─────────────── */
