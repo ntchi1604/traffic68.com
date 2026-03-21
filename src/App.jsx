@@ -61,6 +61,8 @@ import AdminPricing from './pages/Admin/AdminPricing';
 import AdminSettings from './pages/Admin/AdminSettings';
 import AdminSecurity from './pages/Admin/AdminSecurity';
 import AdminReferrals from './pages/Admin/AdminReferrals';
+import AdminWorkerTasks from './pages/Admin/AdminWorkerTasks';
+import AdminWorkerWithdrawals from './pages/Admin/AdminWorkerWithdrawals';
 
 const DASHBOARD_ROUTES = ['/buyer', '/worker', '/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/vuot-link', '/admin'];
 
@@ -148,7 +150,7 @@ function Layout() {
         {/* ═══ Admin ═══ */}
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
-          <Route path="users" element={<AdminUsers />} />
+          <Route path="users" element={<AdminUsers type="buyers" />} />
           <Route path="campaigns" element={<AdminCampaigns />} />
           <Route path="transactions" element={<AdminTransactions />} />
           <Route path="tickets" element={<AdminTickets />} />
@@ -156,6 +158,9 @@ function Layout() {
           <Route path="security" element={<AdminSecurity />} />
           <Route path="referrals/buyers" element={<AdminReferrals type="buyers" />} />
           <Route path="referrals/workers" element={<AdminReferrals type="workers" />} />
+          <Route path="worker-users" element={<AdminUsers type="workers" />} />
+          <Route path="worker-tasks" element={<AdminWorkerTasks />} />
+          <Route path="worker-withdrawals" element={<AdminWorkerWithdrawals />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 

@@ -18,7 +18,10 @@ const BUYER_NAV = [
 ];
 
 const WORKER_NAV = [
-  { to: '/admin/referrals/workers', icon: Gift,         label: 'Referral Worker' },
+  { to: '/admin/worker-users',    icon: Users,           label: 'Người dùng Worker' },
+  { to: '/admin/worker-tasks',    icon: HardHat,         label: 'Nhiệm vụ Worker' },
+  { to: '/admin/worker-withdrawals', icon: Receipt,       label: 'Rút tiền Worker' },
+  { to: '/admin/referrals/workers', icon: Gift,           label: 'Referral Worker' },
 ];
 
 const SYSTEM_NAV = [

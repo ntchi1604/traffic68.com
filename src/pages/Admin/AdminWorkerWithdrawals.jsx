@@ -1,0 +1,104 @@
+import { useState, useEffect } from 'react';
+import usePageTitle from '../../hooks/usePageTitle';
+import { Search, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { useToast } from '../../components/Toast';
+import api from '../../lib/api';
+
+const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
+
+export default function AdminWorkerWithdrawals() {
+  usePageTitle('Admin - Rút tiền Worker');
+  const toast = useToast();
+  const [rows, setRows] = useState([]);
+  const [filter, setFilter] = useState('pending');
+  const [loading, setLoading] = useState(true);
+
+  const fetch = () => {
+    setLoading(true);
+    api.get(`/admin/worker-withdrawals?status=${filter}`)
+      .then(d => { setRows(d.withdrawals || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  };
+
+  useEffect(() => { fetch(); }, [filter]);
+
+  const handleAction = async (id, action) => {
+    if (action === 'reject' && !confirm('Từ chối yêu cầu rút tiền này?')) return;
+    try {
+      await api.put(`/admin/worker-withdrawals/${id}`, { action });
+      toast.success(action === 'approve' ? 'Đã duyệt' : 'Đã từ chối');
+      fetch();
+    } catch (err) { toast.error(err.message); }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-slate-900">Rút tiền Worker</h1>
+        <p className="text-sm text-slate-500 mt-1">Quản lý yêu cầu rút tiền từ worker</p>
+      </div>
+
+      <div className="flex gap-2">
+        {[['pending', 'Chờ duyệt'], ['completed', 'Đã duyệt'], ['rejected', 'Từ chối'], ['all', 'Tất cả']].map(([v, l]) => (
+          <button key={v} onClick={() => setFilter(v)}
+            className={`px-3 py-2 text-xs font-bold rounded-lg transition ${filter === v ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{l}</button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+        {loading ? (
+          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : (
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500">Mã</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500">Worker</th>
+                <th className="px-4 py-3 text-right font-semibold text-slate-500">Số tiền</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500">Thông tin TK</th>
+                <th className="px-4 py-3 text-center font-semibold text-slate-500">Trạng thái</th>
+                <th className="px-4 py-3 text-right font-semibold text-slate-500">Ngày</th>
+                <th className="px-4 py-3 text-center font-semibold text-slate-500">Hành động</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.length === 0 ? (
+                <tr><td colSpan={7} className="py-12 text-center text-slate-400">Không có yêu cầu</td></tr>
+              ) : rows.map(r => (
+                <tr key={r.id} className="hover:bg-slate-50/70">
+                  <td className="px-4 py-3 font-mono text-xs text-slate-400">{r.ref_code}</td>
+                  <td className="px-4 py-3">
+                    <p className="font-semibold text-slate-800 text-xs">{r.user_name || '—'}</p>
+                    <p className="text-[10px] text-slate-400">{r.user_email || ''}</p>
+                  </td>
+                  <td className="px-4 py-3 text-right font-bold text-slate-800 text-xs">{fmt(r.amount)} đ</td>
+                  <td className="px-4 py-3 text-xs text-slate-600 max-w-[200px] truncate">{r.note || '—'}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold
+                      ${r.status === 'completed' ? 'bg-green-50 text-green-600' : r.status === 'rejected' ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-600'}`}>
+                      {r.status === 'completed' ? <CheckCircle2 size={10} /> : r.status === 'rejected' ? <XCircle size={10} /> : <Clock size={10} />}
+                      {r.status === 'completed' ? 'Đã duyệt' : r.status === 'rejected' ? 'Từ chối' : 'Chờ duyệt'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-400 text-xs">
+                    {new Date(r.created_at).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {r.status === 'pending' ? (
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => handleAction(r.id, 'approve')}
+                          className="px-2.5 py-1 bg-green-500 hover:bg-green-600 text-white text-[10px] font-bold rounded-lg transition">Duyệt</button>
+                        <button onClick={() => handleAction(r.id, 'reject')}
+                          className="px-2.5 py-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition">Từ chối</button>
+                      </div>
+                    ) : <span className="text-slate-300 text-xs">—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}

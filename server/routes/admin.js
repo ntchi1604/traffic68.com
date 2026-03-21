@@ -73,12 +73,17 @@ router.get('/overview', async (req, res) => {
 // ── GET /api/admin/users ──
 router.get('/users', async (req, res) => {
   const pool = getPool();
-  const { search, role, page = 1, limit = 20 } = req.query;
+  const { search, role, service_type, page = 1, limit = 20 } = req.query;
   const offset = (page - 1) * limit;
 
-  let sql = `SELECT u.id, u.email, u.name, u.username, u.phone, u.role, u.status, u.referral_code, u.created_at,
+  let sql = `SELECT u.id, u.email, u.name, u.username, u.phone, u.role, u.service_type, u.status, u.referral_code, u.created_at,
     (SELECT COALESCE(SUM(w.balance), 0) FROM wallets w WHERE w.user_id = u.id) as total_balance,
-    (SELECT COUNT(*) FROM campaigns c WHERE c.user_id = u.id) as campaign_count
+    (SELECT COALESCE(w2.balance, 0) FROM wallets w2 WHERE w2.user_id = u.id AND w2.type = 'main') as main_balance,
+    (SELECT COALESCE(w3.balance, 0) FROM wallets w3 WHERE w3.user_id = u.id AND w3.type = 'earning') as earning_balance,
+    (SELECT COALESCE(w4.balance, 0) FROM wallets w4 WHERE w4.user_id = u.id AND w4.type = 'commission') as commission_balance,
+    (SELECT COUNT(*) FROM campaigns c WHERE c.user_id = u.id) as campaign_count,
+    (SELECT COUNT(*) FROM vuot_link_tasks vt WHERE vt.worker_id = u.id AND vt.status = 'completed') as task_count,
+    (SELECT COALESCE(SUM(vt2.earning), 0) FROM vuot_link_tasks vt2 WHERE vt2.worker_id = u.id AND vt2.status = 'completed') as total_earning
     FROM users u WHERE 1=1`;
   let countSql = `SELECT COUNT(*) as total FROM users u WHERE 1=1`;
   const params = [];
@@ -93,6 +98,10 @@ router.get('/users', async (req, res) => {
   if (role && role !== 'all') {
     sql += ' AND u.role = ?'; countSql += ' AND u.role = ?';
     params.push(role); countParams.push(role);
+  }
+  if (service_type && service_type !== 'all') {
+    sql += ' AND u.service_type = ?'; countSql += ' AND u.service_type = ?';
+    params.push(service_type); countParams.push(service_type);
   }
 
   const [totalRows] = await pool.execute(countSql, countParams);
@@ -154,7 +163,7 @@ router.post('/users/:id/balance', async (req, res) => {
   await pool.execute(`INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`, [
     req.params.id,
     type === 'add' ? 'Ví được cộng tiền' : 'Ví bị trừ tiền',
-    `${type === 'add' ? '+' : '-'}${numAmount.toLocaleString('vi-VN')} đ vào ví ${wType === 'main' ? 'Traffic' : 'Hoa hồng'}. Lý do: ${txNote}`,
+    `${type === 'add' ? '+' : '-'}${numAmount.toLocaleString('vi-VN')} đ vào ví ${wType === 'main' ? 'Traffic' : wType === 'earning' ? 'Thu nhập' : 'Hoa hồng'}. Lý do: ${txNote}`,
     type === 'add' ? 'success' : 'warning'
   ]);
 
@@ -477,6 +486,104 @@ router.get('/referrals/:type', async (req, res) => {
 
     res.json({ referrers, totalReferred: totalRefs[0].c, totalReferrers: totalReferrers[0].c });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/admin/worker-tasks ──
+router.get('/worker-tasks', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { page = 1, limit = 30, search, status } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    let where = '1=1';
+    const params = [];
+    if (status && status !== 'all') { where += ' AND t.status = ?'; params.push(status); }
+    if (search) {
+      where += ' AND (u.name LIKE ? OR u.email LIKE ? OR c.name LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    const [countR] = await pool.execute(`SELECT COUNT(*) as c FROM vuot_link_tasks t LEFT JOIN users u ON t.worker_id = u.id LEFT JOIN campaigns c ON t.campaign_id = c.id WHERE ${where}`, params);
+    const [tasks] = await pool.execute(
+      `SELECT t.id, t.keyword, t.status, t.earning, t.completed_at, t.created_at,
+       c.name as campaign_name, c.url as campaign_url,
+       u.name as worker_name, u.email as worker_email
+       FROM vuot_link_tasks t
+       LEFT JOIN campaigns c ON t.campaign_id = c.id
+       LEFT JOIN users u ON t.worker_id = u.id
+       WHERE ${where}
+       ORDER BY t.created_at DESC LIMIT ${Number(limit)} OFFSET ${offset}`,
+      params
+    );
+
+    res.json({ tasks, total: countR[0].c, page: Number(page), limit: Number(limit) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/admin/worker-withdrawals ──
+router.get('/worker-withdrawals', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { status } = req.query;
+
+    let where = "t.type = 'withdraw' AND t.wallet_type = 'earning'";
+    const params = [];
+    if (status && status !== 'all') { where += ' AND t.status = ?'; params.push(status); }
+
+    const [rows] = await pool.execute(
+      `SELECT t.*, u.name as user_name, u.email as user_email
+       FROM transactions t LEFT JOIN users u ON t.user_id = u.id
+       WHERE ${where} ORDER BY t.created_at DESC LIMIT 200`,
+      params
+    );
+    res.json({ withdrawals: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PUT /api/admin/worker-withdrawals/:id ──
+router.put('/worker-withdrawals/:id', async (req, res) => {
+  const pool = getPool();
+  const { action } = req.body; // 'approve' or 'reject'
+  if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'Invalid action' });
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [txs] = await conn.execute('SELECT * FROM transactions WHERE id = ? AND type = ? AND wallet_type = ? FOR UPDATE', [req.params.id, 'withdraw', 'earning']);
+    if (!txs[0]) { await conn.rollback(); conn.release(); return res.status(404).json({ error: 'Không tìm thấy' }); }
+    const tx = txs[0];
+    if (tx.status !== 'pending') { await conn.rollback(); conn.release(); return res.status(400).json({ error: 'Đã xử lý rồi' }); }
+
+    const newStatus = action === 'approve' ? 'completed' : 'rejected';
+    await conn.execute('UPDATE transactions SET status = ? WHERE id = ?', [newStatus, tx.id]);
+
+    if (action === 'reject') {
+      // Refund back to earning wallet
+      await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [tx.amount, tx.user_id, 'earning']);
+    }
+
+    // Notify user
+    const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
+    await conn.execute(
+      `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
+      [tx.user_id,
+       action === 'approve' ? 'Rút tiền thành công' : 'Rút tiền bị từ chối',
+       action === 'approve' ? `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) đã được duyệt.` : `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) bị từ chối. Số tiền đã hoàn lại ví.`,
+       action === 'approve' ? 'success' : 'warning']
+    );
+
+    await conn.commit();
+    conn.release();
+    res.json({ message: action === 'approve' ? 'Đã duyệt' : 'Đã từ chối và hoàn tiền' });
+  } catch (err) {
+    await conn.rollback(); conn.release();
     res.status(500).json({ error: err.message });
   }
 });
