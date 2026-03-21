@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import DashboardHeader from './DashboardHeader';
 import WorkerSidebar from './WorkerSidebar';
 import api from '../lib/api';
+import { Link2 } from 'lucide-react';
 
 export default function WorkerDashboardLayout() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -38,6 +40,9 @@ export default function WorkerDashboardLayout() {
     document.documentElement.classList.remove('dark');
   }, []);
 
+  // Hide FAB on AllLinks page (already has create form there)
+  const showFab = !pathname.includes('/links');
+
   return (
     <>
       {!authChecked ? (
@@ -55,6 +60,22 @@ export default function WorkerDashboardLayout() {
               <Outlet />
             </main>
           </div>
+
+          {/* Floating Action Button — Tạo Link */}
+          {showFab && (
+            <button
+              onClick={() => navigate('/worker/dashboard/links')}
+              className="fixed bottom-6 right-6 z-50 flex items-center gap-2
+                         bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800
+                         text-white font-bold text-sm px-5 py-3.5 rounded-full
+                         shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40
+                         hover:-translate-y-0.5 active:translate-y-0
+                         transition-all duration-200 group"
+            >
+              <Link2 size={18} className="group-hover:rotate-45 transition-transform duration-300" />
+              <span>Tạo Link</span>
+            </button>
+          )}
         </div>
       )}
     </>

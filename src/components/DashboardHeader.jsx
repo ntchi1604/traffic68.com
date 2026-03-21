@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Wallet, Gift, ChevronDown } from 'lucide-react';
 import NotificationDropdown from './NotificationDropdown';
 import api, { getUser, clearAuth } from '../lib/api';
@@ -7,6 +7,8 @@ import { formatMoney as fmt } from '../lib/format';
 
 export default function DashboardHeader({ onMenuClick }) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const dashPrefix = pathname.startsWith('/worker') ? '/worker/dashboard' : '/buyer/dashboard';
   const [profileOpen, setProfileOpen] = useState(false);
   const [user, setUser] = useState(getUser() || { name: '', email: '' });
   const [wallets, setWallets] = useState({ main: 0, commission: 0 });
@@ -129,8 +131,8 @@ export default function DashboardHeader({ onMenuClick }) {
                   </div>
                 </div>
 
-                <a href="/buyer/dashboard/profile" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Hồ sơ của tôi</a>
-                <a href="/buyer/dashboard/profile?tab=password" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Cài đặt tài khoản</a>
+                <a href={`${dashPrefix}/profile`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Hồ sơ của tôi</a>
+                <a href={`${dashPrefix}/profile?tab=password`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Cài đặt tài khoản</a>
                 {user.role === 'admin' && (
                   <a href="/admin" className="flex items-center gap-2 px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 transition font-semibold">
                     🛡️ Admin Panel
