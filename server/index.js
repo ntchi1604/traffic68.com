@@ -86,22 +86,6 @@ app.use((err, req, res, next) => {
     await initDb();
     await seed();
 
-    const { getPool } = require('./db');
-    const pool = getPool();
-    await pool.execute(`CREATE TABLE IF NOT EXISTS security_logs (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      source VARCHAR(20) NOT NULL DEFAULT 'unknown',
-      reason VARCHAR(50) NOT NULL,
-      ip_address VARCHAR(45),
-      user_agent VARCHAR(500),
-      visitor_id VARCHAR(100),
-      details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_created (created_at),
-      INDEX idx_reason (reason),
-      INDEX idx_ip (ip_address)
-    )`);
-
     app.listen(PORT, () => {
       console.log(`
 ╔════════════════════════════════════════════╗
