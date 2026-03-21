@@ -112,9 +112,21 @@ function DetailModal({ event: ev, onClose }) {
       d.probeWarnings.forEach(w => detailItems.push({ label: WARNING_VI[w] || w, value: 'Phát hiện', warn: true }));
     }
 
-    if (!d.assessments && !d.botDetection && d.totalLied === undefined && !d.probeWarnings) {
+    if (d.warnings && Array.isArray(d.warnings)) {
+      d.warnings.forEach(w => {
+        const parts = w.match(/^(.+?)\((.+)\)$/);
+        if (parts) {
+          const warnMap = { repeat_device: 'Thiết bị lặp lại' };
+          detailItems.push({ label: warnMap[parts[1]] || parts[1], value: `${parts[2]} lần`, warn: true });
+        } else {
+          detailItems.push({ label: WARNING_VI[w] || w, value: 'Phát hiện', warn: true });
+        }
+      });
+    }
+
+    if (!d.assessments && !d.botDetection && d.totalLied === undefined && !d.probeWarnings && !d.warnings) {
       Object.entries(d).forEach(([k, v]) => {
-        if (['behaviorScore', 'score', 'assessments', 'botDetection', 'probes', 'screen', 'countdownTime', 'warnings'].includes(k)) return;
+        if (['behaviorScore', 'score', 'assessments', 'botDetection', 'probes', 'screen', 'countdownTime'].includes(k)) return;
         if (v === undefined || v === null || v === '') return;
         let val = v;
         if (typeof v === 'boolean') val = v ? 'Có' : 'Không';
@@ -177,7 +189,7 @@ function DetailModal({ event: ev, onClose }) {
             </div>
           )}
 
-          {Object.keys(grouped).length > 0 && (
+          {Object.keys(grouped).length > 0 ? (
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Phân tích hành vi chi tiết</p>
               {Object.entries(grouped).map(([cat, items]) => (
@@ -191,13 +203,17 @@ function DetailModal({ event: ev, onClose }) {
                         </span>
                         <div className="flex gap-3 mt-1 text-[10px] text-slate-500">
                           <span>Giá trị: <b className="text-slate-700">{String(a.value)}</b></span>
-                          {a.threshold && <span>Ngưỡng: <b className="text-slate-700">{a.threshold}</b></span>}
+                          {a.threshold && <span>Ngưỡng bot: <b className="text-slate-700">{a.threshold}</b></span>}
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               ))}
+            </div>
+          ) : (
+            <div className="bg-slate-50 rounded-lg p-3 text-center">
+              <p className="text-[11px] text-slate-400">Chưa có dữ liệu phân tích hành vi (sự kiện cũ)</p>
             </div>
           )}
         </div>
