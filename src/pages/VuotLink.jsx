@@ -645,20 +645,15 @@ function StepCard({ activeStep, verified, task, keyword, campaignImage, copied, 
 
       {campaignImage && (
         <div style={{ marginBottom: '16px' }}>
-          <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#f97316' }} />
-            Trang đích cần tìm — Tìm trang có giao diện giống hình bên dưới
+          <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', margin: '0 0 8px' }}>
+            🎯 Trang đích cần tìm — giao diện trông giống như hình bên dưới:
           </p>
-          <div style={{ position: 'relative', borderRadius: '14px', overflow: 'hidden', border: '2.5px solid #e0e7ff', boxShadow: '0 4px 20px rgba(99,102,241,0.12)' }}>
+          <div style={{ borderRadius: '14px', overflow: 'hidden', border: '2.5px solid #e0e7ff', boxShadow: '0 4px 20px rgba(99,102,241,0.12)' }}>
             <img
               src={campaignImage} alt="Trang đích cần tìm"
-              style={{ width: '100%', display: 'block', maxHeight: '280px', objectFit: 'cover', objectPosition: 'top' }}
+              style={{ width: '100%', display: 'block', maxHeight: '360px', objectFit: 'cover', objectPosition: 'top' }}
               onError={(e) => e.target.style.display = 'none'}
             />
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(30,58,110,0.85))', padding: '20px 16px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <p style={{ color: '#fff', fontSize: '12px', fontWeight: 700, margin: 0 }}>TRANG CHỦ ĐÍCH - Traffic68</p>
-              <span style={{ background: '#f97316', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '4px 10px', borderRadius: '100px', letterSpacing: '0.4px' }}>CLICK VÀO TRANG NÀY</span>
-            </div>
           </div>
         </div>
       )}
