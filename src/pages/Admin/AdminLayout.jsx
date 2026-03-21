@@ -13,11 +13,11 @@ const BUYER_NAV = [
   { to: '/admin/campaigns',    icon: Megaphone,       label: 'Chiến dịch' },
   { to: '/admin/transactions', icon: Receipt,         label: 'Giao dịch' },
   { to: '/admin/pricing',      icon: DollarSign,      label: 'Bảng giá' },
+  { to: '/admin/tickets',      icon: LifeBuoy,        label: 'Hỗ trợ' },
   { to: '/admin/referrals/buyers', icon: Gift,          label: 'Referral Buyer' },
 ];
 
 const WORKER_NAV = [
-  { to: '/admin/tickets',      icon: LifeBuoy,        label: 'Hỗ trợ' },
   { to: '/admin/referrals/workers', icon: Gift,         label: 'Referral Worker' },
 ];
 

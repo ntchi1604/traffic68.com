@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Search, ChevronDown, ChevronRight, Gift } from 'lucide-react';
+import { Users, Search, ChevronDown, ChevronRight, Gift, Percent, Save, Check } from 'lucide-react';
 import usePageTitle from '../../hooks/usePageTitle';
 import api from '../../lib/api';
 
@@ -11,6 +11,28 @@ export default function AdminReferrals({ type = 'buyers' }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState({});
+  const [commission, setCommission] = useState('');
+  const [commSaving, setCommSaving] = useState(false);
+  const [commSaved, setCommSaved] = useState(false);
+
+  const settingKey = type === 'workers' ? 'referral_commission_worker' : 'referral_commission_buyer';
+
+  useEffect(() => {
+    api.get('/admin/settings').then(d => {
+      const settings = d.settings || {};
+      setCommission(settings[settingKey] || '10');
+    }).catch(() => {});
+  }, [settingKey]);
+
+  const saveCommission = async () => {
+    setCommSaving(true);
+    try {
+      await api.put('/admin/settings', { settings: { [settingKey]: commission } });
+      setCommSaved(true);
+      setTimeout(() => setCommSaved(false), 2000);
+    } catch { }
+    setCommSaving(false);
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -39,8 +61,29 @@ export default function AdminReferrals({ type = 'buyers' }) {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+      {/* Commission + Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <Percent size={14} className="text-amber-600" />
+            <p className="text-xs text-slate-500 font-semibold uppercase">Hoa hồng {label}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <input
+                type="number" min="0" max="100" step="0.5"
+                value={commission}
+                onChange={e => setCommission(e.target.value)}
+                className="w-full pr-8 pl-3 py-2 border border-slate-200 rounded-lg text-lg font-black text-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
+            </div>
+            <button onClick={saveCommission} disabled={commSaving}
+              className={`px-3 py-2 rounded-lg text-sm font-bold transition flex items-center gap-1.5 shrink-0 ${commSaved ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}>
+              {commSaved ? <><Check size={14} /> Đã lưu</> : <><Save size={14} /> Lưu</>}
+            </button>
+          </div>
+        </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 font-semibold uppercase">Tổng người giới thiệu</p>
           <p className="text-3xl font-black text-violet-600 mt-1">{data.totalReferrers}</p>
