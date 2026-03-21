@@ -62,10 +62,11 @@ function DetailModal({ event: ev, onClose }) {
     automation_probes: 'Sử dụng công cụ tự động hóa',
     mouse_bot: 'Hành vi không tự nhiên — bot',
     bot_ua: 'User-Agent bot/crawler',
+    bot_behavior: 'Phát hiện hành vi bot tự động',
     suspicious: 'Có dấu hiệu đáng ngờ',
     probe_warning: 'Phát hiện dấu hiệu tự động hóa',
   };
-  const isBlocked = ['creep_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'zero_screen', 'ip_rate_limit'].includes(ev.reason);
+  const isBlocked = ['creep_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'zero_screen', 'ip_rate_limit', 'bot_behavior'].includes(ev.reason);
 
   let detailItems = [];
   let assessments = [];
@@ -497,12 +498,12 @@ export default function AdminSecurity() {
               ) : securityLogs.map(ev => {
                 const reasonLabels = {
                   completed: 'Hoàn thành', creep_detected: 'Giả mạo', automation_probes: 'Tự động hóa',
-                  mouse_bot: 'Bot hành vi', bot_ua: 'Bot UA',
+                  mouse_bot: 'Bot hành vi', bot_ua: 'Bot UA', bot_behavior: 'Bot hành vi',
                   suspicious: 'Đáng ngờ', probe_warning: 'Probe',
                   ip_rate_limit: 'Rate limit', zero_screen: 'Headless',
                 };
                 const sourceVi = { vuotlink: 'Vượt link', widget: 'Script nhúng' };
-                const isBlocked = ['creep_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'zero_screen', 'ip_rate_limit'].includes(ev.reason);
+                const isBlocked = ['creep_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'zero_screen', 'ip_rate_limit', 'bot_behavior'].includes(ev.reason);
                 const isCompleted = ev.reason === 'completed';
                 return (
                   <tr key={ev.id} className={`border-b border-slate-100 hover:bg-slate-50/50 transition ${isBlocked ? 'bg-red-50/30' : ''}`}>

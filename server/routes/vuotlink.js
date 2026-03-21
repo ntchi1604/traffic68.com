@@ -368,8 +368,8 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   try {
     let secDetail = {};
     try { secDetail = JSON.parse(task.security_detail || '{}'); } catch {}
-    const hasDetail = secDetail.assessments || secDetail.behaviorScore !== undefined;
-    const reason = (secDetail.behaviorScore || 0) >= 30 ? 'suspicious' : 'completed';
+    const flagged = (secDetail.assessments || []).some(a => a.flagged);
+    const reason = flagged ? 'bot_behavior' : 'completed';
     logSecurityEvent(reason, task.ip_address, task.user_agent, task.visitor_id, {
       ...secDetail,
       taskId: task.id,
