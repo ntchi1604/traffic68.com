@@ -529,7 +529,6 @@ export default function VuotLink() {
         </div>
       </main>
 
-      {/* Footer Progress Bar */}
       <div style={{ background: '#fff', borderTop: '1px solid #e2e8f0', padding: '14px 24px' }}>
         <div style={{ maxWidth: '960px', margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
@@ -539,9 +538,6 @@ export default function VuotLink() {
           <div style={{ height: '6px', background: '#eff6ff', borderRadius: '100px', overflow: 'hidden' }}>
             <div style={{ height: '100%', borderRadius: '100px', background: verified ? 'linear-gradient(90deg,#22c55e,#16a34a)' : 'linear-gradient(90deg,#3b82f6,#1d4ed8)', width: `${progress}%`, transition: 'width 0.65s cubic-bezier(0.4,0,0.2,1)' }} />
           </div>
-          <p style={{ textAlign: 'center', fontSize: '11px', color: '#94a3b8', margin: '10px 0 0' }}>
-            Link Bypass © 2025. Hỗ trợ khách hàng.
-          </p>
         </div>
       </div>
 
@@ -560,7 +556,7 @@ export default function VuotLink() {
 /* ─── Page Wrapper ───────────────────────────────────── */
 function PageWrapper({ children }) {
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#dbeafe 0%,#eff6ff 35%,#f0f9ff 65%,#f8fafc 100%)', fontFamily: "'Inter',sans-serif" }}>
+    <div style={{ background: 'linear-gradient(160deg,#dbeafe 0%,#eff6ff 35%,#f0f9ff 65%,#f8fafc 100%)', fontFamily: "'Inter',sans-serif" }}>
       {children}
     </div>
   );

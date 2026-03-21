@@ -64,7 +64,7 @@ import AdminReferrals from './pages/Admin/AdminReferrals';
 import AdminWorkerTasks from './pages/Admin/AdminWorkerTasks';
 import AdminWorkerWithdrawals from './pages/Admin/AdminWorkerWithdrawals';
 
-const DASHBOARD_ROUTES = ['/buyer', '/worker', '/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/vuot-link', '/admin'];
+const DASHBOARD_ROUTES = ['/buyer', '/worker', '/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/admin'];
 
 function NotFound() {
   return (
@@ -111,7 +111,7 @@ function Layout() {
         <Route path="/blog" element={<Blog />} />
         <Route path="/blog/:slug" element={<BlogPost />} />
         <Route path="/lien-he" element={<LienHe />} />
-        <Route path="/vuot-link" element={<VuotLink />} />
+        <Route path="/vuot-link" element={<><VuotLink /><Footer /></>} />
         <Route path="/dang-nhap" element={<DangNhap />} />
         <Route path="/dang-ky" element={<DangKy />} />
 
