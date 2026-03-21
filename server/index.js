@@ -4,7 +4,7 @@ const morgan = require('morgan');
 const path = require('path');
 
 // Init DB
-const { initDb } = require('./db');
+const { initDb, getPool } = require('./db');
 const { seed } = require('./db/seed');
 
 const app = express();
@@ -85,7 +85,6 @@ app.use((err, req, res, next) => {
   try {
     await initDb();
     await seed();
-
     const pool = getPool();
     try {
       await pool.execute(`ALTER TABLE vuot_link_tasks ADD COLUMN security_detail TEXT DEFAULT NULL`);
