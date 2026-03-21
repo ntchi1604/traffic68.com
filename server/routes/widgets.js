@@ -364,15 +364,13 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
   ch.used = true;
 
-  // ── 2. CreepJS check (warning only — same as vuotlink.js) ──
-  if (botDetection && botDetection.totalLied > 0) {
-    console.log(`[Widget] ⚠️ CreepJS lies: IP=${ip}, totalLied=${botDetection.totalLied}, sections=${JSON.stringify(botDetection.liedSections)}`);
-    logSecurityEvent('creep_warning', ip, ua, visitorId, botDetection);
-    if (botDetection.totalLied >= 5) {
-      botDetected = true;
-      detectionLog.push('creep_detected');
-      return res.status(403).json(ERR);
-    }
+  // ── 2. CreepJS check — any lie = block ──
+  if (botDetection && (botDetection.bot === true || botDetection.totalLied > 0)) {
+    console.log(`[Widget] 🚫 CreepJS BLOCKED: IP=${ip}, totalLied=${botDetection.totalLied}, sections=${JSON.stringify(botDetection.liedSections)}`);
+    logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
+    botDetected = true;
+    detectionLog.push('creep_detected');
+    return res.status(403).json(ERR);
   }
 
   // ── 2b. Client-side automation probes ──

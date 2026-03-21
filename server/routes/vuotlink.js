@@ -195,16 +195,13 @@ router.post('/task', optionalAuth, async (req, res) => {
   if (ch.ip && ch.ip !== ip) return res.status(403).json(ERR);
   ch.used = true;
 
-  // ── 2. CreepJS check (warning only — normal browsers can have some lies) ──
-  if (botDetection && botDetection.totalLied > 0) {
-    console.log(`[VuotLink] ⚠️ CreepJS lies: IP=${ip}, totalLied=${botDetection.totalLied}, sections=${JSON.stringify(botDetection.liedSections)}`);
-    logSecurityEvent('creep_warning', ip, ua, visitorId, botDetection);
-    // High lie count (>= 5) = very likely bot, block it
-    if (botDetection.totalLied >= 5) {
-      botDetected = true;
-      detectionLog.push('creep_detected');
-      return res.status(403).json(ERR);
-    }
+  // ── 2. CreepJS check — any lie = block ──
+  if (botDetection && (botDetection.bot === true || botDetection.totalLied > 0)) {
+    console.log(`[VuotLink] 🚫 CreepJS BLOCKED: IP=${ip}, totalLied=${botDetection.totalLied}, sections=${JSON.stringify(botDetection.liedSections)}`);
+    logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
+    botDetected = true;
+    detectionLog.push('creep_detected');
+    return res.status(403).json(ERR);
   }
 
   // ── 2b. Client-side automation probes ──

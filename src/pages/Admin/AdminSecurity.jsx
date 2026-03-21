@@ -209,11 +209,11 @@ export default function AdminSecurity() {
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">ID</th>
-                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">IP</th>
-                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Visitor ID</th>
-                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">BotD</th>
-                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Mouse</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Địa chỉ IP</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Mã thiết bị</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Trạng thái</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Phát hiện Bot</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Chuột</th>
                       <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Đánh giá</th>
                       <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Thời gian</th>
                       <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase min-w-[160px]">Ghi chú</th>
@@ -242,7 +242,7 @@ export default function AdminSecurity() {
                                   log.status?.startsWith('step') ? 'bg-cyan-50 text-cyan-700' :
                                     'bg-red-50 text-red-700'
                               }`}>
-                              {log.status}
+                              {{ completed: 'Hoàn thành', pending: 'Chờ xử lý', expired: 'Hết hạn', blocked: 'Đã chặn', step1: 'Bước 1', step2: 'Bước 2', step3: 'Bước 3' }[log.status] || log.status}
                             </span>
                           </td>
                           <td className="px-4 py-3">
@@ -253,9 +253,9 @@ export default function AdminSecurity() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-xs text-slate-600">
-                            {log.mouse_points ?? '—'} pts
+                            {log.mouse_points ?? '—'} điểm
                             {log.mouse_score > 0 && (
-                              <span className="ml-1 text-amber-500 font-bold">({log.mouse_score})</span>
+                              <span className="ml-1 text-amber-500 font-bold">(nguy cơ: {log.mouse_score})</span>
                             )}
                           </td>
                           <td className="px-4 py-3"><RiskBadge level={risk} /></td>
@@ -309,10 +309,10 @@ export default function AdminSecurity() {
                     <tr>
                       <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Nguồn</th>
                       <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Lý do</th>
-                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">IP</th>
-                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Visitor ID</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Địa chỉ IP</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Mã thiết bị</th>
                       <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Chi tiết</th>
-                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Trạng thái</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Kết quả</th>
                       <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">Thời gian</th>
                     </tr>
                   </thead>
@@ -331,30 +331,64 @@ export default function AdminSecurity() {
                         probe_warning: 'bg-amber-100 text-amber-700',
                       };
                       const reasonLabels = {
-                        creep_detected: '🕵️ CreepJS chặn (lied≥5)',
-                        creep_warning: '⚠️ CreepJS cảnh báo',
-                        botd_detected: '🤖 BotD phát hiện',
-                        automation_probes: '🤖 Automation',
-                        mouse_bot: '🖱️ Mouse bot',
-                        bot_ua: '🤖 Bot UA',
-                        zero_screen: '📵 Headless',
-                        ip_rate_limit: '⚡ Rate limit',
-                        suspicious: '⚠️ Nghi ngờ',
-                        probe_warning: '⚠️ Probe cảnh báo',
+                        creep_detected: '🕵️ Giả mạo trình duyệt',
+                        creep_warning: '⚠️ Nghi giả mạo trình duyệt',
+                        botd_detected: '🤖 Phát hiện bot tự động',
+                        automation_probes: '🤖 Công cụ tự động hóa',
+                        mouse_bot: '🖱️ Chuột giả lập (bot)',
+                        bot_ua: '🤖 Trình duyệt bot',
+                        zero_screen: '📵 Không có màn hình (headless)',
+                        ip_rate_limit: '⚡ Quá giới hạn truy cập',
+                        suspicious: '⚠️ Hành vi đáng ngờ',
+                        probe_warning: '⚠️ Cảnh báo tự động hóa',
                       };
                       const isBlocked = ['creep_detected', 'botd_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'zero_screen', 'ip_rate_limit'].includes(ev.reason);
+                      /* ── Format chi tiết bằng tiếng Việt ── */
+                      const warningVi = {
+                        'zero_interaction': 'Không có tương tác',
+                        'no_mouse_during_countdown': 'Không di chuột khi đếm ngược',
+                        'zero_plugins': 'Không có plugin',
+                        'zero_rtt': 'Độ trễ mạng = 0',
+                        'zero_languages': 'Không có ngôn ngữ',
+                        'no_chrome_runtime': 'Thiếu Chrome runtime',
+                      };
                       let details = '';
                       try {
                         const d = JSON.parse(ev.details || '{}');
-                        if (d.totalLied !== undefined) details = `totalLied=${d.totalLied}, sections=${JSON.stringify(d.liedSections || [])}`;
-                        else if (d.warnings) details = d.warnings.join(', ');
-                        else details = Object.entries(d).filter(([, v]) => v).map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v).substring(0, 50) : v}`).join(', ');
+                        if (d.totalLied !== undefined) {
+                          const sections = (d.liedSections || []).join(', ');
+                          details = `Số mục giả mạo: ${d.totalLied}${sections ? ' — Mục: ' + sections : ''}`;
+                        } else if (d.warnings) {
+                          details = d.warnings.map(w => {
+                            const m = w.match(/^(\w+)\((.+)\)$/);
+                            if (m) {
+                              const base = warningVi[m[1]] || m[1];
+                              return `${base} (${m[2]})`;
+                            }
+                            return warningVi[w] || w;
+                          }).join(', ');
+                        } else {
+                          const keyVi = {
+                            webdriver: 'Webdriver', cdc: 'Chrome DevTools', selenium: 'Selenium',
+                            pluginCount: 'Số plugin', langCount: 'Số ngôn ngữ', hasChrome: 'Có Chrome',
+                            hasChromeRuntime: 'Có Chrome Runtime', notifPerm: 'Quyền thông báo',
+                            rtt: 'Độ trễ mạng', score: 'Điểm nguy cơ', reasons: 'Lý do',
+                            count: 'Số lần', probeWarnings: 'Cảnh báo',
+                          };
+                          details = Object.entries(d).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => {
+                            const label = keyVi[k] || k;
+                            if (typeof v === 'boolean') return `${label}: ${v ? 'Có' : 'Không'}`;
+                            if (Array.isArray(v)) return `${label}: ${v.map(i => warningVi[i] || i).join(', ')}`;
+                            if (typeof v === 'object') return `${label}: ${JSON.stringify(v).substring(0, 50)}`;
+                            return `${label}: ${v}`;
+                          }).join(' · ');
+                        }
                       } catch { details = ev.details; }
                       return (
                         <tr key={ev.id} className="hover:bg-slate-50 transition">
                           <td className="px-4 py-3">
                             <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${ev.source === 'vuotlink' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
-                              {ev.source}
+                              {ev.source === 'vuotlink' ? 'Vượt link' : ev.source === 'widget' ? 'Nhúng script' : ev.source}
                             </span>
                           </td>
                           <td className="px-4 py-3">
