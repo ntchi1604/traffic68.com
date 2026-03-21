@@ -85,6 +85,7 @@ router.post('/register', async (req, res) => {
     // Create wallets
     await pool.execute('INSERT INTO wallets (user_id, type, balance) VALUES (?, ?, ?)', [userId, 'main', 0]);
     await pool.execute('INSERT INTO wallets (user_id, type, balance) VALUES (?, ?, ?)', [userId, 'commission', 0]);
+    await pool.execute('INSERT INTO wallets (user_id, type, balance) VALUES (?, ?, ?)', [userId, 'earning', 0]);
 
     // Welcome notification
     await pool.execute(

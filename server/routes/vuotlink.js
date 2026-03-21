@@ -416,4 +416,145 @@ router.get('/stats', async (req, res) => {
   res.json({ stats: total[0], recent });
 });
 
+/* ═══════════════════════════════════════════════════════════
+   WORKER DASHBOARD APIs (require auth)
+═══════════════════════════════════════════════════════════ */
+
+// GET /api/vuot-link/worker/stats
+router.get('/worker/stats', authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    const uid = req.userId;
+
+    const [todayTasks] = await pool.execute(
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND DATE(completed_at) = CURDATE()`,
+      [uid]
+    );
+    const [totalTasks] = await pool.execute(
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed'`,
+      [uid]
+    );
+    const [pendingTasks] = await pool.execute(
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE worker_id = ? AND status = 'pending'`,
+      [uid]
+    );
+    const [wallets] = await pool.execute(
+      `SELECT type, balance FROM wallets WHERE user_id = ?`,
+      [uid]
+    );
+    const walletMap = {};
+    wallets.forEach(w => { walletMap[w.type] = Number(w.balance); });
+
+    // 7 day chart
+    const [chart] = await pool.execute(
+      `SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn
+       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND completed_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+       GROUP BY DATE(completed_at) ORDER BY day`,
+      [uid]
+    );
+
+    // Recent tasks
+    const [recent] = await pool.execute(
+      `SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at
+       FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id
+       WHERE t.worker_id = ? ORDER BY t.created_at DESC LIMIT 10`,
+      [uid]
+    );
+
+    res.json({
+      today: { tasks: todayTasks[0].cnt, earnings: Number(todayTasks[0].earn) },
+      total: { tasks: totalTasks[0].cnt, earnings: Number(totalTasks[0].earn) },
+      pending: pendingTasks[0].cnt,
+      balance: walletMap.earning || 0,
+      chart,
+      recent,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/vuot-link/worker/tasks?page=1&status=completed
+router.get('/worker/tasks', authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    const uid = req.userId;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = 20;
+    const offset = (page - 1) * limit;
+    const status = req.query.status || '';
+
+    let where = 't.worker_id = ?';
+    const params = [uid];
+    if (status && status !== 'all') { where += ' AND t.status = ?'; params.push(status); }
+
+    const [countR] = await pool.execute(`SELECT COUNT(*) as c FROM vuot_link_tasks t WHERE ${where}`, params);
+    const [tasks] = await pool.execute(
+      `SELECT t.id, c.name as campaign_name, c.url as campaign_url, t.keyword, t.status, t.earning, t.code_given, t.completed_at, t.created_at
+       FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id
+       WHERE ${where} ORDER BY t.created_at DESC LIMIT ${limit} OFFSET ${offset}`,
+      params
+    );
+
+    const [stats] = await pool.execute(
+      `SELECT COUNT(*) as total, COALESCE(SUM(CASE WHEN status='completed' THEN earning ELSE 0 END),0) as totalEarnings,
+       SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed
+       FROM vuot_link_tasks WHERE worker_id = ?`,
+      [uid]
+    );
+
+    res.json({ tasks, total: countR[0].c, page, limit, stats: stats[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/vuot-link/worker/earnings?days=30
+router.get('/worker/earnings', authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    const uid = req.userId;
+    const days = Math.min(90, Math.max(7, parseInt(req.query.days) || 7));
+
+    const [daily] = await pool.execute(
+      `SELECT DATE(completed_at) as date, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earnings
+       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND completed_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+       GROUP BY DATE(completed_at) ORDER BY date DESC`,
+      [uid, days]
+    );
+
+    const [summary] = await pool.execute(
+      `SELECT COALESCE(SUM(earning),0) as total, COUNT(*) as tasks
+       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND completed_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
+      [uid, days]
+    );
+
+    const [todayR] = await pool.execute(
+      `SELECT COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND DATE(completed_at) = CURDATE()`,
+      [uid]
+    );
+
+    res.json({
+      daily,
+      summary: { total: Number(summary[0].total), tasks: summary[0].tasks, avgDaily: daily.length > 0 ? Math.round(Number(summary[0].total) / daily.length) : 0 },
+      today: Number(todayR[0].earn),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/vuot-link/worker/balance
+router.get('/worker/balance', authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    const [wallets] = await pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [req.userId]);
+    const map = {};
+    wallets.forEach(w => { map[w.type] = Number(w.balance); });
+    res.json({ balance: map.earning || 0, main: map.main || 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

@@ -1,24 +1,17 @@
+import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
 import { CheckCircle2, Clock, XCircle, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import api from '../../lib/api';
 
-const fmt = (n) => Number(n).toLocaleString('vi-VN');
-
-const transactions = [
-  { id: 1, type: 'earning', desc: 'Thu nhập từ traffic68.com/s/abc123', amount: 2500, status: 'completed', date: '21/03/2026 14:30' },
-  { id: 2, type: 'earning', desc: 'Thu nhập từ traffic68.com/s/def456', amount: 3000, status: 'completed', date: '21/03/2026 12:15' },
-  { id: 3, type: 'withdraw', desc: 'Rút tiền - Vietcombank ****5678', amount: -100000, status: 'completed', date: '20/03/2026 09:00' },
-  { id: 4, type: 'earning', desc: 'Thu nhập từ traffic68.com/s/ghi789', amount: 1500, status: 'completed', date: '20/03/2026 08:45' },
-  { id: 5, type: 'withdraw', desc: 'Rút tiền - MB Bank ****1234', amount: -50000, status: 'pending', date: '19/03/2026 16:20' },
-  { id: 6, type: 'earning', desc: 'Thu nhập từ traffic68.com/s/jkl012', amount: 5000, status: 'completed', date: '19/03/2026 11:00' },
-  { id: 7, type: 'bonus', desc: 'Thưởng hoàn thành 100 nhiệm vụ', amount: 10000, status: 'completed', date: '18/03/2026 10:00' },
-];
+const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
 
 function StatusBadge({ status }) {
   const config = {
     completed: { label: 'Hoàn thành', icon: CheckCircle2, cls: 'bg-green-50 text-green-600' },
     pending: { label: 'Đang xử lý', icon: Clock, cls: 'bg-amber-50 text-amber-600' },
     failed: { label: 'Thất bại', icon: XCircle, cls: 'bg-red-50 text-red-500' },
+    rejected: { label: 'Từ chối', icon: XCircle, cls: 'bg-red-50 text-red-500' },
   };
   const c = config[status] || config.completed;
   const Icon = c.icon;
@@ -31,20 +24,36 @@ function StatusBadge({ status }) {
 
 export default function WorkerTransactions() {
   usePageTitle('Lịch sử giao dịch');
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filter !== 'all') params.set('type', filter);
+    api.get(`/finance/transactions?${params}`)
+      .then(d => { setTransactions(d.transactions || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [filter]);
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      <Breadcrumb items={[
-        { label: 'Dashboard', to: '/worker/dashboard' },
-        { label: 'Lịch sử giao dịch' },
-      ]} />
-
+      <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Lịch sử giao dịch' }]} />
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Lịch sử giao dịch</h1>
         <p className="text-slate-500 text-sm mt-1">Tất cả giao dịch thu nhập và rút tiền</p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-5">
+        <div className="flex gap-2 mb-4">
+          {[['all', 'Tất cả'], ['deposit', 'Nạp tiền'], ['withdraw', 'Rút tiền']].map(([val, label]) => (
+            <button key={val} onClick={() => setFilter(val)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${filter === val ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -57,24 +66,31 @@ export default function WorkerTransactions() {
               </tr>
             </thead>
             <tbody>
-              {transactions.map(t => (
-                <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                  <td className="py-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${t.amount >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                      {t.amount >= 0
-                        ? <ArrowDownLeft size={14} className="text-green-600" />
-                        : <ArrowUpRight size={14} className="text-red-500" />
-                      }
-                    </div>
-                  </td>
-                  <td className="py-3 text-xs font-medium text-slate-700">{t.desc}</td>
-                  <td className={`py-3 text-right text-xs font-bold ${t.amount >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {t.amount >= 0 ? '+' : ''}{fmt(t.amount)} đ
-                  </td>
-                  <td className="py-3 text-center"><StatusBadge status={t.status} /></td>
-                  <td className="py-3 text-right text-xs text-slate-400">{t.date}</td>
-                </tr>
-              ))}
+              {loading ? (
+                <tr><td colSpan={5} className="py-12 text-center text-slate-400">Đang tải...</td></tr>
+              ) : transactions.length === 0 ? (
+                <tr><td colSpan={5} className="py-12 text-center text-slate-400">Chưa có giao dịch nào</td></tr>
+              ) : transactions.map(t => {
+                const isPositive = t.type === 'deposit' || t.type === 'earning' || t.type === 'bonus';
+                const desc = t.note || (t.type === 'withdraw' ? `Rút tiền (${t.ref_code})` : t.type === 'deposit' ? `Nạp tiền (${t.ref_code})` : t.ref_code);
+                return (
+                  <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isPositive ? 'bg-green-50' : 'bg-red-50'}`}>
+                        {isPositive ? <ArrowDownLeft size={14} className="text-green-600" /> : <ArrowUpRight size={14} className="text-red-500" />}
+                      </div>
+                    </td>
+                    <td className="py-3 text-xs font-medium text-slate-700 max-w-[200px] truncate">{desc}</td>
+                    <td className={`py-3 text-right text-xs font-bold ${isPositive ? 'text-green-600' : 'text-red-500'}`}>
+                      {isPositive ? '+' : '-'}{fmt(t.amount)} đ
+                    </td>
+                    <td className="py-3 text-center"><StatusBadge status={t.status} /></td>
+                    <td className="py-3 text-right text-xs text-slate-400">
+                      {new Date(t.created_at).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

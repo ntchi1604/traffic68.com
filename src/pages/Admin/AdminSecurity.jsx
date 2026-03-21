@@ -214,7 +214,7 @@ function DetailModal({ event: ev, onClose }) {
             </div>
           ) : (
             <div className="bg-slate-50 rounded-lg p-3 text-center">
-              <p className="text-[11px] text-slate-400">Chưa có dữ liệu phân tích hành vi (sự kiện cũ)</p>
+              <p className="text-[11px] text-slate-400">Chưa có dữ liệu phân tích hành vi</p>
             </div>
           )}
         </div>

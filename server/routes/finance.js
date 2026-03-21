@@ -121,4 +121,67 @@ router.post('/transfer', async (req, res) => {
   }
 });
 
+// ── POST /api/finance/withdraw ── (Worker earning → bank/momo)
+router.post('/withdraw', async (req, res) => {
+  const pool = getPool();
+  const { amount, method, bankName, accountNumber, accountName } = req.body;
+  const num = Number(amount);
+
+  if (!num || num < 50000) return res.status(400).json({ error: 'Số tiền rút tối thiểu 50.000 đ' });
+  if (!['bank', 'momo'].includes(method)) return res.status(400).json({ error: 'Phương thức không hợp lệ' });
+  if (method === 'bank' && (!bankName || !accountNumber || !accountName)) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin ngân hàng' });
+  if (method === 'momo' && !accountNumber) return res.status(400).json({ error: 'Vui lòng nhập số Momo' });
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [wallets] = await conn.execute('SELECT balance FROM wallets WHERE user_id = ? AND type = ? FOR UPDATE', [req.userId, 'earning']);
+    const balance = wallets[0] ? Number(wallets[0].balance) : 0;
+    if (balance < num) {
+      await conn.rollback(); conn.release();
+      return res.status(400).json({ error: `Số dư không đủ (hiện có ${balance.toLocaleString('vi-VN')} đ)` });
+    }
+
+    await conn.execute('UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = ?', [num, req.userId, 'earning']);
+
+    const refCode = `WD-${Date.now()}-${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`;
+    const note = method === 'bank'
+      ? `${bankName} - ${accountNumber} - ${accountName}`
+      : `Momo - ${accountNumber}`;
+
+    await conn.execute(
+      `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.userId, 'earning', 'withdraw', method, num, 'pending', refCode, note]
+    );
+
+    const fmtAmount = new Intl.NumberFormat('vi-VN').format(num);
+    await conn.execute(
+      `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
+      [req.userId, 'Yêu cầu rút tiền', `Yêu cầu rút ${fmtAmount} đ (${refCode}) đang chờ xử lý.`, 'info']
+    );
+
+    await conn.commit();
+    conn.release();
+    res.json({ message: `Yêu cầu rút ${fmtAmount} đ đã gửi`, refCode });
+  } catch (err) {
+    await conn.rollback(); conn.release();
+    res.status(500).json({ error: 'Lỗi: ' + err.message });
+  }
+});
+
+// ── GET /api/finance/withdrawals ──
+router.get('/withdrawals', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute(
+      `SELECT * FROM transactions WHERE user_id = ? AND type = 'withdraw' AND wallet_type = 'earning' ORDER BY created_at DESC LIMIT 50`,
+      [req.userId]
+    );
+    res.json({ withdrawals: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
