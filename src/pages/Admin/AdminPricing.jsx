@@ -126,11 +126,10 @@ export default function AdminPricing() {
 
               {/* Toggle on/off */}
               <button onClick={toggleDiscount}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${
-                  discountEnabled
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${discountEnabled
                     ? 'bg-green-100 text-green-700 hover:bg-green-200'
                     : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                }`}>
+                  }`}>
                 {discountEnabled
                   ? <><ToggleRight size={20} /> Đang bật</>
                   : <><ToggleLeft size={20} /> Đang tắt</>
@@ -197,7 +196,6 @@ export default function AdminPricing() {
                   onChange={e => setConfig(c => ({ ...c, views_per_ip: e.target.value }))}
                   placeholder="2" min="1" max="100"
                   className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                <p className="text-xs text-slate-400 mt-1">Mỗi IP được vượt link tối đa số lần này mỗi ngày (mặc định: 2)</p>
               </div>
             </div>
             <div className="mt-4">
@@ -228,84 +226,84 @@ export default function AdminPricing() {
                 </div>
 
                 <div className="overflow-x-auto">
-                <table className="min-w-[700px] w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-5 py-3 text-left font-semibold text-slate-500">Thời gian</th>
-                      <th className="px-5 py-3 text-left font-semibold text-slate-500">V1 Giá gốc</th>
-                      <th className="px-5 py-3 text-left font-semibold text-slate-500">V2 Giá gốc</th>
-                      {discountEnabled && (
-                        <>
-                          <th className="px-5 py-3 text-left font-semibold text-green-600">V1 Sau giảm</th>
-                          <th className="px-5 py-3 text-left font-semibold text-green-600">V2 Sau giảm</th>
-                        </>
-                      )}
-                      <th className="px-5 py-3 text-center font-semibold text-slate-500">Sửa</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {items.map(tier => {
-                      const isEditing = editingId === tier.id;
-                      return (
-                        <tr key={tier.id} className={isEditing ? 'bg-orange-50/50' : 'hover:bg-slate-50/70'}>
-                          <td className="px-5 py-3 font-bold text-slate-700">{tier.duration}</td>
+                  <table className="min-w-[700px] w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-5 py-3 text-left font-semibold text-slate-500">Thời gian</th>
+                        <th className="px-5 py-3 text-left font-semibold text-slate-500">V1 Giá gốc</th>
+                        <th className="px-5 py-3 text-left font-semibold text-slate-500">V2 Giá gốc</th>
+                        {discountEnabled && (
+                          <>
+                            <th className="px-5 py-3 text-left font-semibold text-green-600">V1 Sau giảm</th>
+                            <th className="px-5 py-3 text-left font-semibold text-green-600">V2 Sau giảm</th>
+                          </>
+                        )}
+                        <th className="px-5 py-3 text-center font-semibold text-slate-500">Sửa</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {items.map(tier => {
+                        const isEditing = editingId === tier.id;
+                        return (
+                          <tr key={tier.id} className={isEditing ? 'bg-orange-50/50' : 'hover:bg-slate-50/70'}>
+                            <td className="px-5 py-3 font-bold text-slate-700">{tier.duration}</td>
 
-                          {isEditing ? (
-                            <>
-                              <td className="px-5 py-2">
-                                <input type="number" value={editForm.v1_price}
-                                  onChange={e => setEditForm(f => ({ ...f, v1_price: Number(e.target.value) || 0 }))}
-                                  className="w-24 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
-                              </td>
-                              <td className="px-5 py-2">
-                                <input type="number" value={editForm.v2_price}
-                                  onChange={e => setEditForm(f => ({ ...f, v2_price: Number(e.target.value) || 0 }))}
-                                  className="w-24 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
-                              </td>
-                              {discountEnabled && (
-                                <>
-                                  <td className="px-5 py-3 font-bold text-green-600">{fmt(calcDiscount(editForm.v1_price))} đ</td>
-                                  <td className="px-5 py-3 font-bold text-green-600">{fmt(calcDiscount(editForm.v2_price))} đ</td>
-                                </>
-                              )}
-                              <td className="px-5 py-2">
-                                <div className="flex items-center justify-center gap-1">
-                                  <button onClick={() => saveEdit(tier.id)} disabled={saving}
-                                    className="p-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition" title="Lưu">
-                                    <Save size={15} />
-                                  </button>
-                                  <button onClick={cancelEdit}
-                                    className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-400 transition" title="Hủy">
-                                    <X size={15} />
-                                  </button>
-                                </div>
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="px-5 py-3 text-slate-700 font-semibold">{fmt(tier.v1_price)} đ</td>
-                              <td className="px-5 py-3 text-slate-700 font-semibold">{fmt(tier.v2_price)} đ</td>
-                              {discountEnabled && (
-                                <>
-                                  <td className="px-5 py-3 font-bold text-green-600">{fmt(calcDiscount(tier.v1_price))} đ</td>
-                                  <td className="px-5 py-3 font-bold text-green-600">{fmt(calcDiscount(tier.v2_price))} đ</td>
-                                </>
-                              )}
-                              <td className="px-5 py-3">
-                                <div className="flex items-center justify-center">
-                                  <button onClick={() => startEdit(tier)}
-                                    className="p-1.5 rounded-lg hover:bg-orange-50 text-slate-400 hover:text-orange-600 transition" title="Sửa">
-                                    <Edit3 size={15} />
-                                  </button>
-                                </div>
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            {isEditing ? (
+                              <>
+                                <td className="px-5 py-2">
+                                  <input type="number" value={editForm.v1_price}
+                                    onChange={e => setEditForm(f => ({ ...f, v1_price: Number(e.target.value) || 0 }))}
+                                    className="w-24 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                                </td>
+                                <td className="px-5 py-2">
+                                  <input type="number" value={editForm.v2_price}
+                                    onChange={e => setEditForm(f => ({ ...f, v2_price: Number(e.target.value) || 0 }))}
+                                    className="w-24 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                                </td>
+                                {discountEnabled && (
+                                  <>
+                                    <td className="px-5 py-3 font-bold text-green-600">{fmt(calcDiscount(editForm.v1_price))} đ</td>
+                                    <td className="px-5 py-3 font-bold text-green-600">{fmt(calcDiscount(editForm.v2_price))} đ</td>
+                                  </>
+                                )}
+                                <td className="px-5 py-2">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button onClick={() => saveEdit(tier.id)} disabled={saving}
+                                      className="p-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition" title="Lưu">
+                                      <Save size={15} />
+                                    </button>
+                                    <button onClick={cancelEdit}
+                                      className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-400 transition" title="Hủy">
+                                      <X size={15} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="px-5 py-3 text-slate-700 font-semibold">{fmt(tier.v1_price)} đ</td>
+                                <td className="px-5 py-3 text-slate-700 font-semibold">{fmt(tier.v2_price)} đ</td>
+                                {discountEnabled && (
+                                  <>
+                                    <td className="px-5 py-3 font-bold text-green-600">{fmt(calcDiscount(tier.v1_price))} đ</td>
+                                    <td className="px-5 py-3 font-bold text-green-600">{fmt(calcDiscount(tier.v2_price))} đ</td>
+                                  </>
+                                )}
+                                <td className="px-5 py-3">
+                                  <div className="flex items-center justify-center">
+                                    <button onClick={() => startEdit(tier)}
+                                      className="p-1.5 rounded-lg hover:bg-orange-50 text-slate-400 hover:text-orange-600 transition" title="Sửa">
+                                      <Edit3 size={15} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             );
