@@ -154,7 +154,7 @@ function DetailModal({ event: ev, onClose }) {
 
         <div className="px-6 py-4 space-y-4">
           <div className={`p-3 rounded-xl border text-sm font-semibold ${isBlocked ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
-            {isBlocked ? '🚫 ' : '⚠️ '}{reasonLabels[ev.reason] || ev.reason}
+            {reasonLabels[ev.reason] || ev.reason}
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-xs">
@@ -179,7 +179,7 @@ function DetailModal({ event: ev, onClose }) {
                 {detailItems.map((item, i) => (
                   <div key={i} className={`flex items-start justify-between px-3 py-2 rounded-lg text-xs ${item.danger ? 'bg-red-50' : item.warn ? 'bg-amber-50' : 'bg-slate-50'}`}>
                     <span className={`font-medium ${item.danger ? 'text-red-700' : item.warn ? 'text-amber-700' : 'text-slate-600'}`}>
-                      {item.danger ? '🔴 ' : item.warn ? '🟡 ' : '⚪ '}{item.label}
+                      {item.label}
                     </span>
                     <span className={`font-bold text-right max-w-[50%] break-all ${item.danger ? 'text-red-800' : item.warn ? 'text-amber-800' : 'text-slate-800'}`}>
                       {item.value}
@@ -200,7 +200,7 @@ function DetailModal({ event: ev, onClose }) {
                     {items.map((a, i) => (
                       <div key={i} className={`px-3 py-2 rounded-lg text-[11px] border ${a.flagged ? 'bg-red-50 border-red-200' : a.flagged === false ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
                         <span className={`font-semibold ${a.flagged ? 'text-red-700' : a.flagged === false ? 'text-green-700' : 'text-slate-600'}`}>
-                          {a.flagged ? '🔴' : a.flagged === false ? '🟢' : 'ℹ️'} {a.note}
+                          {a.note}
                         </span>
                         <div className="flex gap-3 mt-1 text-[10px] text-slate-500">
                           <span>Giá trị: <b className="text-slate-700">{String(a.value)}</b></span>
@@ -234,22 +234,22 @@ function DetailModal({ event: ev, onClose }) {
           let level, icon, text, bg, border, textColor;
           if (isBlocked || creepBot || creepLied || hasAutomation || score >= 70) {
             level = 'bot';
-            icon = '🤖';
+            icon = '';
             text = 'Kết luận: Rất có thể là BOT / Tự động hóa';
             bg = 'bg-red-50'; border = 'border-red-300'; textColor = 'text-red-800';
           } else if (score >= 30 || flaggedCount >= 3) {
             level = 'suspicious';
-            icon = '⚠️';
+            icon = '';
             text = 'Kết luận: Đáng ngờ — Có nhiều dấu hiệu bất thường';
             bg = 'bg-amber-50'; border = 'border-amber-300'; textColor = 'text-amber-800';
           } else if (score > 0 || flaggedCount >= 1) {
             level = 'warning';
-            icon = '🟡';
+            icon = '';
             text = 'Kết luận: Có dấu hiệu đáng ngờ nhưng chưa đủ chặn';
             bg = 'bg-yellow-50'; border = 'border-yellow-300'; textColor = 'text-yellow-800';
           } else {
             level = 'clean';
-            icon = '✅';
+            icon = '';
             text = 'Kết luận: Người dùng thật — Không phát hiện tự động hóa';
             bg = 'bg-green-50'; border = 'border-green-300'; textColor = 'text-green-800';
           }
@@ -370,10 +370,10 @@ export default function AdminSecurity() {
                 <tr><td colSpan={7} className="text-center py-12 text-slate-400">Chưa có sự kiện bảo mật nào</td></tr>
               ) : securityLogs.map(ev => {
                 const reasonLabels = {
-                  completed: '✅ Hoàn thành', creep_detected: '🔴 Giả mạo', automation_probes: '🔴 Tự động hóa',
-                  mouse_bot: '🔴 Bot hành vi', bot_ua: '🔴 Bot UA',
-                  suspicious: '🟡 Đáng ngờ', probe_warning: '🟡 Probe',
-                  ip_rate_limit: '🔴 Rate limit', zero_screen: '🔴 Headless',
+                  completed: 'Hoàn thành', creep_detected: 'Giả mạo', automation_probes: 'Tự động hóa',
+                  mouse_bot: 'Bot hành vi', bot_ua: 'Bot UA',
+                  suspicious: 'Đáng ngờ', probe_warning: 'Probe',
+                  ip_rate_limit: 'Rate limit', zero_screen: 'Headless',
                 };
                 const sourceVi = { vuotlink: 'Vượt link', widget: 'Script nhúng' };
                 const isBlocked = ['creep_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'zero_screen', 'ip_rate_limit'].includes(ev.reason);
@@ -395,10 +395,10 @@ export default function AdminSecurity() {
                     <td className="px-4 py-3"><CopyId text={ev.visitor_id} /></td>
                     <td className="px-4 py-3">
                       {isBlocked
-                        ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">🚫 Đã chặn</span>
+                        ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">Đã chặn</span>
                         : isCompleted
-                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">✅ Hoàn thành</span>
-                          : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">⚠️ Cảnh báo</span>
+                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">Hoàn thành</span>
+                          : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Cảnh báo</span>
                       }
                     </td>
                     <td className="px-4 py-3 text-center">

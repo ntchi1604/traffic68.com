@@ -19,12 +19,12 @@ function BalanceModal({ user, onClose, onDone }) {
   const QUICK_AMOUNTS = [50000, 100000, 500000, 1000000, 5000000, 10000000];
   const WALLET_OPTIONS = isWorker
     ? [
-        { key: 'earning', label: '💼 Ví Thu nhập', color: 'green' },
-        { key: 'commission', label: '🎁 Ví Hoa hồng', color: 'orange' },
+        { key: 'earning', label: 'Ví Thu nhập', color: 'green' },
+        { key: 'commission', label: 'Ví Hoa hồng', color: 'orange' },
       ]
     : [
-        { key: 'main', label: '💰 Ví Traffic', color: 'blue' },
-        { key: 'commission', label: '🎁 Ví Hoa hồng', color: 'orange' },
+        { key: 'main', label: 'Ví Traffic', color: 'blue' },
+        { key: 'commission', label: 'Ví Hoa hồng', color: 'orange' },
       ];
 
   const handleSubmit = async (e) => {
@@ -111,13 +111,13 @@ function BalanceModal({ user, onClose, onDone }) {
           )}
 
           {error && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-medium">{error}</div>}
-          {success && <div className="p-3 bg-green-50 text-green-700 rounded-xl text-sm font-medium">✓ {success}</div>}
+          {success && <div className="p-3 bg-green-50 text-green-700 rounded-xl text-sm font-medium">{success}</div>}
 
           <button type="submit" disabled={loading || !!success}
             className={`w-full py-3 rounded-xl text-sm font-black transition-all
               ${type === 'add' ? 'bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-200' : 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-200'}
               disabled:opacity-50 disabled:cursor-not-allowed`}>
-            {loading ? 'Đang xử lý...' : success ? '✓ Hoàn tất' : `Xác nhận ${type === 'add' ? 'cộng' : 'trừ'} tiền`}
+            {loading ? 'Đang xử lý...' : success ? 'Hoàn tất' : `Xác nhận ${type === 'add' ? 'cộng' : 'trừ'} tiền`}
           </button>
         </form>
       </div>
@@ -218,19 +218,19 @@ export default function AdminUsers({ type }) {
                 <td className="px-5 py-3 text-slate-600">{u.phone || '—'}</td>
                 <td className="px-5 py-3">
                   <span className={`px-2 py-1 text-xs font-bold rounded-full ${u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {u.role === 'admin' ? '🛡 Admin' : 'User'}
+                    {u.role === 'admin' ? 'Admin' : 'User'}
                   </span>
                 </td>
                 <td className="px-5 py-3">
                   {isWorker ? (
                     <div className="space-y-0.5">
-                      <p className="text-xs font-semibold text-emerald-600">💼 {fmt(u.earning_balance)} đ</p>
-                      <p className="text-[10px] text-slate-400">🎁 {fmt(u.commission_balance)} đ</p>
+                      <p className="text-xs font-semibold text-emerald-600">{fmt(u.earning_balance)} đ</p>
+                      <p className="text-[10px] text-slate-400">{fmt(u.commission_balance)} đ</p>
                     </div>
                   ) : (
                     <div className="space-y-0.5">
-                      <p className="text-xs font-semibold text-slate-700">💰 {fmt(u.main_balance)} đ</p>
-                      <p className="text-[10px] text-slate-400">🎁 {fmt(u.commission_balance)} đ</p>
+                      <p className="text-xs font-semibold text-slate-700">{fmt(u.main_balance)} đ</p>
+                      <p className="text-[10px] text-slate-400">{fmt(u.commission_balance)} đ</p>
                     </div>
                   )}
                 </td>
@@ -246,7 +246,7 @@ export default function AdminUsers({ type }) {
                   <span className={`px-2 py-1 text-xs font-bold rounded-full
                     ${u.status === 'active' ? 'bg-green-100 text-green-700' :
                       u.status === 'banned' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
-                    {u.status === 'active' ? '✓ Active' : u.status === 'banned' ? '✕ Banned' : u.status || 'Active'}
+                    {u.status === 'active' ? 'Active' : u.status === 'banned' ? 'Banned' : u.status || 'Active'}
                   </span>
                 </td>
                 <td className="px-5 py-3 text-slate-500 text-xs">{new Date(u.created_at).toLocaleString('vi-VN')}</td>

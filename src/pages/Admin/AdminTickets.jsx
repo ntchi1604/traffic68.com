@@ -65,8 +65,8 @@ function ReplyModal({ ticket, onClose, onDone }) {
             <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Cập nhật trạng thái</label>
             <div className="flex gap-2">
               {[
-                { value: 'resolved', label: '✓ Đã xử lý', cls: 'bg-green-500 text-white' },
-                { value: 'in_progress', label: '⏳ Đang xử lý', cls: 'bg-blue-500 text-white' },
+                { value: 'resolved', label: 'Đã xử lý', cls: 'bg-green-500 text-white' },
+                { value: 'in_progress', label: 'Đang xử lý', cls: 'bg-blue-500 text-white' },
                 { value: 'closed', label: 'Đóng', cls: 'bg-slate-500 text-white' },
               ].map(s => (
                 <button key={s.value} type="button" onClick={() => setStatus(s.value)}
@@ -183,7 +183,7 @@ export default function AdminTickets() {
                     <span className={`px-2 py-0.5 text-xs font-bold rounded-full
                       ${t.priority === 'high' ? 'bg-red-100 text-red-700' :
                         t.priority === 'low' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
-                      {t.priority === 'high' ? '🔴 Cao' : t.priority === 'low' ? 'Thấp' : '🟡 Trung bình'}
+                      {t.priority === 'high' ? 'Cao' : t.priority === 'low' ? 'Thấp' : 'Trung bình'}
                     </span>
                   </div>
                   <h3 className="font-bold text-slate-800">{t.subject}</h3>
@@ -192,14 +192,14 @@ export default function AdminTickets() {
                   {/* Admin reply display */}
                   {t.admin_reply && (
                     <div className="mt-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
-                      <p className="text-[10px] font-bold text-blue-400 mb-1">💬 Phản hồi admin — {t.replied_at ? new Date(t.replied_at).toLocaleString('vi-VN') : ''}</p>
+                      <p className="text-[10px] font-bold text-blue-400 mb-1">Phản hồi admin — {t.replied_at ? new Date(t.replied_at).toLocaleString('vi-VN') : ''}</p>
                       <p className="text-sm text-blue-800">{t.admin_reply}</p>
                     </div>
                   )}
 
                   <div className="flex items-center gap-3 mt-3 text-xs text-slate-400">
-                    <span>👤 {t.user_name || t.user_email}</span>
-                    <span>📅 {new Date(t.created_at).toLocaleString('vi-VN')}</span>
+                    <span>{t.user_name || t.user_email}</span>
+                    <span>{new Date(t.created_at).toLocaleString('vi-VN')}</span>
                   </div>
                 </div>
                 <div className="flex flex-col gap-1 flex-shrink-0">
@@ -211,7 +211,7 @@ export default function AdminTickets() {
                     <>
                       <button onClick={() => updateTicket(t.id, 'resolved')}
                         className="px-3 py-1.5 text-xs font-bold bg-green-50 hover:bg-green-100 text-green-700 rounded-lg transition">
-                        ✓ Xử lý
+                        Xử lý
                       </button>
                       <button onClick={() => updateTicket(t.id, 'closed')}
                         className="px-3 py-1.5 text-xs font-bold bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg transition">

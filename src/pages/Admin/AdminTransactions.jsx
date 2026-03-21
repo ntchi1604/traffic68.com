@@ -16,9 +16,9 @@ const TYPE_MAP = {
 };
 
 const STATUS_MAP = {
-  completed: { label: '✓ Đã duyệt', cls: 'bg-green-100 text-green-700' },
-  pending: { label: '⏳ Chờ duyệt', cls: 'bg-amber-100 text-amber-700' },
-  failed: { label: '✕ Từ chối', cls: 'bg-red-100 text-red-700' },
+  completed: { label: 'Đã duyệt', cls: 'bg-green-100 text-green-700' },
+  pending: { label: 'Chờ duyệt', cls: 'bg-amber-100 text-amber-700' },
+  failed: { label: 'Từ chối', cls: 'bg-red-100 text-red-700' },
 };
 
 /* Date helper */
@@ -132,7 +132,7 @@ export default function AdminTransactions() {
         <h1 className="text-2xl font-black text-slate-900">Giao dịch hệ thống</h1>
         <p className="text-sm text-slate-500 mt-1">
           {transactions.length} giao dịch
-          {pendingCount > 0 && <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-full animate-pulse">⏳ {pendingCount} chờ duyệt</span>}
+          {pendingCount > 0 && <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-full animate-pulse">{pendingCount} chờ duyệt</span>}
         </p>
       </div>
 
