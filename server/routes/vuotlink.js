@@ -227,16 +227,19 @@ async function _handleTaskPost(req, res) {
       `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1`,
       [campaign.user_id]
     );
+    console.log(`[VuotLink] Widget query: user_id=${campaign.user_id}, found=${wRows.length}`);
     if (wRows.length > 0) {
       const raw = JSON.parse(wRows[0].config || '{}');
-      // Merge with JS defaults
       const DEFAULTS = {
         buttonText: 'Lấy Mã', buttonColor: '#f97316', textColor: '#ffffff',
         borderRadius: 50, fontSize: 15,
       };
       widgetConfig = { ...DEFAULTS, ...raw };
+      console.log(`[VuotLink] widgetConfig: color=${widgetConfig.buttonColor}, text=${widgetConfig.buttonText}`);
     }
-  } catch (e) { /* non-fatal */ }
+  } catch (e) {
+    console.error('[VuotLink] Widget config error:', e.message);
+  }
 
   // Generate signed task token (binds to IP, cannot be forged)
   const _tk = signTask(result.insertId, ip);
