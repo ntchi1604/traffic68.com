@@ -155,100 +155,60 @@ function DetailModal({ event: ev, onClose }) {
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/60 transition"><X size={16} className="text-slate-500" /></button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
-          {/* LEFT: Behavioral Analysis */}
-          <div className="px-6 py-4 space-y-4 lg:border-r border-slate-100">
-            <div className={`p-3 rounded-xl border text-sm font-semibold ${isBlocked ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700'}`}>
-              {reasonLabels[ev.reason] || ev.reason}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Nguồn</p>
-                <p className="font-semibold text-slate-700">{ev.source === 'widget' ? 'Script nhúng' : ev.source === 'vuotlink' ? 'Vượt link' : ev.source}</p>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">IP</p>
-                <p className="font-mono font-semibold text-slate-700">{ev.ip_address}</p>
-              </div>
-              <div className="col-span-2 bg-slate-50 rounded-lg p-3">
-                <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Mã thiết bị</p>
-                <p className="font-mono text-slate-700 text-[11px] break-all">{ev.visitor_id || '—'}</p>
-              </div>
-            </div>
-
-            {detailItems.filter(it => !['Headless'].includes(it.label)).length > 0 && (
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Kiểm tra trình duyệt</p>
-                <div className="space-y-1.5">
-                  {detailItems.filter(it => !['Headless'].includes(it.label)).map((item, i) => (
-                    <div key={i} className={`flex items-start justify-between px-3 py-2 rounded-lg text-xs ${item.danger ? 'bg-red-50' : item.warn ? 'bg-amber-50' : 'bg-slate-50'}`}>
-                      <span className={`font-medium ${item.danger ? 'text-red-700' : item.warn ? 'text-amber-700' : 'text-slate-600'}`}>{item.label}</span>
-                      <span className={`font-bold text-right max-w-[50%] break-all ${item.danger ? 'text-red-800' : item.warn ? 'text-amber-800' : 'text-slate-800'}`}>{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {Object.keys(grouped).length > 0 ? (
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Phân tích hành vi</p>
-                {Object.entries(grouped).map(([cat, items]) => (
-                  <div key={cat} className="mb-3">
-                    <p className="text-xs font-bold text-slate-700 mb-1.5">{catNames[cat] || cat}</p>
-                    <div className="space-y-1">
-                      {items.map((a, i) => (
-                        <div key={i} className={`px-3 py-2 rounded-lg text-[11px] border ${a.flagged ? 'bg-red-50 border-red-200' : a.flagged === false ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
-                          <span className={`font-semibold ${a.flagged ? 'text-red-700' : a.flagged === false ? 'text-green-700' : 'text-slate-600'}`}>{a.note}</span>
-                          <div className="flex gap-3 mt-1 text-[10px] text-slate-500">
-                            <span>Giá trị: <b className="text-slate-700">{String(a.value)}</b></span>
-                            {a.threshold && <span>Ngưỡng bot: <b className="text-slate-700">{a.threshold}</b></span>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="bg-slate-50 rounded-lg p-3 text-center">
-                <p className="text-[11px] text-slate-400">Chưa có dữ liệu phân tích hành vi</p>
-              </div>
-            )}
-
-            {(() => {
-              let d2 = {};
-              try { d2 = JSON.parse(ev.details || '{}'); } catch { }
-              const bd2 = d2.botDetection || (d2.totalLied !== undefined ? d2 : null);
-              const creepLied2 = bd2 && bd2.totalLied > 0;
-              const creepBot2 = bd2 && bd2.bot === true;
-              const probes2 = d2.probes || {};
-              const hasAuto2 = probes2.webdriver || probes2.selenium || probes2.cdc;
-              const fc2 = (d2.assessments || []).filter(a => a.flagged).length;
-              const tc2 = (d2.assessments || []).length;
-              const isBot2 = isBlocked || creepBot2 || creepLied2 || hasAuto2 || fc2 > 0;
-              return (
-                <div className={`p-3 rounded-xl border-2 ${isBot2 ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-300'}`}>
-                  <p className={`text-xs font-black ${isBot2 ? 'text-red-800' : 'text-green-800'}`}>{isBot2 ? 'Kết luận: BOT' : 'Kết luận: Người dùng thật'}</p>
-                  {fc2 > 0 && <p className="text-[10px] text-red-600 mt-1">{fc2}/{tc2} kiểm tra bất thường</p>}
-                </div>
-              );
-            })()}
+        {/* Summary row */}
+        <div className="px-6 py-4 space-y-3 border-b border-slate-100">
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className={`px-2.5 py-1 rounded-lg font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+              {ev.source === 'widget' ? 'Script nhúng' : ev.source === 'vuotlink' ? 'Vượt link' : ev.source}
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-slate-100 font-mono text-slate-700">{ev.ip_address}</span>
+            <span className="px-2.5 py-1 rounded-lg bg-slate-100 font-mono text-slate-600 text-[10px] max-w-[200px] truncate">{ev.visitor_id || '—'}</span>
           </div>
 
-          {/* RIGHT: IP Analysis */}
-          <div className="px-6 py-4 space-y-4">
+          {/* Conclusion */}
+          {(() => {
+            let d2 = {};
+            try { d2 = JSON.parse(ev.details || '{}'); } catch { }
+            const bd2 = d2.botDetection || (d2.totalLied !== undefined ? d2 : null);
+            const creepLied2 = bd2 && bd2.totalLied > 0;
+            const creepBot2 = bd2 && bd2.bot === true;
+            const probes2 = d2.probes || {};
+            const hasAuto2 = probes2.webdriver || probes2.selenium || probes2.cdc;
+            const fc2 = (d2.assessments || []).filter(a => a.flagged).length;
+            const tc2 = (d2.assessments || []).length;
+            const isBot2 = isBlocked || creepBot2 || creepLied2 || hasAuto2 || fc2 > 0;
+            const badges = [];
+            if (fc2 > 0) badges.push(`${fc2}/${tc2} bất thường`);
+            if (creepLied2) badges.push(`Giả mạo ${bd2.totalLied} mục`);
+            if (hasAuto2) badges.push('Automation');
+            return (
+              <div className={`p-3 rounded-xl border-2 flex items-center justify-between ${isBot2 ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-300'}`}>
+                <div>
+                  <p className={`text-sm font-black ${isBot2 ? 'text-red-800' : 'text-green-800'}`}>{isBot2 ? '🚫 BOT' : '✅ Người dùng thật'}</p>
+                  {badges.length > 0 && <p className="text-[10px] text-red-600 mt-0.5">{badges.join(' • ')}</p>}
+                </div>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${isBot2 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                  {reasonLabels[ev.reason] || ev.reason}
+                </span>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Two columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
+          {/* LEFT: IP Analysis */}
+          <div className="px-6 py-4 space-y-3 lg:border-r border-slate-100">
             <p className="text-[10px] font-bold text-slate-400 uppercase">Phân tích IP</p>
             {ipLoading ? (
-              <div className="text-center py-8 text-xs text-slate-400">Đang phân tích IP...</div>
+              <div className="text-center py-6 text-xs text-slate-400">Đang phân tích...</div>
             ) : !ipData ? (
-              <div className="text-center py-8 text-xs text-slate-400">Không thể phân tích IP</div>
+              <div className="text-center py-6 text-xs text-slate-400">Không thể phân tích</div>
             ) : (
               <div className="space-y-3">
                 <div className={`p-3 rounded-xl border-2 ${rc.bg} ${rc.border}`}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className={`text-xs font-black ${rc.text}`}>Rủi ro: {ipData.riskLevel === 'high' ? 'CAO' : ipData.riskLevel === 'medium' ? 'TB' : 'THẤP'}</span>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-xs font-black ${rc.text}`}>{ipData.riskLevel === 'high' ? 'RỦI RO CAO' : ipData.riskLevel === 'medium' ? 'RỦI RO TB' : 'RỦI RO THẤP'}</span>
                     <span className={`text-lg font-black ${rc.text}`}>{ipData.riskScore}</span>
                   </div>
                   <div className="w-full bg-white/60 rounded-full h-1.5">
@@ -257,58 +217,95 @@ function DetailModal({ event: ev, onClose }) {
                 </div>
 
                 {ipData.risks.length > 0 && (
-                  <div className="space-y-1">
+                  <div className="flex flex-wrap gap-1">
                     {ipData.risks.map((r, i) => (
-                      <div key={i} className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border ${sevColors[r.severity] || sevColors.info}`}>{r.label}</div>
+                      <span key={i} className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${sevColors[r.severity] || sevColors.info}`}>{r.label}</span>
                     ))}
                   </div>
                 )}
 
                 {ipData.geo && (
-                  <div className="bg-slate-50 rounded-xl p-3 text-xs space-y-1.5">
+                  <div className="bg-slate-50 rounded-lg p-3 text-xs space-y-1">
                     <div className="flex justify-between"><span className="text-slate-400">Địa điểm</span><span className="font-bold text-slate-700">{ipData.geo.city || '—'}, {ipData.geo.country}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">ISP</span><span className="font-bold text-slate-700 text-right max-w-[60%]">{ipData.geo.isp}</span></div>
-                    <div className="flex gap-2 pt-1.5 border-t border-slate-200 flex-wrap">
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${ipData.geo.proxy ? 'bg-red-100 text-red-700 border-red-200' : 'bg-green-100 text-green-700 border-green-200'}`}>VPN: {ipData.geo.proxy ? 'Có' : '✕'}</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${ipData.geo.hosting ? 'bg-red-100 text-red-700 border-red-200' : 'bg-green-100 text-green-700 border-green-200'}`}>DC: {ipData.geo.hosting ? 'Có' : '✕'}</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${ipData.geo.mobile ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>Mobile: {ipData.geo.mobile ? 'Có' : '✕'}</span>
+                    <div className="flex justify-between"><span className="text-slate-400">ISP</span><span className="font-bold text-slate-700 text-right max-w-[65%] truncate">{ipData.geo.isp}</span></div>
+                    <div className="flex gap-1.5 pt-1.5 border-t border-slate-200">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${ipData.geo.proxy ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>VPN {ipData.geo.proxy ? '✓' : '✕'}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${ipData.geo.hosting ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>DC {ipData.geo.hosting ? '✓' : '✕'}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${ipData.geo.mobile ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>Mobile {ipData.geo.mobile ? '✓' : '✕'}</span>
                     </div>
                   </div>
                 )}
 
-                <div className="grid grid-cols-4 gap-2">
-                  {[['Tổng', ipData.stats.total, 'text-slate-800'], ['OK', ipData.stats.completed, 'text-green-600'], ['Hết hạn', ipData.stats.expired, 'text-amber-600'], ['Bot', ipData.stats.botDetected, 'text-red-600']].map(([l, v, c]) => (
-                    <div key={l} className="bg-slate-50 rounded-lg p-2 text-center">
-                      <p className="text-[9px] text-slate-400 font-bold uppercase">{l}</p>
-                      <p className={`text-lg font-black ${c}`}>{v || 0}</p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[['Tổng', ipData.stats.total, 'text-slate-800'], ['OK', ipData.stats.completed, 'text-green-600'], ['Hạn', ipData.stats.expired, 'text-amber-600'], ['Bot', ipData.stats.botDetected, 'text-red-600']].map(([l, v, c]) => (
+                    <div key={l} className="bg-slate-50 rounded-lg p-1.5 text-center">
+                      <p className="text-[8px] text-slate-400 font-bold uppercase">{l}</p>
+                      <p className={`text-base font-black ${c}`}>{v || 0}</p>
                     </div>
                   ))}
                 </div>
 
                 {ipData.workers.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Workers ({ipData.stats.uniqueWorkers})</p>
-                    <div className="bg-slate-50 rounded-lg overflow-hidden">
-                      {ipData.workers.slice(0,5).map((w, i) => (
-                        <div key={i} className="flex justify-between px-3 py-1.5 border-b border-slate-100 last:border-0 text-[11px]">
-                          <span className="text-slate-700 font-medium">{w.name || w.email}</span>
-                          <span className="font-bold text-slate-500">{w.task_count}</span>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="bg-slate-50 rounded-lg overflow-hidden">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase px-3 pt-2">Workers ({ipData.stats.uniqueWorkers})</p>
+                    {ipData.workers.slice(0,3).map((w, i) => (
+                      <div key={i} className="flex justify-between px-3 py-1 border-b border-slate-100 last:border-0 text-[11px]">
+                        <span className="text-slate-700">{w.name || w.email}</span>
+                        <span className="font-bold text-slate-500">{w.task_count}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                <div className="bg-slate-50 rounded-lg p-3 text-[11px]">
-                  <div className="flex gap-3">
-                    <span>Tổng: <b>{ipData.securityEvents.total}</b></span>
-                    <span>Chặn: <b className="text-red-600">{ipData.securityEvents.blocked}</b></span>
-                    <span>Ngờ: <b className="text-amber-600">{ipData.securityEvents.suspicious}</b></span>
-                  </div>
-                  {ipData.allTime && <p className="text-[10px] text-slate-400 mt-1">All-time: {ipData.allTime.total} tasks</p>}
+                <div className="bg-slate-50 rounded-lg p-2.5 text-[10px] text-slate-500">
+                  Sự kiện: <b className="text-slate-700">{ipData.securityEvents.total}</b> · Chặn: <b className="text-red-600">{ipData.securityEvents.blocked}</b> · All-time: <b className="text-slate-700">{ipData.allTime?.total || 0}</b> tasks
                 </div>
               </div>
             )}
+          </div>
+
+          {/* RIGHT: Browser + Behavior */}
+          <div className="px-6 py-4 space-y-3">
+            {detailItems.filter(it => !['Headless'].includes(it.label)).length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1.5">Kiểm tra trình duyệt</p>
+                <div className="space-y-1">
+                  {detailItems.filter(it => !['Headless'].includes(it.label)).map((item, i) => (
+                    <div key={i} className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-[11px] ${item.danger ? 'bg-red-50' : item.warn ? 'bg-amber-50' : 'bg-slate-50'}`}>
+                      <span className={`font-medium ${item.danger ? 'text-red-700' : item.warn ? 'text-amber-700' : 'text-slate-600'}`}>{item.label}</span>
+                      <span className={`font-bold ${item.danger ? 'text-red-800' : item.warn ? 'text-amber-800' : 'text-slate-800'}`}>{String(item.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(() => {
+              const validCats = ['interaction', 'mouse', 'scroll', 'click'];
+              const filteredGrouped = Object.fromEntries(Object.entries(grouped).filter(([cat]) => validCats.includes(cat)));
+              return Object.keys(filteredGrouped).length > 0 ? (
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1.5">Phân tích hành vi</p>
+                  {Object.entries(filteredGrouped).map(([cat, items]) => (
+                    <div key={cat} className="mb-2">
+                      <p className="text-[11px] font-bold text-slate-600 mb-1">{catNames[cat] || cat}</p>
+                      <div className="space-y-0.5">
+                        {items.map((a, i) => (
+                          <div key={i} className={`px-3 py-1.5 rounded-lg text-[10px] border ${a.flagged ? 'bg-red-50 border-red-200' : a.flagged === false ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
+                            <span className={`font-semibold ${a.flagged ? 'text-red-700' : a.flagged === false ? 'text-green-700' : 'text-slate-500'}`}>{a.note}</span>
+                            <span className="text-[9px] text-slate-400 ml-2">({String(a.value)})</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-slate-50 rounded-lg p-3 text-center">
+                  <p className="text-[11px] text-slate-400">Chưa có phân tích hành vi</p>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
