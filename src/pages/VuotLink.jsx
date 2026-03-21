@@ -45,9 +45,10 @@ if (typeof window !== 'undefined') {
         let totalLied = 0;
         const liedSections = [];
         for (const key in arg) {
-          if (arg[key] && typeof arg[key] === 'object' && typeof arg[key].lied === 'number') {
-            totalLied += arg[key].lied;
-            if (arg[key].lied > 0) liedSections.push(key + ':' + arg[key].lied);
+          if (arg[key] && typeof arg[key] === 'object' && arg[key].lied !== undefined) {
+            const liedVal = arg[key].lied === true ? 1 : (typeof arg[key].lied === 'number' ? arg[key].lied : 0);
+            totalLied += liedVal;
+            if (liedVal > 0) liedSections.push(key + ':' + liedVal);
           }
         }
         // Use $hash as visitorId
