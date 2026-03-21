@@ -639,24 +639,31 @@ function StepCard({ activeStep, verified, task, keyword, campaignImage, copied, 
 
   if (activeStep === 3) return (
     <div style={cardSt}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-        <div style={{ flex: 1 }}>
-          <StepLabel n={3} />
-          <h2 style={{ color: '#f97316', fontSize: 'clamp(20px,3.5vw,26px)', fontWeight: 900, margin: '0 0 6px' }}>TÌM TRANG ĐÍCH</h2>
-          <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 16px' }}>Tìm trang đích trong kết quả tìm kiếm Google và click vào.</p>
-        </div>
-        {campaignImage && (
-          <div style={{ flexShrink: 0, textAlign: 'center' }}>
-            <p style={{ color: '#94a3b8', fontSize: '9px', fontWeight: 700, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Trang đích cần tìm:</p>
-            <div style={{ borderRadius: '10px', overflow: 'hidden', width: '150px', border: '2px solid #e2e8f0' }}>
-              <img src={campaignImage} alt="Target" style={{ width: '100%', display: 'block' }} onError={(e) => e.target.style.display = 'none'} />
+      <StepLabel n={3} />
+      <h2 style={{ color: '#f97316', fontSize: 'clamp(20px,3.5vw,26px)', fontWeight: 900, margin: '0 0 4px' }}>TÌM TRANG ĐÍCH</h2>
+      <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 16px' }}>Tìm trang đích trong kết quả tìm kiếm Google và click vào.</p>
+
+      {campaignImage && (
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#f97316' }} />
+            Trang đích cần tìm — Tìm trang có giao diện giống hình bên dưới
+          </p>
+          <div style={{ position: 'relative', borderRadius: '14px', overflow: 'hidden', border: '2.5px solid #e0e7ff', boxShadow: '0 4px 20px rgba(99,102,241,0.12)' }}>
+            <img
+              src={campaignImage} alt="Trang đích cần tìm"
+              style={{ width: '100%', display: 'block', maxHeight: '280px', objectFit: 'cover', objectPosition: 'top' }}
+              onError={(e) => e.target.style.display = 'none'}
+            />
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(30,58,110,0.85))', padding: '20px 16px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p style={{ color: '#fff', fontSize: '12px', fontWeight: 700, margin: 0 }}>TRANG CHỦ ĐÍCH - Traffic68</p>
+              <span style={{ background: '#f97316', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '4px 10px', borderRadius: '100px', letterSpacing: '0.4px' }}>CLICK VÀO TRANG NÀY</span>
             </div>
-            <p style={{ color: '#1e3a6e', fontSize: '10px', fontWeight: 700, margin: '5px 0 2px' }}>TRANG CHỦ ĐÍCH - Traffic68</p>
-            <p style={{ color: '#94a3b8', fontSize: '9px', margin: 0 }}>Tìm trang có giao diện giống hình bên dưới</p>
           </div>
-        )}
-      </div>
-      <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '14px', padding: '16px' }}>
+        </div>
+      )}
+
+      <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '14px', padding: '14px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <InstructionRow n={1} text="Cuộn tìm trong kết quả Google" color="#7c3aed" />
           <InstructionRow n={2} text="Tìm trang có giao diện giống hình trên" color="#7c3aed" />
