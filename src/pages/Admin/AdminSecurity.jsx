@@ -223,7 +223,9 @@ export default function AdminSecurity() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/admin/security', { params: { search, page, limit } });
+      const params = new URLSearchParams({ page, limit });
+      if (search) params.set('search', search);
+      const data = await api.get(`/admin/security?${params.toString()}`);
       console.log('[Security] API response:', data);
       setSecurityLogs(data.securityLogs || []);
       setTotal(data.total || 0);
@@ -236,7 +238,7 @@ export default function AdminSecurity() {
   const openDetail = async (ev) => {
     setDetailLoading(true);
     try {
-      const { data } = await api.get(`/admin/security/${ev.id}`);
+      const data = await api.get(`/admin/security/${ev.id}`);
       setDetailEvent(data.event);
     } catch (e) {
       setDetailEvent({ ...ev, details: '{}' });
