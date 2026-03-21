@@ -59,10 +59,10 @@ export default function AdminLayout() {
   const NavItem = ({ to, icon: Icon, label, end }) => (
     <NavLink key={to} to={to} end={end} onClick={closeSidebar}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all
+        `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
          ${isActive
-           ? 'bg-orange-500/20 text-orange-400'
-           : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+           ? 'bg-slate-800 text-white'
+           : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'}`}
     >
       <Icon size={18} />
       {label}
@@ -89,34 +89,36 @@ export default function AdminLayout() {
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0
       `}>
-        <div className="h-16 flex items-center justify-between px-5 border-b border-white/10 shrink-0">
-          <img src="/traffic68_com.gif" alt="Traffic68" className="h-10 w-auto" />
-          <button onClick={closeSidebar} className="lg:hidden p-1.5 hover:bg-white/10 rounded-lg">
+        <div className="flex items-center justify-center px-5 py-5 border-b border-slate-800 relative">
+          <div className="flex items-center justify-center w-full">
+            <img src="/traffic68_com.gif" alt="Traffic68" className="h-14 sm:h-16 w-auto mx-auto" />
+          </div>
+          <button onClick={closeSidebar} className="lg:hidden p-2 hover:bg-slate-800 rounded-lg absolute right-4">
             <X size={18} className="text-slate-400" />
           </button>
         </div>
 
-        <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {/* Buyer Section */}
           <button onClick={() => setBuyerOpen(!buyerOpen)}
-            className="w-full flex items-center justify-between px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-300 transition">
-            <span className="flex items-center gap-2"><Briefcase size={12} /> Quản lý Buyer</span>
-            <ChevronDown size={14} className={`transition-transform ${buyerOpen ? '' : '-rotate-90'}`} />
+            className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200">
+            <div className="flex items-center gap-2"><Briefcase className="w-4 h-4" /> Quản lý Buyer</div>
+            <ChevronDown className={`w-4 h-4 transition-transform ${buyerOpen ? '' : '-rotate-90'}`} />
           </button>
           {buyerOpen && BUYER_NAV.map(item => <NavItem key={item.to} {...item} />)}
 
           {/* Worker Section */}
-          <div className="pt-3">
+          <div className="mt-2">
             <button onClick={() => setWorkerOpen(!workerOpen)}
-              className="w-full flex items-center justify-between px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-300 transition">
-              <span className="flex items-center gap-2"><HardHat size={12} /> Quản lý Worker</span>
-              <ChevronDown size={14} className={`transition-transform ${workerOpen ? '' : '-rotate-90'}`} />
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200">
+              <div className="flex items-center gap-2"><HardHat className="w-4 h-4" /> Quản lý Worker</div>
+              <ChevronDown className={`w-4 h-4 transition-transform ${workerOpen ? '' : '-rotate-90'}`} />
             </button>
             {workerOpen && WORKER_NAV.map(item => <NavItem key={item.to} {...item} />)}
           </div>
 
           {/* System */}
-          <div className="pt-3 mt-2 border-t border-white/5">
+          <div className="pt-4 mt-4 border-t border-slate-800 space-y-1">
             {SYSTEM_NAV.map(item => <NavItem key={item.to} {...item} />)}
           </div>
         </nav>
