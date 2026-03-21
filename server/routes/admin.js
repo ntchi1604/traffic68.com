@@ -395,7 +395,6 @@ router.get('/security', async (req, res) => {
       INDEX idx_ip (ip_address)
     )`);
 
-    await pool.execute(`DELETE FROM security_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)`);
 
     let countSql = `SELECT COUNT(*) as total FROM security_logs WHERE 1=1`;
     let listSql = `SELECT id, source, reason, ip_address, visitor_id, created_at FROM security_logs WHERE 1=1`;
