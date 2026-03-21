@@ -102,14 +102,17 @@ router.post('/task', optionalAuth, async (req, res) => {
   }
 
   const pool = getPool();
+  const [deviceLimitSetting] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
+  const maxDeviceViews = deviceLimitSetting.length > 0 ? parseInt(deviceLimitSetting[0].setting_value) || 10 : 10;
+
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
       `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) AND status = 'completed'`,
       [visitorId]
     );
-    if (vCount[0].cnt >= 5) {
-      console.log(`[VuotLink] Device limit: visitorId=${visitorId.substring(0,8)}..., count=${vCount[0].cnt}`);
-      return res.status(429).json({ error: 'Thiết bị đã đạt giới hạn 5 lượt/ngày. Thử lại sau.' });
+    if (vCount[0].cnt >= maxDeviceViews) {
+      console.log(`[VuotLink] Device limit: visitorId=${visitorId.substring(0,8)}..., count=${vCount[0].cnt}, max=${maxDeviceViews}`);
+      return res.status(429).json({ error: `Thiết bị đã đạt giới hạn ${maxDeviceViews} lượt/ngày. Thử lại sau.` });
     }
   }
 
