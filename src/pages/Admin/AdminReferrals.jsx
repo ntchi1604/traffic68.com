@@ -21,7 +21,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
     api.get('/admin/settings').then(d => {
       const settings = d.settings || {};
       setCommission(settings[settingKey] || '10');
-    }).catch(() => {});
+    }).catch(() => { });
   }, [settingKey]);
 
   const saveCommission = async () => {
@@ -52,12 +52,8 @@ export default function AdminReferrals({ type = 'buyers' }) {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
-          <Gift size={22} />
-        </div>
         <div>
           <h1 className="text-2xl font-black text-slate-900">Referral {label}</h1>
-          <p className="text-sm text-slate-500">Quản lý giới thiệu {type === 'workers' ? 'worker' : 'buyer'}</p>
         </div>
       </div>
 

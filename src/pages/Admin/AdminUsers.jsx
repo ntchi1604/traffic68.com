@@ -163,8 +163,8 @@ export default function AdminUsers({ type }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            {isWorker ? <><HardHat size={24} className="text-emerald-500" /> Quản lý Worker</> : <><Briefcase size={24} className="text-blue-500" /> Quản lý Buyer</>}
+          <h1 className="text-2xl font-black text-slate-900">
+            {isWorker ? 'Quản lý Worker' : 'Quản lý Buyer'}
           </h1>
           <p className="text-sm text-slate-500 mt-1">{users.length} {isWorker ? 'worker' : 'buyer'}</p>
         </div>
