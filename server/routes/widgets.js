@@ -387,7 +387,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   if (task.status !== 'step3') {
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    await pool.execute("UPDATE vuot_link_tasks SET status = 'step3', step3_at = ? WHERE id = ?", [now, task.id]);
+    await pool.execute("UPDATE vuot_link_tasks SET status = 'step3' WHERE id = ?", [task.id]);
   }
 
   console.log(`[Widget] ✅ Code given — IP: ${ip}, task: #${task.id}, code: ${task.code_given}, elapsed: ${elapsedSeconds}s, behaviorScore=${mouseScore}`);

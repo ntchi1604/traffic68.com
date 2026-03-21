@@ -210,71 +210,9 @@ router.post('/task', optionalAuth, async (req, res) => {
   });
 });
 
-/* ═════════════════════════════════════════════════════════
-   STEP 3: PUT /task/:id/step — report step progress
-═════════════════════════════════════════════════════════ */
-router.put('/task/:id/step', optionalAuth, async (req, res) => {
-  const pool = getPool();
-  const { step, _tk } = req.body;
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
-  const ua = req.headers['user-agent'] || '';
+/* PUT /task/:id/step - no-op (step tracking removed) */
+router.put('/task/:id/step', optionalAuth, (req, res) => res.json({ ok: true }));
 
-  // Anti-cheat: verify task token
-  if (!_tk || !verifyTaskToken(_tk, req.params.id, ip)) {
-    return res.status(403).json({ error: 'Invalid token' });
-  }
-
-  const [tasks] = await pool.execute('SELECT * FROM vuot_link_tasks WHERE id = ?', [req.params.id]);
-  if (tasks.length === 0) return res.status(404).json({ error: 'Task không tồn tại' });
-  const task = tasks[0];
-
-  // Anti-cheat: IP must match task creator
-  if (task.ip_address && task.ip_address !== ip) {
-    return res.status(403).json({ error: 'IP mismatch' });
-  }
-
-  // Anti-cheat: don't allow going backward (but allow same or forward)
-  const stepOrder = { 'pending': 0, 'step1': 1, 'step2': 2, 'step3': 3, 'completed': 4 };
-  const stepNum = stepOrder[step];
-  const currentNum = stepOrder[task.status] ?? 0;
-  if (stepNum === undefined || stepNum < currentNum) {
-    return res.status(400).json({ error: 'Step order invalid' });
-  }
-  // Already at this step or beyond — just return OK (idempotent)
-  if (stepNum <= currentNum) {
-    return res.json({ status: task.status });
-  }
-
-  // Anti-cheat: minimum time between steps (prevent instant clicks)
-  if (step === 'step1') {
-    const elapsed = Date.now() - new Date(task.created_at).getTime();
-    if (elapsed < 3000) { // must wait at least 3 seconds
-      return res.status(403).json({ error: 'Too fast' });
-    }
-  }
-
-  // Check expiry
-  if (task.expires_at) {
-    const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
-    if (expCheck[0]?.expired) {
-      await pool.execute("UPDATE vuot_link_tasks SET status = 'expired' WHERE id = ?", [task.id]);
-      return res.status(410).json({ error: 'Task đã hết hạn' });
-    }
-  }
-
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-  if (step === 'step1') {
-    await pool.execute("UPDATE vuot_link_tasks SET status = 'step1', step1_at = ?, ip_address = ?, user_agent = ? WHERE id = ?", [now, ip, ua, task.id]);
-  } else if (step === 'step2') {
-    await pool.execute("UPDATE vuot_link_tasks SET status = 'step2', step2_at = ? WHERE id = ?", [now, task.id]);
-  } else if (step === 'step3') {
-    await pool.execute("UPDATE vuot_link_tasks SET status = 'step3', step3_at = ? WHERE id = ?", [now, task.id]);
-  } else {
-    return res.status(400).json({ error: 'Step không hợp lệ' });
-  }
-
-  res.json({ status: step });
-});
 
 /* ═════════════════════════════════════════════════════════
    STEP 4: POST /task/:id/verify — verify code & complete
@@ -302,9 +240,14 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
 
   if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
 
-  // Anti-cheat: must have reached step3 (visited target website)
-  if (!['step3'].includes(task.status)) {
-    return res.status(403).json({ error: 'Chưa hoàn thành các bước trước đó' });
+  // Accept task in any non-terminal status
+  const validStatuses = ['pending', 'step1', 'step2', 'step3'];
+  if (!validStatuses.includes(task.status)) {
+    return res.status(403).json({ error: 'Trạng thái task không hợp lệ' });
+  }
+  // Auto-advance to step3 if needed (widget may not have been triggered)
+  if (task.status !== 'step3') {
+    await pool.execute("UPDATE vuot_link_tasks SET status = 'step3' WHERE id = ?", [task.id]);
   }
 
   // Anti-cheat: IP must match
@@ -333,7 +276,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
 
   const earning = campaign.cpc;
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-  const timeOnSite = task.step3_at ? Math.floor((new Date(now) - new Date(task.step3_at)) / 1000) : 0;
+  const timeOnSite = Math.floor((Date.now() - new Date(task.created_at).getTime()) / 1000);
 
   await pool.execute(
     `UPDATE vuot_link_tasks SET status = 'completed', completed_at = ?, time_on_site = ?, earning = ? WHERE id = ?`,
