@@ -146,14 +146,15 @@ function DetailModal({ event: ev, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className={`px-6 py-4 rounded-t-2xl flex items-center justify-between ${isBlocked ? 'bg-red-50' : 'bg-green-50'}`}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className={`px-6 py-4 rounded-t-2xl flex items-center justify-between flex-shrink-0 ${isBlocked ? 'bg-red-50' : 'bg-green-50'}`}>
           <div>
             <h3 className="text-sm font-black text-slate-800">Đánh giá chi tiết</h3>
             <p className="text-[11px] text-slate-500 mt-0.5">{fmtDate(ev.created_at)}</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/60 transition"><X size={16} className="text-slate-500" /></button>
         </div>
+        <div className="overflow-y-auto flex-1">
 
         {/* Summary row */}
         <div className="px-6 py-4 space-y-3 border-b border-slate-100">
@@ -309,8 +310,9 @@ function DetailModal({ event: ev, onClose }) {
           </div>
         </div>
 
-        <div className="px-6 py-3 border-t border-slate-100">
-          <button onClick={onClose} className="w-full py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition">Đóng</button>
+          <div className="px-6 py-3 border-t border-slate-100">
+            <button onClick={onClose} className="w-full py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition">Đóng</button>
+          </div>
         </div>
       </div>
     </div>
