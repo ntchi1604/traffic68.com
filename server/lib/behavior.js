@@ -15,6 +15,32 @@ function analyzeBehavior(b) {
   const n = trail.length;
 
   // ═══════════════════════════════════════════════════════════
+  // 0. KIỂM TRA TƯƠNG TÁC BẮT BUỘC
+  //    Script yêu cầu click + cuộn → nếu thiếu = BOT
+  // ═══════════════════════════════════════════════════════════
+
+  const clicks = b.clickPositions || [];
+  const scrollEvts = b.scrollEvents || [];
+  const noClick = clicks.length === 0;
+  const noScroll = scrollEvts.length === 0;
+
+  if (noClick || noScroll) {
+    const missing = [];
+    if (noClick) missing.push('click');
+    if (noScroll) missing.push('scroll');
+    return {
+      score: 100,
+      reasons: ['no_interaction'],
+      assessments: [{
+        cat: 'interaction', check: 'mandatory',
+        value: `click: ${clicks.length}, scroll: ${scrollEvts.length}`,
+        flagged: true,
+        note: `Không có ${missing.join(' và ')} — script bắt buộc tương tác, đây chắc chắn là bot`
+      }]
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════
   // 1. DI CHUYỂN CHUỘT (Mouse Dynamics)
   // ═══════════════════════════════════════════════════════════
 
@@ -154,76 +180,11 @@ function analyzeBehavior(b) {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 2. GÕ BÀN PHÍM (Keystroke Dynamics)
+  // 2. CUỘN TRANG (Scroll Patterns)
   // ═══════════════════════════════════════════════════════════
 
-  const dwellTimes = b.keyDwellTimes || [];
-  const flightTimes = b.keyFlightTimes || [];
-
-  if (dwellTimes.length >= 5) {
-    // 2a. Dwell Time (thời gian nhấn giữ phím: keydown → keyup)
-    //     Người thật nhấn mỗi phím khác nhau tùy ngón tay (a ≠ s ≠ d)
-    //     Bot có Dwell Time cố định (~50ms) cho mọi phím
-    const dwellCV = _cv(dwellTimes);
-    const dwellCVr = Math.round(dwellCV * 100) / 100;
-    const avgDwell = Math.round(dwellTimes.reduce((a, b) => a + b, 0) / dwellTimes.length);
-    const dwellFlag = dwellCV < 0.1;
-    if (dwellFlag) { score += 20; reasons.push('constant_dwell_time'); }
-    assessments.push({
-      cat: 'keyboard', check: 'dwell_time_cv', value: `CV=${dwellCVr}, TB=${avgDwell}ms`, threshold: 'CV < 0.1',
-      flagged: dwellFlag,
-      note: dwellFlag
-        ? `Giữ phím đều ${avgDwell}ms cho mọi ký tự — bot gõ máy móc`
-        : `Thời gian giữ phím đa dạng (CV=${dwellCVr}) — mỗi ngón tay khác nhau`
-    });
-
-    // 2b. Flight Time (khoảng thời gian giữa thả phím → nhấn phím tiếp)
-    //     Người thật gõ cụm từ quen ("ing", "tion") nhanh hơn từ lạ
-    //     Bot gõ mọi ký tự với nhịp điệu máy móc
-    if (flightTimes.length >= 5) {
-      const flightCV = _cv(flightTimes);
-      const flightCVr = Math.round(flightCV * 100) / 100;
-      const avgFlight = Math.round(flightTimes.reduce((a, b) => a + b, 0) / flightTimes.length);
-      const flightFlag = flightCV < 0.1;
-      if (flightFlag) { score += 20; reasons.push('constant_flight_time'); }
-      assessments.push({
-        cat: 'keyboard', check: 'flight_time_cv', value: `CV=${flightCVr}, TB=${avgFlight}ms`, threshold: 'CV < 0.1',
-        flagged: flightFlag,
-        note: flightFlag
-          ? `Nhịp gõ phím đều ${avgFlight}ms — không có cụm từ nhanh/chậm`
-          : `Nhịp gõ đa dạng (CV=${flightCVr}) — có cụm nhanh và chậm tự nhiên`
-      });
-    }
-  } else {
-    assessments.push({
-      cat: 'keyboard', check: 'keystroke_data', value: dwellTimes.length,
-      note: dwellTimes.length === 0 ? 'Không có dữ liệu gõ bàn phím' : `Chỉ ${dwellTimes.length} phím — chưa đủ phân tích`
-    });
-  }
-
-  // 2c. Sửa lỗi chính tả (Backspace)
-  //     Người thật hay gõ sai và dùng Backspace
-  //     Bot hiếm khi lỗi trừ khi được lập trình giả lỗi
-  if ((b.totalKeys || 0) > 20) {
-    const bsRate = b.backspaceCount || 0;
-    const typoFlag = bsRate === 0;
-    if (typoFlag) { score += 5; reasons.push('no_typos'); }
-    assessments.push({
-      cat: 'keyboard', check: 'backspace', value: `${b.totalKeys} phím, ${bsRate} Backspace`,
-      flagged: typoFlag,
-      note: typoFlag
-        ? `Gõ ${b.totalKeys} phím không sai lần nào — bot không lỗi chính tả`
-        : `Có sử dụng Backspace ${bsRate} lần — hành vi sửa lỗi tự nhiên`
-    });
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // 3. CUỘN TRANG (Scroll Patterns)
-  // ═══════════════════════════════════════════════════════════
-
-  const scrollEvts = b.scrollEvents || [];
   if (scrollEvts.length >= 5) {
-    // 3a. Sự tương tác nội dung (dừng đọc)
+    // 2a. Sự tương tác nội dung (dừng đọc)
     //     Người thật cuộn → dừng ở hình ảnh/văn bản quan trọng → cuộn tiếp
     //     Bot cuộn một mạch từ đầu đến cuối trang
     const pauseFlag = (b.scrollPauses || 0) === 0 && scrollEvts.length > 10;
@@ -237,7 +198,7 @@ function analyzeBehavior(b) {
         : `Dừng đọc ${b.scrollPauses || 0} lần — tương tác nội dung tự nhiên`
     });
 
-    // 3b. Tốc độ cuộn
+    // 2b. Tốc độ cuộn
     //     Bot cuộn với tốc độ đều hoặc nhảy cóc đến tọa độ cố định
     //     Người thật cuộn nhanh/chậm tùy đoạn nội dung
     const scrollSpeeds = [];
@@ -258,7 +219,7 @@ function analyzeBehavior(b) {
         : `Tốc độ cuộn biến thiên (CV=${scrollCVr}) — cuộn tay tự nhiên`
     });
 
-    // 3c. Nhảy cóc trang (Jump Scroll)
+    // 2c. Nhảy cóc trang (Jump Scroll)
     //     Bot thường nhảy ngay đến tọa độ cố định (ví dụ: scrollTo(0, 5000))
     //     Người thật cuộn mượt với khoảng nhỏ
     let jumpCount = 0;
@@ -283,67 +244,13 @@ function analyzeBehavior(b) {
     });
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // 4. SỰ TẬP TRUNG (Focus & Visibility)
-  // ═══════════════════════════════════════════════════════════
-
-  // 4a. Headless Browser Detection (requestAnimationFrame)
-  //     Bot chạy ngầm bỏ qua việc render đồ họa → rAF không chạy ổn định
-  //     Trình duyệt thật luôn vẽ frame ổn định (~60fps)
-  if (b.rafStable === false) {
-    score += 15; reasons.push('raf_unstable');
-    assessments.push({
-      cat: 'focus', check: 'raf_stable', value: 'Không ổn định',
-      flagged: true,
-      note: 'Trình duyệt không vẽ frame đồ họa — headless browser hoặc tab ngầm'
-    });
-  } else {
-    assessments.push({
-      cat: 'focus', check: 'raf_stable', value: 'Ổn định',
-      flagged: false,
-      note: 'requestAnimationFrame chạy ổn định (~60fps) — trình duyệt thật'
-    });
-  }
-
-  // 4b. Màn hình
-  //     Bot headless thường có screen = 0x0 hoặc VM resolution cố định
-  if (!b.screen?.w || !b.screen?.h) {
-    score += 20; reasons.push('zero_screen');
-    assessments.push({
-      cat: 'focus', check: 'screen', value: '0×0',
-      flagged: true,
-      note: 'Không có màn hình — headless browser (Chrome --headless)'
-    });
-  } else {
-    const { w, h } = b.screen;
-    const vmFlag = (w === 800 && h === 600) || (w === 1024 && h === 768 && b.screen.dpr === 1);
-    if (vmFlag) { score += 5; reasons.push('vm_screen'); }
-    assessments.push({
-      cat: 'focus', check: 'screen', value: `${w}×${h} (${b.screen.dpr || 1}x)`,
-      flagged: vmFlag,
-      note: vmFlag
-        ? 'Độ phân giải phổ biến của máy ảo (VM/VPS)'
-        : 'Độ phân giải bình thường'
-    });
-  }
-
-  // 4c. Chuyển tab (Tab Switching)
-  //     Bot chạy tab ngầm, ít khi visibility change
-  //     Người thật thỉnh thoảng chuyển tab
-  assessments.push({
-    cat: 'focus', check: 'tab_blur', value: `${b.totalBlur || 0} lần`,
-    note: (b.totalBlur || 0) > 0
-      ? `Chuyển tab ${b.totalBlur} lần — có tương tác tab bình thường`
-      : 'Không chuyển tab — có thể tab luôn focus hoặc bot chạy đơn tab'
-  });
 
   // ═══════════════════════════════════════════════════════════
-  // 5. TỌA ĐỘ CLICK
+  // 3. TỌA ĐỘ CLICK
   // ═══════════════════════════════════════════════════════════
 
-  const clicks = b.clickPositions || [];
   if (clicks.length >= 2) {
-    // 5a. Click chính xác vào tâm phần tử
+    // 3a. Click chính xác vào tâm phần tử
     //     Bot dùng element.click() → tọa độ chính xác tâm nút
     //     Người thật thường lệch tâm nút bấm một chút
     let centerClicks = 0;

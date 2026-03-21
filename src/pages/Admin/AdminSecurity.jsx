@@ -29,18 +29,11 @@ const WARNING_VI = {
   'fake_timestamps': 'Thời gian di chuột giả mạo',
   'regular_intervals': 'Thời gian giữa các điểm chuột đều như máy',
   'no_hover_before_click': 'Click ngay không rê chuột qua vùng xung quanh',
-  'constant_dwell_time': 'Nhấn giữ phím đều nhau',
-  'constant_flight_time': 'Gõ phím đều nhau',
-  'no_typos': 'Gõ nhiều nhưng không có lỗi chính tả',
   'no_scroll_pauses': 'Cuộn trang liên tục không dừng đọc',
   'uniform_scroll_speed': 'Tốc độ cuộn trang đều',
-  'raf_unstable': 'Trình duyệt không render ổn định',
-  'zero_screen': 'Không có màn hình',
-  'vm_screen': 'Độ phân giải giống máy ảo',
+  'jump_scroll': 'Nhảy cóc trang bất thường',
   'exact_center_clicks': 'Click chính xác vào tâm nút',
-  'zero_plugins': 'Trình duyệt không có plugin',
-  'zero_rtt': 'Độ trễ mạng bằng 0',
-  'zero_languages': 'Không có ngôn ngữ trong trình duyệt',
+  'no_interaction': 'Không có tương tác bắt buộc (click/scroll)',
 };
 
 function CopyId({ text }) {
@@ -62,7 +55,7 @@ function CopyId({ text }) {
 }
 
 function DetailModal({ event: ev, onClose }) {
-  const catNames = { mouse: '🖱️ Chuột', keyboard: '⌨️ Bàn phím', scroll: '📜 Cuộn trang', focus: '👁️ Hiển thị', click: '🎯 Click' };
+  const catNames = { interaction: 'Tương tác bắt buộc', mouse: 'Chuột', scroll: 'Cuộn trang', click: 'Click' };
   const reasonLabels = {
     completed: 'Task hoàn thành',
     creep_detected: 'Giả mạo trình duyệt',
@@ -222,7 +215,6 @@ function DetailModal({ event: ev, onClose }) {
         {(() => {
           let d = {};
           try { d = JSON.parse(ev.details || '{}'); } catch { }
-          const score = d.behaviorScore ?? d.score ?? 0;
           const bd = d.botDetection || (d.totalLied !== undefined ? d : null);
           const creepLied = bd && bd.totalLied > 0;
           const creepBot = bd && bd.bot === true;
@@ -231,39 +223,24 @@ function DetailModal({ event: ev, onClose }) {
           const flaggedCount = (d.assessments || []).filter(a => a.flagged).length;
           const totalChecks = (d.assessments || []).length;
 
-          let level, icon, text, bg, border, textColor;
-          if (isBlocked || creepBot || creepLied || hasAutomation || score >= 70) {
-            level = 'bot';
-            icon = '';
-            text = 'Kết luận: Rất có thể là BOT / Tự động hóa';
+          let text, bg, border, textColor;
+          if (isBlocked || creepBot || creepLied || hasAutomation || flaggedCount > 0) {
+            text = 'Kết luận: BOT — Phát hiện hành vi tự động hóa';
             bg = 'bg-red-50'; border = 'border-red-300'; textColor = 'text-red-800';
-          } else if (score >= 30 || flaggedCount >= 3) {
-            level = 'suspicious';
-            icon = '';
-            text = 'Kết luận: Đáng ngờ — Có nhiều dấu hiệu bất thường';
-            bg = 'bg-amber-50'; border = 'border-amber-300'; textColor = 'text-amber-800';
-          } else if (score > 0 || flaggedCount >= 1) {
-            level = 'warning';
-            icon = '';
-            text = 'Kết luận: Có dấu hiệu đáng ngờ nhưng chưa đủ chặn';
-            bg = 'bg-yellow-50'; border = 'border-yellow-300'; textColor = 'text-yellow-800';
           } else {
-            level = 'clean';
-            icon = '';
             text = 'Kết luận: Người dùng thật — Không phát hiện tự động hóa';
             bg = 'bg-green-50'; border = 'border-green-300'; textColor = 'text-green-800';
           }
 
           const details = [];
-          if (score > 0) details.push(`Điểm hành vi: ${score}/70`);
           if (flaggedCount > 0) details.push(`${flaggedCount}/${totalChecks} kiểm tra bất thường`);
           if (creepLied) details.push(`Giả mạo ${bd.totalLied} mục trình duyệt`);
           if (hasAutomation) details.push('Phát hiện công cụ tự động');
-          if (!creepBot && !creepLied && bd && bd.bot === false && bd.totalLied === 0) details.push('Xác minh trình duyệt: Sạch');
+          if (flaggedCount === 0 && !creepBot && !creepLied && bd && bd.bot === false && bd.totalLied === 0) details.push('Xác minh trình duyệt: Sạch');
 
           return (
             <div className={`mx-6 mb-4 p-4 rounded-xl border-2 ${bg} ${border}`}>
-              <p className={`text-sm font-black ${textColor}`}>{icon} {text}</p>
+              <p className={`text-sm font-black ${textColor}`}>{text}</p>
               {details.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {details.map((d, i) => (
