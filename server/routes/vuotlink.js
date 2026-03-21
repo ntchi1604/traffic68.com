@@ -197,8 +197,23 @@ router.post('/task', optionalAuth, async (req, res) => {
 
   console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, waitTime: ${waitTime}s`);
 
-  // Generate signed task token (binds to IP, cannot be forged)
-  const _tk = signTask(result.insertId, ip);
+  // Fetch widget config from advertiser (for button preview in Step 4)
+  let widgetConfig = null;
+  try {
+    const [wRows] = await pool.execute(
+      `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1`,
+      [campaign.user_id]
+    );
+    if (wRows.length > 0) {
+      const raw = JSON.parse(wRows[0].config || '{}');
+      // Merge with JS defaults
+      const DEFAULTS = {
+        buttonText: 'Lấy Mã', buttonColor: '#f97316', textColor: '#ffffff',
+        borderRadius: 50, fontSize: 15,
+      };
+      widgetConfig = { ...DEFAULTS, ...raw };
+    }
+  } catch (e) { /* non-fatal */ }
 
   res.json({
     id: result.insertId,
@@ -206,6 +221,7 @@ router.post('/task', optionalAuth, async (req, res) => {
     image1_url: campaign.image1_url || '',
     waitTime,
     startedAt: now,
+    widgetConfig,
     _tk, // signed token for subsequent calls
   });
 });

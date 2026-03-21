@@ -379,6 +379,7 @@ export default function VuotLink() {
   const keyword       = task?.keyword      || '';
   const campaignImage = task?.image1_url   || '';
   const waitTime_     = task?.waitTime || waitTime || 60;
+  const widgetConfig  = task?.widgetConfig  || null;
 
   /* ─── Loading ──────────────────────────────────────── */
   if (loading) return (
@@ -563,15 +564,55 @@ export default function VuotLink() {
               </div>
             ) : (
               <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'14px', padding:'20px' }}>
-                <div style={{ display:'flex', alignItems:'flex-start', gap:'12px', marginBottom:'16px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'12px 16px' }}>
-                  <div style={{ width:'52px', height:'52px', borderRadius:'50%', background:'#dcfce7', border:'3px solid #86efac', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <span style={{ fontSize:'14px', fontWeight:900, color:'#16a34a' }}>{waitTime_}s</span>
-                  </div>
-                  <div>
-                    <p style={{ color:'#16a34a', fontWeight:700, margin:'0 0 4px', fontSize:'14px' }}>Mã hiển thị trên trang đích</p>
-                    <p style={{ color:'#64748b', fontSize:'12px', margin:0, lineHeight:1.5 }}>
-                      Sau khi vào đúng trang web và đợi hết {waitTime_} giây, nút trên trang sẽ hiện mã xác nhận. Hãy copy mã đó và quay lại đây nhập vào.
-                    </p>
+                {/* Widget button preview */}
+                <div style={{ background:'#fff', border:'1.5px solid #bbf7d0', borderRadius:'12px', padding:'16px', marginBottom:'16px' }}>
+                  <p style={{ color:'#16a34a', fontSize:'11px', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.6px', margin:'0 0 12px', display:'flex', alignItems:'center', gap:'6px' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#16a34a" strokeWidth="2"/><path d="M12 8v4l3 3" stroke="#16a34a" strokeWidth="2" strokeLinecap="round"/></svg>
+                    Tìm nút này sau khi đợi {waitTime_} giây trên trang đích:
+                  </p>
+                  {/* Countdown → button preview */}
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'10px' }}>
+                    {/* Phase 1: countdown */}
+                    <div style={{ display:'flex', alignItems:'center', gap:'12px', width:'100%', justifyContent:'center' }}>
+                      <div style={{ fontSize:'12px', color:'#64748b', fontStyle:'italic' }}>Trước khi đợi xong:</div>
+                      <div style={{
+                        display:'inline-flex', alignItems:'center', gap:'8px',
+                        background: widgetConfig?.buttonColor || '#f97316',
+                        color: widgetConfig?.textColor || '#fff',
+                        padding:'10px 22px',
+                        borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
+                        fontSize: `${widgetConfig?.fontSize || 15}px`,
+                        fontWeight:700, opacity:0.5, cursor:'not-allowed',
+                        boxShadow:'0 2px 8px rgba(0,0,0,0.12)',
+                        userSelect:'none',
+                      }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/><path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                        Vui lòng chờ {waitTime_} giây...
+                      </div>
+                    </div>
+                    {/* Arrow */}
+                    <div style={{ color:'#94a3b8', fontSize:'20px', lineHeight:1 }}>↓</div>
+                    {/* Phase 2: button active */}
+                    <div style={{ display:'flex', alignItems:'center', gap:'12px', width:'100%', justifyContent:'center' }}>
+                      <div style={{ fontSize:'12px', color:'#16a34a', fontStyle:'italic', fontWeight:600 }}>Sau khi đợi xong → bấm:</div>
+                      <div style={{
+                        display:'inline-flex', alignItems:'center', gap:'8px',
+                        background: widgetConfig?.buttonColor || '#f97316',
+                        color: widgetConfig?.textColor || '#fff',
+                        padding:'10px 22px',
+                        borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
+                        fontSize: `${widgetConfig?.fontSize || 15}px`,
+                        fontWeight:700, cursor:'pointer',
+                        boxShadow:`0 4px 16px ${(widgetConfig?.buttonColor || '#f97316')}55`,
+                        userSelect:'none',
+                        animation:'glow 2s ease-in-out infinite',
+                      }}>
+                        {widgetConfig?.iconUrl && (
+                          <img src={widgetConfig.iconUrl} alt="" style={{ width:'18px', height:'18px', borderRadius:'50%' }} onError={e => e.target.style.display='none'} />
+                        )}
+                        {widgetConfig?.buttonText || 'Lấy Mã'}
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <p style={{ color:'#16a34a', fontSize:'12px', fontWeight:700, margin:'0 0 8px' }}>Nhập mã xác nhận</p>
