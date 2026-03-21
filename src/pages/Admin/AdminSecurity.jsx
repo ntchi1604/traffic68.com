@@ -86,15 +86,15 @@ function DetailModal({ event: ev, onClose }) {
 
     const bd = d.botDetection || (d.totalLied !== undefined ? d : null);
     if (bd) {
+      if (bd.bot !== undefined) detailItems.push({ label: 'CreepJS — Bot', value: bd.bot ? 'Có' : 'Không', danger: !!bd.bot });
       if (bd.totalLied !== undefined) {
-        detailItems.push({ label: 'Tổng mục giả mạo', value: bd.totalLied, danger: bd.totalLied > 0 });
-        if (bd.liedSections?.length > 0) detailItems.push({ label: 'Các mục bị giả mạo', value: (Array.isArray(bd.liedSections) ? bd.liedSections : []).join(', '), danger: true });
+        detailItems.push({ label: 'CreepJS — Tổng mục giả mạo', value: bd.totalLied, danger: bd.totalLied > 0 });
+        if (bd.liedSections?.length > 0) detailItems.push({ label: 'CreepJS — Các mục bị giả mạo', value: (Array.isArray(bd.liedSections) ? bd.liedSections : []).join(', '), danger: true });
       }
-      if (bd.bot !== undefined) detailItems.push({ label: 'Bot', value: bd.bot ? 'Có' : 'Không', danger: !!bd.bot });
-      if (bd.headless != null) detailItems.push({ label: 'Headless', value: bd.headless ? 'Có' : 'Không', danger: !!bd.headless });
-      if (bd.stealth != null) detailItems.push({ label: 'Stealth mode', value: bd.stealth ? 'Có' : 'Không', danger: !!bd.stealth });
-      if (bd.creepError) detailItems.push({ label: 'Xác minh trình duyệt', value: 'Không load được', warn: true });
-      if (bd.creepTimeout) detailItems.push({ label: 'Xác minh trình duyệt', value: 'Quá thời gian', warn: true });
+      if (bd.headless != null) detailItems.push({ label: 'CreepJS — Headless', value: bd.headless ? 'Có' : 'Không', danger: !!bd.headless });
+      if (bd.stealth != null) detailItems.push({ label: 'CreepJS — Stealth mode', value: bd.stealth ? 'Có' : 'Không', danger: !!bd.stealth });
+      if (bd.creepError) detailItems.push({ label: 'CreepJS', value: 'Không load được (cross-domain)', warn: true });
+      if (bd.creepTimeout) detailItems.push({ label: 'CreepJS', value: 'Quá thời gian', warn: true });
     }
 
     const probes = d.probes || {};
