@@ -64,6 +64,7 @@ function CopyId({ text }) {
 function DetailModal({ event: ev, onClose }) {
   const catNames = { mouse: '🖱️ Chuột', keyboard: '⌨️ Bàn phím', scroll: '📜 Cuộn trang', focus: '👁️ Hiển thị', click: '🎯 Click' };
   const reasonLabels = {
+    completed: 'Task hoàn thành',
     creep_detected: 'Giả mạo trình duyệt',
     automation_probes: 'Sử dụng công cụ tự động hóa',
     mouse_bot: 'Hành vi không tự nhiên — bot',
@@ -369,13 +370,14 @@ export default function AdminSecurity() {
                 <tr><td colSpan={7} className="text-center py-12 text-slate-400">Chưa có sự kiện bảo mật nào</td></tr>
               ) : securityLogs.map(ev => {
                 const reasonLabels = {
-                  creep_detected: '🔴 Giả mạo', automation_probes: '🔴 Tự động hóa',
+                  completed: '✅ Hoàn thành', creep_detected: '🔴 Giả mạo', automation_probes: '🔴 Tự động hóa',
                   mouse_bot: '🔴 Bot hành vi', bot_ua: '🔴 Bot UA',
                   suspicious: '🟡 Đáng ngờ', probe_warning: '🟡 Probe',
                   ip_rate_limit: '🔴 Rate limit', zero_screen: '🔴 Headless',
                 };
                 const sourceVi = { vuotlink: 'Vượt link', widget: 'Script nhúng' };
                 const isBlocked = ['creep_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'zero_screen', 'ip_rate_limit'].includes(ev.reason);
+                const isCompleted = ev.reason === 'completed';
                 return (
                   <tr key={ev.id} className={`border-b border-slate-100 hover:bg-slate-50/50 transition ${isBlocked ? 'bg-red-50/30' : ''}`}>
                     <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{timeAgo(ev.created_at)}</td>
@@ -385,7 +387,7 @@ export default function AdminSecurity() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-[11px] font-semibold ${isBlocked ? 'text-red-700' : 'text-amber-700'}`}>
+                      <span className={`text-[11px] font-semibold ${isBlocked ? 'text-red-700' : isCompleted ? 'text-green-700' : 'text-amber-700'}`}>
                         {reasonLabels[ev.reason] || ev.reason}
                       </span>
                     </td>
@@ -394,6 +396,8 @@ export default function AdminSecurity() {
                     <td className="px-4 py-3">
                       {isBlocked
                         ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">🚫 Đã chặn</span>
+                        : isCompleted
+                        ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">✅ Hoàn thành</span>
                         : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">⚠️ Cảnh báo</span>
                       }
                     </td>

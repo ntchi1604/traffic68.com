@@ -95,45 +95,10 @@ router.post('/task', optionalAuth, async (req, res) => {
     return res.status(403).json(ERR);
   }
 
-  // ── 3. Client-side automation probes ──
   const probes = clientProbes || {};
   if (probes.webdriver === true || probes.cdc === true || probes.selenium === true) {
-    console.log(`[VuotLink] 🤖 Automation probe hit: IP=${ip}, webdriver=${probes.webdriver}, cdc=${probes.cdc}, selenium=${probes.selenium}`);
-    logSecurityEvent('automation_probes', ip, ua, visitorId, probes);
+    console.log(`[VuotLink] 🤖 Automation probe hit: IP=${ip}`);
     return res.status(403).json(ERR);
-  }
-  // Probe warnings (not blocking but logged)
-  const probeWarnings = [];
-  if (probes.pluginCount === 0) probeWarnings.push('zero_plugins');
-  if (probes.rtt === 0) probeWarnings.push('zero_rtt');
-  if (probes.langCount === 0) probeWarnings.push('zero_languages');
-  if (probeWarnings.length > 0) {
-    console.log(`[VuotLink] ⚠️ Probe warnings: IP=${ip}, ${probeWarnings.join(',')}`);
-    logSecurityEvent('probe_warning', ip, ua, visitorId, { ...probes, probeWarnings });
-  }
-
-  if (behavioral) {
-    const result = analyzeBehavior(behavioral);
-    const fullDetail = {
-      behaviorScore: result.score,
-      assessments: result.assessments,
-      botDetection: botDetection || null,
-      probes: probes,
-      screen: behavioral.screen || null,
-      countdownTime: behavioral.countdownTime || 0,
-    };
-
-    if (result.score >= 70) {
-      detectionLog.push('behavior_bot');
-      console.log(`[VuotLink] 🤖 Behavior bot: score=${result.score}, IP=${ip}`);
-      logSecurityEvent('mouse_bot', ip, ua, visitorId, fullDetail);
-      return res.status(403).json(ERR);
-    }
-
-    if (result.score > 0) {
-      console.log(`[VuotLink] ⚠️ Behavior warning: score=${result.score}, IP=${ip}`);
-      logSecurityEvent('suspicious', ip, ua, visitorId, fullDetail);
-    }
   }
 
   const pool = getPool();
@@ -143,20 +108,8 @@ router.post('/task', optionalAuth, async (req, res) => {
       [visitorId]
     );
     if (vCount[0].cnt >= 5) {
-      detectionLog.push('device_limit');
       console.log(`[VuotLink] Device limit: visitorId=${visitorId.substring(0,8)}..., count=${vCount[0].cnt}`);
       return res.status(429).json({ error: 'Thiết bị đã đạt giới hạn 5 lượt/ngày. Thử lại sau.' });
-    }
-  }
-
-  if (visitorId && visitorId !== 'unknown') {
-    const [todayCount] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(created_at) = CURDATE()`,
-      [visitorId]
-    );
-    if (todayCount[0].cnt >= 3) {
-      console.log(`[VuotLink] ⚠️ Repeat device: visitorId=${visitorId.substring(0,8)}..., count=${todayCount[0].cnt}`);
-      logSecurityEvent('suspicious', ip, ua, visitorId, { warnings: [`repeat_device(${todayCount[0].cnt})`] });
     }
   }
 
@@ -372,6 +325,21 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   }
 
   console.log(`[VuotLink] Task #${task.id} VERIFIED — code=${code}, earning=${earning}`);
+
+  // Log security event at completion with behavioral assessment from widget
+  try {
+    let secDetail = {};
+    try { secDetail = JSON.parse(task.security_detail || '{}'); } catch {}
+    const hasDetail = secDetail.assessments || secDetail.behaviorScore !== undefined;
+    const reason = (secDetail.behaviorScore || 0) >= 30 ? 'suspicious' : 'completed';
+    logSecurityEvent(reason, task.ip_address, task.user_agent, task.visitor_id, {
+      ...secDetail,
+      taskId: task.id,
+      source: 'vuotlink',
+      timeOnSite,
+      earning,
+    });
+  } catch (e) { }
 
   res.json({ success: true, earning });
 });

@@ -86,6 +86,12 @@ app.use((err, req, res, next) => {
     await initDb();
     await seed();
 
+    const pool = getPool();
+    try {
+      await pool.execute(`ALTER TABLE vuot_link_tasks ADD COLUMN security_detail TEXT DEFAULT NULL`);
+      console.log('  ✅ Added security_detail column');
+    } catch (e) { }
+
     app.listen(PORT, () => {
       console.log(`
 ╔════════════════════════════════════════════╗

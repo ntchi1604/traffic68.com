@@ -295,16 +295,23 @@ router.post('/public/:token/get-code', async (req, res) => {
     };
 
     if (result.score >= 70) {
-      detectionLog.push('behavior_bot');
       console.log(`[Widget] 🤖 Behavior bot: score=${result.score}, reasons=${mouseReasons}, IP=${ip}`);
-      logSecurityEvent('mouse_bot', ip, ua, visitorId, fullDetail);
       return res.status(403).json(ERR);
     }
 
-    if (result.score > 0) {
-      console.log(`[Widget] ⚠️ Behavior warning: score=${result.score}, reasons=${mouseReasons}, IP=${ip}`);
-      logSecurityEvent('suspicious', ip, ua, visitorId, fullDetail);
-    }
+    // Store assessment in task — will be logged to security when task completes
+    try {
+      const [activeTasks] = await pool.execute(
+        `SELECT id FROM vuot_link_tasks WHERE ip_address = ? AND user_agent = ? AND status IN ('pending','step1','step2','step3') AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
+        [ip, ua]
+      );
+      if (activeTasks.length > 0) {
+        await pool.execute(
+          `UPDATE vuot_link_tasks SET security_detail = ? WHERE id = ?`,
+          [JSON.stringify(fullDetail).substring(0, 5000), activeTasks[0].id]
+        );
+      }
+    } catch (e) { }
   }
 
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
