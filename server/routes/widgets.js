@@ -57,9 +57,10 @@ function _cv(arr) {
 }
 
 function analyzeBehavior(b) {
-  if (!b) return { score: 0, reasons: [] };
+  if (!b) return { score: 0, reasons: [], assessments: [] };
   let score = 0;
   const reasons = [];
+  const assessments = []; // detailed evaluation per check
   const trail = b.mouseTrail || [];
   const n = trail.length;
 
@@ -67,9 +68,10 @@ function analyzeBehavior(b) {
   // 1. MOUSE DYNAMICS
   // ═══════════════════════════════════════
 
+  assessments.push({ cat: 'mouse', check: 'mousemove_count', value: n, note: n >= 10 ? 'Đủ dữ liệu phân tích' : 'Quá ít sự kiện mousemove' });
+
   if (n >= 10) {
-    // 1a. Linearity — bot moves in perfect straight lines
-    //     Cross-product of consecutive vectors ≈ 0 means collinear
+    // 1a. Linearity
     let linearCount = 0;
     for (let i = 2; i < n; i++) {
       const dx1 = trail[i].x - trail[i-1].x, dy1 = trail[i].y - trail[i-1].y;
@@ -78,14 +80,12 @@ function analyzeBehavior(b) {
       const mag = Math.sqrt(dx1*dx1+dy1*dy1) * Math.sqrt(dx0*dx0+dy0*dy0);
       if (mag > 0 && cross / mag < 0.05) linearCount++;
     }
-    const linearRatio = linearCount / (n - 2);
-    if (linearRatio > 0.85 && n > 15) {
-      score += 20;
-      reasons.push('linear_movement');
-    }
+    const linearRatio = Math.round(linearCount / (n - 2) * 100);
+    const linearFlag = linearRatio > 85 && n > 15;
+    if (linearFlag) { score += 20; reasons.push('linear_movement'); }
+    assessments.push({ cat: 'mouse', check: 'linearity', value: `${linearRatio}%`, threshold: '> 85%', flagged: linearFlag, note: linearFlag ? 'Di chuyển thẳng tắp — bot' : 'Có đường cong tự nhiên — người' });
 
-    // 1b. Acceleration & jitter — humans: accel → peak → decel
-    //     Bots: constant velocity (very low speed CV)
+    // 1b. Speed CV
     const speeds = [];
     for (let i = 1; i < n; i++) {
       const dx = trail[i].x - trail[i-1].x, dy = trail[i].y - trail[i-1].y;
@@ -93,57 +93,54 @@ function analyzeBehavior(b) {
       if (dt > 0) speeds.push(Math.sqrt(dx*dx + dy*dy) / dt);
     }
     const speedCV = _cv(speeds);
-    if (speeds.length > 8 && speedCV < 0.1) {
-      score += 20;
-      reasons.push('constant_velocity');
-    }
+    const speedCVr = Math.round(speedCV * 100) / 100;
+    const speedFlag = speeds.length > 8 && speedCV < 0.1;
+    if (speedFlag) { score += 20; reasons.push('constant_velocity'); }
+    assessments.push({ cat: 'mouse', check: 'speed_cv', value: speedCVr, threshold: '< 0.1', flagged: speedFlag, note: speedFlag ? 'Tốc độ đều — không có gia tốc/giảm tốc' : `Tốc độ biến thiên tự nhiên (CV=${speedCVr})` });
 
-    // 1c. Micro-variations (jitter) — humans produce tiny random deviations
-    //     Calculate perpendicular distance from straight line start→end
+    // 1c. Micro-jitter
+    let avgDeviation = -1;
     if (n > 10) {
       const sx = trail[0].x, sy = trail[0].y;
       const ex = trail[n-1].x, ey = trail[n-1].y;
       const lineLen = Math.sqrt((ex-sx)**2 + (ey-sy)**2);
-      if (lineLen > 50) { // Only check if mouse moved a meaningful distance
+      if (lineLen > 50) {
         let totalDeviation = 0;
         for (let i = 1; i < n - 1; i++) {
-          // Perpendicular distance from point to line
           const d = Math.abs((ey-sy)*(trail[i].x-sx) - (ex-sx)*(trail[i].y-sy)) / lineLen;
           totalDeviation += d;
         }
-        const avgDeviation = totalDeviation / (n - 2);
-        // Humans: avgDeviation > 3px. Bots/bezier: < 1px
-        if (avgDeviation < 0.5) {
-          score += 15;
-          reasons.push('no_micro_jitter');
-        }
+        avgDeviation = Math.round(totalDeviation / (n - 2) * 100) / 100;
+        const jitterFlag = avgDeviation < 0.5;
+        if (jitterFlag) { score += 15; reasons.push('no_micro_jitter'); }
+        assessments.push({ cat: 'mouse', check: 'micro_jitter', value: `${avgDeviation}px`, threshold: '< 0.5px', flagged: jitterFlag, note: jitterFlag ? 'Không rung lắc tay — bot/bezier' : `Rung lắc tự nhiên ${avgDeviation}px — người` });
       }
     }
 
     // 1d. Fake timestamps
     const uniqueTimes = new Set(trail.map(p => p.t)).size;
-    if (uniqueTimes <= 3 && n > 10) {
-      score += 30;
-      reasons.push('fake_timestamps');
-    }
+    const fakeFlag = uniqueTimes <= 3 && n > 10;
+    if (fakeFlag) { score += 30; reasons.push('fake_timestamps'); }
+    assessments.push({ cat: 'mouse', check: 'timestamp_unique', value: uniqueTimes, threshold: '≤ 3', flagged: fakeFlag, note: fakeFlag ? `Chỉ ${uniqueTimes} timestamp khác nhau — giả mạo` : `${uniqueTimes} timestamp — bình thường` });
 
-    // 1e. Timestamp regularity (script fires at fixed interval)
+    // 1e. Interval regularity
     if (n > 15) {
       const ints = [];
       for (let i = 1; i < n; i++) ints.push(trail[i].t - trail[i-1].t);
       const intCV = _cv(ints);
-      if (intCV < 0.12) {
-        score += 25;
-        reasons.push('regular_intervals');
-      }
+      const intCVr = Math.round(intCV * 100) / 100;
+      const intFlag = intCV < 0.12;
+      if (intFlag) { score += 25; reasons.push('regular_intervals'); }
+      assessments.push({ cat: 'mouse', check: 'interval_cv', value: intCVr, threshold: '< 0.12', flagged: intFlag, note: intFlag ? 'Khoảng cách thời gian đều máy — script' : `Khoảng cách thời gian biến thiên (CV=${intCVr}) — người` });
     }
   }
 
-  // 1f. Too few mousemove events (bot clicks directly without hovering)
+  // 1f. Hover before click
   const clickCount = (b.clickPositions || []).length;
-  if (n < 5 && clickCount > 0) {
-    score += 15;
-    reasons.push('no_hover_before_click');
+  const hoverFlag = n < 5 && clickCount > 0;
+  if (hoverFlag) { score += 15; reasons.push('no_hover_before_click'); }
+  if (clickCount > 0) {
+    assessments.push({ cat: 'mouse', check: 'hover_before_click', value: `${n} mousemove, ${clickCount} click`, flagged: hoverFlag, note: hoverFlag ? 'Click mà không rê chuột — bot' : 'Có di chuột trước khi click — người' });
   }
 
   // ═══════════════════════════════════════
@@ -154,28 +151,26 @@ function analyzeBehavior(b) {
   const flightTimes = b.keyFlightTimes || [];
 
   if (dwellTimes.length >= 5) {
-    // 2a. Dwell time variance — humans vary (50-150ms), bots are constant
     const dwellCV = _cv(dwellTimes);
-    if (dwellCV < 0.1) {
-      score += 20;
-      reasons.push('constant_dwell_time');
-    }
+    const dwellCVr = Math.round(dwellCV * 100) / 100;
+    const dwellFlag = dwellCV < 0.1;
+    if (dwellFlag) { score += 20; reasons.push('constant_dwell_time'); }
+    assessments.push({ cat: 'keyboard', check: 'dwell_time_cv', value: dwellCVr, threshold: '< 0.1', flagged: dwellFlag, note: dwellFlag ? 'Nhấn giữ phím đều nhau — bot' : `Thời gian giữ phím đa dạng (CV=${dwellCVr}) — người` });
 
-    // 2b. Flight time variance — humans vary by word familiarity
     if (flightTimes.length >= 5) {
       const flightCV = _cv(flightTimes);
-      if (flightCV < 0.1) {
-        score += 20;
-        reasons.push('constant_flight_time');
-      }
+      const flightCVr = Math.round(flightCV * 100) / 100;
+      const flightFlag = flightCV < 0.1;
+      if (flightFlag) { score += 20; reasons.push('constant_flight_time'); }
+      assessments.push({ cat: 'keyboard', check: 'flight_time_cv', value: flightCVr, threshold: '< 0.1', flagged: flightFlag, note: flightFlag ? 'Gõ phím nhịp điệu đều — bot' : `Nhịp gõ đa dạng (CV=${flightCVr}) — người` });
     }
+  } else {
+    assessments.push({ cat: 'keyboard', check: 'keystroke_data', value: dwellTimes.length, note: dwellTimes.length === 0 ? 'Không có dữ liệu bàn phím' : 'Quá ít phím để phân tích' });
   }
 
-  // 2c. No backspace at all with many keys — suspect
-  //     (bots rarely make typos)
   if ((b.totalKeys || 0) > 20 && (b.backspaceCount || 0) === 0) {
-    score += 5;
-    reasons.push('no_typos');
+    score += 5; reasons.push('no_typos');
+    assessments.push({ cat: 'keyboard', check: 'backspace', value: `${b.totalKeys} phím, 0 Backspace`, flagged: true, note: 'Gõ nhiều nhưng không sửa lỗi — bot' });
   }
 
   // ═══════════════════════════════════════
@@ -184,13 +179,10 @@ function analyzeBehavior(b) {
 
   const scrollEvts = b.scrollEvents || [];
   if (scrollEvts.length >= 5) {
-    // 3a. Continuous scroll without stopping — bot "scans" page
-    if ((b.scrollPauses || 0) === 0 && scrollEvts.length > 10) {
-      score += 10;
-      reasons.push('no_scroll_pauses');
-    }
+    const pauseFlag = (b.scrollPauses || 0) === 0 && scrollEvts.length > 10;
+    if (pauseFlag) { score += 10; reasons.push('no_scroll_pauses'); }
+    assessments.push({ cat: 'scroll', check: 'scroll_pauses', value: `${b.scrollPauses || 0} lần dừng / ${scrollEvts.length} sự kiện`, flagged: pauseFlag, note: pauseFlag ? 'Cuộn liên tục không dừng đọc — bot' : 'Có dừng đọc nội dung — người' });
 
-    // 3b. Scroll speed too uniform (CV check)
     const scrollSpeeds = [];
     for (let i = 1; i < scrollEvts.length; i++) {
       const dy = Math.abs(scrollEvts[i].y - scrollEvts[i-1].y);
@@ -198,36 +190,36 @@ function analyzeBehavior(b) {
       if (dt > 0) scrollSpeeds.push(dy / dt);
     }
     const scrollCV = _cv(scrollSpeeds);
-    if (scrollSpeeds.length > 5 && scrollCV < 0.1) {
-      score += 15;
-      reasons.push('uniform_scroll_speed');
-    }
+    const scrollCVr = Math.round(scrollCV * 100) / 100;
+    const scrollFlag = scrollSpeeds.length > 5 && scrollCV < 0.1;
+    if (scrollFlag) { score += 15; reasons.push('uniform_scroll_speed'); }
+    assessments.push({ cat: 'scroll', check: 'scroll_speed_cv', value: scrollCVr, threshold: '< 0.1', flagged: scrollFlag, note: scrollFlag ? 'Tốc độ cuộn đều — bot' : `Tốc độ cuộn biến thiên (CV=${scrollCVr}) — người` });
+  } else {
+    assessments.push({ cat: 'scroll', check: 'scroll_data', value: scrollEvts.length, note: 'Ít/không có dữ liệu cuộn trang' });
   }
 
   // ═══════════════════════════════════════
   // 4. FOCUS & VISIBILITY
   // ═══════════════════════════════════════
 
-  // 4a. requestAnimationFrame not stable (headless skips rendering)
   if (b.rafStable === false) {
-    score += 15;
-    reasons.push('raf_unstable');
+    score += 15; reasons.push('raf_unstable');
+    assessments.push({ cat: 'focus', check: 'raf_stable', value: false, flagged: true, note: 'Trình duyệt không render frame — headless' });
+  } else {
+    assessments.push({ cat: 'focus', check: 'raf_stable', value: true, flagged: false, note: 'Render frame ổn định — trình duyệt thật' });
   }
 
-  // 4b. Zero screen = headless
   if (!b.screen?.w || !b.screen?.h) {
-    score += 20;
-    reasons.push('zero_screen');
+    score += 20; reasons.push('zero_screen');
+    assessments.push({ cat: 'focus', check: 'screen', value: '0x0', flagged: true, note: 'Không có màn hình — headless' });
+  } else {
+    const { w, h } = b.screen;
+    const vmFlag = (w === 800 && h === 600) || (w === 1024 && h === 768 && b.screen.dpr === 1);
+    if (vmFlag) { score += 5; reasons.push('vm_screen'); }
+    assessments.push({ cat: 'focus', check: 'screen', value: `${w}x${h}@${b.screen.dpr || 1}x`, flagged: vmFlag, note: vmFlag ? 'Độ phân giải giống máy ảo' : 'Độ phân giải bình thường' });
   }
 
-  // 4c. Screen resolution used by VMs
-  if (b.screen) {
-    const { w, h } = b.screen;
-    if ((w === 800 && h === 600) || (w === 1024 && h === 768 && b.screen.dpr === 1)) {
-      score += 5;
-      reasons.push('vm_screen');
-    }
-  }
+  assessments.push({ cat: 'focus', check: 'tab_blur', value: b.totalBlur || 0, note: `Chuyển tab ${b.totalBlur || 0} lần` });
 
   // ═══════════════════════════════════════
   // 5. CLICK POSITION ANALYSIS
@@ -235,7 +227,6 @@ function analyzeBehavior(b) {
 
   const clicks = b.clickPositions || [];
   if (clicks.length >= 3) {
-    // 5a. Clicks always at exact center of element — bot uses element.click()
     let centerClicks = 0;
     for (const c of clicks) {
       if (c.elCenterX !== undefined) {
@@ -244,13 +235,14 @@ function analyzeBehavior(b) {
         if (dx <= 1 && dy <= 1) centerClicks++;
       }
     }
-    if (centerClicks === clicks.length) {
-      score += 15;
-      reasons.push('exact_center_clicks');
-    }
+    const centerFlag = centerClicks === clicks.length;
+    if (centerFlag) { score += 15; reasons.push('exact_center_clicks'); }
+    assessments.push({ cat: 'click', check: 'center_accuracy', value: `${centerClicks}/${clicks.length} click vào tâm`, flagged: centerFlag, note: centerFlag ? 'Tất cả click chính xác vào tâm — element.click()' : 'Click lệch tâm tự nhiên — người' });
+  } else {
+    assessments.push({ cat: 'click', check: 'click_data', value: clicks.length, note: clicks.length === 0 ? 'Không có dữ liệu click' : `Chỉ ${clicks.length} click — chưa đủ phân tích` });
   }
 
-  return { score, reasons };
+  return { score, reasons, assessments };
 }
 
 /* ═══════════════════════════════════════════════════════════ */
@@ -519,7 +511,6 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (probes.pluginCount === 0) probeWarnings.push('zero_plugins');
   if (probes.rtt === 0) probeWarnings.push('zero_rtt');
   if (probes.langCount === 0) probeWarnings.push('zero_languages');
-  if (probes.hasChrome === true && probes.hasChromeRuntime === false) probeWarnings.push('no_chrome_runtime');
   if (probeWarnings.length > 0) {
     logSecurityEvent('probe_warning', ip, ua, visitorId, { ...probes, probeWarnings });
   }
@@ -543,22 +534,27 @@ router.post('/public/:token/get-code', async (req, res) => {
     mouseScore = result.score;
     mouseReasons = result.reasons.join(',');
 
+    // Build full detail object (behavioral + core info)
+    const fullDetail = {
+      behaviorScore: result.score,
+      assessments: result.assessments,
+      // Core info
+      botDetection: botDetection || null,
+      probes: behavioral.probes || {},
+      screen: behavioral.screen || null,
+      countdownTime: behavioral.countdownTime || 0,
+    };
+
     if (result.score >= 70) {
       detectionLog.push('behavior_bot');
       console.log(`[Widget] 🤖 Behavior bot: score=${result.score}, reasons=${mouseReasons}, IP=${ip}`);
-      logSecurityEvent('mouse_bot', ip, ua, visitorId, { score: result.score, reasons: result.reasons });
+      logSecurityEvent('mouse_bot', ip, ua, visitorId, fullDetail);
       return res.status(403).json(ERR);
     }
 
     if (result.score > 0) {
       console.log(`[Widget] ⚠️ Behavior warning: score=${result.score}, reasons=${mouseReasons}, IP=${ip}`);
-      logSecurityEvent('suspicious', ip, ua, visitorId, {
-        warnings: result.reasons,
-        behaviorScore: result.score,
-        mousePoints: behavioral.mousePoints || 0,
-        countdownTime: behavioral.countdownTime || 0,
-        screen: behavioral.screen,
-      });
+      logSecurityEvent('suspicious', ip, ua, visitorId, fullDetail);
     }
   }
 

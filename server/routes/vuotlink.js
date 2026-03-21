@@ -106,7 +106,6 @@ router.post('/task', optionalAuth, async (req, res) => {
   if (probes.pluginCount === 0) probeWarnings.push('zero_plugins');
   if (probes.rtt === 0) probeWarnings.push('zero_rtt');
   if (probes.langCount === 0) probeWarnings.push('zero_languages');
-  if (probes.hasChrome === true && probes.hasChromeRuntime === false) probeWarnings.push('no_chrome_runtime');
   if (probeWarnings.length > 0) {
     console.log(`[VuotLink] ⚠️ Probe warnings: IP=${ip}, ${probeWarnings.join(',')}`);
     logSecurityEvent('probe_warning', ip, ua, visitorId, { ...probes, probeWarnings });
