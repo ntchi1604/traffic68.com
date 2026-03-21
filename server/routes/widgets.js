@@ -14,7 +14,7 @@ async function logSecurityEvent(reason, ip, ua, visitorId, extra) {
     const pool = getPool();
     await pool.execute(
       `INSERT INTO security_logs (source, reason, ip_address, user_agent, visitor_id, details, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      ['widget', reason, ip || null, (ua || '').substring(0, 500), visitorId || null, JSON.stringify(extra || {}).substring(0, 2000)]
+      ['widget', reason, ip || null, (ua || '').substring(0, 500), visitorId || null, JSON.stringify(extra || {}).substring(0, 10000)]
     );
   } catch (e) { }
 }
@@ -308,7 +308,7 @@ router.post('/public/:token/get-code', async (req, res) => {
       if (activeTasks.length > 0) {
         await pool.execute(
           `UPDATE vuot_link_tasks SET security_detail = ? WHERE id = ?`,
-          [JSON.stringify(fullDetail).substring(0, 5000), activeTasks[0].id]
+          [JSON.stringify(fullDetail).substring(0, 10000), activeTasks[0].id]
         );
       }
     } catch (e) { }

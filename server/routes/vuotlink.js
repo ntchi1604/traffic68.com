@@ -14,7 +14,7 @@ async function logSecurityEvent(reason, ip, ua, visitorId, extra) {
     const pool = getPool();
     await pool.execute(
       `INSERT INTO security_logs (source, reason, ip_address, user_agent, visitor_id, details, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      ['vuotlink', reason, ip || null, (ua || '').substring(0, 500), visitorId || null, JSON.stringify(extra || {}).substring(0, 2000)]
+      ['vuotlink', reason, ip || null, (ua || '').substring(0, 500), visitorId || null, JSON.stringify(extra || {}).substring(0, 10000)]
     );
   } catch (e) { /* ignore DB errors to not break main flow */ }
 }
