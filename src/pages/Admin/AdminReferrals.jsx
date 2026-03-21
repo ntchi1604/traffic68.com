@@ -18,7 +18,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
   const settingKey = type === 'workers' ? 'referral_commission_worker' : 'referral_commission_buyer';
 
   useEffect(() => {
-    api.get('/admin/settings').then(d => {
+    api.get('/admin/settings/site').then(d => {
       const settings = d.settings || {};
       setCommission(settings[settingKey] || '10');
     }).catch(() => { });
@@ -27,7 +27,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
   const saveCommission = async () => {
     setCommSaving(true);
     try {
-      await api.put('/admin/settings', { settings: { [settingKey]: commission } });
+      await api.put('/admin/settings/site', { settings: { [settingKey]: commission } });
       setCommSaved(true);
       setTimeout(() => setCommSaved(false), 2000);
     } catch { }

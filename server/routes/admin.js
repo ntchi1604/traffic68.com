@@ -588,4 +588,57 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
   }
 });
 
+// ── GET /api/admin/referrals/:type ──
+router.get('/referrals/:type', async (req, res) => {
+  try {
+    const pool = getPool();
+    const type = req.params.type; // 'buyers' or 'workers'
+    const serviceType = type === 'workers' ? 'shortlink' : 'traffic';
+    const { search } = req.query;
+
+    let where = 'r.service_type = ?';
+    const params = [serviceType];
+    if (search) {
+      where += ' AND (r.name LIKE ? OR r.email LIKE ? OR r.referral_code LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    // Get referrers who have at least 1 referral
+    const [referrers] = await pool.execute(
+      `SELECT r.id, r.name, r.email, r.referral_code, r.service_type,
+       (SELECT COUNT(*) FROM users WHERE referred_by = r.id) as ref_count
+       FROM users r
+       WHERE ${where} AND (SELECT COUNT(*) FROM users WHERE referred_by = r.id) > 0
+       ORDER BY ref_count DESC LIMIT 100`,
+      params
+    );
+
+    // For each referrer, get their referred users
+    for (const ref of referrers) {
+      const [referred] = await pool.execute(
+        'SELECT id, name, email, service_type, status, created_at FROM users WHERE referred_by = ? ORDER BY created_at DESC',
+        [ref.id]
+      );
+      ref.referred = referred;
+    }
+
+    const [totalReferrers] = await pool.execute(
+      `SELECT COUNT(*) as c FROM users r WHERE r.service_type = ? AND (SELECT COUNT(*) FROM users WHERE referred_by = r.id) > 0`,
+      [serviceType]
+    );
+    const [totalReferred] = await pool.execute(
+      `SELECT COUNT(*) as c FROM users u INNER JOIN users r ON u.referred_by = r.id WHERE r.service_type = ?`,
+      [serviceType]
+    );
+
+    res.json({
+      referrers,
+      totalReferrers: totalReferrers[0].c,
+      totalReferred: totalReferred[0].c,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
