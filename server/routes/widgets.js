@@ -412,19 +412,74 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const pool = getPool();
   const { name, config } = req.body;
-  if (!name) return res.status(400).json({ error: 'Tên widget là bắt buộc' });
 
-  const token = 'T68-' + crypto.randomBytes(6).toString('hex').toUpperCase();
+  // Check if user already has a widget — upsert
+  const [existing] = await pool.execute('SELECT * FROM widgets WHERE user_id = ?', [req.userId]);
   const cleanConfig = stripDefaults(typeof config === 'string' ? JSON.parse(config) : (config || {}));
   const configStr = JSON.stringify(cleanConfig);
 
-  const [result] = await pool.execute(`INSERT INTO widgets (user_id, token, name, config) VALUES (?, ?, ?, ?)`, [req.userId, token, name, configStr]);
+  if (existing.length > 0) {
+    // Update existing widget
+    await pool.execute(
+      `UPDATE widgets SET config = ?, name = COALESCE(?, name), updated_at = NOW() WHERE user_id = ?`,
+      [configStr, name || null, req.userId]
+    );
+    const [updated] = await pool.execute('SELECT * FROM widgets WHERE user_id = ?', [req.userId]);
+    return res.json({
+      message: 'Cập nhật widget thành công', token: updated[0].token,
+      widget: { ...updated[0], config: JSON.parse(updated[0].config || '{}') },
+    });
+  }
+
+  // New user — create unique widget token
+  const token = 'T68-' + crypto.randomBytes(6).toString('hex').toUpperCase();
+  const [result] = await pool.execute(`INSERT INTO widgets (user_id, token, name, config) VALUES (?, ?, ?, ?)`, [req.userId, token, name || 'Nút mặc định', configStr]);
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE id = ?', [result.insertId]);
   res.status(201).json({
     message: 'Tạo widget thành công', token: widgets[0].token,
     widget: { ...widgets[0], config: JSON.parse(widgets[0].config || '{}') },
   });
 });
+
+/* GET /my — load current user's widget (auto-create if none) */
+router.get('/my', async (req, res) => {
+  const pool = getPool();
+  let [rows] = await pool.execute('SELECT * FROM widgets WHERE user_id = ? ORDER BY created_at ASC LIMIT 1', [req.userId]);
+  if (rows.length === 0) {
+    // Auto-create with defaults
+    const token = 'T68-' + crypto.randomBytes(6).toString('hex').toUpperCase();
+    await pool.execute(`INSERT INTO widgets (user_id, token, name, config) VALUES (?, ?, 'Nút mặc định', '{}')`, [req.userId, token]);
+    [rows] = await pool.execute('SELECT * FROM widgets WHERE user_id = ? LIMIT 1', [req.userId]);
+  }
+  const w = rows[0];
+  let config = {};
+  try { config = { ...JS_DEFAULTS, ...JSON.parse(w.config || '{}') }; } catch { }
+  res.json({ token: w.token, name: w.name, config, is_active: w.is_active });
+});
+
+/* PUT /my — update current user's widget config */
+router.put('/my', async (req, res) => {
+  const pool = getPool();
+  const { config, name } = req.body;
+  // Ensure widget exists
+  let [rows] = await pool.execute('SELECT id FROM widgets WHERE user_id = ?', [req.userId]);
+  if (rows.length === 0) {
+    const token = 'T68-' + crypto.randomBytes(6).toString('hex').toUpperCase();
+    await pool.execute(`INSERT INTO widgets (user_id, token, name, config) VALUES (?, ?, 'Nút mặc định', '{}')`, [req.userId, token]);
+    [rows] = await pool.execute('SELECT id FROM widgets WHERE user_id = ?', [req.userId]);
+  }
+  const id = rows[0].id;
+  const cleanConfig = stripDefaults(typeof config === 'string' ? JSON.parse(config) : (config || {}));
+  await pool.execute(
+    `UPDATE widgets SET config = ?, name = COALESCE(?, name), updated_at = NOW() WHERE id = ?`,
+    [JSON.stringify(cleanConfig), name || null, id]
+  );
+  const [updated] = await pool.execute('SELECT * FROM widgets WHERE id = ?', [id]);
+  let mergedConfig = {};
+  try { mergedConfig = { ...JS_DEFAULTS, ...JSON.parse(updated[0].config || '{}') }; } catch { }
+  res.json({ message: 'Đã cập nhật', token: updated[0].token, config: mergedConfig });
+});
+
 
 router.put('/:id', async (req, res) => {
   const pool = getPool();

@@ -165,12 +165,12 @@ async function _handleTaskPost(req, res) {
       [visitorId]
     );
     if (vCount[0].cnt >= maxViewsPerIp) {
-      console.log(`[VuotLink] Device limit: visitorId=${visitorId.substring(0,8)}..., count=${vCount[0].cnt}, max=${maxViewsPerIp}`);
+      console.log(`[VuotLink] Device limit: visitorId=${visitorId.substring(0, 8)}..., count=${vCount[0].cnt}, max=${maxViewsPerIp}`);
       return res.status(429).json({ error: `Thiết bị đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Thử lại sau.` });
     }
   }
 
-  console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0,8) || '?'}`);
+  console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0, 8) || '?'}`);
 
   const [ipCount] = await pool.execute(
     `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
@@ -355,7 +355,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   // Log security event at completion with behavioral assessment from widget
   try {
     let secDetail = {};
-    try { secDetail = JSON.parse(task.security_detail || '{}'); } catch {}
+    try { secDetail = JSON.parse(task.security_detail || '{}'); } catch { }
     const flagged = (secDetail.assessments || []).some(a => a.flagged);
     const reason = flagged ? 'bot_behavior' : 'completed';
     logSecurityEvent(reason, task.ip_address, task.user_agent, task.visitor_id, {

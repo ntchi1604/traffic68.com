@@ -305,14 +305,26 @@ export default function ScriptGenerator() {
     }, 1000);
   };
 
-  /* Save config to server → get token */
+  // Load existing widget on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const api = (await import('../../lib/api')).default;
+        const data = await api.get('/widgets/my');
+        if (data?.config) setCfg(c => ({ ...c, ...data.config }));
+        if (data?.token) setToken(data.token);
+      } catch { /* not logged in or no widget yet */ }
+    })();
+  }, []);
+
+  /* Save config to server — always updates the single widget for this user */
   const saveWidget = async () => {
     setSaving(true);
     setSaveMsg('');
     try {
       const api = (await import('../../lib/api')).default;
-      const data = await api.post('/widgets', {
-        name: cfg.buttonText || 'Nút mới',
+      const data = await api.put('/widgets/my', {
+        name: cfg.buttonText || 'Nút mặc định',
         config: cfg,
       });
       setToken(data.token);
