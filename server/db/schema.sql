@@ -127,11 +127,18 @@ CREATE TABLE IF NOT EXISTS vuot_link_tasks (
   completed_at DATETIME DEFAULT NULL,
   ip_address   VARCHAR(100) DEFAULT '',
   user_agent   TEXT DEFAULT NULL,
+  visitor_id   VARCHAR(255) DEFAULT NULL,
+  bot_detected TINYINT NOT NULL DEFAULT 0,
+  security_detail TEXT DEFAULT NULL,
   time_on_site INT DEFAULT 0,
   earning      DECIMAL(10,2) NOT NULL DEFAULT 0,
   code_given   VARCHAR(100) DEFAULT '',
   expires_at   DATETIME DEFAULT NULL,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_visitor_status    (visitor_id, status, created_at),
+  KEY idx_ip_status         (ip_address, status, created_at),
+  KEY idx_ip_ua_status      (ip_address(50), status),
+  KEY idx_status_expires    (status, expires_at),
   FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
   FOREIGN KEY (worker_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

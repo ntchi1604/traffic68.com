@@ -136,26 +136,23 @@ router.post('/task', optionalAuth, async (req, res) => {
     return res.status(403).json(ERR);
   }
 
+  // ── Limit check: load setting ONCE ──
   const pool = getPool();
-  const [deviceLimitSetting] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
-  const maxDeviceViews = deviceLimitSetting.length > 0 ? parseInt(deviceLimitSetting[0].setting_value) || 10 : 10;
+  const [limitSetting] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
+  const maxViewsPerIp = limitSetting.length > 0 ? parseInt(limitSetting[0].setting_value) || 2 : 2;
 
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
       `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) AND status = 'completed'`,
       [visitorId]
     );
-    if (vCount[0].cnt >= maxDeviceViews) {
-      console.log(`[VuotLink] Device limit: visitorId=${visitorId.substring(0,8)}..., count=${vCount[0].cnt}, max=${maxDeviceViews}`);
-      return res.status(429).json({ error: `Thiết bị đã đạt giới hạn ${maxDeviceViews} lượt/ngày. Thử lại sau.` });
+    if (vCount[0].cnt >= maxViewsPerIp) {
+      console.log(`[VuotLink] Device limit: visitorId=${visitorId.substring(0,8)}..., count=${vCount[0].cnt}, max=${maxViewsPerIp}`);
+      return res.status(429).json({ error: `Thiết bị đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Thử lại sau.` });
     }
   }
 
   console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0,8) || '?'}`);
-
-  // ── Check IP view limit ──
-  const [ipSettings] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
-  const maxViewsPerIp = ipSettings.length > 0 ? parseInt(ipSettings[0].setting_value) || 2 : 2;
 
   const [ipCount] = await pool.execute(
     `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
@@ -166,8 +163,16 @@ router.post('/task', optionalAuth, async (req, res) => {
     return res.status(429).json({ error: `Bạn đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Vui lòng quay lại ngày mai.` });
   }
 
+  // Fast random campaign: avoid ORDER BY RAND() full-table-scan
+  const [countRows] = await pool.execute(
+    `SELECT COUNT(*) as cnt FROM campaigns WHERE status = 'running' AND traffic_type = 'google_search' AND keyword != '' AND views_done < total_views`
+  );
+  const totalCampaigns = countRows[0].cnt;
+  if (totalCampaigns === 0) return res.status(404).json(ERR);
+  const randomOffset = Math.floor(Math.random() * totalCampaigns);
   const [campaigns] = await pool.execute(
-    `SELECT * FROM campaigns WHERE status = 'running' AND traffic_type = 'google_search' AND keyword != '' AND views_done < total_views ORDER BY RAND() LIMIT 1`
+    `SELECT * FROM campaigns WHERE status = 'running' AND traffic_type = 'google_search' AND keyword != '' AND views_done < total_views LIMIT 1 OFFSET ?`,
+    [randomOffset]
   );
   if (campaigns.length === 0) return res.status(404).json(ERR);
   const campaign = campaigns[0];
