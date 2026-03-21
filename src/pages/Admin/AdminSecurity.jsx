@@ -87,13 +87,13 @@ function DetailModal({ event: ev, onClose }) {
 
     const bd = d.botDetection || (d.totalLied !== undefined ? d : null);
     if (bd) {
-      if (bd.bot !== undefined) detailItems.push({ label: 'CreepJS — Bot', value: bd.bot ? 'Có' : 'Không', danger: !!bd.bot });
+      if (bd.bot !== undefined) detailItems.push({ label: 'Bot', value: bd.bot ? 'Có' : 'Không', danger: !!bd.bot });
       if (bd.totalLied !== undefined) {
-        detailItems.push({ label: 'CreepJS — Tổng mục giả mạo', value: bd.totalLied, danger: bd.totalLied > 0 });
-        if (bd.liedSections?.length > 0) detailItems.push({ label: 'CreepJS — Các mục bị giả mạo', value: (Array.isArray(bd.liedSections) ? bd.liedSections : []).join(', '), danger: true });
+        detailItems.push({ label: 'Tổng mục giả mạo', value: bd.totalLied, danger: bd.totalLied > 0 });
+        if (bd.liedSections?.length > 0) detailItems.push({ label: 'Các mục bị giả mạo', value: (Array.isArray(bd.liedSections) ? bd.liedSections : []).join(', '), danger: true });
       }
-      if (bd.headless != null) detailItems.push({ label: 'CreepJS — Headless', value: bd.headless ? 'Có' : 'Không', danger: !!bd.headless });
-      if (bd.stealth != null) detailItems.push({ label: 'CreepJS — Stealth mode', value: bd.stealth ? 'Có' : 'Không', danger: !!bd.stealth });
+      if (bd.headless != null) detailItems.push({ label: 'Headless', value: bd.headless ? 'Có' : 'Không', danger: !!bd.headless });
+      if (bd.stealth != null) detailItems.push({ label: 'Stealth mode', value: bd.stealth ? 'Có' : 'Không', danger: !!bd.stealth });
       if (bd.creepError) detailItems.push({ label: 'CreepJS', value: 'Không load được (cross-domain)', warn: true });
       if (bd.creepTimeout) detailItems.push({ label: 'CreepJS', value: 'Quá thời gian', warn: true });
     }
@@ -219,61 +219,61 @@ function DetailModal({ event: ev, onClose }) {
           )}
         </div>
 
-          {(() => {
-            let d = {};
-            try { d = JSON.parse(ev.details || '{}'); } catch {}
-            const score = d.behaviorScore ?? d.score ?? 0;
-            const bd = d.botDetection || (d.totalLied !== undefined ? d : null);
-            const creepLied = bd && bd.totalLied > 0;
-            const creepBot = bd && bd.bot === true;
-            const probes = d.probes || {};
-            const hasAutomation = probes.webdriver || probes.selenium || probes.cdc;
-            const flaggedCount = (d.assessments || []).filter(a => a.flagged).length;
-            const totalChecks = (d.assessments || []).length;
+        {(() => {
+          let d = {};
+          try { d = JSON.parse(ev.details || '{}'); } catch { }
+          const score = d.behaviorScore ?? d.score ?? 0;
+          const bd = d.botDetection || (d.totalLied !== undefined ? d : null);
+          const creepLied = bd && bd.totalLied > 0;
+          const creepBot = bd && bd.bot === true;
+          const probes = d.probes || {};
+          const hasAutomation = probes.webdriver || probes.selenium || probes.cdc;
+          const flaggedCount = (d.assessments || []).filter(a => a.flagged).length;
+          const totalChecks = (d.assessments || []).length;
 
-            let level, icon, text, bg, border, textColor;
-            if (isBlocked || creepBot || creepLied || hasAutomation || score >= 70) {
-              level = 'bot';
-              icon = '🤖';
-              text = 'Kết luận: Rất có thể là BOT / Tự động hóa';
-              bg = 'bg-red-50'; border = 'border-red-300'; textColor = 'text-red-800';
-            } else if (score >= 30 || flaggedCount >= 3) {
-              level = 'suspicious';
-              icon = '⚠️';
-              text = 'Kết luận: Đáng ngờ — có nhiều dấu hiệu bất thường';
-              bg = 'bg-amber-50'; border = 'border-amber-300'; textColor = 'text-amber-800';
-            } else if (score > 0 || flaggedCount >= 1) {
-              level = 'warning';
-              icon = '🟡';
-              text = 'Kết luận: Có dấu hiệu đáng ngờ nhưng chưa đủ chặn';
-              bg = 'bg-yellow-50'; border = 'border-yellow-300'; textColor = 'text-yellow-800';
-            } else {
-              level = 'clean';
-              icon = '✅';
-              text = 'Kết luận: Người dùng thật — không phát hiện tự động hóa';
-              bg = 'bg-green-50'; border = 'border-green-300'; textColor = 'text-green-800';
-            }
+          let level, icon, text, bg, border, textColor;
+          if (isBlocked || creepBot || creepLied || hasAutomation || score >= 70) {
+            level = 'bot';
+            icon = '🤖';
+            text = 'Kết luận: Rất có thể là BOT / Tự động hóa';
+            bg = 'bg-red-50'; border = 'border-red-300'; textColor = 'text-red-800';
+          } else if (score >= 30 || flaggedCount >= 3) {
+            level = 'suspicious';
+            icon = '⚠️';
+            text = 'Kết luận: Đáng ngờ — Có nhiều dấu hiệu bất thường';
+            bg = 'bg-amber-50'; border = 'border-amber-300'; textColor = 'text-amber-800';
+          } else if (score > 0 || flaggedCount >= 1) {
+            level = 'warning';
+            icon = '🟡';
+            text = 'Kết luận: Có dấu hiệu đáng ngờ nhưng chưa đủ chặn';
+            bg = 'bg-yellow-50'; border = 'border-yellow-300'; textColor = 'text-yellow-800';
+          } else {
+            level = 'clean';
+            icon = '✅';
+            text = 'Kết luận: Người dùng thật — Không phát hiện tự động hóa';
+            bg = 'bg-green-50'; border = 'border-green-300'; textColor = 'text-green-800';
+          }
 
-            const details = [];
-            if (score > 0) details.push(`Điểm hành vi: ${score}/70`);
-            if (flaggedCount > 0) details.push(`${flaggedCount}/${totalChecks} kiểm tra bất thường`);
-            if (creepLied) details.push(`Giả mạo ${bd.totalLied} mục trình duyệt`);
-            if (hasAutomation) details.push('Phát hiện công cụ tự động');
-            if (!creepBot && !creepLied && bd && bd.bot === false && bd.totalLied === 0) details.push('Xác minh trình duyệt: Sạch');
+          const details = [];
+          if (score > 0) details.push(`Điểm hành vi: ${score}/70`);
+          if (flaggedCount > 0) details.push(`${flaggedCount}/${totalChecks} kiểm tra bất thường`);
+          if (creepLied) details.push(`Giả mạo ${bd.totalLied} mục trình duyệt`);
+          if (hasAutomation) details.push('Phát hiện công cụ tự động');
+          if (!creepBot && !creepLied && bd && bd.bot === false && bd.totalLied === 0) details.push('Xác minh trình duyệt: Sạch');
 
-            return (
-              <div className={`mx-6 mb-4 p-4 rounded-xl border-2 ${bg} ${border}`}>
-                <p className={`text-sm font-black ${textColor}`}>{icon} {text}</p>
-                {details.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {details.map((d, i) => (
-                      <span key={i} className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${bg} ${textColor} border ${border}`}>{d}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          return (
+            <div className={`mx-6 mb-4 p-4 rounded-xl border-2 ${bg} ${border}`}>
+              <p className={`text-sm font-black ${textColor}`}>{icon} {text}</p>
+              {details.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {details.map((d, i) => (
+                    <span key={i} className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${bg} ${textColor} border ${border}`}>{d}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <div className="px-6 py-3 border-t border-slate-100">
           <button onClick={onClose} className="w-full py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition">Đóng</button>
@@ -397,8 +397,8 @@ export default function AdminSecurity() {
                       {isBlocked
                         ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">🚫 Đã chặn</span>
                         : isCompleted
-                        ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">✅ Hoàn thành</span>
-                        : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">⚠️ Cảnh báo</span>
+                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">✅ Hoàn thành</span>
+                          : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">⚠️ Cảnh báo</span>
                       }
                     </td>
                     <td className="px-4 py-3 text-center">
