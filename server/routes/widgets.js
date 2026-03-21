@@ -192,11 +192,14 @@ router.get('/public/:token/challenge', (req, res) => {
   }
 
   const challengeId = crypto.randomBytes(16).toString('hex');
-  widgetChallenges[challengeId] = { createdAt: Date.now(), used: false, ip };
+  const domText = crypto.randomBytes(6).toString('hex');
+  const domFontSize = 14 + Math.floor(Math.random() * 10);
+  const glColor = [Math.random(), Math.random(), Math.random()].map(v => Math.round(v * 100) / 100);
+  widgetChallenges[challengeId] = { createdAt: Date.now(), used: false, ip, domText, domFontSize, glColor };
 
   const _ck = signWidgetChallenge(challengeId, ip);
 
-  res.json({ c: challengeId, _ck });
+  res.json({ c: challengeId, _ck, dt: domText, df: domFontSize, gc: glColor });
 });
 
 router.post('/public/:token/get-code', async (req, res) => {
@@ -220,7 +223,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Blocked' });
   }
 
-  const { challengeId, _ck, visitorId, botDetection, behavioral } = req.body || {};
+  const { challengeId, _ck, domWidth, glRenderer, glPixel, visitorId, botDetection, behavioral } = req.body || {};
 
   let botDetected = false;
   let mouseScore = 0;
@@ -244,6 +247,26 @@ router.post('/public/:token/get-code', async (req, res) => {
     console.log(`[Widget] Invalid challenge signature — IP: ${ip}`);
     return res.status(403).json(ERR);
   }
+
+  if (!domWidth || typeof domWidth !== 'number' || domWidth <= 0) {
+    return res.status(403).json(ERR);
+  }
+  const expectedWidth = ch.domText.length * ch.domFontSize * 0.6;
+  if (domWidth < expectedWidth * 0.3 || domWidth > expectedWidth * 2.0) {
+    return res.status(403).json(ERR);
+  }
+
+  if (!glRenderer || typeof glRenderer !== 'string' || glRenderer.length < 3) {
+    return res.status(403).json(ERR);
+  }
+  if (glPixel && Array.isArray(glPixel) && glPixel.length >= 3) {
+    const tol = 15;
+    const [er, eg, eb] = ch.glColor.map(v => Math.round(v * 255));
+    if (Math.abs(glPixel[0] - er) > tol || Math.abs(glPixel[1] - eg) > tol || Math.abs(glPixel[2] - eb) > tol) {
+      return res.status(403).json(ERR);
+    }
+  }
+
   ch.used = true;
 
   if (botDetection && (botDetection.bot === true || botDetection.totalLied > 0)) {

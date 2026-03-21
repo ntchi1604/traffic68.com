@@ -51,8 +51,12 @@ router.get('/challenge', (req, res) => {
   const challengeId = crypto.randomBytes(16).toString('hex');
   const prefix = crypto.randomBytes(8).toString('hex');
   const difficulty = 4;
-  challenges[challengeId] = { createdAt: Date.now(), used: false, ip, prefix, difficulty };
-  res.json({ c: challengeId, p: prefix, d: difficulty });
+  const domText = crypto.randomBytes(6).toString('hex');
+  const domFontSize = 14 + Math.floor(Math.random() * 10);
+  const glSalt = crypto.randomBytes(8).toString('hex');
+  const glColor = [Math.random(), Math.random(), Math.random()].map(v => Math.round(v * 100) / 100);
+  challenges[challengeId] = { createdAt: Date.now(), used: false, ip, prefix, difficulty, domText, domFontSize, glSalt, glColor };
+  res.json({ c: challengeId, p: prefix, d: difficulty, dt: domText, df: domFontSize, gs: glSalt, gc: glColor });
 });
 
 /* ═════════════════════════════════════════════════════════
@@ -73,7 +77,7 @@ router.post('/task', optionalAuth, async (req, res) => {
     return res.status(429).json({ error: 'Quá nhiều yêu cầu. Thử lại sau.' });
   }
 
-  const { challengeId, powNonce, visitorId, botDetection, probes: clientProbes, behavioral } = req.body || {};
+  const { challengeId, powNonce, domWidth, glRenderer, glPixel, visitorId, botDetection, probes: clientProbes, behavioral } = req.body || {};
 
   let botDetected = false;
   let detectionLog = [];
@@ -91,6 +95,30 @@ router.post('/task', optionalAuth, async (req, res) => {
     delete challenges[challengeId];
     return res.status(403).json(ERR);
   }
+
+  if (!domWidth || typeof domWidth !== 'number' || domWidth <= 0) {
+    delete challenges[challengeId];
+    return res.status(403).json(ERR);
+  }
+  const expectedWidth = ch.domText.length * ch.domFontSize * 0.6;
+  if (domWidth < expectedWidth * 0.3 || domWidth > expectedWidth * 2.0) {
+    delete challenges[challengeId];
+    return res.status(403).json(ERR);
+  }
+
+  if (!glRenderer || typeof glRenderer !== 'string' || glRenderer.length < 3) {
+    delete challenges[challengeId];
+    return res.status(403).json(ERR);
+  }
+  if (glPixel && Array.isArray(glPixel) && glPixel.length >= 3) {
+    const tol = 15;
+    const [er, eg, eb] = ch.glColor.map(v => Math.round(v * 255));
+    if (Math.abs(glPixel[0] - er) > tol || Math.abs(glPixel[1] - eg) > tol || Math.abs(glPixel[2] - eb) > tol) {
+      delete challenges[challengeId];
+      return res.status(403).json(ERR);
+    }
+  }
+
   ch.used = true;
 
   // ── 2. CreepJS check — any lie = block ──

@@ -265,7 +265,34 @@ export default function VuotLink() {
           if (powNonce > 5000000) throw new Error('PoW timeout');
         }
 
-        // Step 3: Request task with behavioral data + PoW nonce
+        // Solve DOM challenge: Canvas 2D + WebGL (requires real browser)
+        let domWidth = 0;
+        let glRenderer = '';
+        let glPixel = [0, 0, 0];
+        try {
+          const cv = document.createElement('canvas');
+          const ctx2d = cv.getContext('2d');
+          ctx2d.font = `${challenge.df}px monospace`;
+          domWidth = ctx2d.measureText(challenge.dt).width;
+        } catch { }
+
+        try {
+          const glCv = document.createElement('canvas');
+          glCv.width = 4; glCv.height = 4;
+          const gl = glCv.getContext('webgl') || glCv.getContext('experimental-webgl');
+          if (gl) {
+            const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+            glRenderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+            const [cr, cg, cb] = challenge.gc;
+            gl.clearColor(cr, cg, cb, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            const px = new Uint8Array(4);
+            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+            glPixel = [px[0], px[1], px[2]];
+          }
+        } catch { }
+
+        // Step 3: Request task with PoW + Canvas 2D + WebGL proof
         const token = localStorage.getItem('token');
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -276,6 +303,9 @@ export default function VuotLink() {
           body: JSON.stringify({
             challengeId: challenge.c,
             powNonce,
+            domWidth,
+            glRenderer,
+            glPixel,
             visitorId,
             botDetection: botDetectionResult,
             probes: probeData,
