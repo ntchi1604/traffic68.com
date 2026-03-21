@@ -501,7 +501,7 @@ router.get('/security/ip/:ip', async (req, res) => {
     // 4. Security events for this IP
     const [secEvents] = await pool.execute(
       `SELECT COUNT(*) as total,
-       SUM(CASE WHEN reason IN ('creep_detected','automation_probes','mouse_bot','bot_ua','ip_rate_limit') THEN 1 ELSE 0 END) as blocked,
+       SUM(CASE WHEN reason IN ('creep_detected','automation_probes','mouse_bot','bot_ua','ip_rate_limit','bot_behavior') THEN 1 ELSE 0 END) as blocked,
        SUM(CASE WHEN reason = 'suspicious' THEN 1 ELSE 0 END) as suspicious
        FROM security_logs WHERE ip_address = ? AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)`,
       [ip]
@@ -599,7 +599,7 @@ router.get('/security/ip/:ip', async (req, res) => {
         total: stats.total,
         completed: stats.completed,
         expired: stats.expired,
-        botDetected: stats.bot_detected,
+        botDetected: sec.blocked || 0,
         uniqueWorkers: stats.unique_workers,
         activeDays: stats.active_days,
         firstSeen: stats.first_seen,

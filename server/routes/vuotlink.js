@@ -186,8 +186,8 @@ router.post('/task', optionalAuth, async (req, res) => {
     waitTime = parseInt(tos) || 60;
   }
 
-  // Session expires after campaign waitTime + 3 minutes buffer
-  const expirySeconds = waitTime + 180;
+  // Task expires after 5 minutes — code cannot be used after expiry
+  const expirySeconds = 300;
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   const [result] = await pool.execute(

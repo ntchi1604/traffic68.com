@@ -56,6 +56,13 @@ function CopyId({ text }) {
 
 function DetailModal({ event: ev, onClose }) {
   const catNames = { interaction: 'Tương tác bắt buộc', mouse: 'Chuột', scroll: 'Cuộn trang', click: 'Click' };
+  const [ipData, setIpData] = useState(null);
+  const [ipLoading, setIpLoading] = useState(true);
+  useEffect(() => {
+    if (ev.ip_address) {
+      api.get(`/admin/security/ip/${ev.ip_address}`).then(d => { setIpData(d); setIpLoading(false); }).catch(() => setIpLoading(false));
+    } else { setIpLoading(false); }
+  }, [ev.ip_address]);
   const reasonLabels = {
     completed: 'Task hoàn thành',
     creep_detected: 'Giả mạo trình duyệt',
@@ -86,7 +93,6 @@ function DetailModal({ event: ev, onClose }) {
         detailItems.push({ label: 'Tổng mục giả mạo', value: bd.totalLied, danger: bd.totalLied > 0 });
         if (bd.liedSections?.length > 0) detailItems.push({ label: 'Các mục bị giả mạo', value: (Array.isArray(bd.liedSections) ? bd.liedSections : []).join(', '), danger: true });
       }
-      if (bd.headless != null) detailItems.push({ label: 'Headless', value: bd.headless ? 'Có' : 'Không', danger: !!bd.headless });
       if (bd.stealth != null) detailItems.push({ label: 'Stealth mode', value: bd.stealth ? 'Có' : 'Không', danger: !!bd.stealth });
       if (bd.creepError) detailItems.push({ label: 'CreepJS', value: 'Không load được (cross-domain)', warn: true });
       if (bd.creepTimeout) detailItems.push({ label: 'CreepJS', value: 'Quá thời gian', warn: true });
@@ -135,123 +141,176 @@ function DetailModal({ event: ev, onClose }) {
   const grouped = {};
   assessments.forEach(a => { if (!grouped[a.cat]) grouped[a.cat] = []; grouped[a.cat].push(a); });
 
+  const rc = ipData ? ({ high: { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-700', bar: 'bg-red-500' }, medium: { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', bar: 'bg-amber-500' }, low: { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', bar: 'bg-green-500' } }[ipData.riskLevel] || {}) : {};
+  const sevColors = { high: 'bg-red-100 text-red-700 border-red-200', medium: 'bg-amber-100 text-amber-700 border-amber-200', info: 'bg-blue-100 text-blue-700 border-blue-200' };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className={`px-6 py-4 rounded-t-2xl flex items-center justify-between ${isBlocked ? 'bg-red-50' : 'bg-amber-50'}`}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className={`px-6 py-4 rounded-t-2xl flex items-center justify-between ${isBlocked ? 'bg-red-50' : 'bg-green-50'}`}>
           <div>
-            <h3 className="text-sm font-black text-slate-800">Chi tiết bảo mật</h3>
+            <h3 className="text-sm font-black text-slate-800">Đánh giá chi tiết</h3>
             <p className="text-[11px] text-slate-500 mt-0.5">{fmtDate(ev.created_at)}</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/60 transition"><X size={16} className="text-slate-500" /></button>
         </div>
 
-        <div className="px-6 py-4 space-y-4">
-          <div className={`p-3 rounded-xl border text-sm font-semibold ${isBlocked ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
-            {reasonLabels[ev.reason] || ev.reason}
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
+          {/* LEFT: Behavioral Analysis */}
+          <div className="px-6 py-4 space-y-4 lg:border-r border-slate-100">
+            <div className={`p-3 rounded-xl border text-sm font-semibold ${isBlocked ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700'}`}>
+              {reasonLabels[ev.reason] || ev.reason}
+            </div>
 
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="bg-slate-50 rounded-lg p-3">
-              <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Nguồn</p>
-              <p className="font-semibold text-slate-700">{ev.source === 'widget' ? 'Script nhúng' : ev.source === 'vuotlink' ? 'Vượt link' : ev.source}</p>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="bg-slate-50 rounded-lg p-3">
+                <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Nguồn</p>
+                <p className="font-semibold text-slate-700">{ev.source === 'widget' ? 'Script nhúng' : ev.source === 'vuotlink' ? 'Vượt link' : ev.source}</p>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-3">
+                <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">IP</p>
+                <p className="font-mono font-semibold text-slate-700">{ev.ip_address}</p>
+              </div>
+              <div className="col-span-2 bg-slate-50 rounded-lg p-3">
+                <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Mã thiết bị</p>
+                <p className="font-mono text-slate-700 text-[11px] break-all">{ev.visitor_id || '—'}</p>
+              </div>
             </div>
-            <div className="bg-slate-50 rounded-lg p-3">
-              <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">IP</p>
-              <p className="font-mono font-semibold text-slate-700">{ev.ip_address}</p>
-            </div>
-            <div className="col-span-2 bg-slate-50 rounded-lg p-3">
-              <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Mã thiết bị</p>
-              <p className="font-mono text-slate-700 text-[11px] break-all">{ev.visitor_id || '—'}</p>
-            </div>
-          </div>
 
-          {detailItems.length > 0 && (
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Đánh giá hệ thống</p>
-              <div className="space-y-1.5">
-                {detailItems.map((item, i) => (
-                  <div key={i} className={`flex items-start justify-between px-3 py-2 rounded-lg text-xs ${item.danger ? 'bg-red-50' : item.warn ? 'bg-amber-50' : 'bg-slate-50'}`}>
-                    <span className={`font-medium ${item.danger ? 'text-red-700' : item.warn ? 'text-amber-700' : 'text-slate-600'}`}>
-                      {item.label}
-                    </span>
-                    <span className={`font-bold text-right max-w-[50%] break-all ${item.danger ? 'text-red-800' : item.warn ? 'text-amber-800' : 'text-slate-800'}`}>
-                      {item.value}
-                    </span>
+            {detailItems.filter(it => !['Headless'].includes(it.label)).length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Kiểm tra trình duyệt</p>
+                <div className="space-y-1.5">
+                  {detailItems.filter(it => !['Headless'].includes(it.label)).map((item, i) => (
+                    <div key={i} className={`flex items-start justify-between px-3 py-2 rounded-lg text-xs ${item.danger ? 'bg-red-50' : item.warn ? 'bg-amber-50' : 'bg-slate-50'}`}>
+                      <span className={`font-medium ${item.danger ? 'text-red-700' : item.warn ? 'text-amber-700' : 'text-slate-600'}`}>{item.label}</span>
+                      <span className={`font-bold text-right max-w-[50%] break-all ${item.danger ? 'text-red-800' : item.warn ? 'text-amber-800' : 'text-slate-800'}`}>{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {Object.keys(grouped).length > 0 ? (
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Phân tích hành vi</p>
+                {Object.entries(grouped).map(([cat, items]) => (
+                  <div key={cat} className="mb-3">
+                    <p className="text-xs font-bold text-slate-700 mb-1.5">{catNames[cat] || cat}</p>
+                    <div className="space-y-1">
+                      {items.map((a, i) => (
+                        <div key={i} className={`px-3 py-2 rounded-lg text-[11px] border ${a.flagged ? 'bg-red-50 border-red-200' : a.flagged === false ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
+                          <span className={`font-semibold ${a.flagged ? 'text-red-700' : a.flagged === false ? 'text-green-700' : 'text-slate-600'}`}>{a.note}</span>
+                          <div className="flex gap-3 mt-1 text-[10px] text-slate-500">
+                            <span>Giá trị: <b className="text-slate-700">{String(a.value)}</b></span>
+                            {a.threshold && <span>Ngưỡng bot: <b className="text-slate-700">{a.threshold}</b></span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="bg-slate-50 rounded-lg p-3 text-center">
+                <p className="text-[11px] text-slate-400">Chưa có dữ liệu phân tích hành vi</p>
+              </div>
+            )}
 
-          {Object.keys(grouped).length > 0 ? (
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Phân tích hành vi chi tiết</p>
-              {Object.entries(grouped).map(([cat, items]) => (
-                <div key={cat} className="mb-3">
-                  <p className="text-xs font-bold text-slate-700 mb-1.5">{catNames[cat] || cat}</p>
-                  <div className="space-y-1">
-                    {items.map((a, i) => (
-                      <div key={i} className={`px-3 py-2 rounded-lg text-[11px] border ${a.flagged ? 'bg-red-50 border-red-200' : a.flagged === false ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
-                        <span className={`font-semibold ${a.flagged ? 'text-red-700' : a.flagged === false ? 'text-green-700' : 'text-slate-600'}`}>
-                          {a.note}
-                        </span>
-                        <div className="flex gap-3 mt-1 text-[10px] text-slate-500">
-                          <span>Giá trị: <b className="text-slate-700">{String(a.value)}</b></span>
-                          {a.threshold && <span>Ngưỡng bot: <b className="text-slate-700">{a.threshold}</b></span>}
-                        </div>
-                      </div>
-                    ))}
+            {(() => {
+              let d2 = {};
+              try { d2 = JSON.parse(ev.details || '{}'); } catch { }
+              const bd2 = d2.botDetection || (d2.totalLied !== undefined ? d2 : null);
+              const creepLied2 = bd2 && bd2.totalLied > 0;
+              const creepBot2 = bd2 && bd2.bot === true;
+              const probes2 = d2.probes || {};
+              const hasAuto2 = probes2.webdriver || probes2.selenium || probes2.cdc;
+              const fc2 = (d2.assessments || []).filter(a => a.flagged).length;
+              const tc2 = (d2.assessments || []).length;
+              const isBot2 = isBlocked || creepBot2 || creepLied2 || hasAuto2 || fc2 > 0;
+              return (
+                <div className={`p-3 rounded-xl border-2 ${isBot2 ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-300'}`}>
+                  <p className={`text-xs font-black ${isBot2 ? 'text-red-800' : 'text-green-800'}`}>{isBot2 ? 'Kết luận: BOT' : 'Kết luận: Người dùng thật'}</p>
+                  {fc2 > 0 && <p className="text-[10px] text-red-600 mt-1">{fc2}/{tc2} kiểm tra bất thường</p>}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* RIGHT: IP Analysis */}
+          <div className="px-6 py-4 space-y-4">
+            <p className="text-[10px] font-bold text-slate-400 uppercase">Phân tích IP</p>
+            {ipLoading ? (
+              <div className="text-center py-8 text-xs text-slate-400">Đang phân tích IP...</div>
+            ) : !ipData ? (
+              <div className="text-center py-8 text-xs text-slate-400">Không thể phân tích IP</div>
+            ) : (
+              <div className="space-y-3">
+                <div className={`p-3 rounded-xl border-2 ${rc.bg} ${rc.border}`}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className={`text-xs font-black ${rc.text}`}>Rủi ro: {ipData.riskLevel === 'high' ? 'CAO' : ipData.riskLevel === 'medium' ? 'TB' : 'THẤP'}</span>
+                    <span className={`text-lg font-black ${rc.text}`}>{ipData.riskScore}</span>
+                  </div>
+                  <div className="w-full bg-white/60 rounded-full h-1.5">
+                    <div className={`h-1.5 rounded-full ${rc.bar}`} style={{ width: `${Math.min(ipData.riskScore, 100)}%` }} />
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-slate-50 rounded-lg p-3 text-center">
-              <p className="text-[11px] text-slate-400">Chưa có dữ liệu phân tích hành vi</p>
-            </div>
-          )}
-        </div>
 
-        {(() => {
-          let d = {};
-          try { d = JSON.parse(ev.details || '{}'); } catch { }
-          const bd = d.botDetection || (d.totalLied !== undefined ? d : null);
-          const creepLied = bd && bd.totalLied > 0;
-          const creepBot = bd && bd.bot === true;
-          const probes = d.probes || {};
-          const hasAutomation = probes.webdriver || probes.selenium || probes.cdc;
-          const flaggedCount = (d.assessments || []).filter(a => a.flagged).length;
-          const totalChecks = (d.assessments || []).length;
+                {ipData.risks.length > 0 && (
+                  <div className="space-y-1">
+                    {ipData.risks.map((r, i) => (
+                      <div key={i} className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border ${sevColors[r.severity] || sevColors.info}`}>{r.label}</div>
+                    ))}
+                  </div>
+                )}
 
-          let text, bg, border, textColor;
-          if (isBlocked || creepBot || creepLied || hasAutomation || flaggedCount > 0) {
-            text = 'Kết luận: BOT — Phát hiện hành vi tự động hóa';
-            bg = 'bg-red-50'; border = 'border-red-300'; textColor = 'text-red-800';
-          } else {
-            text = 'Kết luận: Người dùng thật — Không phát hiện tự động hóa';
-            bg = 'bg-green-50'; border = 'border-green-300'; textColor = 'text-green-800';
-          }
+                {ipData.geo && (
+                  <div className="bg-slate-50 rounded-xl p-3 text-xs space-y-1.5">
+                    <div className="flex justify-between"><span className="text-slate-400">Địa điểm</span><span className="font-bold text-slate-700">{ipData.geo.city || '—'}, {ipData.geo.country}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">ISP</span><span className="font-bold text-slate-700 text-right max-w-[60%]">{ipData.geo.isp}</span></div>
+                    <div className="flex gap-2 pt-1.5 border-t border-slate-200 flex-wrap">
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${ipData.geo.proxy ? 'bg-red-100 text-red-700 border-red-200' : 'bg-green-100 text-green-700 border-green-200'}`}>VPN: {ipData.geo.proxy ? 'Có' : '✕'}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${ipData.geo.hosting ? 'bg-red-100 text-red-700 border-red-200' : 'bg-green-100 text-green-700 border-green-200'}`}>DC: {ipData.geo.hosting ? 'Có' : '✕'}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${ipData.geo.mobile ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>Mobile: {ipData.geo.mobile ? 'Có' : '✕'}</span>
+                    </div>
+                  </div>
+                )}
 
-          const details = [];
-          if (flaggedCount > 0) details.push(`${flaggedCount}/${totalChecks} kiểm tra bất thường`);
-          if (creepLied) details.push(`Giả mạo ${bd.totalLied} mục trình duyệt`);
-          if (hasAutomation) details.push('Phát hiện công cụ tự động');
-          if (flaggedCount === 0 && !creepBot && !creepLied && bd && bd.bot === false && bd.totalLied === 0) details.push('Xác minh trình duyệt: Sạch');
-
-          return (
-            <div className={`mx-6 mb-4 p-4 rounded-xl border-2 ${bg} ${border}`}>
-              <p className={`text-sm font-black ${textColor}`}>{text}</p>
-              {details.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {details.map((d, i) => (
-                    <span key={i} className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${bg} ${textColor} border ${border}`}>{d}</span>
+                <div className="grid grid-cols-4 gap-2">
+                  {[['Tổng', ipData.stats.total, 'text-slate-800'], ['OK', ipData.stats.completed, 'text-green-600'], ['Hết hạn', ipData.stats.expired, 'text-amber-600'], ['Bot', ipData.stats.botDetected, 'text-red-600']].map(([l, v, c]) => (
+                    <div key={l} className="bg-slate-50 rounded-lg p-2 text-center">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">{l}</p>
+                      <p className={`text-lg font-black ${c}`}>{v || 0}</p>
+                    </div>
                   ))}
                 </div>
-              )}
-            </div>
-          );
-        })()}
+
+                {ipData.workers.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Workers ({ipData.stats.uniqueWorkers})</p>
+                    <div className="bg-slate-50 rounded-lg overflow-hidden">
+                      {ipData.workers.slice(0,5).map((w, i) => (
+                        <div key={i} className="flex justify-between px-3 py-1.5 border-b border-slate-100 last:border-0 text-[11px]">
+                          <span className="text-slate-700 font-medium">{w.name || w.email}</span>
+                          <span className="font-bold text-slate-500">{w.task_count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-slate-50 rounded-lg p-3 text-[11px]">
+                  <div className="flex gap-3">
+                    <span>Tổng: <b>{ipData.securityEvents.total}</b></span>
+                    <span>Chặn: <b className="text-red-600">{ipData.securityEvents.blocked}</b></span>
+                    <span>Ngờ: <b className="text-amber-600">{ipData.securityEvents.suspicious}</b></span>
+                  </div>
+                  {ipData.allTime && <p className="text-[10px] text-slate-400 mt-1">All-time: {ipData.allTime.total} tasks</p>}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="px-6 py-3 border-t border-slate-100">
           <button onClick={onClose} className="w-full py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition">Đóng</button>
@@ -497,7 +556,7 @@ export default function AdminSecurity() {
                 <tr><td colSpan={7} className="text-center py-12 text-slate-400">Chưa có sự kiện bảo mật nào</td></tr>
               ) : securityLogs.map(ev => {
                 const detectMethods = {
-                  completed: { label: 'Task OK', cls: 'bg-slate-100 text-slate-600' },
+                  completed: { label: 'Task OK', cls: 'bg-green-100 text-green-700' },
                   creep_detected: { label: 'Fingerprint', cls: 'bg-red-100 text-red-700' },
                   automation_probes: { label: 'Automation', cls: 'bg-red-100 text-red-700' },
                   mouse_bot: { label: 'Hành vi', cls: 'bg-orange-100 text-orange-700' },
