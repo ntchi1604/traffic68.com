@@ -406,7 +406,7 @@ router.get('/security', async (req, res) => {
 
 
     let countSql = `SELECT COUNT(*) as total FROM security_logs WHERE 1=1`;
-    let listSql = `SELECT id, source, reason, ip_address, visitor_id, created_at FROM security_logs WHERE 1=1`;
+    let listSql = `SELECT id, source, reason, ip_address, visitor_id, details, created_at FROM security_logs WHERE 1=1`;
     const params = [];
 
     if (search) {
@@ -421,7 +421,23 @@ router.get('/security', async (req, res) => {
 
     listSql += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
     const listParams = [...params, Number(limit), offset];
-    const [securityLogs] = await pool.execute(listSql, listParams);
+    const [rows] = await pool.execute(listSql, listParams);
+
+    // Compute is_bot for each row based on details assessments
+    const securityLogs = rows.map(row => {
+      let isBot = false;
+      try {
+        const d = JSON.parse(row.details || '{}');
+        if ((d.assessments || []).some(a => a.flagged)) isBot = true;
+        const bd = d.botDetection || (d.totalLied !== undefined ? d : null);
+        if (bd && (bd.bot === true || bd.totalLied > 0)) isBot = true;
+        const probes = d.probes || {};
+        if (probes.webdriver || probes.selenium || probes.cdc) isBot = true;
+      } catch {}
+      // Also check reason-based blocking
+      if (['creep_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'ip_rate_limit', 'bot_behavior'].includes(row.reason)) isBot = true;
+      return { id: row.id, source: row.source, reason: row.reason, ip_address: row.ip_address, visitor_id: row.visitor_id, created_at: row.created_at, is_bot: isBot };
+    });
 
     res.json({ securityLogs, total, page: Number(page), limit: Number(limit) });
   } catch (err) {
