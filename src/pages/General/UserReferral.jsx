@@ -6,15 +6,16 @@ import api from '../../lib/api';
 
 export default function UserReferral() {
   usePageTitle('Giới thiệu bạn bè');
-  const [data, setData] = useState({ referralCode: '', referrals: [], commissionPercent: '5' });
+  const [data, setData] = useState({ referralCode: '', referrals: [], commissionPercent: null });
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const location = useLocation();
   const isWorker = location.pathname.startsWith('/worker');
 
   useEffect(() => {
-    api.get('/users/referrals').then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+    const ctx = isWorker ? 'worker' : 'buyer';
+    api.get(`/users/referrals?context=${ctx}`).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+  }, [isWorker]);
 
   const refLink = `${window.location.origin}/dang-ky?ref=${data.referralCode}`;
   const pct = data.commissionPercent;
@@ -35,7 +36,7 @@ export default function UserReferral() {
       </div>
 
       {/* Promo Banner */}
-      <div className="relative overflow-hidden rounded-xl border-2 border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-6">
+      {pct && <div className="relative overflow-hidden rounded-xl border-2 border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-6">
         <div className="relative z-10">
           <p className="text-lg font-black text-slate-900 leading-snug">
             Tạo cơ hội kiếm thêm thu nhập với{' '}
@@ -54,7 +55,7 @@ export default function UserReferral() {
         </div>
         <div className="absolute -right-4 -top-4 w-32 h-32 bg-orange-200/30 rounded-full blur-2xl" />
         <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-amber-200/20 rounded-full blur-3xl" />
-      </div>
+      </div>}
 
       {/* Referral Link */}
       <div className="bg-white rounded-xl border border-slate-200 p-5">
