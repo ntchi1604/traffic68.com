@@ -1,20 +1,22 @@
 import { useState, useEffect } from 'react';
 import { Copy, Check } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import usePageTitle from '../../hooks/usePageTitle';
 import api from '../../lib/api';
 
 export default function UserReferral() {
   usePageTitle('Giới thiệu bạn bè');
-  const [data, setData] = useState({ referralCode: '', referrals: [], serviceType: 'traffic', commissionPercent: '5' });
+  const [data, setData] = useState({ referralCode: '', referrals: [], commissionPercent: '5' });
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const location = useLocation();
+  const isWorker = location.pathname.startsWith('/worker');
 
   useEffect(() => {
     api.get('/users/referrals').then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
   const refLink = `${window.location.origin}/dang-ky?ref=${data.referralCode}`;
-  const isWorker = data.serviceType === 'shortlink';
   const pct = data.commissionPercent;
 
   const copyLink = () => {
@@ -40,11 +42,15 @@ export default function UserReferral() {
             <span className="text-orange-600 text-2xl">{pct}%</span>{' '}
             {isWorker ? 'tổng thu nhập' : 'tổng nạp'} của người được giới thiệu
           </p>
-          <p className="text-sm text-slate-500 mt-2">
-            {isWorker
-              ? 'Bạn bè đăng ký Worker qua link của bạn → họ kiếm tiền → bạn nhận hoa hồng tự động'
-              : 'Bạn bè đăng ký Buyer qua link của bạn → họ nạp tiền → bạn nhận hoa hồng tự động'}
-          </p>
+          {isWorker ? (
+            <p className="text-sm text-slate-500 mt-2">
+              Chia sẻ link cho bạn bè → Họ đăng ký và làm nhiệm vụ vượt link → Mỗi khi họ nhận thu nhập, bạn tự động nhận <span className="font-bold text-slate-700">{pct}%</span> hoa hồng vào ví
+            </p>
+          ) : (
+            <p className="text-sm text-slate-500 mt-2">
+              Chia sẻ link cho bạn bè → Họ đăng ký và nạp tiền mua traffic → Mỗi khi họ nạp tiền, bạn tự động nhận <span className="font-bold text-slate-700">{pct}%</span> hoa hồng vào ví
+            </p>
+          )}
         </div>
         <div className="absolute -right-4 -top-4 w-32 h-32 bg-orange-200/30 rounded-full blur-2xl" />
         <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-amber-200/20 rounded-full blur-3xl" />
