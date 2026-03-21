@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Copy, Check, Gift, Share2 } from 'lucide-react';
+import { Copy, Check } from 'lucide-react';
 import usePageTitle from '../../hooks/usePageTitle';
 import api from '../../lib/api';
 
@@ -21,82 +21,72 @@ export default function UserReferral() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const activeCount = data.referrals.filter(r => r.status === 'active').length;
+
   return (
-    <div className="max-w-5xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
-          <Gift size={22} />
-        </div>
-        <div>
-          <h1 className="text-2xl font-black text-slate-900">Giới thiệu bạn bè</h1>
-          <p className="text-sm text-slate-500">Chia sẻ link và nhận thưởng khi bạn bè đăng ký</p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-slate-900">Giới thiệu bạn bè</h1>
+        <p className="text-sm text-slate-500 mt-1">Chia sẻ link và nhận thưởng khi bạn bè đăng ký</p>
       </div>
 
-      {/* Referral Link Card */}
-      <div className="bg-gradient-to-r from-violet-600 to-purple-600 rounded-2xl p-6 mb-6 text-white shadow-xl">
-        <div className="flex items-center gap-2 mb-3">
-          <Share2 size={18} />
-          <span className="font-bold text-sm">Link giới thiệu của bạn</span>
-        </div>
+      {/* Referral Link */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Link giới thiệu của bạn</p>
         <div className="flex items-center gap-2">
-          <div className="flex-1 bg-white/20 backdrop-blur rounded-xl px-4 py-3 font-mono text-sm truncate">
+          <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 font-mono text-sm text-slate-700 truncate">
             {loading ? '...' : refLink}
           </div>
           <button onClick={copyLink}
-            className="px-4 py-3 bg-white text-violet-700 rounded-xl font-bold text-sm hover:bg-violet-50 transition flex items-center gap-2 shrink-0">
-            {copied ? <><Check size={16} /> Đã sao chép</> : <><Copy size={16} /> Sao chép</>}
+            className={`px-4 py-3 rounded-lg font-bold text-sm transition flex items-center gap-2 shrink-0 ${copied ? 'bg-green-500 text-white' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}>
+            {copied ? <><Check size={16} /> Đã chép</> : <><Copy size={16} /> Sao chép</>}
           </button>
         </div>
-        <p className="text-violet-200 text-xs mt-3">Mã giới thiệu: <span className="font-mono font-bold text-white">{data.referralCode || '...'}</span></p>
+        <p className="text-slate-400 text-xs mt-2">Mã giới thiệu: <span className="font-mono font-bold text-slate-600">{data.referralCode || '...'}</span></p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 font-semibold uppercase">Tổng người giới thiệu</p>
-          <p className="text-3xl font-black text-violet-600 mt-1">{data.referrals.length}</p>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 font-semibold uppercase">Tổng giới thiệu</p>
+          <p className="text-3xl font-black text-slate-800 mt-1">{data.referrals.length}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 font-semibold uppercase">Đang hoạt động</p>
-          <p className="text-3xl font-black text-emerald-600 mt-1">
-            {data.referrals.filter(r => r.status === 'active').length}
-          </p>
+          <p className="text-3xl font-black text-green-600 mt-1">{activeCount}</p>
         </div>
       </div>
 
-      {/* Referral List */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
-          <Users size={18} className="text-violet-600" />
-          <h2 className="font-bold text-slate-800">Danh sách người được giới thiệu</h2>
+      {/* List */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100">
+          <h2 className="font-bold text-slate-800 text-sm">Danh sách người được giới thiệu</h2>
         </div>
         {loading ? (
-          <div className="text-center py-12 text-slate-400">Đang tải...</div>
+          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : data.referrals.length === 0 ? (
-          <div className="text-center py-12">
-            <Gift size={40} className="mx-auto text-slate-300 mb-3" />
+          <div className="text-center py-16">
             <p className="text-slate-400 font-medium">Chưa có ai đăng ký qua link của bạn</p>
-            <p className="text-slate-400 text-sm mt-1">Chia sẻ link giới thiệu để bắt đầu nhận thưởng!</p>
+            <p className="text-slate-400 text-sm mt-1">Chia sẻ link giới thiệu để bắt đầu nhận thưởng</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase">#</th>
-                  <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase">Người dùng</th>
-                  <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase">Loại</th>
-                  <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase">Trạng thái</th>
-                  <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase">Ngày tham gia</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">#</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Người dùng</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Loại</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Trạng thái</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Ngày tham gia</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {data.referrals.map((r, i) => (
-                  <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
-                    <td className="px-5 py-3 text-slate-400 text-sm">{i + 1}</td>
+                  <tr key={r.id} className="hover:bg-slate-50/50 transition">
+                    <td className="px-5 py-3 text-slate-400">{i + 1}</td>
                     <td className="px-5 py-3">
-                      <p className="font-semibold text-sm text-slate-800">{r.name || r.email}</p>
+                      <p className="font-semibold text-slate-800">{r.name || r.email}</p>
                       <p className="text-xs text-slate-400">{r.email}</p>
                     </td>
                     <td className="px-5 py-3">

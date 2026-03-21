@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Search, ChevronDown, ChevronRight, Gift, Percent, Save, Check } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, Save, Check } from 'lucide-react';
 import usePageTitle from '../../hooks/usePageTitle';
 import api from '../../lib/api';
 
@@ -50,20 +50,16 @@ export default function AdminReferrals({ type = 'buyers' }) {
   const toggle = (id) => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900">Referral {label}</h1>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-slate-900">Referral {label}</h1>
+        <p className="text-sm text-slate-500 mt-1">Quản lý giới thiệu {type === 'workers' ? 'worker' : 'buyer'}</p>
       </div>
 
       {/* Commission + Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Percent size={14} className="text-amber-600" />
-            <p className="text-xs text-slate-500 font-semibold uppercase">Hoa hồng {label}</p>
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 font-semibold uppercase mb-2">Hoa hồng {label}</p>
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <input
@@ -80,34 +76,31 @@ export default function AdminReferrals({ type = 'buyers' }) {
             </button>
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 font-semibold uppercase">Tổng người giới thiệu</p>
-          <p className="text-3xl font-black text-violet-600 mt-1">{data.totalReferrers}</p>
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 font-semibold uppercase">Người giới thiệu</p>
+          <p className="text-3xl font-black text-slate-800 mt-1">{data.totalReferrers}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 font-semibold uppercase">Tổng được giới thiệu</p>
-          <p className="text-3xl font-black text-emerald-600 mt-1">{data.totalReferred}</p>
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 font-semibold uppercase">Được giới thiệu</p>
+          <p className="text-3xl font-black text-green-600 mt-1">{data.totalReferred}</p>
         </div>
       </div>
 
       {/* Search */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1 max-w-md">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Tìm theo tên, email, mã referral..."
-            className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30"
-          />
-        </div>
+      <div className="relative max-w-md">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Tìm theo tên, email, mã referral..."
+          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+        />
       </div>
 
       {/* Referrer list */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         {loading ? (
-          <div className="text-center py-12 text-slate-400">Đang tải...</div>
+          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : data.referrers.length === 0 ? (
-          <div className="text-center py-12 text-slate-400">
-            <Users size={40} className="mx-auto text-slate-300 mb-3" />
+          <div className="text-center py-16 text-slate-400">
             <p className="font-medium">Chưa có referral nào</p>
           </div>
         ) : (
@@ -117,16 +110,16 @@ export default function AdminReferrals({ type = 'buyers' }) {
                 <button onClick={() => toggle(ref.id)}
                   className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition text-left">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+                    <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-sm shrink-0">
                       {(ref.name || ref.email || '?').charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <p className="font-semibold text-sm text-slate-800">{ref.name || ref.email}</p>
-                      <p className="text-xs text-slate-400">{ref.email} • Mã: <span className="font-mono text-violet-600">{ref.referral_code}</span></p>
+                      <p className="text-xs text-slate-400">{ref.email} · Mã: <span className="font-mono text-slate-600">{ref.referral_code}</span></p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="px-3 py-1 rounded-full bg-violet-50 text-violet-700 text-xs font-bold">
+                    <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">
                       {ref.ref_count} người
                     </span>
                     {expanded[ref.id] ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronRight size={16} className="text-slate-400" />}
@@ -134,9 +127,9 @@ export default function AdminReferrals({ type = 'buyers' }) {
                 </button>
                 {expanded[ref.id] && ref.referred && (
                   <div className="bg-slate-50/50 px-5 pb-4">
-                    <table className="w-full">
+                    <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-[10px] font-bold text-slate-500 uppercase">
+                        <tr className="text-xs font-semibold text-slate-500">
                           <th className="text-left py-2 px-3">Người dùng</th>
                           <th className="text-left py-2 px-3">Loại</th>
                           <th className="text-left py-2 px-3">Trạng thái</th>
@@ -147,7 +140,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
                         {ref.referred.map(r => (
                           <tr key={r.id} className="border-t border-slate-100">
                             <td className="py-2 px-3">
-                              <p className="text-sm font-semibold text-slate-700">{r.name || r.email}</p>
+                              <p className="font-semibold text-slate-700">{r.name || r.email}</p>
                               <p className="text-xs text-slate-400">{r.email}</p>
                             </td>
                             <td className="py-2 px-3">
