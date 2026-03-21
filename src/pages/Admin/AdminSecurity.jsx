@@ -4,7 +4,7 @@ import {
   Shield, Fingerprint, Bot, MousePointer2, Eye, AlertTriangle,
   CheckCircle2, XCircle, Clock, RefreshCw, Search, ChevronDown,
   Monitor, Smartphone, Globe, TrendingUp, Users, Activity,
-  MessageSquare, Save,
+  MessageSquare, Save, X, Info,
 } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -54,6 +54,181 @@ function RiskBadge({ level }) {
   );
 }
 
+/* ── Copy ID (truncated + copy button) ── */
+function CopyId({ value }) {
+  const [copied, setCopied] = useState(false);
+  if (!value) return <span className="text-slate-300">—</span>;
+  const short = value.length > 12 ? value.substring(0, 12) + '...' : value;
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="text-xs font-mono text-slate-500 truncate max-w-[90px]" title={value}>{short}</span>
+      <button onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+        className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition ${copied ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'}`}>
+        {copied ? '✓' : 'Copy'}
+      </button>
+    </span>
+  );
+}
+
+/* ── Warning/key Vietnamese translations ── */
+const WARNING_VI = {
+  'zero_interaction': 'Không có tương tác nào (chuột, bàn phím, cuộn trang)',
+  'no_mouse_during_countdown': 'Không di chuột trong suốt quá trình đếm ngược',
+  'zero_plugins': 'Trình duyệt không có plugin (thường là headless)',
+  'zero_rtt': 'Độ trễ mạng bằng 0 (thường là bot)',
+  'zero_languages': 'Không có ngôn ngữ trong trình duyệt',
+  'no_chrome_runtime': 'Thiếu Chrome Runtime (có thể giả mạo Chrome)',
+  'mouse_warning': 'Hành vi chuột đáng ngờ',
+  'fast_load': 'Tải trang quá nhanh',
+  'repeat_device': 'Thiết bị lặp lại nhiều lần',
+  'vm_screen': 'Độ phân giải màn hình giống máy ảo',
+};
+const KEY_VI = {
+  webdriver: 'Webdriver (tự động hóa)', cdc: 'Chrome DevTools Protocol', selenium: 'Selenium',
+  pluginCount: 'Số plugin trình duyệt', langCount: 'Số ngôn ngữ', hasChrome: 'Là trình duyệt Chrome',
+  hasChromeRuntime: 'Có Chrome Runtime', notifPerm: 'Quyền thông báo', rtt: 'Độ trễ mạng (ms)',
+  score: 'Điểm nguy cơ chuột', reasons: 'Lý do phát hiện', count: 'Số lần truy cập',
+  probeWarnings: 'Cảnh báo từ hệ thống', mouseScore: 'Điểm nguy cơ chuột',
+  mousePoints: 'Số điểm chuột ghi nhận', clicks: 'Số lần nhấp chuột',
+  scrolls: 'Số lần cuộn trang', keys: 'Số phím bấm', loadTime: 'Thời gian tải (ms)',
+  screen: 'Màn hình', countdownTime: 'Thời gian đếm ngược',
+  totalLied: 'Số mục giả mạo', liedSections: 'Các mục bị giả mạo',
+  bot: 'Phát hiện bot', totalLied: 'Tổng mục giả mạo',
+};
+
+function parseWarning(w) {
+  const m = w.match(/^(\w+)\((.+)\)$/);
+  if (m) {
+    const base = WARNING_VI[m[1]] || m[1];
+    return { label: base, value: m[2] };
+  }
+  return { label: WARNING_VI[w] || w, value: null };
+}
+
+/* ── Detail Modal ── */
+function DetailModal({ event: ev, onClose }) {
+  const reasonLabels = {
+    creep_detected: 'Giả mạo trình duyệt (CreepJS phát hiện lied)',
+    creep_warning: 'Nghi ngờ giả mạo trình duyệt',
+    botd_detected: 'Phát hiện bot tự động',
+    automation_probes: 'Sử dụng công cụ tự động hóa (Selenium, Webdriver...)',
+    mouse_bot: 'Hành vi chuột không tự nhiên — giả lập bằng bot',
+    bot_ua: 'User-Agent thuộc trình duyệt bot/crawler',
+    zero_screen: 'Không có màn hình — chạy headless (không giao diện)',
+    ip_rate_limit: 'IP truy cập quá nhiều lần trong thời gian ngắn',
+    suspicious: 'Có nhiều dấu hiệu đáng ngờ nhưng chưa đủ chặn',
+    probe_warning: 'Phát hiện dấu hiệu tự động hóa nhẹ',
+  };
+  const sourceVi = { vuotlink: 'Trang vượt link', widget: 'Script nhúng trên web' };
+  const isBlocked = ['creep_detected', 'botd_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'zero_screen', 'ip_rate_limit'].includes(ev.reason);
+
+  let detailItems = [];
+  try {
+    const d = JSON.parse(ev.details || '{}');
+    if (d.totalLied !== undefined) {
+      detailItems.push({ label: 'Tổng mục giả mạo', value: d.totalLied, danger: d.totalLied > 0 });
+      if (d.liedSections?.length > 0) {
+        detailItems.push({ label: 'Các mục bị giả mạo', value: d.liedSections.join(', '), danger: true });
+      }
+      if (d.headless != null) detailItems.push({ label: 'Headless', value: d.headless ? 'Có' : 'Không', danger: !!d.headless });
+      if (d.stealth != null) detailItems.push({ label: 'Stealth mode', value: d.stealth ? 'Có' : 'Không', danger: !!d.stealth });
+    } else if (d.warnings) {
+      d.warnings.forEach(w => {
+        const parsed = parseWarning(w);
+        detailItems.push({ label: parsed.label, value: parsed.value || 'Phát hiện', danger: false, warn: true });
+      });
+      if (d.mouseScore) detailItems.push({ label: 'Điểm nguy cơ chuột', value: `${d.mouseScore}/100`, danger: d.mouseScore >= 50 });
+      if (d.mousePoints != null) detailItems.push({ label: 'Số điểm chuột', value: d.mousePoints });
+      if (d.clicks != null) detailItems.push({ label: 'Số lần nhấp', value: d.clicks });
+      if (d.scrolls != null) detailItems.push({ label: 'Số lần cuộn', value: d.scrolls });
+      if (d.keys != null) detailItems.push({ label: 'Số phím bấm', value: d.keys });
+      if (d.loadTime) detailItems.push({ label: 'Thời gian tải trang', value: `${d.loadTime}ms`, warn: d.loadTime < 2000 });
+      if (d.screen) detailItems.push({ label: 'Màn hình', value: `${d.screen.w}×${d.screen.h} (${d.screen.dpr || 1}x)` });
+    } else {
+      Object.entries(d).forEach(([k, v]) => {
+        if (v === undefined || v === null || v === '') return;
+        const label = KEY_VI[k] || k;
+        let val = v;
+        if (typeof v === 'boolean') val = v ? 'Có' : 'Không';
+        else if (Array.isArray(v)) val = v.map(i => WARNING_VI[i] || i).join(', ');
+        else if (typeof v === 'object') val = JSON.stringify(v);
+        detailItems.push({ label, value: String(val), danger: (k === 'webdriver' || k === 'cdc' || k === 'selenium') && v === true });
+      });
+    }
+  } catch { detailItems.push({ label: 'Dữ liệu thô', value: ev.details }); }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className={`px-6 py-4 rounded-t-2xl flex items-center justify-between ${isBlocked ? 'bg-red-50' : 'bg-amber-50'}`}>
+          <div>
+            <h3 className="text-sm font-black text-slate-800">Chi tiết sự kiện bảo mật</h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">{timeAgo(ev.created_at)}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/60 transition">
+            <X size={16} className="text-slate-500" />
+          </button>
+        </div>
+
+        <div className="px-6 py-4 space-y-4">
+          {/* Summary */}
+          <div className={`p-3 rounded-xl border text-sm font-semibold ${isBlocked ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+            {isBlocked ? '🚫 ' : '⚠️ '}{reasonLabels[ev.reason] || ev.reason}
+          </div>
+
+          {/* Info grid */}
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="bg-slate-50 rounded-lg p-3">
+              <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Nguồn</p>
+              <p className="font-semibold text-slate-700">{sourceVi[ev.source] || ev.source}</p>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-3">
+              <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Địa chỉ IP</p>
+              <p className="font-mono font-semibold text-slate-700">{ev.ip_address}</p>
+            </div>
+            <div className="col-span-2 bg-slate-50 rounded-lg p-3">
+              <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Mã thiết bị</p>
+              <p className="font-mono text-slate-700 text-[11px] break-all">{ev.visitor_id || '—'}</p>
+            </div>
+            {ev.user_agent && (
+              <div className="col-span-2 bg-slate-50 rounded-lg p-3">
+                <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Trình duyệt</p>
+                <p className="text-slate-600 text-[10px] break-all leading-relaxed">{ev.user_agent}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Detail items */}
+          {detailItems.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Đánh giá chi tiết</p>
+              <div className="space-y-1.5">
+                {detailItems.map((item, i) => (
+                  <div key={i} className={`flex items-start justify-between px-3 py-2 rounded-lg text-xs ${item.danger ? 'bg-red-50' : item.warn ? 'bg-amber-50' : 'bg-slate-50'}`}>
+                    <span className={`font-medium ${item.danger ? 'text-red-700' : item.warn ? 'text-amber-700' : 'text-slate-600'}`}>
+                      {item.danger ? '🔴 ' : item.warn ? '🟡 ' : '⚪ '}{item.label}
+                    </span>
+                    <span className={`font-bold text-right max-w-[50%] break-all ${item.danger ? 'text-red-800' : item.warn ? 'text-amber-800' : 'text-slate-800'}`}>
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-3 border-t border-slate-100">
+          <button onClick={onClose} className="w-full py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition">
+            Đóng
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main ── */
 export default function AdminSecurity() {
   usePageTitle('Admin - Bảo mật');
@@ -66,8 +241,9 @@ export default function AdminSecurity() {
   const [filter, setFilter] = useState('all'); // all, blocked, warning, passed
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [editingNote, setEditingNote] = useState(null); // task id being edited
+  const [editingNote, setEditingNote] = useState(null);
   const [noteText, setNoteText] = useState('');
+  const [detailEvent, setDetailEvent] = useState(null); // security event detail modal
 
   const saveNote = async (taskId) => {
     try {
@@ -232,8 +408,8 @@ export default function AdminSecurity() {
                         <tr key={log.id} className="hover:bg-slate-50 transition">
                           <td className="px-4 py-3 text-xs font-mono text-slate-600">#{log.id}</td>
                           <td className="px-4 py-3 text-xs font-mono text-slate-700">{log.ip_address}</td>
-                          <td className="px-4 py-3 text-xs font-mono text-slate-500 max-w-[100px] truncate">
-                            {log.visitor_id ? `${log.visitor_id.substring(0, 12)}...` : '—'}
+                          <td className="px-4 py-3">
+                            <CopyId value={log.visitor_id} />
                           </td>
                           <td className="px-4 py-3">
                             <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-full ${log.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
@@ -343,47 +519,6 @@ export default function AdminSecurity() {
                         probe_warning: '⚠️ Cảnh báo tự động hóa',
                       };
                       const isBlocked = ['creep_detected', 'botd_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'zero_screen', 'ip_rate_limit'].includes(ev.reason);
-                      /* ── Format chi tiết bằng tiếng Việt ── */
-                      const warningVi = {
-                        'zero_interaction': 'Không có tương tác',
-                        'no_mouse_during_countdown': 'Không di chuột khi đếm ngược',
-                        'zero_plugins': 'Không có plugin',
-                        'zero_rtt': 'Độ trễ mạng = 0',
-                        'zero_languages': 'Không có ngôn ngữ',
-                        'no_chrome_runtime': 'Thiếu Chrome runtime',
-                      };
-                      let details = '';
-                      try {
-                        const d = JSON.parse(ev.details || '{}');
-                        if (d.totalLied !== undefined) {
-                          const sections = (d.liedSections || []).join(', ');
-                          details = `Số mục giả mạo: ${d.totalLied}${sections ? ' — Mục: ' + sections : ''}`;
-                        } else if (d.warnings) {
-                          details = d.warnings.map(w => {
-                            const m = w.match(/^(\w+)\((.+)\)$/);
-                            if (m) {
-                              const base = warningVi[m[1]] || m[1];
-                              return `${base} (${m[2]})`;
-                            }
-                            return warningVi[w] || w;
-                          }).join(', ');
-                        } else {
-                          const keyVi = {
-                            webdriver: 'Webdriver', cdc: 'Chrome DevTools', selenium: 'Selenium',
-                            pluginCount: 'Số plugin', langCount: 'Số ngôn ngữ', hasChrome: 'Có Chrome',
-                            hasChromeRuntime: 'Có Chrome Runtime', notifPerm: 'Quyền thông báo',
-                            rtt: 'Độ trễ mạng', score: 'Điểm nguy cơ', reasons: 'Lý do',
-                            count: 'Số lần', probeWarnings: 'Cảnh báo',
-                          };
-                          details = Object.entries(d).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => {
-                            const label = keyVi[k] || k;
-                            if (typeof v === 'boolean') return `${label}: ${v ? 'Có' : 'Không'}`;
-                            if (Array.isArray(v)) return `${label}: ${v.map(i => warningVi[i] || i).join(', ')}`;
-                            if (typeof v === 'object') return `${label}: ${JSON.stringify(v).substring(0, 50)}`;
-                            return `${label}: ${v}`;
-                          }).join(' · ');
-                        }
-                      } catch { details = ev.details; }
                       return (
                         <tr key={ev.id} className="hover:bg-slate-50 transition">
                           <td className="px-4 py-3">
@@ -397,11 +532,14 @@ export default function AdminSecurity() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-xs font-mono text-slate-700">{ev.ip_address}</td>
-                          <td className="px-4 py-3 text-xs font-mono text-slate-500 max-w-[100px] truncate">
-                            {ev.visitor_id ? `${ev.visitor_id.substring(0, 12)}...` : '—'}
+                          <td className="px-4 py-3">
+                            <CopyId value={ev.visitor_id} />
                           </td>
-                          <td className="px-4 py-3 text-[10px] text-slate-500 max-w-[200px] truncate" title={details}>
-                            {details || '—'}
+                          <td className="px-4 py-3">
+                            <button onClick={() => setDetailEvent(ev)}
+                              className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
+                              <Info size={11} /> Xem chi tiết
+                            </button>
                           </td>
                           <td className="px-4 py-3">
                             <RiskBadge level={isBlocked ? 'blocked' : 'warning'} />
@@ -421,6 +559,9 @@ export default function AdminSecurity() {
                 </table>
               </>
             )}
+
+            {/* Detail Modal */}
+            {detailEvent && <DetailModal event={detailEvent} onClose={() => setDetailEvent(null)} />}
 
             {/* Pagination */}
             <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between">
