@@ -108,12 +108,16 @@ router.put('/password', async (req, res) => {
 router.get('/referrals', async (req, res) => {
   try {
     const pool = getPool();
-    const [me] = await pool.execute('SELECT referral_code FROM users WHERE id = ?', [req.userId]);
+    const [me] = await pool.execute('SELECT referral_code, service_type FROM users WHERE id = ?', [req.userId]);
     const [refs] = await pool.execute(
       `SELECT id, name, email, service_type, status, created_at FROM users WHERE referred_by = ? ORDER BY created_at DESC`,
       [req.userId]
     );
-    res.json({ referralCode: me[0]?.referral_code || '', referrals: refs });
+    const serviceType = me[0]?.service_type || 'traffic';
+    const commKey = serviceType === 'shortlink' ? 'referral_commission_worker' : 'referral_commission_buyer';
+    const [commRows] = await pool.execute('SELECT setting_value FROM site_settings WHERE setting_key = ?', [commKey]);
+    const commissionPercent = commRows[0]?.setting_value || '5';
+    res.json({ referralCode: me[0]?.referral_code || '', referrals: refs, serviceType, commissionPercent });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

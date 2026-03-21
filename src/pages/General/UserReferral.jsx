@@ -5,7 +5,7 @@ import api from '../../lib/api';
 
 export default function UserReferral() {
   usePageTitle('Giới thiệu bạn bè');
-  const [data, setData] = useState({ referralCode: '', referrals: [] });
+  const [data, setData] = useState({ referralCode: '', referrals: [], serviceType: 'traffic', commissionPercent: '5' });
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -14,6 +14,8 @@ export default function UserReferral() {
   }, []);
 
   const refLink = `${window.location.origin}/dang-ky?ref=${data.referralCode}`;
+  const isWorker = data.serviceType === 'shortlink';
+  const pct = data.commissionPercent;
 
   const copyLink = () => {
     navigator.clipboard.writeText(refLink);
@@ -28,6 +30,24 @@ export default function UserReferral() {
       <div>
         <h1 className="text-2xl font-black text-slate-900">Giới thiệu bạn bè</h1>
         <p className="text-sm text-slate-500 mt-1">Chia sẻ link và nhận thưởng khi bạn bè đăng ký</p>
+      </div>
+
+      {/* Promo Banner */}
+      <div className="relative overflow-hidden rounded-xl border-2 border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-6">
+        <div className="relative z-10">
+          <p className="text-lg font-black text-slate-900 leading-snug">
+            Tạo cơ hội kiếm thêm thu nhập với{' '}
+            <span className="text-orange-600 text-2xl">{pct}%</span>{' '}
+            {isWorker ? 'tổng thu nhập' : 'tổng nạp'} của người được giới thiệu
+          </p>
+          <p className="text-sm text-slate-500 mt-2">
+            {isWorker
+              ? 'Bạn bè đăng ký Worker qua link của bạn → họ kiếm tiền → bạn nhận hoa hồng tự động'
+              : 'Bạn bè đăng ký Buyer qua link của bạn → họ nạp tiền → bạn nhận hoa hồng tự động'}
+          </p>
+        </div>
+        <div className="absolute -right-4 -top-4 w-32 h-32 bg-orange-200/30 rounded-full blur-2xl" />
+        <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-amber-200/20 rounded-full blur-3xl" />
       </div>
 
       {/* Referral Link */}
