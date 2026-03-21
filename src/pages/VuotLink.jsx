@@ -242,9 +242,6 @@ export default function VuotLink() {
         if (window.clarity) {
           window.clarity('set', 'visitor_id', visitorId);
           window.clarity('identify', visitorId);
-          console.log('[VuotLink] Clarity tagged:', visitorId);
-        } else {
-          console.warn('[VuotLink] Clarity not loaded');
         }
 
         // Step 2: Get challenge + solve Proof-of-Work
