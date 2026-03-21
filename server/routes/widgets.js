@@ -44,76 +44,211 @@ setInterval(() => {
 }, 30000);
 
 /* ═══════════════════════════════════════════════════════════
-   MOUSE TRAJECTORY ANALYSIS (same as vuotlink.js)
-   Analyzes raw mouse data to detect bot patterns
+   BEHAVIORAL ANALYSIS v2 — 5 categories
+   Analyzes comprehensive behavioral data to detect bots
 ═══════════════════════════════════════════════════════════ */
-function analyzeMouseTrail(trail) {
-  if (!trail || !Array.isArray(trail) || trail.length < 5) return { score: 0, reasons: [] };
+function _cv(arr) {
+  // Coefficient of Variation — lower = more uniform (bot-like)
+  if (!arr || arr.length < 3) return 999;
+  const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+  if (avg === 0) return 0;
+  const variance = arr.reduce((a, b) => a + (b - avg) ** 2, 0) / arr.length;
+  return Math.sqrt(variance) / avg;
+}
+
+function analyzeBehavior(b) {
+  if (!b) return { score: 0, reasons: [] };
   let score = 0;
   const reasons = [];
+  const trail = b.mouseTrail || [];
+  const n = trail.length;
 
-  // 1. Linear movement
-  let linearCount = 0;
-  for (let i = 2; i < trail.length; i++) {
-    const dx1 = trail[i].x - trail[i-1].x, dy1 = trail[i].y - trail[i-1].y;
-    const dx0 = trail[i-1].x - trail[i-2].x, dy0 = trail[i-1].y - trail[i-2].y;
-    if (Math.abs(dx1 * dy0 - dy1 * dx0) < 2) linearCount++;
+  // ═══════════════════════════════════════
+  // 1. MOUSE DYNAMICS
+  // ═══════════════════════════════════════
+
+  if (n >= 10) {
+    // 1a. Linearity — bot moves in perfect straight lines
+    //     Cross-product of consecutive vectors ≈ 0 means collinear
+    let linearCount = 0;
+    for (let i = 2; i < n; i++) {
+      const dx1 = trail[i].x - trail[i-1].x, dy1 = trail[i].y - trail[i-1].y;
+      const dx0 = trail[i-1].x - trail[i-2].x, dy0 = trail[i-1].y - trail[i-2].y;
+      const cross = Math.abs(dx1 * dy0 - dy1 * dx0);
+      const mag = Math.sqrt(dx1*dx1+dy1*dy1) * Math.sqrt(dx0*dx0+dy0*dy0);
+      if (mag > 0 && cross / mag < 0.05) linearCount++;
+    }
+    const linearRatio = linearCount / (n - 2);
+    if (linearRatio > 0.85 && n > 15) {
+      score += 20;
+      reasons.push('linear_movement');
+    }
+
+    // 1b. Acceleration & jitter — humans: accel → peak → decel
+    //     Bots: constant velocity (very low speed CV)
+    const speeds = [];
+    for (let i = 1; i < n; i++) {
+      const dx = trail[i].x - trail[i-1].x, dy = trail[i].y - trail[i-1].y;
+      const dt = trail[i].t - trail[i-1].t;
+      if (dt > 0) speeds.push(Math.sqrt(dx*dx + dy*dy) / dt);
+    }
+    const speedCV = _cv(speeds);
+    if (speeds.length > 8 && speedCV < 0.1) {
+      score += 20;
+      reasons.push('constant_velocity');
+    }
+
+    // 1c. Micro-variations (jitter) — humans produce tiny random deviations
+    //     Calculate perpendicular distance from straight line start→end
+    if (n > 10) {
+      const sx = trail[0].x, sy = trail[0].y;
+      const ex = trail[n-1].x, ey = trail[n-1].y;
+      const lineLen = Math.sqrt((ex-sx)**2 + (ey-sy)**2);
+      if (lineLen > 50) { // Only check if mouse moved a meaningful distance
+        let totalDeviation = 0;
+        for (let i = 1; i < n - 1; i++) {
+          // Perpendicular distance from point to line
+          const d = Math.abs((ey-sy)*(trail[i].x-sx) - (ex-sx)*(trail[i].y-sy)) / lineLen;
+          totalDeviation += d;
+        }
+        const avgDeviation = totalDeviation / (n - 2);
+        // Humans: avgDeviation > 3px. Bots/bezier: < 1px
+        if (avgDeviation < 0.5) {
+          score += 15;
+          reasons.push('no_micro_jitter');
+        }
+      }
+    }
+
+    // 1d. Fake timestamps
+    const uniqueTimes = new Set(trail.map(p => p.t)).size;
+    if (uniqueTimes <= 3 && n > 10) {
+      score += 30;
+      reasons.push('fake_timestamps');
+    }
+
+    // 1e. Timestamp regularity (script fires at fixed interval)
+    if (n > 15) {
+      const ints = [];
+      for (let i = 1; i < n; i++) ints.push(trail[i].t - trail[i-1].t);
+      const intCV = _cv(ints);
+      if (intCV < 0.12) {
+        score += 25;
+        reasons.push('regular_intervals');
+      }
+    }
   }
-  if (linearCount / (trail.length - 2) > 0.8) { score += 30; reasons.push('linear_mouse'); }
 
-  // 2. Constant velocity (speed variance)
-  const speeds = [];
-  for (let i = 1; i < trail.length; i++) {
-    const dx = trail[i].x - trail[i-1].x, dy = trail[i].y - trail[i-1].y;
-    const dt = trail[i].t - trail[i-1].t;
-    if (dt > 0) speeds.push(Math.sqrt(dx*dx + dy*dy) / dt);
-  }
-  if (speeds.length > 3) {
-    const avg = speeds.reduce((a,b) => a+b, 0) / speeds.length;
-    const v = speeds.reduce((a,b) => a + (b - avg) ** 2, 0) / speeds.length;
-    if (avg > 0 && v / (avg ** 2) < 0.1) { score += 25; reasons.push('constant_velocity'); }
+  // 1f. Too few mousemove events (bot clicks directly without hovering)
+  const clickCount = (b.clickPositions || []).length;
+  if (n < 5 && clickCount > 0) {
+    score += 15;
+    reasons.push('no_hover_before_click');
   }
 
-  // 3. Fake timestamps
-  const uT = new Set(trail.map(p => p.t)).size;
-  if (uT <= 2 && trail.length > 5) { score += 35; reasons.push('fake_timestamps'); }
+  // ═══════════════════════════════════════
+  // 2. KEYSTROKE DYNAMICS
+  // ═══════════════════════════════════════
 
-  // 4. Timestamp regularity
-  if (trail.length > 10) {
-    const ints = []; for (let i = 1; i < trail.length; i++) ints.push(trail[i].t - trail[i-1].t);
-    const ai = ints.reduce((a,b) => a+b, 0) / ints.length;
-    const iv = ints.reduce((a,b) => a + (b - ai) ** 2, 0) / ints.length;
-    if (ai > 0 && iv < 2 && trail.length > 15) { score += 25; reasons.push('regular_intervals'); }
+  const dwellTimes = b.keyDwellTimes || [];
+  const flightTimes = b.keyFlightTimes || [];
+
+  if (dwellTimes.length >= 5) {
+    // 2a. Dwell time variance — humans vary (50-150ms), bots are constant
+    const dwellCV = _cv(dwellTimes);
+    if (dwellCV < 0.1) {
+      score += 20;
+      reasons.push('constant_dwell_time');
+    }
+
+    // 2b. Flight time variance — humans vary by word familiarity
+    if (flightTimes.length >= 5) {
+      const flightCV = _cv(flightTimes);
+      if (flightCV < 0.1) {
+        score += 20;
+        reasons.push('constant_flight_time');
+      }
+    }
   }
 
-  // 5. Out of bounds
-  const oob = trail.filter(p => p.x < 0 || p.y < 0 || p.x > 4000 || p.y > 3000).length;
-  if (oob > trail.length * 0.3) { score += 20; reasons.push('out_of_bounds'); }
-
-  // 6. No direction changes
-  let dc = 0;
-  for (let i = 2; i < trail.length; i++) {
-    const dx1 = trail[i].x - trail[i-1].x, dy1 = trail[i].y - trail[i-1].y;
-    const dx0 = trail[i-1].x - trail[i-2].x, dy0 = trail[i-1].y - trail[i-2].y;
-    if ((dx1*dx0 + dy1*dy0) < 0 || (Math.sign(dx1) !== Math.sign(dx0) && dx0 !== 0)) dc++;
+  // 2c. No backspace at all with many keys — suspect
+  //     (bots rarely make typos)
+  if ((b.totalKeys || 0) > 20 && (b.backspaceCount || 0) === 0) {
+    score += 5;
+    reasons.push('no_typos');
   }
-  if (trail.length > 15 && dc < 2) { score += 15; reasons.push('no_direction_changes'); }
 
-  // 7. Bezier curve pattern
-  let ed = 0;
-  for (let i = 1; i < trail.length; i++) {
-    const dx = Math.abs(trail[i].x - trail[i-1].x), dy = Math.abs(trail[i].y - trail[i-1].y);
-    if (dx === dy && dx > 2) ed++;
-  }
-  if (ed > trail.length * 0.3 && trail.length > 10) { score += 20; reasons.push('bezier_pattern'); }
+  // ═══════════════════════════════════════
+  // 3. SCROLL PATTERNS
+  // ═══════════════════════════════════════
 
-  // 8. Single axis movement
-  let xO = 0, yO = 0;
-  for (let i = 1; i < trail.length; i++) {
-    if (trail[i].x !== trail[i-1].x && trail[i].y === trail[i-1].y) xO++;
-    if (trail[i].y !== trail[i-1].y && trail[i].x === trail[i-1].x) yO++;
+  const scrollEvts = b.scrollEvents || [];
+  if (scrollEvts.length >= 5) {
+    // 3a. Continuous scroll without stopping — bot "scans" page
+    if ((b.scrollPauses || 0) === 0 && scrollEvts.length > 10) {
+      score += 10;
+      reasons.push('no_scroll_pauses');
+    }
+
+    // 3b. Scroll speed too uniform (CV check)
+    const scrollSpeeds = [];
+    for (let i = 1; i < scrollEvts.length; i++) {
+      const dy = Math.abs(scrollEvts[i].y - scrollEvts[i-1].y);
+      const dt = scrollEvts[i].t - scrollEvts[i-1].t;
+      if (dt > 0) scrollSpeeds.push(dy / dt);
+    }
+    const scrollCV = _cv(scrollSpeeds);
+    if (scrollSpeeds.length > 5 && scrollCV < 0.1) {
+      score += 15;
+      reasons.push('uniform_scroll_speed');
+    }
   }
-  if ((xO > trail.length * 0.9 || yO > trail.length * 0.9) && trail.length > 10) { score += 20; reasons.push('single_axis'); }
+
+  // ═══════════════════════════════════════
+  // 4. FOCUS & VISIBILITY
+  // ═══════════════════════════════════════
+
+  // 4a. requestAnimationFrame not stable (headless skips rendering)
+  if (b.rafStable === false) {
+    score += 15;
+    reasons.push('raf_unstable');
+  }
+
+  // 4b. Zero screen = headless
+  if (!b.screen?.w || !b.screen?.h) {
+    score += 20;
+    reasons.push('zero_screen');
+  }
+
+  // 4c. Screen resolution used by VMs
+  if (b.screen) {
+    const { w, h } = b.screen;
+    if ((w === 800 && h === 600) || (w === 1024 && h === 768 && b.screen.dpr === 1)) {
+      score += 5;
+      reasons.push('vm_screen');
+    }
+  }
+
+  // ═══════════════════════════════════════
+  // 5. CLICK POSITION ANALYSIS
+  // ═══════════════════════════════════════
+
+  const clicks = b.clickPositions || [];
+  if (clicks.length >= 3) {
+    // 5a. Clicks always at exact center of element — bot uses element.click()
+    let centerClicks = 0;
+    for (const c of clicks) {
+      if (c.elCenterX !== undefined) {
+        const dx = Math.abs(c.x - c.elCenterX);
+        const dy = Math.abs(c.y - c.elCenterY);
+        if (dx <= 1 && dy <= 1) centerClicks++;
+      }
+    }
+    if (centerClicks === clicks.length) {
+      score += 15;
+      reasons.push('exact_center_clicks');
+    }
+  }
 
   return { score, reasons };
 }
@@ -402,75 +537,29 @@ router.post('/public/:token/get-code', async (req, res) => {
     }
   }
 
-  // ── 4. Behavioral analysis (server-side mouse trajectory — same as vuotlink.js) ──
-  if (behavioral && behavioral.mouseTrail) {
-    const mouseResult = analyzeMouseTrail(behavioral.mouseTrail);
-    mouseScore = mouseResult.score;
-    mouseReasons = mouseResult.reasons.join(',');
-    if (mouseResult.score >= 50) {
-      detectionLog.push('mouse_bot');
-      console.log(`[Widget] 🤖 Mouse bot: score=${mouseResult.score}, reasons=${mouseReasons}, IP=${ip}`);
-      logSecurityEvent('mouse_bot', ip, ua, visitorId, { score: mouseResult.score, reasons: mouseReasons });
+  // ── 4. Behavioral analysis v2 (5 categories: mouse, keyboard, scroll, focus, clicks) ──
+  if (behavioral) {
+    const result = analyzeBehavior(behavioral);
+    mouseScore = result.score;
+    mouseReasons = result.reasons.join(',');
+
+    if (result.score >= 70) {
+      detectionLog.push('behavior_bot');
+      console.log(`[Widget] 🤖 Behavior bot: score=${result.score}, reasons=${mouseReasons}, IP=${ip}`);
+      logSecurityEvent('mouse_bot', ip, ua, visitorId, { score: result.score, reasons: result.reasons });
       return res.status(403).json(ERR);
     }
-    if (mouseResult.score > 0) {
-      console.log(`[Widget] ⚠️ Mouse warning: score=${mouseResult.score}, reasons=${mouseReasons}, IP=${ip}`);
+
+    if (result.score > 0) {
+      console.log(`[Widget] ⚠️ Behavior warning: score=${result.score}, reasons=${mouseReasons}, IP=${ip}`);
+      logSecurityEvent('suspicious', ip, ua, visitorId, {
+        warnings: result.reasons,
+        behaviorScore: result.score,
+        mousePoints: behavioral.mousePoints || 0,
+        countdownTime: behavioral.countdownTime || 0,
+        screen: behavioral.screen,
+      });
     }
-  }
-
-  // ── 5. Zero screen = headless (same as vuotlink.js) ──
-  if (behavioral && (!behavioral.screen?.w || !behavioral.screen?.h)) {
-    detectionLog.push('zero_screen');
-    console.log(`[Widget] 🤖 Zero screen: IP=${ip}`);
-    logSecurityEvent('zero_screen', ip, ua, visitorId, {});
-    return res.status(403).json(ERR);
-  }
-
-  // ── 6. Suspicious pattern warnings (NOT blocked, but logged for admin) ──
-  const mousePoints = behavioral?.mousePoints || 0;
-  const clicks = behavioral?.clicks || 0;
-  const scrolls = behavioral?.scrolls || 0;
-  const keys = behavioral?.keys || 0;
-  const countdownTime = behavioral?.countdownTime || 0;
-  const warnings = [];
-
-  // a) Mouse score > 0 → partially suspicious
-  if (mouseScore > 0) {
-    warnings.push(`mouse_warning(score=${mouseScore})`);
-  }
-
-  // b) No interaction at all → likely script
-  if (mousePoints === 0 && clicks === 0 && scrolls === 0 && keys === 0) {
-    warnings.push('zero_interaction');
-  }
-
-  // c) No mouse during countdown (human always moves mouse)
-  if (mousePoints < 3 && countdownTime > 10) {
-    warnings.push('no_mouse_during_countdown');
-  }
-
-  // g) VM-like screen resolution
-  if (behavioral?.screen) {
-    const { w, h } = behavioral.screen;
-    if ((w === 800 && h === 600) || (w === 1024 && h === 768 && behavioral.screen.dpr === 1)) {
-      warnings.push(`vm_screen(${w}x${h})`);
-    }
-  }
-
-  // Log all warnings
-  if (warnings.length > 0) {
-    console.log(`[Widget] ⚠️ SUSPICIOUS: IP=${ip}, warnings=${warnings.join(',')}`);
-    logSecurityEvent('suspicious', ip, ua, visitorId, {
-      warnings,
-      mouseScore,
-      mousePoints,
-      clicks,
-      scrolls,
-      keys,
-      countdownTime,
-      screen: behavioral?.screen,
-      botDetection: botDetection || 'null'
-    });
   }
 
   // ── 7. Validate widget + task ──

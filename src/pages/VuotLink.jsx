@@ -92,37 +92,19 @@ function getCreepData() {
   });
 }
 
-/* ─── Behavioral tracker (inline, no external file) ────── */
-const behaviorData = {
-  mouse: [],
-  clicks: 0,
-  keys: 0,
-  scrolls: 0,
-  startTime: Date.now(),
-  probes: {},
-};
+/* ─── Automation probes only (no mouse tracking on vuotlink page) ── */
+const probeData = {};
 if (typeof window !== 'undefined') {
-  const MAX = 50;
-  document.addEventListener('mousemove', (e) => {
-    behaviorData.mouse.push({ x: e.clientX, y: e.clientY, t: Date.now() - behaviorData.startTime });
-    if (behaviorData.mouse.length > MAX) behaviorData.mouse.shift();
-  }, { passive: true });
-  document.addEventListener('click', () => { behaviorData.clicks++; }, { passive: true });
-  document.addEventListener('keydown', () => { behaviorData.keys++; }, { passive: true });
-  window.addEventListener('scroll', () => { behaviorData.scrolls++; }, { passive: true });
-
-  // Automation probes (same as embed script)
   try {
-    const p = behaviorData.probes;
-    p.webdriver = !!navigator.webdriver;
-    p.cdc = !!(window.cdc_adoQpoasnfa76pfcZLmcfl_ || window.cdc_adoQpoasnfa76pfcZLmcfl_Array || window.cdc_adoQpoasnfa76pfcZLmcfl_Promise || window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol);
-    p.selenium = !!(document.__selenium_unwrapped || document.__webdriver_evaluate || document.__driver_evaluate || window._Selenium_IDE_Recorder || window.__nightmare);
-    p.pluginCount = navigator.plugins ? navigator.plugins.length : -1;
-    p.langCount = navigator.languages ? navigator.languages.length : 0;
-    p.hasChrome = !!window.chrome;
-    p.hasChromeRuntime = !!(window.chrome && window.chrome.runtime);
-    if (window.Notification) p.notifPerm = Notification.permission;
-    if (navigator.connection) p.rtt = navigator.connection.rtt;
+    probeData.webdriver = !!navigator.webdriver;
+    probeData.cdc = !!(window.cdc_adoQpoasnfa76pfcZLmcfl_ || window.cdc_adoQpoasnfa76pfcZLmcfl_Array || window.cdc_adoQpoasnfa76pfcZLmcfl_Promise || window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol);
+    probeData.selenium = !!(document.__selenium_unwrapped || document.__webdriver_evaluate || document.__driver_evaluate || window._Selenium_IDE_Recorder || window.__nightmare);
+    probeData.pluginCount = navigator.plugins ? navigator.plugins.length : -1;
+    probeData.langCount = navigator.languages ? navigator.languages.length : 0;
+    probeData.hasChrome = !!window.chrome;
+    probeData.hasChromeRuntime = !!(window.chrome && window.chrome.runtime);
+    if (window.Notification) probeData.notifPerm = Notification.permission;
+    if (navigator.connection) probeData.rtt = navigator.connection.rtt;
   } catch (e) { /* probes failed */ }
 }
 
@@ -190,18 +172,7 @@ export default function VuotLink() {
         if (!chRes.ok) throw new Error('Không thể lấy challenge');
         const challenge = await chRes.json();
 
-        // Step 3: Collect behavioral data
-        const behavioral = {
-          mousePoints: behaviorData.mouse.length,
-          mouseTrail: behaviorData.mouse.slice(-30),
-          clicks: behaviorData.clicks,
-          keys: behaviorData.keys,
-          scrolls: behaviorData.scrolls,
-          loadTime: Date.now() - behaviorData.startTime,
-          screen: { w: window.screen?.width, h: window.screen?.height, dpr: window.devicePixelRatio },
-        };
-
-        // Step 4: Request task
+        // Step 3: Request task (no behavioral data — analysis is on embed script side)
         const token = localStorage.getItem('token');
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -213,7 +184,7 @@ export default function VuotLink() {
             challengeId: challenge.c,
             visitorId,
             botDetection: botDetectionResult,
-            behavioral,
+            probes: probeData,
           }),
         });
 

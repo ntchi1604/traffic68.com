@@ -72,26 +72,41 @@ function CopyId({ value }) {
 
 /* ── Warning/key Vietnamese translations ── */
 const WARNING_VI = {
-  'zero_interaction': 'Không có tương tác nào (chuột, bàn phím, cuộn trang)',
-  'no_mouse_during_countdown': 'Không di chuột trong suốt quá trình đếm ngược',
-  'zero_plugins': 'Trình duyệt không có plugin (thường là headless)',
-  'zero_rtt': 'Độ trễ mạng bằng 0 (thường là bot)',
+  // Mouse dynamics
+  'linear_movement': 'Di chuột thẳng tuyệt đối (không có đường cong tự nhiên)',
+  'constant_velocity': 'Tốc độ chuột không đổi — thiếu gia tốc/giảm tốc',
+  'no_micro_jitter': 'Không có rung lắc tay nhỏ (micro-variations)',
+  'fake_timestamps': 'Thời gian di chuột giả mạo',
+  'regular_intervals': 'Thời gian giữa các điểm chuột đều như máy',
+  'no_hover_before_click': 'Click ngay không rê chuột qua vùng xung quanh',
+  // Keystroke dynamics
+  'constant_dwell_time': 'Nhấn giữ phím đều nhau (Dwell Time cố định)',
+  'constant_flight_time': 'Gõ phím đều nhau (Flight Time cố định)',
+  'no_typos': 'Gõ nhiều nhưng không có lỗi chính tả (Backspace)',
+  // Scroll patterns
+  'no_scroll_pauses': 'Cuộn trang liên tục không dừng đọc',
+  'uniform_scroll_speed': 'Tốc độ cuộn trang đều — không tự nhiên',
+  // Focus & visibility
+  'raf_unstable': 'Trình duyệt không render ổn định (headless)',
+  'zero_screen': 'Không có màn hình (headless)',
+  'vm_screen': 'Độ phân giải giống máy ảo',
+  // Click positions
+  'exact_center_clicks': 'Click chính xác vào tâm nút (element.click())',
+  // Probes
+  'zero_plugins': 'Trình duyệt không có plugin (headless)',
+  'zero_rtt': 'Độ trễ mạng bằng 0 (bot)',
   'zero_languages': 'Không có ngôn ngữ trong trình duyệt',
-  'no_chrome_runtime': 'Thiếu Chrome Runtime (có thể giả mạo Chrome)',
-  'mouse_warning': 'Hành vi chuột đáng ngờ',
-  'fast_load': 'Tải trang quá nhanh',
+  'no_chrome_runtime': 'Thiếu Chrome Runtime (giả mạo Chrome)',
   'repeat_device': 'Thiết bị lặp lại nhiều lần',
-  'vm_screen': 'Độ phân giải màn hình giống máy ảo',
 };
 const KEY_VI = {
   webdriver: 'Webdriver (tự động hóa)', cdc: 'Chrome DevTools Protocol', selenium: 'Selenium',
   pluginCount: 'Số plugin trình duyệt', langCount: 'Số ngôn ngữ', hasChrome: 'Là trình duyệt Chrome',
   hasChromeRuntime: 'Có Chrome Runtime', notifPerm: 'Quyền thông báo', rtt: 'Độ trễ mạng (ms)',
-  score: 'Điểm nguy cơ chuột', reasons: 'Lý do phát hiện', count: 'Số lần truy cập',
-  probeWarnings: 'Cảnh báo từ hệ thống', mouseScore: 'Điểm nguy cơ chuột',
-  mousePoints: 'Số điểm chuột ghi nhận', clicks: 'Số lần nhấp chuột',
-  scrolls: 'Số lần cuộn trang', keys: 'Số phím bấm', loadTime: 'Thời gian tải (ms)',
-  screen: 'Màn hình', countdownTime: 'Thời gian đếm ngược',
+  score: 'Điểm hành vi', reasons: 'Lý do phát hiện', count: 'Số lần truy cập',
+  probeWarnings: 'Cảnh báo từ hệ thống', behaviorScore: 'Điểm phân tích hành vi',
+  mousePoints: 'Số điểm chuột ghi nhận', countdownTime: 'Thời gian đếm ngược',
+  screen: 'Màn hình', warnings: 'Cảnh báo',
   totalLied: 'Số mục giả mạo', liedSections: 'Các mục bị giả mạo',
   bot: 'Phát hiện bot', totalLied: 'Tổng mục giả mạo',
 };
@@ -108,7 +123,7 @@ function parseWarning(w) {
 /* ── Detail Modal ── */
 function DetailModal({ event: ev, onClose }) {
   const reasonLabels = {
-    creep_detected: 'Giả mạo trình duyệt (CreepJS phát hiện lied)',
+    creep_detected: 'Giả mạo trình duyệt',
     creep_warning: 'Nghi ngờ giả mạo trình duyệt',
     botd_detected: 'Phát hiện bot tự động',
     automation_probes: 'Sử dụng công cụ tự động hóa (Selenium, Webdriver...)',
@@ -358,7 +373,7 @@ export default function AdminSecurity() {
               </div>
               <div className="flex-1 min-w-[200px] relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" placeholder="Tìm IP hoặc visitor_id..." value={search}
+                <input type="text" placeholder="Tìm IP hoặc Mã thiết bị..." value={search}
                   onChange={e => { setSearch(e.target.value); setPage(1); }}
                   className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
               </div>

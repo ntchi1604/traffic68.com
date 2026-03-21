@@ -37,115 +37,7 @@ setInterval(() => {
   Object.keys(challenges).forEach(k => { if (now - challenges[k].createdAt > 120000) delete challenges[k]; });
 }, 30000);
 
-/* ═══════════════════════════════════════════════════════════
-   MOUSE TRAJECTORY ANALYSIS (server-side)
-   Analyzes raw mouse data to detect bot patterns
-═══════════════════════════════════════════════════════════ */
-function analyzeMouseTrail(trail) {
-  if (!trail || !Array.isArray(trail) || trail.length < 5) return { score: 0, reasons: [] };
-  
-  let score = 0;
-  const reasons = [];
-
-  // 1. Check for perfectly linear movement
-  let linearCount = 0;
-  for (let i = 2; i < trail.length; i++) {
-    const dx1 = trail[i].x - trail[i-1].x;
-    const dy1 = trail[i].y - trail[i-1].y;
-    const dx0 = trail[i-1].x - trail[i-2].x;
-    const dy0 = trail[i-1].y - trail[i-2].y;
-    if (Math.abs(dx1 * dy0 - dy1 * dx0) < 2) linearCount++;
-  }
-  if (linearCount / (trail.length - 2) > 0.8) {
-    score += 30;
-    reasons.push('linear_mouse');
-  }
-
-  // 2. Check for constant velocity (using speed variance)
-  const speeds = [];
-  for (let i = 1; i < trail.length; i++) {
-    const dx = trail[i].x - trail[i-1].x;
-    const dy = trail[i].y - trail[i-1].y;
-    const dt = trail[i].t - trail[i-1].t;
-    if (dt > 0) speeds.push(Math.sqrt(dx*dx + dy*dy) / dt);
-  }
-  if (speeds.length > 3) {
-    const avgSpeed = speeds.reduce((a,b) => a+b, 0) / speeds.length;
-    const speedVar = speeds.reduce((a,b) => a + (b - avgSpeed) ** 2, 0) / speeds.length;
-    // Real humans have high variance (start/stop/accelerate), bots are smooth
-    if (avgSpeed > 0 && speedVar / (avgSpeed ** 2) < 0.1) {
-      score += 25;
-      reasons.push('constant_velocity');
-    }
-  }
-
-  // 3. Fake timestamps (all same or only 1-2 unique)
-  const uniqueTimes = new Set(trail.map(p => p.t)).size;
-  if (uniqueTimes <= 2 && trail.length > 5) {
-    score += 35;
-    reasons.push('fake_timestamps');
-  }
-
-  // 4. Timestamp regularity — scripts fire mousemove at fixed intervals
-  if (trail.length > 10) {
-    const intervals = [];
-    for (let i = 1; i < trail.length; i++) intervals.push(trail[i].t - trail[i-1].t);
-    const avgInt = intervals.reduce((a,b) => a+b, 0) / intervals.length;
-    const intVar = intervals.reduce((a,b) => a + (b - avgInt) ** 2, 0) / intervals.length;
-    if (avgInt > 0 && intVar < 2 && trail.length > 15) {
-      score += 25;
-      reasons.push('regular_intervals');
-    }
-  }
-
-  // 5. Out of bounds coordinates
-  const oob = trail.filter(p => p.x < 0 || p.y < 0 || p.x > 4000 || p.y > 3000).length;
-  if (oob > trail.length * 0.3) {
-    score += 20;
-    reasons.push('out_of_bounds');
-  }
-
-  // 6. No direction changes — humans change direction frequently
-  let dirChanges = 0;
-  for (let i = 2; i < trail.length; i++) {
-    const dx1 = trail[i].x - trail[i-1].x;
-    const dy1 = trail[i].y - trail[i-1].y;
-    const dx0 = trail[i-1].x - trail[i-2].x;
-    const dy0 = trail[i-1].y - trail[i-2].y;
-    if ((dx1 * dx0 + dy1 * dy0) < 0 || (Math.sign(dx1) !== Math.sign(dx0) && dx0 !== 0)) {
-      dirChanges++;
-    }
-  }
-  if (trail.length > 15 && dirChanges < 2) {
-    score += 15;
-    reasons.push('no_direction_changes');
-  }
-
-  // 7. Bezier curve pattern — automation libs move in perfect diagonal ratios
-  let exactDiag = 0;
-  for (let i = 1; i < trail.length; i++) {
-    const dx = Math.abs(trail[i].x - trail[i-1].x);
-    const dy = Math.abs(trail[i].y - trail[i-1].y);
-    if (dx === dy && dx > 2) exactDiag++;
-  }
-  if (exactDiag > trail.length * 0.3 && trail.length > 10) {
-    score += 20;
-    reasons.push('bezier_pattern');
-  }
-
-  // 8. Single axis movement (only X or only Y changes) — script moves linearly
-  let xOnly = 0, yOnly = 0;
-  for (let i = 1; i < trail.length; i++) {
-    if (trail[i].x !== trail[i-1].x && trail[i].y === trail[i-1].y) xOnly++;
-    if (trail[i].y !== trail[i-1].y && trail[i].x === trail[i-1].x) yOnly++;
-  }
-  if ((xOnly > trail.length * 0.9 || yOnly > trail.length * 0.9) && trail.length > 10) {
-    score += 20;
-    reasons.push('single_axis');
-  }
-
-  return { score, reasons };
-}
+/* (Behavioral analysis moved to widgets.js — vuotlink only checks CreepJS + probes) */
 
 /* ═══════════════════════════════════════════════════════════
    STEP 1: GET /challenge (anti-replay token only)
@@ -178,12 +70,10 @@ router.post('/task', optionalAuth, async (req, res) => {
     return res.status(429).json({ error: 'Quá nhiều yêu cầu. Thử lại sau.' });
   }
 
-  const { challengeId, visitorId, botDetection, behavioral } = req.body || {};
+  const { challengeId, visitorId, botDetection, probes: clientProbes } = req.body || {};
 
   // ── Collect detection results (saved to DB later) ──
   let botDetected = false;
-  let mouseScore = 0;
-  let mouseReasons = '';
   let detectionLog = [];
 
   // ── 1. Challenge validation (anti-replay) ──
@@ -204,8 +94,8 @@ router.post('/task', optionalAuth, async (req, res) => {
     return res.status(403).json(ERR);
   }
 
-  // ── 2b. Client-side automation probes ──
-  const probes = behavioral?.probes || {};
+  // ── 3. Client-side automation probes ──
+  const probes = clientProbes || {};
   if (probes.webdriver === true || probes.cdc === true || probes.selenium === true) {
     console.log(`[VuotLink] 🤖 Automation probe hit: IP=${ip}, webdriver=${probes.webdriver}, cdc=${probes.cdc}, selenium=${probes.selenium}`);
     logSecurityEvent('automation_probes', ip, ua, visitorId, probes);
@@ -222,7 +112,7 @@ router.post('/task', optionalAuth, async (req, res) => {
     logSecurityEvent('probe_warning', ip, ua, visitorId, { ...probes, probeWarnings });
   }
 
-  // ── 3. VisitorId rate limit (5 tasks / 24h per device — from DB) ──
+  // ── 4. VisitorId rate limit (5 tasks / 24h per device — from DB) ──
   const pool = getPool();
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
@@ -236,89 +126,19 @@ router.post('/task', optionalAuth, async (req, res) => {
     }
   }
 
-  // ── 4. Behavioral analysis (server-side mouse trajectory) ──
-  const mousePoints = behavioral?.mousePoints || 0;
-  const clicks = behavioral?.clicks || 0;
-  const keys = behavioral?.keys || 0;
-  const scrolls = behavioral?.scrolls || 0;
-
-  if (behavioral && behavioral.mouseTrail) {
-    const mouseResult = analyzeMouseTrail(behavioral.mouseTrail);
-    mouseScore = mouseResult.score;
-    mouseReasons = mouseResult.reasons.join(',');
-    if (mouseResult.score >= 50) {
-      detectionLog.push('mouse_bot');
-      console.log(`[VuotLink] 🤖 Mouse bot: score=${mouseResult.score}, reasons=${mouseReasons}, IP=${ip}`);
-      logSecurityEvent('mouse_bot', ip, ua, visitorId, { score: mouseResult.score, reasons: mouseReasons });
-      return res.status(403).json(ERR);
-    }
-    if (mouseResult.score > 0) {
-      console.log(`[VuotLink] ⚠️ Mouse warning: score=${mouseResult.score}, reasons=${mouseReasons}, IP=${ip}`);
-    }
-  }
-
-  // ── 5. Zero screen = headless ──
-  if (behavioral && (!behavioral.screen?.w || !behavioral.screen?.h)) {
-    detectionLog.push('zero_screen');
-    console.log(`[VuotLink] 🤖 Zero screen: IP=${ip}`);
-    logSecurityEvent('zero_screen', ip, ua, visitorId, {});
-    return res.status(403).json(ERR);
-  }
-
-  // ── 6. Suspicious pattern warnings (NOT blocked, but logged for admin) ──
-  const warnings = [];
-
-  // a) Mouse score > 0 but < 50 → suspicious but not enough to block
-  if (mouseScore > 0) {
-    warnings.push(`mouse_warning(score=${mouseScore})`);
-  }
-
-  // b) No interaction at all (0 clicks, 0 scrolls, 0 keys, 0 mouse) → likely script
-  if (mousePoints === 0 && clicks === 0 && scrolls === 0 && keys === 0) {
-    warnings.push('zero_interaction');
-  }
-
-  // c) Very fast completion (< 2s) → script auto
-  if (behavioral?.loadTime && behavioral.loadTime < 2000) {
-    warnings.push(`fast_load(${behavioral.loadTime}ms)`);
-  }
-
-  // g) Screen resolution commonly used by bots/VMs
-  if (behavioral?.screen) {
-    const { w, h } = behavioral.screen;
-    if ((w === 800 && h === 600) || (w === 1024 && h === 768 && behavioral.screen.dpr === 1)) {
-      warnings.push(`vm_screen(${w}x${h})`);
-    }
-  }
-
-  // h) Same visitorId already has tasks today → repeat device
+  // ── 5. Repeat device warning (logged for admin, not blocked) ──
   if (visitorId && visitorId !== 'unknown') {
     const [todayCount] = await pool.execute(
       `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(created_at) = CURDATE()`,
       [visitorId]
     );
     if (todayCount[0].cnt >= 3) {
-      warnings.push(`repeat_device(${todayCount[0].cnt})`);
+      console.log(`[VuotLink] ⚠️ Repeat device: visitorId=${visitorId.substring(0,8)}..., count=${todayCount[0].cnt}`);
+      logSecurityEvent('suspicious', ip, ua, visitorId, { warnings: [`repeat_device(${todayCount[0].cnt})`] });
     }
   }
 
-  // Log all warnings to security_logs for admin review
-  if (warnings.length > 0) {
-    console.log(`[VuotLink] ⚠️ SUSPICIOUS: IP=${ip}, visitor=${visitorId?.substring(0,8) || '?'}, warnings=${warnings.join(',')}`);
-    logSecurityEvent('suspicious', ip, ua, visitorId, {
-      warnings,
-      mouseScore,
-      mousePoints,
-      clicks,
-      scrolls,
-      keys,
-      loadTime: behavioral?.loadTime,
-      screen: behavioral?.screen,
-      botDetection: botDetection || 'null'
-    });
-  }
-
-  console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0,8) || '?'}, mouse=${mousePoints}, clicks=${clicks}, mouseScore=${mouseScore}${warnings.length > 0 ? ', ⚠️warnings=' + warnings.join(',') : ''}`);
+  console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0,8) || '?'}`);
 
   // ── Check IP view limit ──
   const [ipSettings] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
@@ -353,14 +173,13 @@ router.post('/task', optionalAuth, async (req, res) => {
     waitTime = parseInt(tos) || 60;
   }
 
-  // Use MySQL DATE_ADD for consistent timezone
   // Session expires after campaign waitTime + 3 minutes buffer
-  const expirySeconds = waitTime + 180; // campaign duration + 3 min
+  const expirySeconds = waitTime + 180;
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   const [result] = await pool.execute(
-    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, mouse_score, mouse_reasons, mouse_points, clicks, expires_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))`,
-    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, mouseScore, mouseReasons || null, mousePoints, clicks, expirySeconds]
+    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))`,
+    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds]
   );
 
   console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, waitTime: ${waitTime}s`);
