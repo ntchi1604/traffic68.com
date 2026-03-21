@@ -619,7 +619,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     await pool.execute("UPDATE vuot_link_tasks SET status = 'step3', step3_at = ? WHERE id = ?", [now, task.id]);
   }
 
-  console.log(`[Widget] ✅ Code given — IP: ${ip}, task: #${task.id}, code: ${task.code_given}, elapsed: ${elapsedSeconds}s, mouse=${mousePoints}, clicks=${clicks}, mouseScore=${mouseScore}`);
+  console.log(`[Widget] ✅ Code given — IP: ${ip}, task: #${task.id}, code: ${task.code_given}, elapsed: ${elapsedSeconds}s, behaviorScore=${mouseScore}`);
 
   res.json({ success: true, code: task.code_given });
 });
