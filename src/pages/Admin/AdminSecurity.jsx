@@ -163,7 +163,7 @@ function DetailModal({ event: ev, onClose }) {
               {ev.source === 'widget' ? 'Script nhúng' : ev.source === 'vuotlink' ? 'Vượt link' : ev.source}
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-slate-100 font-mono text-slate-700">{ev.ip_address}</span>
-            <span className="px-2.5 py-1 rounded-lg bg-slate-100 font-mono text-slate-600 text-[10px] max-w-[200px] truncate">{ev.visitor_id || '—'}</span>
+            <CopyId text={ev.visitor_id} />
           </div>
 
           {/* Conclusion */}
