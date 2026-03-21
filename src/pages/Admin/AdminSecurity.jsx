@@ -457,8 +457,8 @@ export default function AdminSecurity() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-            <h1 className="text-xl font-black text-slate-900">Anti Cheat</h1>
-            <p className="text-xs text-slate-500">{total.toLocaleString('vi-VN')} sự kiện (7 ngày gần nhất)</p>
+          <h1 className="text-xl font-black text-slate-900">Anti Cheat</h1>
+          <p className="text-xs text-slate-500">{total.toLocaleString('vi-VN')} sự kiện (7 ngày gần nhất)</p>
         </div>
         <button onClick={fetchData} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition disabled:opacity-50">
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Làm mới
@@ -483,7 +483,7 @@ export default function AdminSecurity() {
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Thời gian</th>
                 <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Nguồn</th>
-                <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Loại</th>
+                <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Phát hiện</th>
                 <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Địa chỉ IP</th>
                 <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Mã thiết bị</th>
                 <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Đánh giá</th>
@@ -496,12 +496,18 @@ export default function AdminSecurity() {
               ) : securityLogs.length === 0 ? (
                 <tr><td colSpan={7} className="text-center py-12 text-slate-400">Chưa có sự kiện bảo mật nào</td></tr>
               ) : securityLogs.map(ev => {
-                const reasonLabels = {
-                  completed: 'Hoàn thành', creep_detected: 'Giả mạo', automation_probes: 'Tự động hóa',
-                  mouse_bot: 'Bot hành vi', bot_ua: 'Bot UA', bot_behavior: 'Bot hành vi',
-                  suspicious: 'Đáng ngờ', probe_warning: 'Probe',
-                  ip_rate_limit: 'Rate limit',
+                const detectMethods = {
+                  completed: { label: 'Task OK', cls: 'bg-slate-100 text-slate-600' },
+                  creep_detected: { label: 'Fingerprint', cls: 'bg-red-100 text-red-700' },
+                  automation_probes: { label: 'Automation', cls: 'bg-red-100 text-red-700' },
+                  mouse_bot: { label: 'Hành vi', cls: 'bg-orange-100 text-orange-700' },
+                  bot_ua: { label: 'User-Agent', cls: 'bg-red-100 text-red-700' },
+                  bot_behavior: { label: 'Hành vi', cls: 'bg-orange-100 text-orange-700' },
+                  suspicious: { label: 'Hành vi', cls: 'bg-amber-100 text-amber-700' },
+                  probe_warning: { label: 'Browser', cls: 'bg-violet-100 text-violet-700' },
+                  ip_rate_limit: { label: 'Rate limit', cls: 'bg-rose-100 text-rose-700' },
                 };
+                const dm = detectMethods[ev.reason] || { label: ev.reason, cls: 'bg-slate-100 text-slate-600' };
                 const sourceVi = { vuotlink: 'Vượt link', widget: 'Script nhúng' };
                 return (
                   <tr key={ev.id} className={`border-b border-slate-100 hover:bg-slate-50/50 transition ${ev.is_bot ? 'bg-red-50/30' : ''}`}>
@@ -512,8 +518,8 @@ export default function AdminSecurity() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-[11px] font-semibold ${ev.is_bot ? 'text-red-700' : 'text-green-700'}`}>
-                        {reasonLabels[ev.reason] || ev.reason}
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${dm.cls}`}>
+                        {dm.label}
                       </span>
                     </td>
                     <td className="px-4 py-3">
