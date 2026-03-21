@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import api from '../../lib/api';
 
-/* ── Helpers ── */
 const timeAgo = (dateStr) => {
   if (!dateStr) return '—';
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -23,30 +22,27 @@ const fmtDate = (d) => {
   return dt.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
-/* ── Warning/key Vietnamese translations ── */
 const WARNING_VI = {
-  'linear_movement': 'Di chuột thẳng tuyệt đối (không có đường cong tự nhiên)',
-  'constant_velocity': 'Tốc độ chuột không đổi — thiếu gia tốc/giảm tốc',
-  'no_micro_jitter': 'Không có rung lắc tay nhỏ (micro-variations)',
+  'linear_movement': 'Di chuột thẳng tuyệt đối',
+  'constant_velocity': 'Tốc độ chuột không đổi',
+  'no_micro_jitter': 'Không có rung lắc tay nhỏ',
   'fake_timestamps': 'Thời gian di chuột giả mạo',
   'regular_intervals': 'Thời gian giữa các điểm chuột đều như máy',
   'no_hover_before_click': 'Click ngay không rê chuột qua vùng xung quanh',
-  'constant_dwell_time': 'Nhấn giữ phím đều nhau (Dwell Time cố định)',
-  'constant_flight_time': 'Gõ phím đều nhau (Flight Time cố định)',
-  'no_typos': 'Gõ nhiều nhưng không có lỗi chính tả (Backspace)',
+  'constant_dwell_time': 'Nhấn giữ phím đều nhau',
+  'constant_flight_time': 'Gõ phím đều nhau',
+  'no_typos': 'Gõ nhiều nhưng không có lỗi chính tả',
   'no_scroll_pauses': 'Cuộn trang liên tục không dừng đọc',
-  'uniform_scroll_speed': 'Tốc độ cuộn trang đều — không tự nhiên',
-  'raf_unstable': 'Trình duyệt không render ổn định (headless)',
-  'zero_screen': 'Không có màn hình (headless)',
+  'uniform_scroll_speed': 'Tốc độ cuộn trang đều',
+  'raf_unstable': 'Trình duyệt không render ổn định',
+  'zero_screen': 'Không có màn hình',
   'vm_screen': 'Độ phân giải giống máy ảo',
-  'exact_center_clicks': 'Click chính xác vào tâm nút (element.click())',
-  'zero_plugins': 'Trình duyệt không có plugin (headless)',
-  'zero_rtt': 'Độ trễ mạng bằng 0 (bot)',
+  'exact_center_clicks': 'Click chính xác vào tâm nút',
+  'zero_plugins': 'Trình duyệt không có plugin',
+  'zero_rtt': 'Độ trễ mạng bằng 0',
   'zero_languages': 'Không có ngôn ngữ trong trình duyệt',
-  'repeat_device': 'Thiết bị lặp lại nhiều lần',
 };
 
-/* ── CopyId ── */
 function CopyId({ text }) {
   const [copied, setCopied] = useState(false);
   if (!text || text === 'null') return <span className="text-slate-400">—</span>;
@@ -65,15 +61,6 @@ function CopyId({ text }) {
   );
 }
 
-/* ── Result Badge ── */
-function ResultBadge({ status }) {
-  if (status === 'completed') return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">✅ Hoàn thành</span>;
-  if (status === 'expired') return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">⏰ Hết hạn</span>;
-  if (['pending', 'step1', 'step2', 'step3'].includes(status)) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">⏳ Đang xử lý</span>;
-  return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">{status}</span>;
-}
-
-/* ── Detail Modal ── */
 function DetailModal({ event: ev, onClose }) {
   const catNames = { mouse: '🖱️ Chuột', keyboard: '⌨️ Bàn phím', scroll: '📜 Cuộn trang', focus: '👁️ Hiển thị', click: '🎯 Click' };
   const reasonLabels = {
@@ -92,13 +79,11 @@ function DetailModal({ event: ev, onClose }) {
     const d = JSON.parse(ev.details || '{}');
     if (d.assessments && Array.isArray(d.assessments)) assessments = d.assessments;
 
-    // Behavior score
     const bScore = d.behaviorScore ?? d.score;
     if (bScore !== undefined) {
       detailItems.push({ label: 'Điểm hành vi tổng', value: `${bScore} / 70 (ngưỡng chặn)`, danger: bScore >= 70, warn: bScore > 0 && bScore < 70 });
     }
 
-    // CreepJS / botDetection
     const bd = d.botDetection || (d.totalLied !== undefined ? d : null);
     if (bd) {
       if (bd.totalLied !== undefined) {
@@ -108,11 +93,10 @@ function DetailModal({ event: ev, onClose }) {
       if (bd.bot !== undefined) detailItems.push({ label: 'Bot', value: bd.bot ? 'Có' : 'Không', danger: !!bd.bot });
       if (bd.headless != null) detailItems.push({ label: 'Headless', value: bd.headless ? 'Có' : 'Không', danger: !!bd.headless });
       if (bd.stealth != null) detailItems.push({ label: 'Stealth mode', value: bd.stealth ? 'Có' : 'Không', danger: !!bd.stealth });
-      if (bd.creepError) detailItems.push({ label: 'CreepJS', value: 'Không load được', warn: true });
-      if (bd.creepTimeout) detailItems.push({ label: 'CreepJS', value: 'Timeout', warn: true });
+      if (bd.creepError) detailItems.push({ label: 'Xác minh trình duyệt', value: 'Không load được', warn: true });
+      if (bd.creepTimeout) detailItems.push({ label: 'Xác minh trình duyệt', value: 'Quá thời gian', warn: true });
     }
 
-    // Probes
     const probes = d.probes || {};
     if (probes.webdriver) detailItems.push({ label: 'Webdriver', value: 'Có', danger: true });
     if (probes.selenium) detailItems.push({ label: 'Selenium', value: 'Có', danger: true });
@@ -123,12 +107,10 @@ function DetailModal({ event: ev, onClose }) {
     if (d.screen) detailItems.push({ label: 'Màn hình', value: `${d.screen.w}×${d.screen.h} (${d.screen.dpr || 1}x)` });
     if (d.countdownTime) detailItems.push({ label: 'Đếm ngược', value: `${d.countdownTime}s` });
 
-    // Probe warnings
     if (d.probeWarnings && Array.isArray(d.probeWarnings)) {
       d.probeWarnings.forEach(w => detailItems.push({ label: WARNING_VI[w] || w, value: 'Phát hiện', warn: true }));
     }
 
-    // Fallback
     if (!d.assessments && !d.botDetection && d.totalLied === undefined && !d.probeWarnings) {
       Object.entries(d).forEach(([k, v]) => {
         if (['behaviorScore', 'score', 'assessments', 'botDetection', 'probes', 'screen', 'countdownTime', 'warnings'].includes(k)) return;
@@ -176,7 +158,6 @@ function DetailModal({ event: ev, onClose }) {
             </div>
           </div>
 
-          {/* Core items */}
           {detailItems.length > 0 && (
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Đánh giá hệ thống</p>
@@ -195,7 +176,6 @@ function DetailModal({ event: ev, onClose }) {
             </div>
           )}
 
-          {/* Behavioral assessments */}
           {Object.keys(grouped).length > 0 && (
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Phân tích hành vi chi tiết</p>
@@ -229,16 +209,15 @@ function DetailModal({ event: ev, onClose }) {
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   MAIN PAGE
-════════════════════════════════════════════════════════════ */
 export default function AdminSecurity() {
   usePageTitle('Admin - Bảo mật');
   const [securityLogs, setSecurityLogs] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [detailEvent, setDetailEvent] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const limit = 30;
 
   const fetchData = useCallback(async () => {
@@ -246,15 +225,28 @@ export default function AdminSecurity() {
     try {
       const { data } = await api.get('/admin/security', { params: { search, page, limit } });
       setSecurityLogs(data.securityLogs || []);
+      setTotal(data.total || 0);
     } catch (e) { console.error(e); }
     setLoading(false);
   }, [search, page]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const openDetail = async (ev) => {
+    setDetailLoading(true);
+    try {
+      const { data } = await api.get(`/admin/security/${ev.id}`);
+      setDetailEvent(data.event);
+    } catch (e) {
+      setDetailEvent({ ...ev, details: '{}' });
+    }
+    setDetailLoading(false);
+  };
+
+  const totalPages = Math.ceil(total / limit) || 1;
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -262,7 +254,7 @@ export default function AdminSecurity() {
           </div>
           <div>
             <h1 className="text-xl font-black text-slate-900">Bảo mật & Chống Bot</h1>
-            <p className="text-xs text-slate-500">Theo dõi sự kiện bảo mật từ trang vượt link và script nhúng</p>
+            <p className="text-xs text-slate-500">{total.toLocaleString('vi-VN')} sự kiện (7 ngày gần nhất)</p>
           </div>
         </div>
         <button onClick={fetchData} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition disabled:opacity-50">
@@ -270,7 +262,6 @@ export default function AdminSecurity() {
         </button>
       </div>
 
-      {/* Search */}
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input
@@ -282,7 +273,6 @@ export default function AdminSecurity() {
         />
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -334,7 +324,7 @@ export default function AdminSecurity() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button
-                        onClick={() => setDetailEvent(ev)}
+                        onClick={() => openDetail(ev)}
                         className="px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 transition text-[11px] font-bold"
                       >
                         <Eye size={12} className="inline mr-1" />Xem
@@ -347,21 +337,24 @@ export default function AdminSecurity() {
           </table>
         </div>
 
-        {/* Pagination */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-          <span className="text-[11px] text-slate-500">Trang {page}</span>
+          <span className="text-[11px] text-slate-500">Trang {page} / {totalPages} ({total.toLocaleString('vi-VN')} sự kiện)</span>
           <div className="flex gap-2">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white transition disabled:opacity-30">
               <ChevronLeft size={14} />
             </button>
-            <button onClick={() => setPage(p => p + 1)} disabled={securityLogs.length < limit} className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white transition disabled:opacity-30">
+            <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages} className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white transition disabled:opacity-30">
               <ChevronRight size={14} />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Detail Modal */}
+      {detailLoading && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl px-8 py-6 shadow-2xl text-sm text-slate-600 font-semibold">Đang tải chi tiết...</div>
+        </div>
+      )}
       {detailEvent && <DetailModal event={detailEvent} onClose={() => setDetailEvent(null)} />}
     </div>
   );

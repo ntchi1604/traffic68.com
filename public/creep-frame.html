@@ -2,22 +2,17 @@
 <html><head><meta charset="utf-8"><title>fp</title></head>
 <body>
 <script>
-// This page runs inside a hidden iframe on traffic68.com
-// CreepJS will work here because ServiceWorker is same-origin
-
 var _origLog = console.log;
 var _sent = false;
 
 function sendResult(data) {
   if (_sent) return;
   _sent = true;
-  // Send to parent window (embed script on external domain)
   if (window.parent && window.parent !== window) {
     window.parent.postMessage({ type: 'creep-result', data: data }, '*');
   }
 }
 
-// Hook console.log to capture CreepJS output
 console.log = function () {
   for (var i = 0; i < arguments.length; i++) {
     var arg = arguments[i];
@@ -48,7 +43,6 @@ console.log = function () {
   }
 };
 
-// Load CreepJS
 var s = document.createElement('script');
 s.src = '/creep.js';
 s.onerror = function () {
@@ -57,7 +51,6 @@ s.onerror = function () {
 };
 document.head.appendChild(s);
 
-// Timeout: 10s
 setTimeout(function () {
   if (!_sent) {
     sendResult({ visitorId: 'unknown', botDetection: { bot: false, creepTimeout: true } });

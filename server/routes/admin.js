@@ -375,14 +375,12 @@ router.put('/settings/site', async (req, res) => {
   }
 });
 
-// ── GET /admin/security — Security analytics ──
 router.get('/security', async (req, res) => {
   try {
     const pool = getPool();
-    const { filter, search, page = 1, limit = 20 } = req.query;
+    const { search, page = 1, limit = 30 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
-    // Auto-create security_logs table if not exists
     await pool.execute(`CREATE TABLE IF NOT EXISTS security_logs (
       id INT AUTO_INCREMENT PRIMARY KEY,
       source VARCHAR(20) NOT NULL DEFAULT 'unknown',
@@ -397,105 +395,42 @@ router.get('/security', async (req, res) => {
       INDEX idx_ip (ip_address)
     )`);
 
-    // ── Stats (24h) ──
-    const [totalTasks] = await pool.execute(
-      `SELECT COUNT(*) as c FROM vuot_link_tasks WHERE created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
-    );
-    const [completedTasks] = await pool.execute(
-      `SELECT COUNT(*) as c FROM vuot_link_tasks WHERE status = 'completed' AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
-    );
-    const [expiredTasks] = await pool.execute(
-      `SELECT COUNT(*) as c FROM vuot_link_tasks WHERE status = 'expired' AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
-    );
-    const [uniqueDevices] = await pool.execute(
-      `SELECT COUNT(DISTINCT visitor_id) as c FROM vuot_link_tasks WHERE visitor_id IS NOT NULL AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
-    );
+    await pool.execute(`DELETE FROM security_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)`);
 
-    // Bot blocked count from security_logs (24h)
-    const [botBlocked] = await pool.execute(
-      `SELECT COUNT(*) as c FROM security_logs WHERE created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
-    );
-    const [botByReason] = await pool.execute(
-      `SELECT reason, source, COUNT(*) as c FROM security_logs WHERE created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) GROUP BY reason, source ORDER BY c DESC`
-    );
-
-    const total24h = totalTasks[0].c || 0;
-    const completed24h = completedTasks[0].c || 0;
-    const expired24h = expiredTasks[0].c || 0;
-    const botDetected24h = botBlocked[0].c || 0;
-
-    // ── Top devices (high task count in 24h) ──
-    const [topDevs] = await pool.execute(
-      `SELECT visitor_id,
-              COUNT(*) as total,
-              SUM(status = 'completed') as completed,
-              COUNT(DISTINCT ip_address) as ip_count
-       FROM vuot_link_tasks
-       WHERE visitor_id IS NOT NULL AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
-       GROUP BY visitor_id
-       HAVING total >= 2
-       ORDER BY total DESC LIMIT 10`
-    );
-
-    let logSql = `SELECT id, ip_address, visitor_id, status, user_agent, admin_note, bot_detected, mouse_score, mouse_reasons, mouse_points, clicks, created_at FROM vuot_link_tasks WHERE 1=1`;
-    const logParams = [];
-
-    if (filter === 'blocked') {
-      logSql += ` AND status NOT IN ('completed', 'pending', 'step1', 'step2', 'step3')`;
-    } else if (filter === 'warning') {
-      logSql += ` AND visitor_id IN (SELECT visitor_id FROM vuot_link_tasks WHERE visitor_id IS NOT NULL GROUP BY visitor_id HAVING COUNT(*) >= 3)`;
-    } else if (filter === 'passed') {
-      logSql += ` AND status = 'completed'`;
-    }
+    let countSql = `SELECT COUNT(*) as total FROM security_logs WHERE 1=1`;
+    let listSql = `SELECT id, source, reason, ip_address, visitor_id, created_at FROM security_logs WHERE 1=1`;
+    const params = [];
 
     if (search) {
-      logSql += ` AND (ip_address LIKE ? OR visitor_id LIKE ?)`;
-      logParams.push(`%${search}%`, `%${search}%`);
+      const searchClause = ` AND (ip_address LIKE ? OR visitor_id LIKE ? OR reason LIKE ?)`;
+      countSql += searchClause;
+      listSql += searchClause;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    logSql += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-    logParams.push(Number(limit), offset);
+    const [countResult] = await pool.execute(countSql, params);
+    const total = countResult[0].total;
 
-    const [logs] = await pool.execute(logSql, logParams);
+    listSql += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    const listParams = [...params, Number(limit), offset];
+    const [securityLogs] = await pool.execute(listSql, listParams);
 
-    // ── Recent security events (blocked requests from security_logs) ──
-    let secLogSql = `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at FROM security_logs WHERE 1=1`;
-    const secLogParams = [];
-    if (search) {
-      secLogSql += ` AND (ip_address LIKE ? OR visitor_id LIKE ? OR reason LIKE ?)`;
-      secLogParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
-    }
-    secLogSql += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-    secLogParams.push(Number(limit), offset);
-    const [securityLogs] = await pool.execute(secLogSql, secLogParams);
-
-    res.json({
-      stats: {
-        totalTasks24h: total24h,
-        completedTasks24h: completed24h,
-        blockedTasks24h: expired24h,
-        uniqueDevices24h: uniqueDevices[0].c,
-        botDetected24h,
-        blockRate: total24h > 0 ? ((expired24h / total24h) * 100) : 0,
-        botByReason,
-      },
-      topDevices: topDevs,
-      logs,
-      securityLogs,
-    });
+    res.json({ securityLogs, total, page: Number(page), limit: Number(limit) });
   } catch (err) {
     console.error('Security API error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── PUT /admin/security/tasks/:id/note — save admin note ──
-router.put('/security/tasks/:id/note', async (req, res) => {
+router.get('/security/:id', async (req, res) => {
   try {
     const pool = getPool();
-    const { note } = req.body;
-    await pool.execute('UPDATE vuot_link_tasks SET admin_note = ? WHERE id = ?', [note || null, req.params.id]);
-    res.json({ message: 'Đã lưu ghi chú' });
+    const [rows] = await pool.execute(
+      `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at FROM security_logs WHERE id = ?`,
+      [req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Không tìm thấy' });
+    res.json({ event: rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
