@@ -247,12 +247,25 @@ export default function VuotLink() {
           console.warn('[VuotLink] Clarity not loaded');
         }
 
-        // Step 2: Get challenge (anti-replay token)
+        // Step 2: Get challenge + solve Proof-of-Work
         const chRes = await fetch(`${API}/challenge`);
         if (!chRes.ok) throw new Error('Không thể lấy challenge');
         const challenge = await chRes.json();
 
-        // Step 3: Request task with behavioral data
+        // Solve PoW: find nonce where SHA-256(prefix+nonce) starts with d zeros
+        let powNonce = 0;
+        const target = '0'.repeat(challenge.d || 4);
+        const enc = new TextEncoder();
+        while (true) {
+          const data = enc.encode(challenge.p + powNonce);
+          const buf = await crypto.subtle.digest('SHA-256', data);
+          const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+          if (hex.startsWith(target)) break;
+          powNonce++;
+          if (powNonce > 5000000) throw new Error('PoW timeout');
+        }
+
+        // Step 3: Request task with behavioral data + PoW nonce
         const token = localStorage.getItem('token');
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -262,6 +275,7 @@ export default function VuotLink() {
           headers,
           body: JSON.stringify({
             challengeId: challenge.c,
+            powNonce,
             visitorId,
             botDetection: botDetectionResult,
             probes: probeData,

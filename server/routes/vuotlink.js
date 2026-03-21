@@ -49,8 +49,10 @@ router.get('/challenge', (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
 
   const challengeId = crypto.randomBytes(16).toString('hex');
-  challenges[challengeId] = { createdAt: Date.now(), used: false, ip };
-  res.json({ c: challengeId });
+  const prefix = crypto.randomBytes(8).toString('hex');
+  const difficulty = 4;
+  challenges[challengeId] = { createdAt: Date.now(), used: false, ip, prefix, difficulty };
+  res.json({ c: challengeId, p: prefix, d: difficulty });
 });
 
 /* ═════════════════════════════════════════════════════════
@@ -71,19 +73,24 @@ router.post('/task', optionalAuth, async (req, res) => {
     return res.status(429).json({ error: 'Quá nhiều yêu cầu. Thử lại sau.' });
   }
 
-  const { challengeId, visitorId, botDetection, probes: clientProbes, behavioral } = req.body || {};
+  const { challengeId, powNonce, visitorId, botDetection, probes: clientProbes, behavioral } = req.body || {};
 
-  // ── Collect detection results (saved to DB later) ──
   let botDetected = false;
   let detectionLog = [];
 
-  // ── 1. Challenge validation (anti-replay) ──
-  if (!challengeId) return res.status(403).json(ERR);
+  if (!challengeId || powNonce === undefined) return res.status(403).json(ERR);
   const ch = challenges[challengeId];
   if (!ch) return res.status(403).json(ERR);
   if (ch.used) { delete challenges[challengeId]; return res.status(403).json(ERR); }
   if (Date.now() - ch.createdAt > 300000) { delete challenges[challengeId]; return res.status(403).json(ERR); }
   if (ch.ip && ch.ip !== ip) return res.status(403).json(ERR);
+
+  const hash = crypto.createHash('sha256').update(ch.prefix + String(powNonce)).digest('hex');
+  const target = '0'.repeat(ch.difficulty);
+  if (!hash.startsWith(target)) {
+    delete challenges[challengeId];
+    return res.status(403).json(ERR);
+  }
   ch.used = true;
 
   // ── 2. CreepJS check — any lie = block ──
