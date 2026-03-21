@@ -435,4 +435,50 @@ router.get('/security/:id', async (req, res) => {
   }
 });
 
+// ── GET /api/admin/referrals/:type (buyers or workers) ──
+router.get('/referrals/:type', async (req, res) => {
+  try {
+    const pool = getPool();
+    const type = req.params.type; // 'buyers' or 'workers'
+    const serviceFilter = type === 'workers' ? "AND u.service_type = 'worker'" : "AND (u.service_type = 'buyer' OR u.service_type IS NULL)";
+    const search = req.query.search || '';
+
+    let sql = `
+      SELECT u.id, u.name, u.email, u.referral_code, u.service_type,
+        (SELECT COUNT(*) FROM users r WHERE r.referred_by = u.id) as ref_count
+      FROM users u
+      WHERE (SELECT COUNT(*) FROM users r WHERE r.referred_by = u.id) > 0
+      ${serviceFilter}
+    `;
+    const params = [];
+
+    if (search) {
+      sql += ` AND (u.name LIKE ? OR u.email LIKE ? OR u.referral_code LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    sql += ' ORDER BY ref_count DESC LIMIT 100';
+
+    const [referrers] = await pool.execute(sql, params);
+
+    // Get referred users for each referrer
+    for (const ref of referrers) {
+      const [referred] = await pool.execute(
+        `SELECT id, name, email, service_type, status, created_at FROM users WHERE referred_by = ? ORDER BY created_at DESC LIMIT 50`,
+        [ref.id]
+      );
+      ref.referred = referred;
+    }
+
+    // Stats
+    const serviceWhere = type === 'workers' ? "AND service_type = 'worker'" : "AND (service_type = 'buyer' OR service_type IS NULL)";
+    const [totalRefs] = await pool.execute(`SELECT COUNT(*) as c FROM users WHERE referred_by IS NOT NULL ${serviceWhere}`);
+    const [totalReferrers] = await pool.execute(`SELECT COUNT(DISTINCT referred_by) as c FROM users WHERE referred_by IS NOT NULL`);
+
+    res.json({ referrers, totalReferred: totalRefs[0].c, totalReferrers: totalReferrers[0].c });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

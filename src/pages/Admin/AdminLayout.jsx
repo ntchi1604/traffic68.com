@@ -3,16 +3,25 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Megaphone, Receipt, LifeBuoy,
   ChevronLeft, Shield, Settings, Menu, X, DollarSign, Fingerprint, LogOut,
+  ChevronDown, Briefcase, HardHat, Gift,
 } from 'lucide-react';
 import api from '../../lib/api';
 
-const NAV = [
+const BUYER_NAV = [
   { to: '/admin',              icon: LayoutDashboard, label: 'Tổng quan',    end: true },
   { to: '/admin/users',        icon: Users,           label: 'Người dùng' },
   { to: '/admin/campaigns',    icon: Megaphone,       label: 'Chiến dịch' },
   { to: '/admin/transactions', icon: Receipt,         label: 'Giao dịch' },
-  { to: '/admin/tickets',      icon: LifeBuoy,        label: 'Hỗ trợ' },
   { to: '/admin/pricing',      icon: DollarSign,      label: 'Bảng giá' },
+  { to: '/admin/referrals/buyers', icon: Gift,          label: 'Referral Buyer' },
+];
+
+const WORKER_NAV = [
+  { to: '/admin/tickets',      icon: LifeBuoy,        label: 'Hỗ trợ' },
+  { to: '/admin/referrals/workers', icon: Gift,         label: 'Referral Worker' },
+];
+
+const SYSTEM_NAV = [
   { to: '/admin/security',     icon: Fingerprint,     label: 'Bảo mật' },
   { to: '/admin/settings',     icon: Settings,        label: 'Cài đặt' },
 ];
@@ -22,6 +31,8 @@ export default function AdminLayout() {
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [buyerOpen, setBuyerOpen] = useState(true);
+  const [workerOpen, setWorkerOpen] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -43,8 +54,20 @@ export default function AdminLayout() {
     });
   }, [navigate]);
 
-  // Close sidebar on route change (mobile)
   const closeSidebar = () => setSidebarOpen(false);
+
+  const NavItem = ({ to, icon: Icon, label, end }) => (
+    <NavLink key={to} to={to} end={end} onClick={closeSidebar}
+      className={({ isActive }) =>
+        `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all
+         ${isActive
+           ? 'bg-orange-500/20 text-orange-400'
+           : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+    >
+      <Icon size={18} />
+      {label}
+    </NavLink>
+  );
 
   if (loading || !admin) {
     return (
@@ -56,19 +79,16 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex overflow-hidden">
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={closeSidebar} />
       )}
 
-      {/* Sidebar */}
       <aside className={`
         fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0
       `}>
-        {/* Logo */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-white/10 shrink-0">
           <img src="/traffic68_com.gif" alt="Traffic68" className="h-10 w-auto" />
           <button onClick={closeSidebar} className="lg:hidden p-1.5 hover:bg-white/10 rounded-lg">
@@ -76,20 +96,29 @@ export default function AdminLayout() {
           </button>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-          {NAV.map(({ to, icon: Icon, label, end }) => (
-            <NavLink key={to} to={to} end={end} onClick={closeSidebar}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all
-                 ${isActive
-                   ? 'bg-orange-500/20 text-orange-400'
-                   : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-            >
-              <Icon size={18} />
-              {label}
-            </NavLink>
-          ))}
+          {/* Buyer Section */}
+          <button onClick={() => setBuyerOpen(!buyerOpen)}
+            className="w-full flex items-center justify-between px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-300 transition">
+            <span className="flex items-center gap-2"><Briefcase size={12} /> Quản lý Buyer</span>
+            <ChevronDown size={14} className={`transition-transform ${buyerOpen ? '' : '-rotate-90'}`} />
+          </button>
+          {buyerOpen && BUYER_NAV.map(item => <NavItem key={item.to} {...item} />)}
+
+          {/* Worker Section */}
+          <div className="pt-3">
+            <button onClick={() => setWorkerOpen(!workerOpen)}
+              className="w-full flex items-center justify-between px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-300 transition">
+              <span className="flex items-center gap-2"><HardHat size={12} /> Quản lý Worker</span>
+              <ChevronDown size={14} className={`transition-transform ${workerOpen ? '' : '-rotate-90'}`} />
+            </button>
+            {workerOpen && WORKER_NAV.map(item => <NavItem key={item.to} {...item} />)}
+          </div>
+
+          {/* System */}
+          <div className="pt-3 mt-2 border-t border-white/5">
+            {SYSTEM_NAV.map(item => <NavItem key={item.to} {...item} />)}
+          </div>
         </nav>
 
         <div className="px-3 py-4 border-t border-white/10 space-y-2 shrink-0">

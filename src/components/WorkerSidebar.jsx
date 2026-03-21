@@ -16,6 +16,7 @@ import {
   History,
   HelpCircle,
   DollarSign,
+  Gift,
 } from 'lucide-react';
 
 const linkBase =
@@ -145,6 +146,11 @@ export default function WorkerSidebar({ isOpen, onClose }) {
 
           {/* ── Bottom ── */}
           <div className="pt-4 mt-4 border-t border-slate-800 space-y-1">
+            <NavLink to="/worker/dashboard/referral"
+              className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
+              <Gift className="w-5 h-5" />
+              Giới thiệu bạn bè
+            </NavLink>
             <NavLink to="/worker/dashboard/pricing"
               className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
               <DollarSign className="w-5 h-5" />

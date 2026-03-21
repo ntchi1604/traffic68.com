@@ -19,7 +19,7 @@ const timeAgo = (dateStr) => {
 const fmtDate = (d) => {
   if (!d) return '—';
   const dt = new Date(d);
-  return dt.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return dt.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
 const WARNING_VI = {
@@ -380,7 +380,7 @@ export default function AdminSecurity() {
                 const isCompleted = ev.reason === 'completed';
                 return (
                   <tr key={ev.id} className={`border-b border-slate-100 hover:bg-slate-50/50 transition ${isBlocked ? 'bg-red-50/30' : ''}`}>
-                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{timeAgo(ev.created_at)}</td>
+                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{fmtDate(ev.created_at)}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
                         {sourceVi[ev.source] || ev.source}

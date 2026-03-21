@@ -35,6 +35,7 @@ import SettingsAndSupport from './pages/General/SettingsAndSupport';
 import UserProfileAndAccountSettings from './pages/General/UserProfileAndAccountSettings';
 import ScriptGenerator from './pages/Script/ScriptGenerator';
 import UserPricing from './pages/Dashboard/UserPricing';
+import UserReferral from './pages/General/UserReferral';
 
 /* ── Worker (shortlink) pages ── */
 import WorkerDashboardLayout from './components/WorkerDashboardLayout';
@@ -59,6 +60,7 @@ import AdminTickets from './pages/Admin/AdminTickets';
 import AdminPricing from './pages/Admin/AdminPricing';
 import AdminSettings from './pages/Admin/AdminSettings';
 import AdminSecurity from './pages/Admin/AdminSecurity';
+import AdminReferrals from './pages/Admin/AdminReferrals';
 
 const DASHBOARD_ROUTES = ['/buyer', '/worker', '/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/vuot-link', '/admin'];
 
@@ -124,6 +126,7 @@ function Layout() {
           <Route path="script" element={<ScriptGenerator />} />
           <Route path="support" element={<SettingsAndSupport />} />
           <Route path="pricing" element={<UserPricing />} />
+          <Route path="referral" element={<UserReferral />} />
           <Route path="profile" element={<UserProfileAndAccountSettings />} />
         </Route>
 
@@ -138,6 +141,7 @@ function Layout() {
           <Route path="pricing" element={<WorkerPricing />} />
           <Route path="profile" element={<WorkerProfile />} />
           <Route path="support" element={<WorkerSupport />} />
+          <Route path="referral" element={<UserReferral />} />
           <Route path="api" element={<WorkerApi />} />
         </Route>
 
@@ -150,6 +154,8 @@ function Layout() {
           <Route path="tickets" element={<AdminTickets />} />
           <Route path="pricing" element={<AdminPricing />} />
           <Route path="security" element={<AdminSecurity />} />
+          <Route path="referrals/buyers" element={<AdminReferrals type="buyers" />} />
+          <Route path="referrals/workers" element={<AdminReferrals type="workers" />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 

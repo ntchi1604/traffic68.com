@@ -104,4 +104,19 @@ router.put('/password', async (req, res) => {
   res.json({ message: 'Đổi mật khẩu thành công' });
 });
 
+// ── GET /api/users/referrals ──
+router.get('/referrals', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [me] = await pool.execute('SELECT referral_code FROM users WHERE id = ?', [req.userId]);
+    const [refs] = await pool.execute(
+      `SELECT id, name, email, service_type, status, created_at FROM users WHERE referred_by = ? ORDER BY created_at DESC`,
+      [req.userId]
+    );
+    res.json({ referralCode: me[0]?.referral_code || '', referrals: refs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
