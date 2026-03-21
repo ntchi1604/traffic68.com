@@ -64,7 +64,25 @@ router.get('/challenge', (req, res) => {
    - Stores IP, UA, random code in vuot_link_tasks
    - Code will be shown on the target website embed script
 ═════════════════════════════════════════════════════════ */
-router.post('/task', optionalAuth, async (req, res) => {
+router.post('/task', optionalAuth, (req, res) => {
+  // Hard 25s timeout — prevents Nginx 504 by responding before Nginx gives up
+  const timeoutId = setTimeout(() => {
+    if (!res.headersSent) {
+      console.error('[VuotLink] ⏱ POST /task TIMED OUT after 25s');
+      res.status(503).json({ error: 'Server bận, vui lòng thử lại.' });
+    }
+  }, 25000);
+
+  const done = () => clearTimeout(timeoutId);
+
+  _handleTaskPost(req, res).then(done).catch(err => {
+    done();
+    console.error('[VuotLink] Unhandled error in task POST:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Lỗi server.' });
+  });
+});
+
+async function _handleTaskPost(req, res) {
   const ERR = { error: 'Yêu cầu không hợp lệ' };
   const ua = req.headers['user-agent'] || '';
   if (!ua || BOT_UA.test(ua)) return res.status(403).json(ERR);
@@ -220,6 +238,9 @@ router.post('/task', optionalAuth, async (req, res) => {
     }
   } catch (e) { /* non-fatal */ }
 
+  // Generate signed task token (binds to IP, cannot be forged)
+  const _tk = signTask(result.insertId, ip);
+
   res.json({
     id: result.insertId,
     keyword: campaign.keyword,
@@ -227,9 +248,9 @@ router.post('/task', optionalAuth, async (req, res) => {
     waitTime,
     startedAt: now,
     widgetConfig,
-    _tk, // signed token for subsequent calls
+    _tk,
   });
-});
+}
 
 /* PUT /task/:id/step - no-op (step tracking removed) */
 router.put('/task/:id/step', optionalAuth, (req, res) => res.json({ ok: true }));
