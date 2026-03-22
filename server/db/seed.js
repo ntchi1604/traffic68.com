@@ -18,7 +18,7 @@ async function seed() {
   const [result] = await pool.execute(
     `INSERT INTO users (email, password_hash, name, username, role, phone, referral_code)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ['admin@traffic68.com', adminHash, 'Admin', 'admin', 'admin', '', 'REF-ADMIN']
+    ['admin@traffic68.com', adminHash, 'Admin', 'admin', 'admin', '', 'ADMIN']
   );
 
   const adminId = result.insertId;

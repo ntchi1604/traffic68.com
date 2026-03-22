@@ -70,7 +70,7 @@ router.post('/register', async (req, res) => {
     }
 
     const hash = bcrypt.hashSync(password, 10);
-    const myRefCode = 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const myRefCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     const serviceType = service === 'shortlink' ? 'shortlink' : 'traffic';
 
