@@ -23,7 +23,7 @@ export default function AdminWorkerWithdrawals() {
   useEffect(() => { fetch(); }, [filter]);
 
   const handleAction = async (id, action) => {
-    if (action === 'reject' && !confirm('Từ chối yêu cầu rút tiền này?')) return;
+    if (action === 'reject' && !await toast.confirm('Từ chối yêu cầu rút tiền này?')) return;
     try {
       await api.put(`/admin/worker-withdrawals/${id}`, { action });
       toast.success(action === 'approve' ? 'Đã duyệt' : 'Đã từ chối');

@@ -461,16 +461,6 @@ export default function LinkGateway() {
     <Wrapper>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 16px 48px' }}>
 
-        {/* ── Destination info ── */}
-        <div style={{ background: 'rgba(59,130,246,0.06)', border: '1.5px solid #BFDBFE', borderRadius: 16, padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Lock size={20} color="#3B82F6" />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 12, color: '#3B82F6', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Link được bảo vệ</p>
-            <p style={{ fontWeight: 700, color: '#1E293B', fontSize: 15 }}>{linkInfo.title || 'Hoàn thành nhiệm vụ để truy cập link'}</p>
-          </div>
-        </div>
 
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <h1 style={{ fontSize: 'clamp(20px,4vw,30px)', fontWeight: 900, color: '#1E3A6E', margin: '0 0 6px' }}>
@@ -548,7 +538,7 @@ export default function LinkGateway() {
                         <div key={idx}>
                           <p style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px' }}>🎯 {label}</p>
                           <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid #DDD6FE', boxShadow: '0 4px 16px rgba(99,102,241,0.1)' }}>
-                            <img src={img} alt={label} style={{ width: '100%', display: 'block', maxHeight: 200, objectFit: 'cover', objectPosition: 'top' }} onError={e => e.target.style.display = 'none'} />
+                            <img src={img} alt={label} style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
                           </div>
                         </div>
                       ) : null)}
@@ -560,7 +550,7 @@ export default function LinkGateway() {
                       🎯 Trang đích cần tìm:
                     </p>
                     <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid #DDD6FE', boxShadow: '0 4px 20px rgba(99,102,241,0.12)' }}>
-                      <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block', maxHeight: 280, objectFit: 'cover', objectPosition: 'top' }} onError={e => e.target.style.display = 'none'} />
+                      <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
                     </div>
                   </>
                 ) : null}

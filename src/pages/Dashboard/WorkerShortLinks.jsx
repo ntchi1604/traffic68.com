@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Link2, Plus, Copy, Trash2, ExternalLink, MousePointer, Wallet, CheckCircle, Globe, X, Globe2 } from 'lucide-react';
+import { Link2, Plus, Copy, EyeOff, ExternalLink, MousePointer, Wallet, CheckCircle, Globe, X, Globe2 } from 'lucide-react';
 import { formatMoney as fmt } from '../../lib/format';
+import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 
 const BASE = window.location.origin;
 
 export default function WorkerShortLinks() {
   usePageTitle('Link kiếm tiền');
+
+  const toast = useToast();
 
   const [links, setLinks] = useState([]);
   const [stats, setStats] = useState({});
@@ -17,13 +20,7 @@ export default function WorkerShortLinks() {
   const [title, setTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(null);
-  const [toast, setToast] = useState(null);
   const [formErr, setFormErr] = useState('');
-
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 2500);
-  };
 
   const load = useCallback(async () => {
     try {
@@ -47,20 +44,20 @@ export default function WorkerShortLinks() {
     setCreating(true);
     try {
       await api.post('/shortlink/create', { destination_url: destUrl.trim(), title: title.trim() || null });
-      showToast('Tạo link thành công!');
+      toast.success('Tạo link thành công!');
       closePanel();
       await load();
     } catch (e) { setFormErr(e.message || 'Lỗi tạo link'); }
     finally { setCreating(false); }
   };
 
-  const deleteLink = async (id) => {
-    if (!confirm('Xóa link này?')) return;
+  const hideLink = async (id) => {
+    if (!await toast.confirm('Ẩn link này?')) return;
     try {
-      await api.delete(`/shortlink/links/${id}`);
+      await api.put(`/shortlink/links/${id}/hide`);
       setLinks(prev => prev.filter(l => l.id !== id));
-      showToast('Đã xóa');
-    } catch (e) { showToast(e.message, 'error'); }
+      toast.success('Đã ẩn link');
+    } catch (e) { toast.error(e.message); }
   };
 
   const copyLink = (slug) => {

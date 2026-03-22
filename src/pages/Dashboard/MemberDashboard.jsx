@@ -35,7 +35,7 @@ function StatusBadge({ status }) {
 }
 
 export default function MemberDashboard() {
-  usePageTitle('Dashboard Thành Viên');
+  usePageTitle('Tổng quan');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -67,10 +67,9 @@ export default function MemberDashboard() {
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Tổng quan thành viên' }]} />
+      <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Tổng quan' }]} />
       <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard Thành Viên</h1>
-        <p className="text-slate-500 text-sm mt-1">Tổng quan hoạt động và thu nhập của bạn</p>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Tổng quan</h1>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 min-w-0">

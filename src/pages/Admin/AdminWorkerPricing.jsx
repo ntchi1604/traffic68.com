@@ -97,7 +97,7 @@ export default function AdminWorkerPricing() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-slate-900">Bảng giá Worker</h1>
+        <h1 className="text-2xl font-black text-slate-900">Bảng giá</h1>
       </div>
 
       {loading ? (
@@ -106,7 +106,6 @@ export default function AdminWorkerPricing() {
         </div>
       ) : tiers.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
-          <p className="text-slate-500">Chưa có dữ liệu bảng giá worker. Restart server để seed từ bảng giá buyer.</p>
         </div>
       ) : (
         <>

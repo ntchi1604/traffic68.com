@@ -3,6 +3,7 @@ import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
 import { Link2, Copy, EyeOff, ExternalLink, MousePointer, Wallet, CheckCircle, Globe, Plus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 import { formatMoney as fmt } from '../../lib/format';
 
@@ -11,6 +12,7 @@ const BASE = window.location.origin;
 export default function AllLinks() {
   usePageTitle('Tất cả liên kết');
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [links, setLinks] = useState([]);
   const [stats, setStats] = useState({});
@@ -21,11 +23,6 @@ export default function AllLinks() {
   const [creating, setCreating] = useState(false);
   const [formErr, setFormErr] = useState('');
   const [copied, setCopied] = useState(null);
-  const [toast, setToast] = useState(null);
-
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type }); setTimeout(() => setToast(null), 2500);
-  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,16 +46,16 @@ export default function AllLinks() {
     setCreating(true);
     try {
       await api.post('/shortlink/create', { destination_url: destUrl.trim(), title: title.trim() || null });
-      showToast('Tạo link thành công!');
+      toast.success('Tạo link thành công!');
       closePanel(); await load();
     } catch (e) { setFormErr(e.message || 'Lỗi tạo link'); }
     finally { setCreating(false); }
   };
 
   const hideLink = async (id) => {
-    if (!confirm('Ẩn link này?')) return;
-    try { await api.put(`/shortlink/links/${id}/hide`); setLinks(prev => prev.filter(l => l.id !== id)); showToast('Đã ẩn link'); }
-    catch (e) { showToast(e.message, 'error'); }
+    if (!await toast.confirm('Ẩn link này?')) return;
+    try { await api.put(`/shortlink/links/${id}/hide`); setLinks(prev => prev.filter(l => l.id !== id)); toast.success('Đã ẩn link'); }
+    catch (e) { toast.error(e.message); }
   };
 
   const copyLink = (slug) => {
@@ -69,11 +66,7 @@ export default function AllLinks() {
   return (
     <div className="space-y-6 w-full min-w-0">
       {/* Toast */}
-      {toast && (
-        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, padding: '10px 18px', borderRadius: 12, fontSize: 14, fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', background: toast.type === 'error' ? '#FEF2F2' : '#F0FDF4', border: `1px solid ${toast.type === 'error' ? '#FECACA' : '#BBF7D0'}`, color: toast.type === 'error' ? '#DC2626' : '#16A34A' }}>
-          {toast.msg}
-        </div>
-      )}
+
 
       {/* Right-side panel overlay */}
       {panelOpen && <div onClick={closePanel} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 1000, backdropFilter: 'blur(2px)' }} />}

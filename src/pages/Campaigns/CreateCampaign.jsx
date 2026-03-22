@@ -6,6 +6,7 @@ import {
   BarChart2, Wallet, Gift, Star, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import api from '../../lib/api';
+import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import Breadcrumb from '../../components/Breadcrumb';
 
@@ -102,7 +103,7 @@ function NumberInput({ suffix, ...props }) {
 }
 
 /* ── Image upload field ──────────────────────────────────── */
-function ImageUpload({ label, required, hint, value, onUploaded }) {
+function ImageUpload({ label, required, hint, value, onUploaded, onError }) {
   const ref = useRef();
   const [uploading, setUploading] = useState(false);
 
@@ -123,7 +124,7 @@ function ImageUpload({ label, required, hint, value, onUploaded }) {
       if (!res.ok) throw new Error(data.error || 'Upload thất bại');
       onUploaded(file, data.imageUrl);
     } catch (err) {
-      alert(err.message);
+      if (onError) onError(err.message); else console.error(err.message);
     } finally {
       setUploading(false);
     }
@@ -216,6 +217,7 @@ function Toggle({ checked, onChange, label }) {
 export default function CreateCampaign() {
   usePageTitle('Tạo chiến dịch mới');
   const navigate = useNavigate();
+  const toast = useToast();
   const [walletBalance, setWalletBalance] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -593,6 +595,7 @@ export default function CreateCampaign() {
                     hint=""
                     value={form.image1}
                     onUploaded={(file, url) => { set('image1', file); set('image1_url', url); }}
+                    onError={msg => toast.error(msg)}
                   />
                 </div>
 
@@ -613,6 +616,7 @@ export default function CreateCampaign() {
                     hint=""
                     value={form.image2}
                     onUploaded={(file, url) => { set('image2', file); set('image2_url', url); }}
+                    onError={msg => toast.error(msg)}
                   />
                 </div>
 

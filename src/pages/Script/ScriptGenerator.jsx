@@ -357,7 +357,7 @@ export default function ScriptGenerator() {
 
   // Delete widget
   const deleteWidget = async (id) => {
-    if (!confirm('Xoá widget này? Mã nhúng sẽ ngừng hoạt động.')) return;
+    if (!await toast.confirm('Xoá widget này? Mã nhúng sẽ ngừng hoạt động.')) return;
     setDeleting(id);
     try {
       const api = (await import('../../lib/api')).default;

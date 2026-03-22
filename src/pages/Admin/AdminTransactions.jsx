@@ -106,7 +106,7 @@ export default function AdminTransactions() {
   useEffect(() => { fetchData(); }, [typeFilter, statusFilter, fromDate, toDate]);
 
   const approveTx = async (tx) => {
-    if (!confirm(`Duyệt đơn nạp ${fmt(tx.amount)} đ của ${tx.user_name}?`)) return;
+    if (!await toast.confirm(`Duyệt đơn nạp ${fmt(tx.amount)} đ của ${tx.user_name}?`)) return;
     try {
       await api.put(`/admin/transactions/${tx.id}/approve`);
       toast.success(`Đã duyệt đơn nạp ${fmt(tx.amount)} đ`);

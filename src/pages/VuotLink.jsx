@@ -615,7 +615,7 @@ export default function VuotLink() {
                                                             🎯 {label}
                                                         </p>
                                                         <div style={{ borderRadius: '12px', overflow: 'hidden', border: '2px solid #e0e7ff', boxShadow: '0 4px 16px rgba(99,102,241,0.1)' }}>
-                                                            <img src={img} alt={label} style={{ width: '100%', display: 'block', maxHeight: '200px', objectFit: 'cover', objectPosition: 'top' }} onError={e => e.target.style.display = 'none'} />
+                                                            <img src={img} alt={label} style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
                                                         </div>
                                                     </div>
                                                 ) : null)}
@@ -627,7 +627,7 @@ export default function VuotLink() {
                                                 🎯 Trang đích cần tìm — giao diện trông giống như hình bên dưới:
                                             </p>
                                             <div style={{ borderRadius: '14px', overflow: 'hidden', border: '2px solid #e0e7ff', boxShadow: '0 4px 20px rgba(99,102,241,0.12)' }}>
-                                                <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block', maxHeight: '340px', objectFit: 'cover', objectPosition: 'top' }} onError={e => e.target.style.display = 'none'} />
+                                                <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
                                             </div>
                                         </>
                                     )}

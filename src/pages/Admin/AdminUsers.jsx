@@ -162,7 +162,7 @@ export default function AdminUsers({ type }) {
   };
 
   const deleteUser = async (id, name) => {
-    if (!confirm(`Xóa người dùng "${name}"? Hành động này không thể hoàn tác.`)) return;
+    if (!await toast.confirm(`Xóa người dùng "${name}"? Hành động này không thể hoàn tác.`)) return;
     try { await api.delete(`/admin/users/${id}`); fetchUsers(search); }
     catch (err) { toast.error(err.message); }
   };

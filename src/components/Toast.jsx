@@ -41,8 +41,38 @@ function Toast({ toast, onRemove }) {
   );
 }
 
+function ConfirmDialog({ message, onConfirm, onCancel }) {
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle size={20} className="text-amber-500" />
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-800 text-sm">Xác nhận</h3>
+            <p className="text-sm text-slate-600 mt-1">{message}</p>
+          </div>
+        </div>
+        <div className="flex gap-3 justify-end">
+          <button onClick={onCancel}
+            className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+            Hủy
+          </button>
+          <button onClick={onConfirm}
+            className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition">
+            Xác nhận
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
+  const [confirmState, setConfirmState] = useState(null);
   const timers = useRef({});
 
   const removeToast = useCallback((id) => {
@@ -59,16 +89,29 @@ export function ToastProvider({ children }) {
     return id;
   }, [removeToast]);
 
+  const confirmFn = useCallback((message) => {
+    return new Promise((resolve) => {
+      setConfirmState({
+        message,
+        onConfirm: () => { setConfirmState(null); resolve(true); },
+        onCancel: () => { setConfirmState(null); resolve(false); },
+      });
+    });
+  }, []);
+
   const toast = useCallback({
     success: (message, title) => addToast({ type: 'success', message, title }),
     error: (message, title) => addToast({ type: 'error', message, title }),
     warning: (message, title) => addToast({ type: 'warning', message, title }),
     info: (message, title) => addToast({ type: 'info', message, title }),
-  }, [addToast]);
+    confirm: confirmFn,
+  }, [addToast, confirmFn]);
 
   return (
     <ToastContext.Provider value={toast}>
       {children}
+      {/* Confirm dialog */}
+      {confirmState && <ConfirmDialog {...confirmState} />}
       {/* Toast container */}
       <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
         {toasts.map(t => (
