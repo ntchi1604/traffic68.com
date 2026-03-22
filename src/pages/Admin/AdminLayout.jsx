@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Megaphone, Receipt, LifeBuoy,
-  ChevronLeft, Shield, Settings, Menu, X, DollarSign, Fingerprint, LogOut,
+  ChevronLeft, Shield, Settings, Settings2, Menu, X, DollarSign, Fingerprint, LogOut,
   ChevronDown, Briefcase, HardHat, Gift, ShieldAlert,
 } from 'lucide-react';
 import api from '../../lib/api';
@@ -27,6 +27,7 @@ const WORKER_NAV = [
 ];
 
 const SYSTEM_NAV = [
+  { to: '/admin/config',       icon: Settings2,       label: 'Cấu hình' },
   { to: '/admin/settings',     icon: Settings,        label: 'Cài đặt' },
 ];
 

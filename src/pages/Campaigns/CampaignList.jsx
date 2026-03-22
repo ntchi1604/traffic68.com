@@ -1,60 +1,54 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
-import { Pause, Play, Pencil, X, Upload, Plus, Zap } from 'lucide-react';
+import { Pause, Play, Pencil, X, Upload, Plus, Zap, Trash2 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
 
+/* ── helpers ── */
+const parseJsonArray = (val) => {
+  if (!val) return [''];
+  try { const a = JSON.parse(val); if (Array.isArray(a)) return a.length ? a : ['']; } catch {}
+  return [val];
+};
+
 /* ── Edit Modal ── */
 function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
-  const fileRef1 = useRef();
-  const fileRef2 = useRef();
   const [dailyViews, setDailyViews] = useState(campaign.daily_views || 500);
-  const [keyword, setKeyword] = useState(campaign.keyword || '');
-  const [url, setUrl] = useState(campaign.url || '');
-  const [url2, setUrl2] = useState(campaign.url2 || '');
-  const [image1Url, setImage1Url] = useState(campaign.image1_url || '');
-  const [image2Url, setImage2Url] = useState(campaign.image2_url || '');
-  const [uploading1, setUploading1] = useState(false);
-  const [uploading2, setUploading2] = useState(false);
+  const [keywords, setKeywords] = useState(() => parseJsonArray(campaign.keyword));
+  const [urls, setUrls] = useState(() => {
+    const main = campaign.url || '';
+    const extras = parseJsonArray(campaign.url2);
+    return main ? [main, ...extras.filter(u => u && u !== main)] : [''];
+  });
+  const [imageUrls, setImageUrls] = useState(() => {
+    const imgs = parseJsonArray(campaign.image1_url);
+    const img2 = campaign.image2_url;
+    if (img2 && !imgs.includes(img2)) imgs.push(img2);
+    return imgs.filter(Boolean).length ? imgs.filter(Boolean) : [''];
+  });
   const [saving, setSaving] = useState(false);
 
-  const handleImageUpload = async (e, setUrl, setUploading) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('image', file);
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/campaigns/upload-image', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload thất bại');
-      setUrl(data.imageUrl);
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setUploading(false);
-    }
-  };
+  const addItem = (setter) => setter(prev => [...prev, '']);
+  const removeItem = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
+  const updateItem = (setter, idx, val) => setter(prev => prev.map((v, i) => i === idx ? val : v));
 
   const handleSave = async () => {
     setSaving(true);
     try {
+      const kws = keywords.filter(k => k.trim());
+      const u = urls.filter(u => u.trim());
+      const imgs = imageUrls.filter(u => u.trim());
       await api.put(`/campaigns/${campaign.id}`, {
         dailyViews: Number(dailyViews),
-        keyword,
-        url,
-        url2: url2 || null,
-        image1_url: image1Url || null,
-        image2_url: image2Url || null,
+        keyword: JSON.stringify(kws.length ? kws : [campaign.keyword || '']),
+        url: u[0] || campaign.url,
+        url2: JSON.stringify(u.slice(1)),
+        image1_url: imgs.length ? JSON.stringify(imgs) : null,
+        image2_url: null,
       });
       toast.success('Cập nhật chiến dịch thành công');
       onSaved();
@@ -66,29 +60,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     }
   };
 
-  const ImageField = ({ label, imageUrl, setImageUrl, fileRef, uploading, setUploading }) => (
-    <div>
-      <label className="text-sm font-semibold text-slate-600 mb-1 block">{label}</label>
-      {imageUrl && (
-        <div className="mb-2 relative group">
-          <img src={imageUrl} alt="" className="w-full h-32 object-cover rounded-xl border border-slate-200" />
-          <button onClick={() => setImageUrl('')}
-            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
-            <X size={14} />
-          </button>
-        </div>
-      )}
-      <div onClick={() => fileRef.current.click()}
-        className="flex items-center gap-3 border border-dashed border-slate-300 rounded-xl px-4 py-2.5 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition group">
-        <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center">
-          <Upload size={14} className={`text-slate-400 group-hover:text-blue-500 transition ${uploading ? 'animate-spin' : ''}`} />
-        </div>
-        <span className="text-xs text-slate-500">{uploading ? 'Đang upload...' : imageUrl ? 'Thay ảnh' : 'Chọn ảnh'}</span>
-      </div>
-      <input ref={fileRef} type="file" accept="image/*" className="hidden"
-        onChange={e => handleImageUpload(e, setImageUrl, setUploading)} />
-    </div>
-  );
+  const inputCls = "w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition";
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -105,32 +77,76 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Tên chiến dịch</label>
             <p className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700">{campaign.name}</p>
           </div>
+
+          {/* Keywords */}
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Từ khóa</label>
-            <input type="text" value={keyword} onChange={e => setKeyword(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích 1</label>
-            <input type="url" value={url} onChange={e => setUrl(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích 2 <span className="text-slate-400 font-normal">(tùy chọn)</span></label>
-            <input type="url" value={url2} onChange={e => setUrl2(e.target.value)} placeholder="https://..."
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">Số lượng view/ngày</label>
-            <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" />
+            <div className="space-y-2">
+              {keywords.map((kw, i) => (
+                <div key={i} className="flex gap-2">
+                  <input type="text" value={kw} onChange={e => updateItem(setKeywords, i, e.target.value)}
+                    placeholder={`Từ khóa ${i + 1}`} className={inputCls} />
+                  {keywords.length > 1 && (
+                    <button onClick={() => removeItem(setKeywords, i)}
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"><Trash2 size={16} /></button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button onClick={() => addItem(setKeywords)}
+              className="mt-1.5 flex items-center gap-1 text-xs font-bold text-blue-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition">
+              <Plus size={14} /> Thêm từ khóa
+            </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <ImageField label="Hình ảnh 1" imageUrl={image1Url} setImageUrl={setImage1Url}
-              fileRef={fileRef1} uploading={uploading1} setUploading={setUploading1} />
-            <ImageField label="Hình ảnh 2" imageUrl={image2Url} setImageUrl={setImage2Url}
-              fileRef={fileRef2} uploading={uploading2} setUploading={setUploading2} />
+          {/* URLs */}
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích</label>
+            <div className="space-y-2">
+              {urls.map((u, i) => (
+                <div key={i} className="flex gap-2">
+                  <input type="url" value={u} onChange={e => updateItem(setUrls, i, e.target.value)}
+                    placeholder={i === 0 ? 'URL chính' : `URL ${i + 1}`} className={inputCls} />
+                  {urls.length > 1 && (
+                    <button onClick={() => removeItem(setUrls, i)}
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"><Trash2 size={16} /></button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button onClick={() => addItem(setUrls)}
+              className="mt-1.5 flex items-center gap-1 text-xs font-bold text-blue-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition">
+              <Plus size={14} /> Thêm URL
+            </button>
+          </div>
+
+          {/* Images */}
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">Link ảnh</label>
+            <div className="space-y-2">
+              {imageUrls.map((img, i) => (
+                <div key={i}>
+                  <div className="flex gap-2">
+                    <input type="url" value={img} onChange={e => updateItem(setImageUrls, i, e.target.value)}
+                      placeholder={`Link ảnh ${i + 1}`} className={inputCls} />
+                    {imageUrls.length > 1 && (
+                      <button onClick={() => removeItem(setImageUrls, i)}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"><Trash2 size={16} /></button>
+                    )}
+                  </div>
+                  {img && <img src={img} alt="" className="mt-1 w-full h-24 object-cover rounded-xl border border-slate-200" onError={e => e.target.style.display='none'} />}
+                </div>
+              ))}
+            </div>
+            <button onClick={() => addItem(setImageUrls)}
+              className="mt-1.5 flex items-center gap-1 text-xs font-bold text-blue-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition">
+              <Plus size={14} /> Thêm ảnh
+            </button>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">Số lượng view/ngày</label>
+            <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={inputCls} />
           </div>
         </div>
 
@@ -145,6 +161,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     </div>
   );
 }
+
+
+/* ── Main component ── */
 
 /* ── Main component ── */
 export default function CampaignList() {

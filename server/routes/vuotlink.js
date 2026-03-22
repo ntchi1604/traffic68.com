@@ -218,6 +218,27 @@ async function _handleTaskPost(req, res) {
   if (campaigns.length === 0) return res.status(404).json(ERR);
   const campaign = campaigns[0];
 
+  // Parse JSON arrays for keyword, url, images (backward compatible)
+  const pickRandom = (val) => {
+    if (!val) return val;
+    try { const a = JSON.parse(val); if (Array.isArray(a) && a.length) return a[Math.floor(Math.random() * a.length)]; } catch {}
+    return val;
+  };
+  const parseImgArray = (val) => {
+    if (!val) return [];
+    try { const a = JSON.parse(val); if (Array.isArray(a)) return a; } catch {}
+    return [val];
+  };
+
+  const selectedKeyword = pickRandom(campaign.keyword) || campaign.keyword;
+  const selectedUrl = campaign.url; // primary URL always used as target
+  const allImages = [...parseImgArray(campaign.image1_url), ...parseImgArray(campaign.image2_url)].filter(Boolean);
+  const selectedImage1 = allImages.length > 0 ? allImages[Math.floor(Math.random() * allImages.length)] : '';
+  const selectedImage2 = allImages.length > 1 ? allImages.filter(u => u !== selectedImage1)[Math.floor(Math.random() * Math.max(1, allImages.length - 1))] || '' : '';
+
+  // Extra URLs for url2 (pick random from JSON array)
+  const selectedUrl2 = pickRandom(campaign.url2) || '';
+
   // Generate random verification code
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let randomCode = '';
@@ -241,10 +262,10 @@ async function _handleTaskPost(req, res) {
 
   const [result] = await pool.execute(
     `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?)`,
-    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId]
+    [campaign.id, req.userId || null, selectedKeyword, selectedUrl, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId]
   );
 
-  console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, waitTime: ${waitTime}s`);
+  console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, keyword: ${selectedKeyword}, waitTime: ${waitTime}s`);
 
   // Track view (worker entered the page/claimed task)
   try {
@@ -299,10 +320,10 @@ async function _handleTaskPost(req, res) {
 
   res.json({
     id: result.insertId,
-    keyword: campaign.keyword,
-    image1_url: campaign.image1_url || '',
-    image2_url: campaign.image2_url || '',
-    url2: campaign.url2 || '',
+    keyword: selectedKeyword,
+    image1_url: selectedImage1,
+    image2_url: selectedImage2,
+    url2: selectedUrl2,
     waitTime,
     startedAt: now,
     widgetConfig,
@@ -435,7 +456,9 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   }
 
   // Pay worker earning (standard task — not via gateway link)
+  let paidWorkerId = null;
   if (task.worker_id && !task.worker_link_id) {
+    paidWorkerId = task.worker_id;
     await pool.execute("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'earning'", [earning, task.worker_id]);
     const refCode = 'VL-' + Date.now();
     await pool.execute(
@@ -452,6 +475,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
       if (wlRows.length) {
         const wl = wlRows[0];
         destinationUrl = wl.destination_url;
+        paidWorkerId = wl.worker_id;
         await pool.execute("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'earning'", [earning, wl.worker_id]);
         await pool.execute('UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?', [earning, wl.id]);
         const refCode = 'GL-' + Date.now();
@@ -462,6 +486,35 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
         );
       }
     } catch (e) { console.error('[VuotLink] Gateway link pay error:', e.message); }
+  }
+
+  // Worker referral commission — pay referrer when worker earns
+  if (paidWorkerId && earning > 0) {
+    try {
+      const [refRows] = await pool.execute('SELECT referred_by FROM users WHERE id = ?', [paidWorkerId]);
+      const referrerId = refRows[0]?.referred_by;
+      if (referrerId) {
+        const [commSetting] = await pool.execute(
+          "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_worker'"
+        );
+        const commPct = Number(commSetting[0]?.setting_value || 0);
+        if (commPct > 0) {
+          const commAmount = Math.floor(earning * commPct / 100);
+          if (commAmount > 0) {
+            await pool.execute(
+              "UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'commission'",
+              [commAmount, referrerId]
+            );
+            const commRef = `COMM-WORKER-${Date.now()}`;
+            await pool.execute(
+              `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+               VALUES (?, 'commission', 'commission', 'referral', ?, 'completed', ?, ?)`,
+              [referrerId, commAmount, commRef, `Hoa hồng ${commPct}% từ worker vượt link (${earning} đ)`]
+            );
+          }
+        }
+      }
+    } catch (e) { console.error('[VuotLink] Worker referral commission error:', e.message); }
   }
 
   console.log(`[VuotLink] Task #${task.id} VERIFIED — code=${code}, earning=${earning}`);

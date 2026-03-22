@@ -3,7 +3,7 @@ import usePageTitle from '../../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight, Info, Upload, X, Tag, Globe, Monitor, Smartphone,
-  BarChart2, Wallet, Gift, Star, CheckCircle2, AlertCircle,
+  BarChart2, Wallet, Gift, Star, CheckCircle2, AlertCircle, Plus, Trash2,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useToast } from '../../components/Toast';
@@ -247,13 +247,9 @@ export default function CreateCampaign() {
     dailyViews: 500,
     totalViews: 1000,
     viewByHour: false,
-    keyword: '',
-    website: '',
-    website2: '',
-    image1: null,
-    image1_url: '',
-    image2: null,
-    image2_url: '',
+    keywords: [''],
+    urls: [''],
+    imageUrls: [''],
     devices: ['desktop', 'mobile'],
     countries: ['VN'],
     discountCode: '',
@@ -293,9 +289,16 @@ export default function CreateCampaign() {
   const pricePerView = getPricePerView();
   const totalPrice = hasPricing ? Math.round(form.totalViews * pricePerView) : 0;
 
+  /* ── Array helpers ── */
+  const addArrayItem = (key) => setForm(f => ({ ...f, [key]: [...f[key], ''] }));
+  const removeArrayItem = (key, idx) => setForm(f => ({ ...f, [key]: f[key].filter((_, i) => i !== idx) }));
+  const updateArrayItem = (key, idx, val) => setForm(f => ({ ...f, [key]: f[key].map((v, i) => i === idx ? val : v) }));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.campaignName || !form.trafficType || !form.duration || !form.keyword || !form.website) {
+    const keywords = form.keywords.filter(k => k.trim());
+    const urls = form.urls.filter(u => u.trim());
+    if (!form.campaignName || !form.trafficType || !form.duration || keywords.length === 0 || urls.length === 0) {
       setError('Vui lòng điền đầy đủ các trường bắt buộc (*).');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -303,12 +306,13 @@ export default function CreateCampaign() {
     setError('');
     setSubmitting(true);
     try {
+      const images = form.imageUrls.filter(u => u.trim());
       await api.post('/campaigns', {
         name: form.campaignName,
-        url: form.website,
-        url2: form.website2 || '',
+        url: urls[0],
+        url2: JSON.stringify(urls.slice(1)),
         traffic_type: form.trafficType,
-        keyword: form.keyword,
+        keyword: JSON.stringify(keywords),
         total_views: form.totalViews,
         daily_views: form.dailyViews,
         duration: Number(form.duration),
@@ -319,8 +323,8 @@ export default function CreateCampaign() {
         budget: totalPrice,
         device: form.devices.join(','),
         country: form.countries.join(','),
-        image1_url: form.image1_url || '',
-        image2_url: form.image2_url || '',
+        image1_url: images.length > 0 ? JSON.stringify(images) : '',
+        image2_url: '',
         note: form.note,
       });
       setSubmitted(true);
@@ -526,42 +530,59 @@ export default function CreateCampaign() {
 
               <div className="space-y-5">
 
-                {/* Keyword */}
+                {/* Keywords */}
                 <div>
-                  <Label required>Từ khóa hoặc URL</Label>
-                  <TextInput
-                    placeholder="Nhập từ khóa. Ví dụ: traffic users giá rẻ"
-                    value={form.keyword}
-                    onChange={e => set('keyword', e.target.value)}
-                  />
-                  <Hint>
-                    Loại traffic google search: từ khóa để tìm kiếm từ google vào website{'\n'}
-                    Loại traffic backlink: từ khóa hoặc link click để vào website.
-                  </Hint>
+                  <Label required>Từ khóa</Label>
+                  <div className="space-y-2">
+                    {form.keywords.map((kw, i) => (
+                      <div key={i} className="flex gap-2">
+                        <TextInput
+                          placeholder={`Từ khóa ${i + 1}`}
+                          value={kw}
+                          onChange={e => updateArrayItem('keywords', i, e.target.value)}
+                        />
+                        {form.keywords.length > 1 && (
+                          <button type="button" onClick={() => removeArrayItem('keywords', i)}
+                            className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => addArrayItem('keywords')}
+                    className="mt-2 flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition">
+                    <Plus size={14} /> Thêm từ khóa
+                  </button>
+                  <Hint>Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt</Hint>
                 </div>
 
-                {/* Website 1 */}
+                {/* URLs */}
                 <div>
-                  <Label required>Địa chỉ trang web 1</Label>
-                  <TextInput
-                    type="url"
-                    placeholder="https://traffic68.com/"
-                    value={form.website}
-                    onChange={e => set('website', e.target.value)}
-                  />
-                  <Hint>URL trang chính cần view traffic</Hint>
-                </div>
-
-                {/* Website 2 */}
-                <div>
-                  <Label>Địa chỉ trang web 2 <span className="text-gray-400 font-normal text-xs">(tuỳ chọn)</span></Label>
-                  <TextInput
-                    type="url"
-                    placeholder="https://traffic68.com/page-2/"
-                    value={form.website2}
-                    onChange={e => set('website2', e.target.value)}
-                  />
-                  <Hint>URL trang phụ — worker sẽ click qua trang này trong quá trình xử lý</Hint>
+                  <Label required>Địa chỉ trang web</Label>
+                  <div className="space-y-2">
+                    {form.urls.map((url, i) => (
+                      <div key={i} className="flex gap-2">
+                        <TextInput
+                          type="url"
+                          placeholder={i === 0 ? 'https://traffic68.com/' : `URL ${i + 1}`}
+                          value={url}
+                          onChange={e => updateArrayItem('urls', i, e.target.value)}
+                        />
+                        {form.urls.length > 1 && (
+                          <button type="button" onClick={() => removeArrayItem('urls', i)}
+                            className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => addArrayItem('urls')}
+                    className="mt-2 flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition">
+                    <Plus size={14} /> Thêm URL
+                  </button>
+                  <Hint>URL đầu tiên là trang chính, các URL tiếp theo sẽ được chọn ngẫu nhiên</Hint>
                 </div>
 
               </div>
@@ -573,54 +594,37 @@ export default function CreateCampaign() {
                 <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
                   <Upload size={16} className="text-purple-600" />
                 </div>
-                <h2 className="font-bold text-gray-800">Hình ảnh trang đích</h2>
+                <h2 className="font-bold text-gray-800">Link hình ảnh</h2>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-
-                {/* Image 1 */}
-                <div className="space-y-2">
-                  <Label required hint="Hình ảnh tìm kiếm từ khóa theo google hoặc từ backlink">Hình ảnh 1</Label>
-                  {form.image1_url && (
-                    <div className="relative group mb-2">
-                      <img src={form.image1_url} alt="img1" className="w-full h-36 object-cover rounded-xl border border-gray-200" />
-                      <button type="button" onClick={() => { set('image1', null); set('image1_url', ''); }}
-                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
-                        <X size={12} />
-                      </button>
+              <div className="space-y-2">
+                {form.imageUrls.map((imgUrl, i) => (
+                  <div key={i}>
+                    <div className="flex gap-2">
+                      <TextInput
+                        type="url"
+                        placeholder={`Link ảnh ${i + 1} (https://...)`}
+                        value={imgUrl}
+                        onChange={e => updateArrayItem('imageUrls', i, e.target.value)}
+                      />
+                      {form.imageUrls.length > 1 && (
+                        <button type="button" onClick={() => removeArrayItem('imageUrls', i)}
+                          className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
-                  )}
-                  <ImageUpload
-                    label=""
-                    hint=""
-                    value={form.image1}
-                    onUploaded={(file, url) => { set('image1', file); set('image1_url', url); }}
-                    onError={msg => toast.error(msg)}
-                  />
-                </div>
-
-                {/* Image 2 */}
-                <div className="space-y-2">
-                  <Label hint="Hình ảnh trang web phụ hoặc ảnh minh hoạ">Hình ảnh 2 <span className="text-gray-400 font-normal text-xs">(tuỳ chọn)</span></Label>
-                  {form.image2_url && (
-                    <div className="relative group mb-2">
-                      <img src={form.image2_url} alt="img2" className="w-full h-36 object-cover rounded-xl border border-gray-200" />
-                      <button type="button" onClick={() => { set('image2', null); set('image2_url', ''); }}
-                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
-                        <X size={12} />
-                      </button>
-                    </div>
-                  )}
-                  <ImageUpload
-                    label=""
-                    hint=""
-                    value={form.image2}
-                    onUploaded={(file, url) => { set('image2', file); set('image2_url', url); }}
-                    onError={msg => toast.error(msg)}
-                  />
-                </div>
-
+                    {imgUrl && (
+                      <img src={imgUrl} alt="" className="mt-1.5 w-full h-28 object-cover rounded-xl border border-gray-200" onError={e => e.target.style.display='none'} />
+                    )}
+                  </div>
+                ))}
               </div>
+              <button type="button" onClick={() => addArrayItem('imageUrls')}
+                className="mt-2 flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition">
+                <Plus size={14} /> Thêm ảnh
+              </button>
+              <Hint>Dán link ảnh trực tiếp, thêm không giới hạn</Hint>
             </div>
 
             {/* ── Card: Target thiết bị & Quốc gia ── */}
