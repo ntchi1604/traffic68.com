@@ -209,6 +209,17 @@ function UserDetail({ user: u, onBack }) {
     }
   }, [tab, u.id, eventsLoaded]);
 
+  const [banned, setBanned] = useState(u.status === 'banned');
+
+  const toggleBan = async () => {
+    const action = banned ? 'unban' : 'ban';
+    if (!confirm(banned ? `Mở ban cho ${u.name || u.email}?` : `Ban tài khoản ${u.name || u.email}? Tất cả link, API, dịch vụ sẽ bị khóa.`)) return;
+    try {
+      await api.post(`/admin/security/user/${u.id}/ban`, { action });
+      setBanned(!banned);
+    } catch (e) { alert('Lỗi: ' + e.message); }
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -216,10 +227,35 @@ function UserDetail({ user: u, onBack }) {
         <button onClick={onBack} className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50">
           <ArrowLeft size={16} className="text-slate-600" />
         </button>
-        <div>
-          <h2 className="text-base font-black text-slate-900">{u.name || 'User'}</h2>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-black text-slate-900">{u.name || 'User'}</h2>
+            {banned && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">BANNED</span>}
+          </div>
           <p className="text-xs text-slate-500">{u.email} · {taskTotal} task tổng cộng</p>
         </div>
+        <button onClick={toggleBan}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+            banned
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+              : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
+          }`}
+        >
+          {banned ? '🔓 Mở ban' : '🚫 Ban'}
+        </button>
+        <button onClick={async () => {
+          if (!confirm(`Xóa hoàn toàn ${u.name || u.email}?\nTất cả tasks, links, giao dịch, ví sẽ bị XÓA VĨNH VIỄN.`)) return;
+          if (!confirm('XÁC NHẬN LẦN 2: Hành động này KHÔNG THỂ HOÀN TÁC. Tiếp tục?')) return;
+          try {
+            await api.delete(`/admin/users/${u.id}`);
+            alert('Đã xóa user và toàn bộ dữ liệu');
+            onBack();
+          } catch (e) { alert('Lỗi: ' + e.message); }
+        }}
+          className="px-4 py-2 rounded-xl text-xs font-bold bg-red-600 text-white hover:bg-red-700 transition"
+        >
+          🗑️ Xóa
+        </button>
       </div>
 
       {/* Stats */}
@@ -324,7 +360,7 @@ function UserDetail({ user: u, onBack }) {
                           {REASON_VI[ev.reason] || ev.reason}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                          {ev.source === 'widget' ? 'Script' : ev.source === 'vuotlink' ? 'VL' : ev.source}
+                          {ev.source === 'widget' ? 'Script' : ev.source === 'vuotlink' ? 'Vượt link' : ev.source}
                         </span>
                         <span className="text-[10px]">{mob ? '📱' : '🖥️'}</span>
                         <span className="font-mono text-[10px] text-slate-400">{ev.ip_address}</span>
@@ -475,11 +511,18 @@ export default function AdminSecurity() {
                   <tr key={u.id} className={`border-b border-slate-100 hover:bg-slate-50/50 ${danger ? 'bg-red-50/15' : ''}`}>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${danger ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                          {(u.name || '?')[0].toUpperCase()}
-                        </div>
+                        {u.avatar_url ? (
+                          <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${danger ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {(u.name || '?')[0].toUpperCase()}
+                          </div>
+                        )}
                         <div className="min-w-0">
-                          <p className="font-bold text-slate-800 truncate">{u.name || 'N/A'}</p>
+                          <p className="font-bold text-slate-800 truncate flex items-center gap-1">
+                            {u.name || 'N/A'}
+                            {u.status === 'banned' && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-600">BAN</span>}
+                          </p>
                           <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
                         </div>
                       </div>

@@ -127,9 +127,49 @@ router.put('/users/:id', async (req, res) => {
 // ── DELETE /api/admin/users/:id ──
 router.delete('/users/:id', async (req, res) => {
   const pool = getPool();
-  if (Number(req.params.id) === req.userId) return res.status(400).json({ error: 'Không thể xóa chính mình' });
-  await pool.execute('DELETE FROM users WHERE id = ?', [req.params.id]);
-  res.json({ message: 'Đã xóa người dùng' });
+  const uid = req.params.id;
+  if (Number(uid) === req.userId) return res.status(400).json({ error: 'Không thể xóa chính mình' });
+
+  try {
+    // 1. Get user's worker_links IDs
+    const [wlRows] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
+    const wlIds = wlRows.map(r => r.id);
+
+    // 2. Delete vuot_link_tasks (direct + via gateway links)
+    if (wlIds.length > 0) {
+      const ph = wlIds.map(() => '?').join(',');
+      await pool.execute(`DELETE FROM vuot_link_tasks WHERE worker_link_id IN (${ph})`, wlIds);
+    }
+    await pool.execute('DELETE FROM vuot_link_tasks WHERE worker_id = ?', [uid]);
+
+    // 3. Delete worker_links (gateway links)
+    await pool.execute('DELETE FROM worker_links WHERE worker_id = ?', [uid]);
+
+    // 4. Delete campaigns + related data
+    const [campRows] = await pool.execute('SELECT id FROM campaigns WHERE user_id = ?', [uid]);
+    if (campRows.length > 0) {
+      const cph = campRows.map(() => '?').join(',');
+      const cids = campRows.map(r => r.id);
+      await pool.execute(`DELETE FROM traffic_logs WHERE campaign_id IN (${cph})`, cids);
+      await pool.execute(`DELETE FROM campaigns WHERE user_id = ?`, [uid]);
+    }
+
+    // 5. Delete other user data
+    await pool.execute('DELETE FROM transactions WHERE user_id = ?', [uid]);
+    await pool.execute('DELETE FROM wallets WHERE user_id = ?', [uid]);
+    await pool.execute('DELETE FROM widgets WHERE user_id = ?', [uid]);
+    await pool.execute('DELETE FROM api_keys WHERE user_id = ?', [uid]);
+    await pool.execute('DELETE FROM notifications WHERE user_id = ?', [uid]);
+    await pool.execute('DELETE FROM support_tickets WHERE user_id = ?', [uid]);
+
+    // 6. Finally delete user
+    await pool.execute('DELETE FROM users WHERE id = ?', [uid]);
+
+    res.json({ message: 'Đã xóa người dùng và toàn bộ dữ liệu' });
+  } catch (err) {
+    console.error('[Admin] Delete user error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── POST /api/admin/users/:id/balance ──
@@ -521,6 +561,18 @@ router.get('/security/init', async (req, res) => {
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+// ── Ban / Unban user ──
+router.post('/security/user/:uid/ban', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { action } = req.body; // 'ban' or 'unban'
+    const status = action === 'ban' ? 'banned' : 'active';
+    await pool.execute('UPDATE users SET status = ? WHERE id = ?', [status, req.params.uid]);
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── 1. User list (ALL users, with task stats) ──
 router.get('/security/users', async (req, res) => {
@@ -557,6 +609,8 @@ router.get('/security/users', async (req, res) => {
          u.id as worker_id,
          u.name,
          u.email,
+         u.status,
+         u.avatar_url,
          COUNT(DISTINCT vt.id) as total,
          COALESCE(SUM(CASE WHEN vt.status = 'completed' THEN 1 ELSE 0 END), 0) as ok,
          COALESCE(SUM(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END), 0) as blocked,
@@ -578,17 +632,24 @@ router.get('/security/users', async (req, res) => {
     const ids = rows.map(r => r.worker_id).filter(Boolean);
     const secMap = {};
     if (ids.length > 0) {
-      const ph = ids.map(() => '?').join(',');
-      try {
-        const [se] = await pool.execute(
-          `SELECT vt.worker_id, COUNT(DISTINCT sl.id) as cnt
-           FROM security_logs sl
-           INNER JOIN vuot_link_tasks vt ON vt.ip_address = sl.ip_address
-           WHERE vt.worker_id IN (${ph}) AND sl.reason != 'completed'
-           GROUP BY vt.worker_id`, ids
-        );
-        se.forEach(r => { secMap[r.worker_id] = Number(r.cnt); });
-      } catch {}
+      // Count events for each user based on their IPs (from direct tasks + gateway links)
+      for (const uid of ids) {
+        try {
+          const [ipRows] = await pool.execute(
+            `SELECT DISTINCT ip_address FROM vuot_link_tasks
+             WHERE worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?)`,
+            [uid, uid]
+          );
+          const ips = ipRows.map(r => r.ip_address).filter(Boolean);
+          if (ips.length > 0) {
+            const ph = ips.map(() => '?').join(',');
+            const [cnt2] = await pool.execute(
+              `SELECT COUNT(*) as cnt FROM security_logs WHERE ip_address IN (${ph}) AND reason != 'completed'`, ips
+            );
+            if (cnt2[0].cnt > 0) secMap[uid] = Number(cnt2[0].cnt);
+          }
+        } catch {}
+      }
     }
 
     res.json({
@@ -596,6 +657,8 @@ router.get('/security/users', async (req, res) => {
         id: r.worker_id,
         name: r.name,
         email: r.email,
+        status: r.status,
+        avatar_url: r.avatar_url,
         total: Number(r.total),
         ok: Number(r.ok),
         blocked: Number(r.blocked),

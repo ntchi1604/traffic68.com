@@ -11,6 +11,7 @@ const TYPE_MAP = {
   deposit: { label: 'Nạp tiền', cls: 'bg-green-100 text-green-700' },
   withdraw: { label: 'Rút/Chi', cls: 'bg-red-100 text-red-700' },
   campaign: { label: 'Mua Traffic', cls: 'bg-orange-100 text-orange-700' },
+  earning: { label: 'Kiếm Tiền', cls: 'bg-emerald-100 text-emerald-700' },
   commission: { label: 'Hoa hồng', cls: 'bg-blue-100 text-blue-700' },
   refund: { label: 'Hoàn tiền', cls: 'bg-purple-100 text-purple-700' },
 };

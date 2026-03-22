@@ -237,7 +237,7 @@ export default function AdminUsers({ type }) {
                       </div>
                     ) : (
                       <div className="space-y-0.5">
-                        <p className="text-xs font-semibold text-slate-700">{fmt(u.main_balance)} đ</p>
+                        <p className="text-xs font-semibold text-emerald-600">{fmt(u.main_balance)} đ</p>
                         <p className="text-[10px] text-slate-400">{fmt(u.commission_balance)} đ</p>
                       </div>
                     )}
