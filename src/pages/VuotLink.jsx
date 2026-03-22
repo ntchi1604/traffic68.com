@@ -583,10 +583,10 @@ export default function VuotLink() {
                             boxShadow: `0 4px 14px ${(widgetConfig?.buttonColor || '#f97316')}55`,
                             userSelect: 'none', whiteSpace: 'nowrap',
                           }}>
-                            {/* Icon badge — circular with iconBg, like real widget */}
+                            {/* Icon badge — 1.4em auto-scales with fontSize */}
                             <span style={{
                               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              width: `${widgetConfig?.iconSize || 20}px`, height: `${widgetConfig?.iconSize || 20}px`,
+                              width: '1.4em', height: '1.4em',
                               borderRadius: '50%',
                               background: widgetConfig?.iconBg || '#ffffff',
                               flexShrink: 0, overflow: 'hidden',
