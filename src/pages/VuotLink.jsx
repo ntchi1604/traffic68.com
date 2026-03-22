@@ -4,7 +4,7 @@ import {
     Search, Globe, Target, ShieldCheck,
     ExternalLink, ArrowRight,
     AlertCircle, Loader2, WifiOff,
-    Copy, Check,
+    Copy, Check, ShieldOff,
 } from 'lucide-react';
 
 /* ─── Load FingerprintJS + BotD from server files (same as embed script) ── */
@@ -201,6 +201,62 @@ export default function VuotLink() {
     const [error, setError] = useState('');
     const [task, setTask] = useState(null);
     const [isIncognito, setIsIncognito] = useState(false);
+    const [isAdBlock, setIsAdBlock] = useState(false);
+
+    // Ad blocker detection
+    useEffect(() => {
+        const detectAdBlock = async () => {
+            // Method 1: Create a bait element that ad blockers typically hide
+            const bait = document.createElement('div');
+            bait.className = 'ad ads adsbox ad-placement ad-banner textads banner-ads';
+            bait.setAttribute('id', 'ad-test-banner');
+            bait.innerHTML = '&nbsp;';
+            bait.style.cssText = 'position:absolute;top:-10px;left:-10px;width:1px;height:1px;overflow:hidden;';
+            document.body.appendChild(bait);
+
+            await new Promise(r => setTimeout(r, 200));
+
+            const baitBlocked = bait.offsetHeight === 0 || bait.clientHeight === 0 || 
+                                window.getComputedStyle(bait).display === 'none' || 
+                                window.getComputedStyle(bait).visibility === 'hidden';
+            bait.remove();
+
+            // Method 2: Try to fetch a known ad-related URL
+            let fetchBlocked = false;
+            try {
+                const resp = await fetch('https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js', {
+                    method: 'HEAD',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                });
+            } catch {
+                fetchBlocked = true;
+            }
+
+            // Method 3: Try loading a script that looks like an ad
+            let scriptBlocked = false;
+            try {
+                const testScript = document.createElement('script');
+                testScript.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+                testScript.async = true;
+                const loadPromise = new Promise((resolve) => {
+                    testScript.onload = () => resolve(false);
+                    testScript.onerror = () => resolve(true);
+                    setTimeout(() => resolve(true), 2000);
+                });
+                document.head.appendChild(testScript);
+                scriptBlocked = await loadPromise;
+                testScript.remove();
+            } catch {
+                scriptBlocked = true;
+            }
+
+            if (baitBlocked || fetchBlocked || scriptBlocked) {
+                setIsAdBlock(true);
+            }
+        };
+        detectAdBlock();
+    }, []);
 
     // UI state
     const [inputCode, setInputCode] = useState('');
@@ -385,6 +441,34 @@ export default function VuotLink() {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px' }}>
                 <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '3px solid #e2e8f0', borderTopColor: '#3b82f6', animation: 'spin 1s linear infinite' }} />
                 <p style={{ color: '#64748b', fontWeight: 500 }}>Đang tải nhiệm vụ...</p>
+            </div>
+        </Wrapper>
+    );
+
+    /* ─── Ad Blocker ───────────────────────────────────── */
+    if (isAdBlock) return (
+        <Wrapper>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px', textAlign: 'center', padding: '0 24px' }}>
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#fef2f2', border: '2px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <ShieldOff size={32} style={{ color: '#ef4444' }} />
+                </div>
+                <h2 style={{ color: '#1e3a6e', fontWeight: 800, margin: 0 }}>Vui lòng tắt trình chặn quảng cáo</h2>
+                <p style={{ color: '#64748b', margin: 0, maxWidth: '400px', lineHeight: 1.6 }}>
+                    Hệ thống phát hiện bạn đang sử dụng tiện ích chặn quảng cáo (AdBlock, uBlock, ...).<br />
+                    Vui lòng <strong>tắt trình chặn quảng cáo</strong> rồi tải lại trang để tiếp tục vượt link.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px 20px', maxWidth: '380px', width: '100%' }}>
+                    <p style={{ color: '#475569', fontSize: '13px', fontWeight: 700, margin: 0 }}>Cách tắt:</p>
+                    {['Nhấn vào biểu tượng tiện ích (puzzle) trên thanh trình duyệt', 'Tìm AdBlock / uBlock Origin', 'Chọn "Tạm dừng" hoặc "Tắt trên trang này"', 'Tải lại trang (F5)'].map((t, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <span style={{ color: '#fff', fontSize: '10px', fontWeight: 900 }}>{i + 1}</span>
+                            </div>
+                            <span style={{ color: '#475569', fontSize: '12px' }}>{t}</span>
+                        </div>
+                    ))}
+                </div>
+                <Btn onClick={() => window.location.reload()}>Tải lại trang</Btn>
             </div>
         </Wrapper>
     );
