@@ -82,6 +82,46 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
     { label: 'Unique IPs', value: fmt(detail?.uniqueIps || 0), sub: 'IP khác nhau', color: '#8B5CF6', bg: '#F5F3FF' },
   ];
 
+  const exportCSV = () => {
+    const csvRows = [];
+    csvRows.push(['=== THÔNG TIN CHIẾN DỊCH ===']);
+    csvRows.push(['Tên', c.name]);
+    csvRows.push(['URL', c.url]);
+    csvRows.push(['Nguồn traffic', SOURCE_LABEL_MAP[c.traffic_type] || c.traffic_type || '']);
+    csvRows.push(['Từ khóa', c.keyword || '']);
+    csvRows.push(['Thời gian xem', c.time_on_site ? `${c.time_on_site}s` : '']);
+    csvRows.push(['CPC', `${c.cpc} đ`]);
+    csvRows.push(['Ngân sách', `${c.budget} đ`]);
+    csvRows.push(['Tiến độ', `${done}/${total} (${pct}%)`]);
+    csvRows.push([]);
+    csvRows.push(['=== THỐNG KÊ TỔNG HỢP ===']);
+    csvRows.push(['Hoàn thành', detail?.totalClicks || 0]);
+    csvRows.push(['Nhận task', detail?.totalViews || 0]);
+    csvRows.push(['Hiệu suất', `${eff}%`]);
+    csvRows.push(['Chi phí đã dùng', `${spent} đ`]);
+    csvRows.push(['Unique IPs', detail?.uniqueIps || 0]);
+    csvRows.push([]);
+    if (deviceData.length > 0) {
+      csvRows.push(['=== THIẾT BỊ ===']);
+      csvRows.push(['Thiết bị', 'Lượt']);
+      deviceData.forEach(d => csvRows.push([d.name, d.value]));
+      csvRows.push([]);
+    }
+    if (dailyData.length > 0) {
+      csvRows.push(['=== CHI TIẾT THEO NGÀY ===']);
+      csvRows.push(['Ngày', 'Hoàn thành', 'Nhận task']);
+      dailyData.forEach(r => csvRows.push([r.date, r['Hoàn thành'], r['Nhận task']]));
+    }
+    const csv = csvRows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `campaign_${c.id}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
@@ -95,7 +135,16 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
             <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: 0 }}>{c.name}</h2>
             <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{c.url}</p>
           </div>
-          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#f1f5f9', cursor: 'pointer', fontSize: 18, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {detail && (
+              <button onClick={exportCSV} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#475569', transition: 'all .15s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; }}>
+                ⬇ Xuất CSV
+              </button>
+            )}
+            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#f1f5f9', cursor: 'pointer', fontSize: 18, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          </div>
         </div>
 
         <div style={{ padding: '20px 28px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
