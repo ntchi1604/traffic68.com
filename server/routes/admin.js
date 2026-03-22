@@ -522,7 +522,7 @@ router.get('/security/init', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── 1. User list (grouped by worker) ──
+// ── 1. User list (ALL users, with task stats) ──
 router.get('/security/users', async (req, res) => {
   try {
     const pool = getPool();
@@ -532,36 +532,33 @@ router.get('/security/users', async (req, res) => {
 
     let searchWhere = '';
     if (search) {
-      searchWhere = ` AND (u.name LIKE ? OR u.email LIKE ? OR vt.ip_address LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      searchWhere = ` AND (u.name LIKE ? OR u.email LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`);
     }
 
-    // Count
+    // Count all users
     const [cnt] = await pool.execute(
-      `SELECT COUNT(DISTINCT vt.worker_id) as total
-       FROM vuot_link_tasks vt
-       LEFT JOIN users u ON u.id = vt.worker_id
-       WHERE vt.worker_id IS NOT NULL${searchWhere}`, params
+      `SELECT COUNT(*) as total FROM users u WHERE 1=1${searchWhere}`, params
     );
 
-    // Main query — simple GROUP BY
+    // Main query — users LEFT JOIN tasks
     const [rows] = await pool.execute(
       `SELECT
-         vt.worker_id,
-         MAX(u.name) as name,
-         MAX(u.email) as email,
-         COUNT(*) as total,
-         SUM(vt.status = 'completed') as ok,
-         SUM(vt.bot_detected = 1) as blocked,
-         SUM(vt.status = 'expired') as expired,
-         SUM(vt.status IN ('pending','step1','step2','step3')) as pending,
+         u.id as worker_id,
+         u.name,
+         u.email,
+         COUNT(vt.id) as total,
+         COALESCE(SUM(vt.status = 'completed'), 0) as ok,
+         COALESCE(SUM(vt.bot_detected = 1), 0) as blocked,
+         COALESCE(SUM(vt.status = 'expired'), 0) as expired,
+         COALESCE(SUM(vt.status IN ('pending','step1','step2','step3')), 0) as pending,
          COALESCE(SUM(vt.earning), 0) as earned,
          MAX(vt.created_at) as last_at,
          GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips
-       FROM vuot_link_tasks vt
-       LEFT JOIN users u ON u.id = vt.worker_id
-       WHERE vt.worker_id IS NOT NULL${searchWhere}
-       GROUP BY vt.worker_id
+       FROM users u
+       LEFT JOIN vuot_link_tasks vt ON vt.worker_id = u.id
+       WHERE 1=1${searchWhere}
+       GROUP BY u.id
        ORDER BY blocked DESC, last_at DESC
        LIMIT ? OFFSET ?`,
       [...params, Number(limit), offset]
