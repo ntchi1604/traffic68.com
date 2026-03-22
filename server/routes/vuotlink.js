@@ -232,7 +232,8 @@ async function _handleTaskPost(req, res) {
       const raw = JSON.parse(wRows[0].config || '{}');
       const DEFAULTS = {
         buttonText: 'Lấy Mã', buttonColor: '#f97316', textColor: '#ffffff',
-        borderRadius: 50, fontSize: 15,
+        borderRadius: 50, fontSize: 15, shadow: true,
+        iconUrl: '', iconBg: 'rgba(255,255,255,0.92)', iconSize: 22,
       };
       widgetConfig = { ...DEFAULTS, ...raw };
       console.log(`[VuotLink] widgetConfig: color=${widgetConfig.buttonColor}, text=${widgetConfig.buttonText}`);
