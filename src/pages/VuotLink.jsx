@@ -436,229 +436,230 @@ export default function VuotLink() {
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 16px 48px' }}>
         <div className="vl-grid" style={{ display: 'grid', gridTemplateColumns: 'min(80px, 12vw) 1fr', gap: '0 12px', alignItems: 'start' }}>
 
-        {/* LEFT: Sticky timeline — hidden on small screens via width collapse */}
-        <div className="vl-timeline" style={{ position: 'sticky', top: '80px', paddingTop: '8px', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            {[1, 2, 3, 4].map((n, i) => (
-              <div key={n} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{
-                  width: '40px', height: '40px', borderRadius: '50%',
-                  background: verified ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'linear-gradient(135deg,#3b82f6,#2563eb)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: verified ? '0 0 0 4px rgba(34,197,94,0.18)' : '0 0 0 4px rgba(59,130,246,0.15)',
-                  transition: 'all 0.4s ease', fontSize: '16px', fontWeight: 900, color: '#fff',
-                  flexShrink: 0,
-                }}>
-                  {verified
-                    ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    : n
-                  }
+          {/* LEFT: Sticky timeline — hidden on small screens via width collapse */}
+          <div className="vl-timeline" style={{ position: 'sticky', top: '80px', paddingTop: '8px', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {[1, 2, 3, 4].map((n, i) => (
+                <div key={n} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{
+                    width: '40px', height: '40px', borderRadius: '50%',
+                    background: verified ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'linear-gradient(135deg,#3b82f6,#2563eb)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: verified ? '0 0 0 4px rgba(34,197,94,0.18)' : '0 0 0 4px rgba(59,130,246,0.15)',
+                    transition: 'all 0.4s ease', fontSize: '16px', fontWeight: 900, color: '#fff',
+                    flexShrink: 0,
+                  }}>
+                    {verified
+                      ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      : n
+                    }
+                  </div>
+                  {i < 3 && (
+                    <div style={{ width: '3px', height: '180px', background: verified ? 'linear-gradient(180deg,#22c55e,#16a34a)' : 'linear-gradient(180deg,#3b82f6,#93c5fd)', margin: '4px 0', borderRadius: '2px', transition: 'all 0.5s ease' }} />
+                  )}
                 </div>
-                {i < 3 && (
-                  <div style={{ width: '3px', height: '180px', background: verified ? 'linear-gradient(180deg,#22c55e,#16a34a)' : 'linear-gradient(180deg,#3b82f6,#93c5fd)', margin: '4px 0', borderRadius: '2px', transition: 'all 0.5s ease' }} />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-
-        {/* RIGHT: All 4 cards always visible */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
-          {/* ── CARD 1: Mở Google ── */}
-          <StepPanel n={1} title="MỞ GOOGLE" desc="Mở trình duyệt và truy cập trang chủ Google." verified={verified}>
-            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-              {/* Browser mock */}
-              <div style={{ width: '100%', maxWidth: '360px', background: '#fff', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0' }}>
-                <div style={{ background: '#f1f5f9', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'flex', gap: '5px' }}>
-                    {['#ef4444', '#f59e0b', '#22c55e'].map(c => <div key={c} style={{ width: '10px', height: '10px', borderRadius: '50%', background: c }} />)}
-                  </div>
-                  <div style={{ flex: 1, background: '#fff', borderRadius: '6px', padding: '4px 10px', fontSize: '12px', color: '#3b82f6', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Globe size={12} style={{ color: '#3b82f6' }} /> google.com
-                  </div>
-                </div>
-                <div style={{ padding: '32px 16px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '32px', fontWeight: 900, letterSpacing: '-1px' }}>
-                    <span style={{ color: '#4285f4' }}>G</span><span style={{ color: '#ea4335' }}>o</span><span style={{ color: '#fbbc04' }}>o</span><span style={{ color: '#4285f4' }}>g</span><span style={{ color: '#34a853' }}>l</span><span style={{ color: '#ea4335' }}>e</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', margin: '16px auto 0', maxWidth: '300px', background: '#fff', border: '1px solid #ddd', borderRadius: '24px', padding: '8px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-                    <Search size={16} style={{ color: '#94a3b8', marginRight: '8px' }} />
-                    <span style={{ color: '#94a3b8', fontSize: '14px' }}>Tìm kiếm...</span>
-                  </div>
-                </div>
-              </div>
-              <a href="https://www.google.com" target="_blank" rel="noopener noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', textDecoration: 'none', padding: '11px 28px', borderRadius: '10px', fontSize: '14px', fontWeight: 700, boxShadow: '0 4px 16px rgba(59,130,246,0.35)' }}>
-                <ExternalLink size={15} /> Mở Google
-              </a>
+              ))}
             </div>
-          </StepPanel>
+          </div>
 
-          {/* ── CARD 2: Nhập từ khóa ── */}
-          <StepPanel n={2} title="NHẬP TỪ KHÓA" desc="Tìm kiếm từ khóa bên dưới trên Google." verified={verified}>
-            <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '14px', padding: '20px' }}>
-              <p style={{ color: '#92400e', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', margin: '0 0 10px' }}>Từ khóa tìm kiếm</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', border: '1.5px dashed #fb923c', borderRadius: '10px', padding: '12px 16px', marginBottom: '14px' }}>
-                <Search size={16} style={{ color: '#f97316', flexShrink: 0 }} />
-                <span style={{ flex: 1, color: '#ea580c', fontSize: 'clamp(13px,2.5vw,16px)', fontWeight: 700 }}>{keyword || 'traffic user giá rẻ traffic68'}</span>
-                <CopyBtn keyword={keyword} />
+
+          {/* RIGHT: All 4 cards always visible */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+            {/* ── CARD 1: Mở Google ── */}
+            <StepPanel n={1} title="MỞ GOOGLE" desc="Mở trình duyệt và truy cập trang chủ Google." verified={verified}>
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                {/* Browser mock */}
+                <div style={{ width: '100%', maxWidth: '360px', background: '#fff', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0' }}>
+                  <div style={{ background: '#f1f5f9', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                      {['#ef4444', '#f59e0b', '#22c55e'].map(c => <div key={c} style={{ width: '10px', height: '10px', borderRadius: '50%', background: c }} />)}
+                    </div>
+                    <div style={{ flex: 1, background: '#fff', borderRadius: '6px', padding: '4px 10px', fontSize: '12px', color: '#3b82f6', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Globe size={12} style={{ color: '#3b82f6' }} /> google.com
+                    </div>
+                  </div>
+                  <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '32px', fontWeight: 900, letterSpacing: '-1px' }}>
+                      <span style={{ color: '#4285f4' }}>G</span><span style={{ color: '#ea4335' }}>o</span><span style={{ color: '#fbbc04' }}>o</span><span style={{ color: '#4285f4' }}>g</span><span style={{ color: '#34a853' }}>l</span><span style={{ color: '#ea4335' }}>e</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', margin: '16px auto 0', maxWidth: '300px', background: '#fff', border: '1px solid #ddd', borderRadius: '24px', padding: '8px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                      <Search size={16} style={{ color: '#94a3b8', marginRight: '8px' }} />
+                      <span style={{ color: '#94a3b8', fontSize: '14px' }}>Tìm kiếm...</span>
+                    </div>
+                  </div>
+                </div>
+                <a href="https://www.google.com" target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', textDecoration: 'none', padding: '11px 28px', borderRadius: '10px', fontSize: '14px', fontWeight: 700, boxShadow: '0 4px 16px rgba(59,130,246,0.35)' }}>
+                  <ExternalLink size={15} /> Mở Google
+                </a>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {['Copy từ khóa bên trên', 'Dán vào ô tìm kiếm Google', 'Nhấn Enter để tìm kiếm'].map((t, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(249,115,22,0.06)', borderRadius: '8px', padding: '8px 12px' }}>
-                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            </StepPanel>
+
+            {/* ── CARD 2: Nhập từ khóa ── */}
+            <StepPanel n={2} title="NHẬP TỪ KHÓA" desc="Tìm kiếm từ khóa bên dưới trên Google." verified={verified}>
+              <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '14px', padding: '20px' }}>
+                <p style={{ color: '#92400e', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', margin: '0 0 10px' }}>Từ khóa tìm kiếm</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', border: '1.5px dashed #fb923c', borderRadius: '10px', padding: '12px 16px', marginBottom: '14px' }}>
+                  <Search size={16} style={{ color: '#f97316', flexShrink: 0 }} />
+                  <span style={{ flex: 1, color: '#ea580c', fontSize: 'clamp(13px,2.5vw,16px)', fontWeight: 700 }}>{keyword || 'traffic user giá rẻ traffic68'}</span>
+                  <CopyBtn keyword={keyword} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {['Copy từ khóa bên trên', 'Dán vào ô tìm kiếm Google', 'Nhấn Enter để tìm kiếm'].map((t, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(249,115,22,0.06)', borderRadius: '8px', padding: '8px 12px' }}>
+                      <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>{i + 1}</span>
+                      </div>
+                      <span style={{ color: '#374151', fontSize: '13px' }}>{t}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </StepPanel>
+
+            {/* ── CARD 3: Tìm trang đích ── */}
+            <StepPanel n={3} title="TÌM TRANG ĐÍCH" desc="Tìm trang đích trong kết quả tìm kiếm Google và click vào." verified={verified}>
+              {campaignImage && (
+                <div style={{ marginBottom: '16px' }}>
+                  <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px' }}>
+                    🎯 Trang đích cần tìm — giao diện trông giống như hình bên dưới:
+                  </p>
+                  <div style={{ borderRadius: '14px', overflow: 'hidden', border: '2px solid #e0e7ff', boxShadow: '0 4px 20px rgba(99,102,241,0.12)' }}>
+                    <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block', maxHeight: '340px', objectFit: 'cover', objectPosition: 'top' }} onError={e => e.target.style.display = 'none'} />
+                  </div>
+                </div>
+              )}
+              <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '14px', padding: '14px' }}>
+                {['Cuộn tìm trong kết quả Google', 'Tìm trang có giao diện giống hình trên', 'Click vào kết quả để truy cập trang'].map((t, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', borderRadius: '8px', padding: '8px 12px', marginBottom: i < 2 ? '8px' : 0 }}>
+                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>{i + 1}</span>
                     </div>
                     <span style={{ color: '#374151', fontSize: '13px' }}>{t}</span>
                   </div>
                 ))}
               </div>
-            </div>
-          </StepPanel>
+            </StepPanel>
 
-          {/* ── CARD 3: Tìm trang đích ── */}
-          <StepPanel n={3} title="TÌM TRANG ĐÍCH" desc="Tìm trang đích trong kết quả tìm kiếm Google và click vào." verified={verified}>
-            {campaignImage && (
-              <div style={{ marginBottom: '16px' }}>
-                <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px' }}>
-                  🎯 Trang đích cần tìm — giao diện trông giống như hình bên dưới:
-                </p>
-                <div style={{ borderRadius: '14px', overflow: 'hidden', border: '2px solid #e0e7ff', boxShadow: '0 4px 20px rgba(99,102,241,0.12)' }}>
-                  <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block', maxHeight: '340px', objectFit: 'cover', objectPosition: 'top' }} onError={e => e.target.style.display = 'none'} />
-                </div>
-              </div>
-            )}
-            <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '14px', padding: '14px' }}>
-              {['Cuộn tìm trong kết quả Google', 'Tìm trang có giao diện giống hình trên', 'Click vào kết quả để truy cập trang'].map((t, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', borderRadius: '8px', padding: '8px 12px', marginBottom: i < 2 ? '8px' : 0 }}>
-                  <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>{i + 1}</span>
+            {/* ── CARD 4: Mã xác nhận — always unlocked ── */}
+            <StepPanel n={4} title="MÃ XÁC NHẬN" desc={`Vào trang đích, đợi ${waitTime_}s để hiện mã. Quay lại đây nhập mã xác nhận.`} verified={verified}>
+              {verified ? (
+                <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#f0fef4', border: '3px solid #86efac', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </div>
-                  <span style={{ color: '#374151', fontSize: '13px' }}>{t}</span>
-                </div>
-              ))}
-            </div>
-          </StepPanel>
-
-          {/* ── CARD 4: Mã xác nhận — always unlocked ── */}
-          <StepPanel n={4} title="MÃ XÁC NHẬN" desc={`Vào trang đích, đợi ${waitTime_}s để hiện mã. Quay lại đây nhập mã xác nhận.`} verified={verified}>
-            {verified ? (
-              <div style={{ textAlign: 'center', padding: '32px 0' }}>
-                <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#f0fef4', border: '3px solid #86efac', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </div>
-                <h3 style={{ color: '#16a34a', fontWeight: 800, margin: '0 0 8px' }}>Xác nhận thành công!</h3>
-                <p style={{ color: '#64748b', margin: '0 0 20px' }}>Bạn đã hoàn thành tất cả các bước. Cảm ơn bạn!</p>
-                {completionResult?.earning > 0 && (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '12px', padding: '12px 24px', marginBottom: '20px' }}>
-                    <span style={{ color: '#64748b', fontSize: '13px' }}>Tiền thưởng:</span>
-                    <span style={{ color: '#f97316', fontSize: '18px', fontWeight: 800 }}>{Number(completionResult.earning).toLocaleString('vi-VN')} VNĐ</span>
-                  </div>
-                )}
-                <br />
-                <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', textDecoration: 'none', padding: '12px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 700 }}>
-                  Quay về trang chủ <ArrowRight size={16} />
-                </Link>
-              </div>
-            ) : (
-              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-                {/* ── Flow steps ── */}
-                {[
-                  {
-                    num: '1', color: '#3b82f6', label: 'Cuộn & tìm nút',
-                    content: (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '12px', color: '#64748b' }}>Nút trông như thế này trên trang đích:</span>
-                        {/* Button preview — mirrors LivePreview exactly */}
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px',
-                          background: widgetConfig?.buttonColor || '#f97316',
-                          color: widgetConfig?.textColor || '#fff',
-                          borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
-                          fontSize: `${widgetConfig?.fontSize || 15}px`,
-                          fontWeight: 700,
-                          padding: '8px 16px',
-                          boxShadow: `0 4px 16px ${(widgetConfig?.buttonColor || '#f97316')}55`,
-                          userSelect: 'none', whiteSpace: 'nowrap', cursor: 'default',
-                        }}>
-                          {/* Icon: same as LivePreview — img with rounded square bg */}
-                          <img
-                            src={widgetConfig?.iconUrl || 'https://traffic68.com/lg.png'}
-                            width={widgetConfig?.iconSize ?? 22}
-                            height={widgetConfig?.iconSize ?? 22}
-                            alt=""
-                            style={{
-                              background: widgetConfig?.iconBg ?? 'rgba(255,255,255,0.92)',
-                              borderRadius: 6,
-                              padding: 2,
-                              objectFit: 'contain',
-                              flexShrink: 0,
-                              display: 'block',
-                            }}
-                            onError={e => { e.target.src = 'https://traffic68.com/lg.png'; }}
-                          />
-                          {widgetConfig?.buttonText || 'Lấy Mã'}
-                        </div>
-                      </div>
-                    ),
-                  },
-                  {
-                    num: '2', color: '#f97316', label: 'Chờ đủ thời gian → bấm nút → sao chép mã',
-                    content: (
-                      <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                        Khi nút kích hoạt, bấm vào — popup sẽ hiện mã. Sao chép mã rồi quay lại đây.
-                      </p>
-                    ),
-                  },
-                ].map(({ num, color, label, content }) => (
-                  <div key={num} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                    <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
-                      <span style={{ color: '#fff', fontSize: '12px', fontWeight: 900 }}>{num}</span>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: '11px', fontWeight: 800, color, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 6px' }}>{label}</p>
-                      {content}
-                    </div>
-                  </div>
-                ))}
-
-                {/* ── Divider ── */}
-                <div style={{ borderTop: '1.5px dashed #bbf7d0', margin: '0' }} />
-
-                {/* ── Code input ── */}
-                <div>
-                  <p style={{ color: '#16a34a', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#22c55e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#fff', fontWeight: 900, flexShrink: 0 }}>4</span>
-                    Nhập mã xác nhận
-                  </p>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                    <input type="text" maxLength={6} value={inputCode}
-                      onChange={e => setInputCode(e.target.value.toUpperCase())}
-                      disabled={completing} placeholder="Nhập mã..."
-                      style={{ flex: 1, padding: '12px 14px', background: '#fff', border: `1.5px solid ${showError ? '#fca5a5' : '#86efac'}`, borderRadius: '10px', outline: 'none', color: '#1e293b', fontSize: '16px', fontWeight: 700, letterSpacing: '4px', textAlign: 'center', fontFamily: 'monospace' }}
-                    />
-                    <button onClick={handleVerify} disabled={inputCode.length < 4 || completing}
-                      style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', background: inputCode.length >= 4 && !completing ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e2e8f0', color: inputCode.length >= 4 ? '#fff' : '#94a3b8', fontSize: '13px', fontWeight: 700, cursor: inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
-                      {completing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
-                      {completing ? 'Đang xử lý...' : 'Xác nhận'}
-                    </button>
-                  </div>
-                  {showError && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
-                      <AlertCircle size={14} style={{ color: '#ef4444' }} />
-                      <span style={{ color: '#dc2626', fontSize: '12px', fontWeight: 500 }}>{error || 'Mã xác nhận không đúng.'}</span>
+                  <h3 style={{ color: '#16a34a', fontWeight: 800, margin: '0 0 8px' }}>Xác nhận thành công!</h3>
+                  <p style={{ color: '#64748b', margin: '0 0 20px' }}>Bạn đã hoàn thành tất cả các bước. Cảm ơn bạn!</p>
+                  {completionResult?.earning > 0 && (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '12px', padding: '12px 24px', marginBottom: '20px' }}>
+                      <span style={{ color: '#64748b', fontSize: '13px' }}>Tiền thưởng:</span>
+                      <span style={{ color: '#f97316', fontSize: '18px', fontWeight: 800 }}>{Number(completionResult.earning).toLocaleString('vi-VN')} VNĐ</span>
                     </div>
                   )}
-                  <OrangeBtn onClick={handleVerify} disabled={inputCode.length < 4 || completing}>
-                    {completing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN VÀ HOÀN TẤT →'}
-                  </OrangeBtn>
+                  <br />
+                  <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', textDecoration: 'none', padding: '12px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 700 }}>
+                    Quay về trang chủ <ArrowRight size={16} />
+                  </Link>
                 </div>
-              </div>
-            )}
-          </StepPanel>
-        </div>
+              ) : (
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+                  {/* ── Flow steps ── */}
+                  {[
+                    {
+                      num: '1', color: '#3b82f6', label: 'Cuộn & tìm nút',
+                      content: (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '12px', color: '#64748b' }}>Nút trông như thế này trên trang đích:</span>
+                          {/* Button preview — mirrors LivePreview exactly */}
+                          <div style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '8px',
+                            background: widgetConfig?.buttonColor || '#f97316',
+                            color: widgetConfig?.textColor || '#fff',
+                            borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
+                            fontSize: `${widgetConfig?.fontSize || 15}px`,
+                            fontWeight: 700,
+                            padding: '8px 16px',
+                            boxShadow: `0 4px 16px ${(widgetConfig?.buttonColor || '#f97316')}55`,
+                            userSelect: 'none', whiteSpace: 'nowrap', cursor: 'default',
+                          }}>
+                            {/* Icon: same as LivePreview — img with rounded square bg */}
+                            <img
+                              src={widgetConfig?.iconUrl || 'https://traffic68.com/lg.png'}
+                              width={widgetConfig?.iconSize ?? 22}
+                              height={widgetConfig?.iconSize ?? 22}
+                              alt=""
+                              style={{
+                                background: widgetConfig?.iconBg ?? 'rgba(255,255,255,0.92)',
+                                borderRadius: 6,
+                                padding: 2,
+                                objectFit: 'contain',
+                                flexShrink: 0,
+                                display: 'block',
+                              }}
+                              onError={e => { e.target.src = 'https://traffic68.com/lg.png'; }}
+                            />
+                            {widgetConfig?.buttonText || 'Lấy Mã'}
+                          </div>
+                        </div>
+                      ),
+                    },
+                    {
+                      num: '2', color: '#f97316', label: 'Chờ đủ thời gian → bấm nút → sao chép mã',
+                      content: (
+                        <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+                          Khi nút kích hoạt, bấm vào — popup sẽ hiện mã. Sao chép mã rồi quay lại đây.
+                        </p>
+                      ),
+                    },
+                  ].map(({ num, color, label, content }) => (
+                    <div key={num} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                      <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
+                        <span style={{ color: '#fff', fontSize: '12px', fontWeight: 900 }}>{num}</span>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: '11px', fontWeight: 800, color, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 6px' }}>{label}</p>
+                        {content}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* ── Divider ── */}
+                  <div style={{ borderTop: '1.5px dashed #bbf7d0', margin: '0' }} />
+
+                  {/* ── Code input ── */}
+                  <div>
+                    <p style={{ color: '#16a34a', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#22c55e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#fff', fontWeight: 900, flexShrink: 0 }}>3</span>
+                      Nhập mã xác nhận
+                    </p>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                      <input type="text" maxLength={6} value={inputCode}
+                        onChange={e => setInputCode(e.target.value.toUpperCase())}
+                        disabled={completing} placeholder="Nhập mã..."
+                        style={{ flex: 1, padding: '12px 14px', background: '#fff', border: `1.5px solid ${showError ? '#fca5a5' : '#86efac'}`, borderRadius: '10px', outline: 'none', color: '#1e293b', fontSize: '16px', fontWeight: 700, letterSpacing: '4px', textAlign: 'center', fontFamily: 'monospace' }}
+                      />
+                      <button onClick={handleVerify} disabled={inputCode.length < 4 || completing}
+                        style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', background: inputCode.length >= 4 && !completing ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e2e8f0', color: inputCode.length >= 4 ? '#fff' : '#94a3b8', fontSize: '13px', fontWeight: 700, cursor: inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
+                        {completing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+                        {completing ? 'Đang xử lý...' : 'Xác nhận'}
+                      </button>
+                    </div>
+                    {showError && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
+                        <AlertCircle size={14} style={{ color: '#ef4444' }} />
+                        <span style={{ color: '#dc2626', fontSize: '12px', fontWeight: 500 }}>{error || 'Mã xác nhận không đúng.'}</span>
+                      </div>
+                    )}
+                    <OrangeBtn onClick={handleVerify} disabled={inputCode.length < 4 || completing}>
+                      {completing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN VÀ HOÀN TẤT →'}
+                    </OrangeBtn>
+                  </div>
+                </div>
+              )}
+            </StepPanel>
+          </div>
         </div>{/* end grid */}
       </div>{/* end outer */}
 
