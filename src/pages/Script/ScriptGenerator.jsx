@@ -328,7 +328,8 @@ export default function ScriptGenerator() {
         config: cfg,
       });
       setToken(data.token);
-      setSaveMsg('✓ Đã lưu! Token: ' + data.token);
+      setSaveMsg('✓ Đã lưu thành công!');
+      setTimeout(() => setSaveMsg(''), 3000);
     } catch (err) {
       setSaveMsg('❌ ' + (err.message || 'Lỗi lưu widget'));
     } finally {
@@ -340,7 +341,6 @@ export default function ScriptGenerator() {
   const embedCode = useMemo(() => {
     if (!token) return '// Nhấn "Lưu & Lấy Script" để tạo mã nhúng an toàn';
     return [
-      `<!-- Traffic68 LayNut Button -->`,
       `<script src="${window.location.origin}/api_seo_traffic68.js" data-token="${token}" async><\/script>`,
     ].join('\n');
   }, [token]);
@@ -662,14 +662,9 @@ export default function ScriptGenerator() {
 
               {/* Save & Get Token */}
               <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
-                <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 text-xs text-green-700">
-                  <Info size={13} className="mt-0.5 flex-shrink-0" />
-                  <span>Config được lưu trên server. Trang web chỉ nhận 1 dòng script với token — <strong>không lộ code hay cấu hình</strong>.</span>
-                </div>
-
                 <button onClick={saveWidget} disabled={saving}
                   className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2">
-                  {saving ? '⏳ Đang lưu...' : '🔒 Lưu & Lấy Script'}
+                  {saving ? 'Đang lưu...' : 'Lưu Script'}
                 </button>
 
                 {saveMsg && (
