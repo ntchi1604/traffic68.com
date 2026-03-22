@@ -42,12 +42,34 @@ setInterval(() => {
 
 
 /* ═══════════════════════════════════════════════════════════
-   STEP 1: GET /challenge (anti-replay token only)
+   STEP 1: GET /challenge (anti-replay token + optional slug session)
+   If ?slug=xxx is provided, server looks up the worker_link
+   and stores worker_link_id in the challenge session (server-side).
+   Client never sends worker_link_id directly.
 ═══════════════════════════════════════════════════════════ */
-router.get('/challenge', (req, res) => {
+router.get('/challenge', async (req, res) => {
   const ua = req.headers['user-agent'] || '';
   if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+
+  // If slug is provided, look up worker_link and bind to this challenge session
+  // Slug MUST be valid — if provided but not found, reject the request
+  let workerLinkId = null;
+  const slug = (req.query.slug || '').trim();
+  if (slug) {
+    try {
+      const pool = getPool();
+      const [rows] = await pool.execute('SELECT id FROM worker_links WHERE slug = ?', [slug]);
+      if (rows.length > 0) {
+        workerLinkId = rows[0].id;
+      } else {
+        return res.status(404).json({ error: 'Link không tồn tại' });
+      }
+    } catch (e) {
+      console.error('[VuotLink] Challenge slug lookup error:', e.message);
+      return res.status(500).json({ error: 'Lỗi server' });
+    }
+  }
 
   const challengeId = crypto.randomBytes(16).toString('hex');
   const prefix = crypto.randomBytes(8).toString('hex');
@@ -56,7 +78,7 @@ router.get('/challenge', (req, res) => {
   const domFontSize = 14 + Math.floor(Math.random() * 10);
   const glSalt = crypto.randomBytes(8).toString('hex');
   const glColor = [Math.random(), Math.random(), Math.random()].map(v => Math.round(v * 100) / 100);
-  challenges[challengeId] = { createdAt: Date.now(), used: false, ip, prefix, difficulty, domText, domFontSize, glSalt, glColor };
+  challenges[challengeId] = { createdAt: Date.now(), used: false, ip, prefix, difficulty, domText, domFontSize, glSalt, glColor, workerLinkId };
   res.json({ c: challengeId, p: prefix, d: difficulty, dt: domText, df: domFontSize, gs: glSalt, gc: glColor });
 });
 
@@ -214,9 +236,12 @@ async function _handleTaskPost(req, res) {
   const expirySeconds = 300;
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
+  // Use worker_link_id from challenge session (server-side), NOT from client body
+  const workerLinkId = ch.workerLinkId || null;
+
   const [result] = await pool.execute(
     `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?)`,
-    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, req.body.worker_link_id || null]
+    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId]
   );
 
   console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, waitTime: ${waitTime}s`);

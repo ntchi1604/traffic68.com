@@ -354,7 +354,6 @@ export default function VuotLink() {
                         botDetection: botDetectionResult,
                         probes: probeData,
                         behavioral: getBehavioralData(),
-                        worker_link_id: null,
                     }),
                 });
 

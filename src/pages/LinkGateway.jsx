@@ -263,8 +263,8 @@ export default function LinkGateway() {
           window.clarity('identify', visitorId);
         }
 
-        // Get challenge
-        const chRes = await fetch(`${API}/challenge`);
+        // Get challenge — pass slug so server binds worker_link_id to session
+        const chRes = await fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}`);
         if (!chRes.ok) throw new Error('Không thể lấy challenge');
         const challenge = await chRes.json();
 
@@ -307,7 +307,7 @@ export default function LinkGateway() {
           }
         } catch { }
 
-        // Request task, passing worker_link_id so server can track it
+        // Request task — worker_link_id is tracked server-side via challenge session
         const token = localStorage.getItem('token');
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -324,7 +324,6 @@ export default function LinkGateway() {
             botDetection: botDetectionResult,
             probes: probeData,
             behavioral: getBehavioralData(),
-            worker_link_id: linkInfo.id,
           }),
         });
 
