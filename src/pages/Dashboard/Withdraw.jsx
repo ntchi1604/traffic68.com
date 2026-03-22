@@ -58,11 +58,6 @@ export default function Withdraw() {
             <p className="text-xs text-blue-200 mt-1">Tối thiểu rút: {fmt(minWithdraw)} đ</p>
           </div>
 
-          {msg && (
-            <div className={`p-4 rounded-xl text-sm font-semibold ${msg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-              {msg.text}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200/80 p-5 space-y-4">
             <h2 className="text-lg font-bold text-slate-900">Thông tin rút tiền</h2>
