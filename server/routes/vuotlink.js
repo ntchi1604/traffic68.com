@@ -374,7 +374,11 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
   const campaign = campaigns[0];
 
-  const earning = campaign.cpc;
+  // Worker earning uses admin-configurable worker_cpc (separate from buyer's campaign CPC)
+  const [wcpcRows] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'worker_cpc'");
+  const workerCpc = wcpcRows.length > 0 ? parseFloat(wcpcRows[0].setting_value) : null;
+  const earning = workerCpc > 0 ? workerCpc : campaign.cpc;
+
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const timeOnSite = Math.floor((Date.now() - new Date(task.created_at).getTime()) / 1000);
 
