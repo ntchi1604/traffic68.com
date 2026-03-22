@@ -156,6 +156,7 @@
   var _challengeKey = '';  // challenge signature
   var _visitorId = 'unknown';   // FingerprintJS visitor ID (same as VuotLink.jsx)
   var _botDetection = null;     // BotD result (same as VuotLink.jsx)
+  var _noCampaign = false;
 
   /* ── Load CreepJS (bot detection + visitorId) ── */
   var _fpLoaded = false;
@@ -655,12 +656,21 @@
   }
 
   function codeHtml() {
+    if (_noCampaign) return noCampaignHtml();
     var displayCode = sessionCode || 'Đang tải...';
     return '<div class="ln-code-wrap" style="border-color:' + t.codeBorder + '">' +
       '<div class="ln-code-val" style="background:' + t.codeBg + ';color:' + t.modalText + '">' + escHtml(displayCode) + '</div>' +
       '<button class="ln-copy-btn" id="laynut-copy" style="background:' + t.copyBg + ';color:' + t.copyText + '">SAO CHÉP</button>' +
       '</div>' +
       '<p class="ln-hint" style="color:' + t.hintColor + '">' + escHtml(cfg.successText) + '</p>';
+  }
+
+  function noCampaignHtml() {
+    return '<div style="text-align:center;padding:12px 0;">' +
+      '<div style="font-size:32px;margin-bottom:8px;">📋</div>' +
+      '<p style="font-size:14px;font-weight:700;color:#f97316;margin:0 0 4px;">Campaign đã đủ số lượng</p>' +
+      '<p style="font-size:12px;color:' + t.subText + ';margin:0;">Chiến dịch này đã hoàn thành chỉ tiêu.<br>Vui lòng thử lại sau.</p>' +
+      '</div>';
   }
 
   function escHtml(s) {
@@ -908,10 +918,16 @@
       if (remaining <= 0) {
         revealed = true;
         if (badge) badge.remove();
+        if (_noCampaign) {
+          closeModal();
+          openModal();
+          syncModalUI();
+          return;
+        }
         // Fetch the session code from server
         fetchSessionCode(function () {
           closeModal();
-          openModal(); // show code
+          openModal();
           if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
         });
         return;
@@ -1146,9 +1162,11 @@
             if (xhr.status === 200) {
               try {
                 var resp = JSON.parse(xhr.responseText);
-                if (resp._t) _sessionToken = resp._t; // save session token
+                if (resp._t) _sessionToken = resp._t;
                 var config = resp.config || {};
-                if (!resp.campaignFound) return;
+                if (!resp.campaignFound) {
+                  _noCampaign = true;
+                }
                 window.LayNut.init(config);
               } catch (e) { }
             }
