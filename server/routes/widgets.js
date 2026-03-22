@@ -104,15 +104,19 @@ router.get('/public/:token', async (req, res) => {
       const normalPage = normalize(pageUrl);
 
       const [campaigns] = await pool.execute(
-        `SELECT id, url, time_on_site, keyword FROM campaigns 
+        `SELECT id, url, url2, time_on_site, keyword FROM campaigns 
          WHERE user_id = ? AND status = 'running' AND views_done < total_views 
          ORDER BY created_at DESC`,
         [widgets[0].user_id]
       );
 
       for (const camp of campaigns) {
-        const normalCamp = normalize(camp.url || '');
-        if (normalPage === normalCamp || normalPage.startsWith(normalCamp + '/') || normalCamp.startsWith(normalPage)) {
+        const normalUrl1 = normalize(camp.url || '');
+        const normalUrl2 = normalize(camp.url2 || '');
+        const matchUrl1 = normalUrl1 && (normalPage === normalUrl1 || normalPage.startsWith(normalUrl1 + '/') || normalUrl1.startsWith(normalPage));
+        const matchUrl2 = normalUrl2 && (normalPage === normalUrl2 || normalPage.startsWith(normalUrl2 + '/') || normalUrl2.startsWith(normalPage));
+
+        if (matchUrl1 || matchUrl2) {
           let waitTime = 30;
           const tos = camp.time_on_site || '';
           if (tos.includes('-')) {
