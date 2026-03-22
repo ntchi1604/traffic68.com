@@ -419,7 +419,11 @@ router.get('/', async (req, res) => {
 /* POST / — create a new widget */
 router.post('/', async (req, res) => {
   const pool = getPool();
-  const { name, config } = req.body;
+  const { name, config, website_url } = req.body;
+
+  if (!website_url || !website_url.trim()) {
+    return res.status(400).json({ error: 'Vui lòng nhập URL website.' });
+  }
 
   // Check limit
   const [existing] = await pool.execute('SELECT COUNT(*) as cnt FROM widgets WHERE user_id = ?', [req.userId]);
@@ -432,8 +436,8 @@ router.post('/', async (req, res) => {
   const token = 'T68-' + crypto.randomBytes(6).toString('hex').toUpperCase();
 
   const [result] = await pool.execute(
-    `INSERT INTO widgets (user_id, token, name, config) VALUES (?, ?, ?, ?)`,
-    [req.userId, token, name || 'Nút mặc định', configStr]
+    `INSERT INTO widgets (user_id, token, name, website_url, config) VALUES (?, ?, ?, ?, ?)`,
+    [req.userId, token, name || 'Nút mặc định', website_url.trim(), configStr]
   );
 
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE id = ?', [result.insertId]);
@@ -454,7 +458,7 @@ router.get('/my', async (req, res) => {
   const widgets = rows.map(w => {
     let config = {};
     try { config = { ...JS_DEFAULTS, ...JSON.parse(w.config || '{}') }; } catch { }
-    return { id: w.id, token: w.token, name: w.name, config, is_active: w.is_active, created_at: w.created_at };
+    return { id: w.id, token: w.token, name: w.name, website_url: w.website_url || '', config, is_active: w.is_active, created_at: w.created_at };
   });
 
   res.json({ widgets });
@@ -466,15 +470,15 @@ router.put('/:id', async (req, res) => {
   const [existing] = await pool.execute('SELECT * FROM widgets WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
   if (existing.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
-  const { name, config, is_active } = req.body;
+  const { name, config, is_active, website_url } = req.body;
   let configStr = null;
   if (config) {
     const cleanConfig = stripDefaults(typeof config === 'string' ? JSON.parse(config) : config);
     configStr = JSON.stringify(cleanConfig);
   }
   await pool.execute(
-    `UPDATE widgets SET name=COALESCE(?,name), config=COALESCE(?,config), is_active=COALESCE(?,is_active), updated_at=NOW() WHERE id = ? AND user_id = ?`,
-    [name || null, configStr, is_active ?? null, req.params.id, req.userId]
+    `UPDATE widgets SET name=COALESCE(?,name), config=COALESCE(?,config), is_active=COALESCE(?,is_active), website_url=COALESCE(?,website_url), updated_at=NOW() WHERE id = ? AND user_id = ?`,
+    [name || null, configStr, is_active ?? null, website_url !== undefined ? website_url : null, req.params.id, req.userId]
   );
 
   const [updated] = await pool.execute('SELECT * FROM widgets WHERE id = ?', [req.params.id]);

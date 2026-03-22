@@ -238,11 +238,22 @@ async function _handleTaskPost(req, res) {
   // Fetch widget config from advertiser (for button preview in Step 4)
   let widgetConfig = null;
   try {
-    const [wRows] = await pool.execute(
-      `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1`,
-      [campaign.user_id]
-    );
-    console.log(`[VuotLink] Widget query: user_id=${campaign.user_id}, found=${wRows.length}`);
+    let wRows;
+    // Priority 1: Use the widget linked to this campaign
+    if (campaign.widget_id) {
+      [wRows] = await pool.execute(
+        `SELECT config FROM widgets WHERE id = ? AND is_active = 1`,
+        [campaign.widget_id]
+      );
+    }
+    // Priority 2: Fallback to latest active widget for this user
+    if (!wRows || wRows.length === 0) {
+      [wRows] = await pool.execute(
+        `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1`,
+        [campaign.user_id]
+      );
+    }
+    console.log(`[VuotLink] Widget query: user_id=${campaign.user_id}, widget_id=${campaign.widget_id || 'none'}, found=${wRows.length}`);
     if (wRows.length > 0) {
       const raw = JSON.parse(wRows[0].config || '{}');
       const DEFAULTS = {

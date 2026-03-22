@@ -285,6 +285,8 @@ export default function ScriptGenerator() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(null);
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newWebsiteUrl, setNewWebsiteUrl] = useState('');
 
   const set = (k, v) => setCfg(c => ({ ...c, [k]: v }));
 
@@ -335,18 +337,28 @@ export default function ScriptGenerator() {
 
   // Create new widget
   const createWidget = async () => {
+    if (!newWebsiteUrl.trim()) {
+      toast.error('Vui lòng nhập URL website trước.');
+      return;
+    }
     setCreating(true);
     try {
       const api = (await import('../../lib/api')).default;
+      // Extract domain for widget name
+      let domain = newWebsiteUrl.trim();
+      try { domain = new URL(domain.startsWith('http') ? domain : 'https://' + domain).hostname; } catch { }
       const data = await api.post('/widgets', {
-        name: `Widget ${widgets.length + 1}`,
+        name: domain,
+        website_url: newWebsiteUrl.trim(),
         config: DEFAULT_CFG,
       });
       const newW = data.widget;
-      const entry = { id: newW.id, token: newW.token, name: newW.name, config: newW.config, is_active: newW.is_active };
+      const entry = { id: newW.id, token: newW.token, name: newW.name, website_url: newW.website_url || newWebsiteUrl.trim(), config: newW.config, is_active: newW.is_active };
       setWidgets(prev => [...prev, entry]);
       setActiveWidgetId(newW.id);
       setCfg({ ...DEFAULT_CFG, ...newW.config });
+      setShowNewForm(false);
+      setNewWebsiteUrl('');
       toast.success('Đã tạo widget mới!');
     } catch (err) {
       toast.error(err.message || 'Lỗi tạo widget');
@@ -431,13 +443,33 @@ export default function ScriptGenerator() {
             <Globe size={15} className="text-blue-500" />
             Widget của bạn ({widgets.length})
           </h3>
-          <button onClick={createWidget} disabled={creating || widgets.length >= 10}
+          <button onClick={() => setShowNewForm(f => !f)} disabled={creating || widgets.length >= 10}
             className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300
                        text-white text-xs font-bold rounded-xl transition active:scale-95">
             <Plus size={13} />
-            {creating ? 'Đang tạo...' : 'Thêm Widget'}
+            {showNewForm ? 'Huỷ' : 'Thêm Widget'}
           </button>
         </div>
+
+        {/* New widget form — inline */}
+        {showNewForm && (
+          <div className="flex items-center gap-2 mb-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
+            <Globe size={15} className="text-blue-500 flex-shrink-0" />
+            <input
+              type="url"
+              value={newWebsiteUrl}
+              onChange={e => setNewWebsiteUrl(e.target.value)}
+              placeholder="Nhập URL website (VD: https://example.com)"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              onKeyDown={e => e.key === 'Enter' && createWidget()}
+              autoFocus
+            />
+            <button onClick={createWidget} disabled={creating || !newWebsiteUrl.trim()}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-xs font-bold rounded-lg transition whitespace-nowrap">
+              {creating ? 'Đang tạo...' : 'Tạo'}
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <div className="py-6 text-center text-sm text-gray-400">Đang tải...</div>
@@ -447,11 +479,13 @@ export default function ScriptGenerator() {
               <Code2 size={24} className="text-blue-500" />
             </div>
             <p className="text-sm font-bold text-gray-700 mb-1">Chưa có widget nào</p>
-            <p className="text-xs text-gray-400 mb-3">Tạo widget đầu tiên để nhúng vào website của bạn</p>
-            <button onClick={createWidget} disabled={creating}
-              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition">
-              <Plus size={14} className="inline mr-1" />Tạo Widget
-            </button>
+            <p className="text-xs text-gray-400 mb-3">Nhấn "Thêm Widget" và nhập URL website để bắt đầu</p>
+            {!showNewForm && (
+              <button onClick={() => setShowNewForm(true)}
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition">
+                <Plus size={14} className="inline mr-1" />Thêm Widget
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -468,7 +502,7 @@ export default function ScriptGenerator() {
                   <div className="w-3 h-3 rounded-full flex-shrink-0"
                     style={{ background: w.config?.buttonColor || '#f97316' }} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-gray-800 truncate">{w.name || 'Nút mặc định'}</p>
+                    <p className="text-xs font-bold text-gray-800 truncate">{w.website_url || w.name || 'Nút mặc định'}</p>
                     <p className="text-[10px] text-gray-400 font-mono truncate">{w.config?.insertTarget || '.footer'}</p>
                   </div>
                   {isActive && <span className="text-blue-500 text-sm font-bold flex-shrink-0">✓</span>}

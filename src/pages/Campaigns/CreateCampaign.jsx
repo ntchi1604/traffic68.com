@@ -3,7 +3,7 @@ import usePageTitle from '../../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight, Info, Upload, X, Tag, Globe, Monitor, Smartphone,
-  BarChart2, Wallet, Gift, Star, CheckCircle2, AlertCircle,
+  BarChart2, Wallet, Gift, Star, CheckCircle2, AlertCircle, Code2,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { formatMoney as fmt } from '../../lib/format';
@@ -225,6 +225,7 @@ export default function CreateCampaign() {
   const [pricingTiers, setPricingTiers] = useState([]);
   const [pricingConfig, setPricingConfig] = useState({});
   const [discountApplied, setDiscountApplied] = useState(false);
+  const [userWidgets, setUserWidgets] = useState([]);
 
   useEffect(() => {
     api.get('/finance').then(data => {
@@ -234,6 +235,11 @@ export default function CreateCampaign() {
     fetch('/api/pricing').then(r => r.json()).then(data => {
       setPricingTiers(data.tiers || []);
       if (data.config) setPricingConfig(data.config);
+    }).catch(() => { });
+
+    // Fetch user's widgets for campaign linking
+    api.get('/widgets/my').then(data => {
+      setUserWidgets(data.widgets || []);
     }).catch(() => { });
   }, []);
 
@@ -256,6 +262,7 @@ export default function CreateCampaign() {
     countries: ['VN'],
     discountCode: '',
     note: '',
+    widget_id: '',
   });
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
@@ -319,6 +326,7 @@ export default function CreateCampaign() {
         country: form.countries.join(','),
         image1_url: form.image1_url || '',
         image2_url: form.image2_url || '',
+        widget_id: form.widget_id || null,
         note: form.note,
       });
       setSubmitted(true);
@@ -564,6 +572,33 @@ export default function CreateCampaign() {
 
               </div>
             </div>
+
+            {/* ── Card: Widget liên kết ── */}
+            {userWidgets.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <Code2 size={16} className="text-indigo-600" />
+                  </div>
+                  <h2 className="font-bold text-gray-800">Widget (Nút Lấy Mã)</h2>
+                </div>
+                <div>
+                  <Label hint="Liên kết campaign với widget để nút minh hoạ hiện đúng style của website">Chọn Widget</Label>
+                  <SelectInput
+                    value={form.widget_id}
+                    onChange={e => set('widget_id', e.target.value)}
+                  >
+                    <option value="">— Tự động (widget mới nhất) —</option>
+                    {userWidgets.map(w => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} — {w.config?.insertTarget || '.footer'} ({w.token})
+                      </option>
+                    ))}
+                  </SelectInput>
+                  <Hint>Mỗi website có widget riêng. Chọn đúng widget để worker thấy nút minh hoạ chính xác khi vượt link.</Hint>
+                </div>
+              </div>
+            )}
 
             {/* ── Card: Images ── */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
