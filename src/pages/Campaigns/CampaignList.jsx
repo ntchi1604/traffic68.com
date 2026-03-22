@@ -262,7 +262,7 @@ export default function CampaignList() {
                 </div>
 
                 {/* Config grid */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-4 gap-2 text-xs">
                   <div className="bg-slate-50 rounded-xl p-3">
                     <p className="text-slate-400 font-medium mb-0.5">Nguồn traffic</p>
                     <p className="text-slate-800 font-semibold">{SOURCE_LABEL[c.traffic_type] || c.traffic_type || '—'}</p>
