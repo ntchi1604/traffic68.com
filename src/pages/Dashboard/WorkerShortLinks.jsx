@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { Link2, Plus, Copy, Trash2, ExternalLink, MousePointer, Wallet, CheckCircle, Globe, X, Globe2 } from 'lucide-react';
 import { formatMoney as fmt } from '../../lib/format';
@@ -7,7 +7,7 @@ import api from '../../lib/api';
 const BASE = window.location.origin;
 
 export default function WorkerShortLinks() {
-  usePageTitle('Link kiáº¿m tiá»n');
+  usePageTitle('Link kiếm tiền');
 
   const [links, setLinks] = useState([]);
   const [stats, setStats] = useState({});
@@ -42,24 +42,24 @@ export default function WorkerShortLinks() {
   const create = async (e) => {
     e.preventDefault();
     setFormErr('');
-    if (!destUrl.trim()) return setFormErr('Vui lÃ²ng nháº­p URL Ä‘Ã­ch');
-    try { new URL(destUrl.trim()); } catch { return setFormErr('URL khÃ´ng há»£p lá»‡'); }
+    if (!destUrl.trim()) return setFormErr('Vui lòng nhập URL đích');
+    try { new URL(destUrl.trim()); } catch { return setFormErr('URL không hợp lệ'); }
     setCreating(true);
     try {
       await api.post('/shortlink/create', { destination_url: destUrl.trim(), title: title.trim() || null });
-      showToast('Táº¡o link thÃ nh cÃ´ng!');
+      showToast('Tạo link thành công!');
       closePanel();
       await load();
-    } catch (e) { setFormErr(e.message || 'Lá»—i táº¡o link'); }
+    } catch (e) { setFormErr(e.message || 'Lỗi tạo link'); }
     finally { setCreating(false); }
   };
 
   const deleteLink = async (id) => {
-    if (!confirm('XÃ³a link nÃ y?')) return;
+    if (!confirm('Xóa link này?')) return;
     try {
       await api.delete(`/shortlink/links/${id}`);
       setLinks(prev => prev.filter(l => l.id !== id));
-      showToast('ÄÃ£ xÃ³a');
+      showToast('Đã xóa');
     } catch (e) { showToast(e.message, 'error'); }
   };
 
@@ -69,10 +69,10 @@ export default function WorkerShortLinks() {
   };
 
   const kpis = [
-    { label: 'Tá»•ng link', value: stats.total_links || 0, icon: Link2, color: '#3B82F6', bg: '#EFF6FF' },
-    { label: 'LÆ°á»£t vÃ o', value: fmt(stats.total_clicks || 0), icon: MousePointer, color: '#8B5CF6', bg: '#F5F3FF' },
-    { label: 'HoÃ n thÃ nh', value: fmt(stats.total_completed || 0), icon: CheckCircle, color: '#10B981', bg: '#ECFDF5' },
-    { label: 'Thu nháº­p', value: `${fmt(stats.total_earning || 0)} Ä‘`, icon: Wallet, color: '#F97316', bg: '#FFF7ED' },
+    { label: 'Tổng link', value: stats.total_links || 0, icon: Link2, color: '#3B82F6', bg: '#EFF6FF' },
+    { label: 'Lượt vào', value: fmt(stats.total_clicks || 0), icon: MousePointer, color: '#8B5CF6', bg: '#F5F3FF' },
+    { label: 'Hoàn thành', value: fmt(stats.total_completed || 0), icon: CheckCircle, color: '#10B981', bg: '#ECFDF5' },
+    { label: 'Thu nhập', value: `${fmt(stats.total_earning || 0)} đ`, icon: Wallet, color: '#F97316', bg: '#FFF7ED' },
   ];
 
   return (
@@ -108,8 +108,8 @@ export default function WorkerShortLinks() {
         {/* Panel header */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h3 style={{ fontWeight: 900, fontSize: 17, color: '#0F172A', margin: 0 }}>Táº¡o link kiáº¿m tiá»n</h3>
-            <p style={{ fontSize: 12, color: '#94A3B8', margin: '4px 0 0' }}>NgÆ°á»i click link pháº£i vÆ°á»£t link trÆ°á»›c â†’ báº¡n nháº­n tiá»n</p>
+            <h3 style={{ fontWeight: 900, fontSize: 17, color: '#0F172A', margin: 0 }}>Tạo link kiếm tiền</h3>
+            <p style={{ fontSize: 12, color: '#94A3B8', margin: '4px 0 0' }}>Người click link phải vượt link trước → bạn nhận tiền</p>
           </div>
           <button onClick={closePanel} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={16} color="#64748B" />
@@ -120,9 +120,9 @@ export default function WorkerShortLinks() {
         <form onSubmit={create} style={{ padding: 24, flex: 1, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
           <div>
             <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>
-              URL Ä‘Ã­ch <span style={{ color: '#EF4444' }}>*</span>
+              URL đích <span style={{ color: '#EF4444' }}>*</span>
             </label>
-            <p style={{ fontSize: 11, color: '#94A3B8', marginBottom: 8 }}>NgÆ°á»i dÃ¹ng sáº½ Ä‘Æ°á»£c chuyá»ƒn Ä‘áº¿n Ä‘Ã¢y sau khi hoÃ n thÃ nh</p>
+            <p style={{ fontSize: 11, color: '#94A3B8', marginBottom: 8 }}>Người dùng sẽ được chuyển đến đây sau khi hoàn thành</p>
             <div style={{ position: 'relative' }}>
               <Globe2 size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
               <input
@@ -136,11 +136,11 @@ export default function WorkerShortLinks() {
 
           <div>
             <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>
-              TiÃªu Ä‘á» <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 400 }}>(tÃ¹y chá»n â€” hiá»ƒn thá»‹ cho ngÆ°á»i click)</span>
+              Tiêu đề <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 400 }}>(tùy chọn — hiển thị cho người click)</span>
             </label>
             <input
               value={title} onChange={e => setTitle(e.target.value)}
-              placeholder="VÃ­ dá»¥: Táº£i xuá»‘ng file XYZ"
+              placeholder="Ví dụ: Tải xuống file XYZ"
               style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', boxSizing: 'border-box', color: '#1E293B' }}
             />
           </div>
@@ -153,13 +153,13 @@ export default function WorkerShortLinks() {
 
           {/* Info box */}
           <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '12px 14px' }}>
-            <p style={{ fontSize: 12, color: '#1D4ED8', fontWeight: 700, marginBottom: 4 }}>ðŸ’¡ CÃ¡ch hoáº¡t Ä‘á»™ng</p>
+            <p style={{ fontSize: 12, color: '#1D4ED8', fontWeight: 700, marginBottom: 4 }}>💡 Cách hoạt động</p>
             <ul style={{ fontSize: 12, color: '#3B82F6', margin: 0, padding: '0 0 0 16px', lineHeight: 1.7 }}>
-              <li>Há»‡ thá»‘ng táº¡o link <strong>/v/xxxxxxx</strong></li>
-              <li>Chia sáº» link â†’ ngÆ°á»i dÃ¹ng click</li>
-              <li>Há» pháº£i vÆ°á»£t link (nháº­p code) trÆ°á»›c</li>
-              <li>HoÃ n thÃ nh â†’ há» Ä‘Æ°á»£c chuyá»ƒn Ä‘áº¿n URL cá»§a báº¡n</li>
-              <li>Báº¡n nháº­n <strong>CPC</strong> cho má»—i lÆ°á»£t hoÃ n thÃ nh</li>
+              <li>Hệ thống tạo link <strong>/vuot-link/xxxxxxx</strong></li>
+              <li>Chia sẻ link → người dùng click</li>
+              <li>Họ phải vượt link (nhập code) trước</li>
+              <li>Hoàn thành → họ được chuyển đến URL của bạn</li>
+              <li>Bạn nhận <strong>CPC</strong> cho mỗi lượt hoàn thành</li>
             </ul>
           </div>
 
@@ -170,13 +170,13 @@ export default function WorkerShortLinks() {
               color: '#fff', fontWeight: 700, fontSize: 14, cursor: creating ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}>
-              {creating ? 'Äang táº¡o...' : <><Plus size={15} /> Táº¡o link</>}
+              {creating ? 'Đang tạo...' : <><Plus size={15} /> Tạo link</>}
             </button>
             <button type="button" onClick={closePanel} style={{
               padding: '12px 18px', borderRadius: 11, border: '1.5px solid #E2E8F0',
               background: '#fff', color: '#64748B', fontWeight: 700, fontSize: 14, cursor: 'pointer',
             }}>
-              Há»§y
+              Hủy
             </button>
           </div>
         </form>
@@ -185,15 +185,15 @@ export default function WorkerShortLinks() {
       {/* Page header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 900, color: '#0F172A', marginBottom: 2 }}>Link kiáº¿m tiá»n</h1>
-          <p style={{ color: '#64748B', fontSize: 13 }}>Nháº­p URL báº¡n muá»‘n chia sáº» â€” há»‡ thá»‘ng táº¡o link. NgÆ°á»i click link pháº£i vÆ°á»£t link trÆ°á»›c â†’ báº¡n nháº­n tiá»n.</p>
+          <h1 style={{ fontSize: 20, fontWeight: 900, color: '#0F172A', marginBottom: 2 }}>Link kiếm tiền</h1>
+          <p style={{ color: '#64748B', fontSize: 13 }}>Nhập URL bạn muốn chia sẻ — hệ thống tạo link. Người click link phải vượt link trước → bạn nhận tiền.</p>
         </div>
         <button onClick={openPanel} style={{
           padding: '10px 18px', borderRadius: 11, border: 'none', cursor: 'pointer', flexShrink: 0, marginLeft: 16,
           background: 'linear-gradient(135deg,#3B82F6,#2563EB)', color: '#fff', fontWeight: 700, fontSize: 14,
           display: 'flex', alignItems: 'center', gap: 7, boxShadow: '0 4px 14px rgba(59,130,246,0.3)',
         }}>
-          <Plus size={16} /> Táº¡o link má»›i
+          <Plus size={16} /> Tạo link mới
         </button>
       </div>
 
@@ -215,25 +215,25 @@ export default function WorkerShortLinks() {
       {/* Links table */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontWeight: 800, fontSize: 14, color: '#1E293B' }}>Táº¥t cáº£ liÃªn káº¿t ({links.length})</span>
+          <span style={{ fontWeight: 800, fontSize: 14, color: '#1E293B' }}>Tất cả liên kết ({links.length})</span>
         </div>
 
         {loading ? (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>Äang táº£i...</div>
+          <div style={{ padding: '40px 0', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>Đang tải...</div>
         ) : links.length === 0 ? (
           <div style={{ padding: '56px 0', textAlign: 'center' }}>
             <Globe size={40} style={{ color: '#CBD5E1', display: 'block', margin: '0 auto 12px' }} />
-            <p style={{ fontWeight: 700, color: '#334155', marginBottom: 4 }}>ChÆ°a cÃ³ link nÃ o</p>
-            <p style={{ fontSize: 13, color: '#94A3B8', marginBottom: 16 }}>Táº¡o link Ä‘áº§u tiÃªn Ä‘á»ƒ báº¯t Ä‘áº§u kiáº¿m tiá»n</p>
+            <p style={{ fontWeight: 700, color: '#334155', marginBottom: 4 }}>Chưa có link nào</p>
+            <p style={{ fontSize: 13, color: '#94A3B8', marginBottom: 16 }}>Tạo link đầu tiên để bắt đầu kiếm tiền</p>
             <button onClick={openPanel} style={{ padding: '9px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', background: '#3B82F6', color: '#fff', fontWeight: 700, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <Plus size={14} /> Táº¡o link ngay
+              <Plus size={14} /> Tạo link ngay
             </button>
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ background: '#F8FAFC' }}>
               <tr>
-                {['TiÃªu Ä‘á» / URL Ä‘Ã­ch', 'Link chia sáº»', 'VÃ o', 'HoÃ n thÃ nh', 'Thu nháº­p', ''].map(h => (
+                {['Tiêu đề / URL đích', 'Link chia sẻ', 'Vào', 'Hoàn thành', 'Thu nhập', ''].map(h => (
                   <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #F1F5F9' }}>{h}</th>
                 ))}
               </tr>
@@ -242,24 +242,24 @@ export default function WorkerShortLinks() {
               {links.map(l => (
                 <tr key={l.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
                   <td style={{ padding: '12px 16px', maxWidth: 200 }}>
-                    <p style={{ fontWeight: 700, color: '#1E293B', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.title || 'â€”'}</p>
+                    <p style={{ fontWeight: 700, color: '#1E293B', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.title || '—'}</p>
                     <p style={{ fontSize: 11, color: '#94A3B8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>{l.destination_url}</p>
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontFamily: 'monospace', color: '#3B82F6', fontWeight: 700 }}>/v/{l.slug}</span>
+                      <span style={{ fontFamily: 'monospace', color: '#3B82F6', fontWeight: 700 }}>/vuot-link/{l.slug}</span>
                       <button onClick={() => copyLink(l.slug)} title="Copy link" style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #E2E8F0', background: copied === l.slug ? '#F0FDF4' : '#F8FAFC', cursor: 'pointer', color: copied === l.slug ? '#16A34A' : '#64748B', fontSize: 11, fontWeight: 700 }}>
-                        {copied === l.slug ? 'âœ“' : <Copy size={12} />}
+                        {copied === l.slug ? '✓' : <Copy size={12} />}
                       </button>
                       <a href={`/vuot-link/${l.slug}`} target="_blank" rel="noreferrer" style={{ color: '#94A3B8' }}><ExternalLink size={12} /></a>
                     </div>
                   </td>
                   <td style={{ padding: '12px 16px', fontWeight: 700, color: '#64748B' }}>{fmt(l.click_count)}</td>
                   <td style={{ padding: '12px 16px', fontWeight: 700, color: '#10B981' }}>{fmt(l.completed_count)}</td>
-                  <td style={{ padding: '12px 16px', fontWeight: 800, color: '#F97316' }}>+{fmt(l.earning)} Ä‘</td>
+                  <td style={{ padding: '12px 16px', fontWeight: 800, color: '#F97316' }}>+{fmt(l.earning)} đ</td>
                   <td style={{ padding: '12px 16px' }}>
                     <button onClick={() => deleteLink(l.id)} style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #FEE2E2', background: '#FEF2F2', cursor: 'pointer', color: '#DC2626', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700 }}>
-                      <Trash2 size={12} /> XÃ³a
+                      <Trash2 size={12} /> Xóa
                     </button>
                   </td>
                 </tr>
@@ -271,4 +271,3 @@ export default function WorkerShortLinks() {
     </div>
   );
 }
-
