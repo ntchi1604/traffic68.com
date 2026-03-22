@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import {
     Search, Globe, Target, ShieldCheck,
     ExternalLink, ArrowRight,
@@ -238,10 +238,6 @@ export default function VuotLink() {
 
     /* ─── Fetch task from API on mount ─────────────── */
     useEffect(() => {
-        // Wait for linkInfo to be loaded before fetching task
-        // (slug exists → must wait for linkInfo from /api/shortlink/info)
-        if (slug && !linkInfo) return;
-
         let cancelled = false;
         (async () => {
             try {
@@ -414,41 +410,6 @@ export default function VuotLink() {
     const waitTime_ = task?.waitTime || waitTime || 60;
     const widgetConfig = task?.widgetConfig || null;
 
-    /* ─── No slug → invalid link ─────────────────────────── */
-    if (!slug) return (
-        <Wrapper>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px', textAlign: 'center', padding: '0 24px' }}>
-                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#fef2f2', border: '2px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <AlertCircle size={32} style={{ color: '#ef4444' }} />
-                </div>
-                <h2 style={{ color: '#1e3a6e', fontWeight: 800, margin: 0 }}>Link không hợp lệ</h2>
-                <p style={{ color: '#64748b', margin: 0, maxWidth: '400px' }}>
-                    Bạn cần truy cập qua link rút gọn do worker tạo ra.<br />
-                    Ví dụ: <span style={{ color: '#3b82f6', fontWeight: 600 }}>traffic68.com/vuot-link/abc123</span>
-                </p>
-                <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', textDecoration: 'none', padding: '12px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 700, marginTop: '8px' }}>
-                    Quay về trang chủ <ArrowRight size={16} />
-                </Link>
-            </div>
-            <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
-        </Wrapper>
-    );
-
-    /* ─── Link error (slug exists but invalid) ────────── */
-    if (linkError) return (
-        <Wrapper>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px', textAlign: 'center', padding: '0 24px' }}>
-                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#fef2f2', border: '2px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <AlertCircle size={32} style={{ color: '#ef4444' }} />
-                </div>
-                <h2 style={{ color: '#1e3a6e', fontWeight: 800, margin: 0 }}>Link không tồn tại</h2>
-                <p style={{ color: '#64748b', margin: 0 }}>{linkError}</p>
-                <Btn onClick={() => window.location.reload()}>Thử lại</Btn>
-            </div>
-            <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
-        </Wrapper>
-    );
-
     /* ─── Loading ──────────────────────────────────────── */
     if (loading) return (
         <Wrapper>
@@ -456,7 +417,6 @@ export default function VuotLink() {
                 <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '3px solid #e2e8f0', borderTopColor: '#3b82f6', animation: 'spin 1s linear infinite' }} />
                 <p style={{ color: '#64748b', fontWeight: 500 }}>Đang tải nhiệm vụ...</p>
             </div>
-            <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
         </Wrapper>
     );
 
@@ -628,148 +588,151 @@ export default function VuotLink() {
                             )}
                             <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '14px', padding: '14px' }}>
                                 {['Cuộn tìm trong kết quả Google', hasMultiSite ? 'Tìm trang có giao diện giống 1 trong 2 hình trên' : 'Tìm trang có giao diện giống hình trên', 'Click vào kết quả để truy cập trang'].map((t, i) => (
-                                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(124,58,237,0.06)', borderRadius: '8px', padding: '8px 12px', marginBottom: i < 2 ? '6px' : 0 }}>
-                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                            <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>{i + 1}</span>
-                                        </div>
-                                        <span style={{ color: '#374151', fontSize: '13px' }}>{t}</span>
-                                    </div>
-                                ))}
+                                    <div key={i} style={{ display: 'flex', alignI<div style = {{ width: '80px', height: '80px', borderRadius: '50%', background: '#f0fef4', border: '3px solid #86efac', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                             </div>
-                        </StepPanel>
-
-                        {/* ── CARD 4: Nhập mã xác nhận ── */}
-                        <StepPanel n={4} title="NHẬP MÃ XÁC NHẬN" desc="Nhập mã xác nhận từ trang đích để hoàn tất nhiệm vụ." verified={verified}>
-                            {verified ? (
-                                <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                                    <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#f0fef4', border: '3px solid #86efac', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                    </div>
-                                    <h3 style={{ color: '#16a34a', fontWeight: 800, margin: '0 0 8px' }}>Xác nhận thành công!</h3>
-                                    <p style={{ color: '#64748b', margin: '0 0 20px' }}>
-                                        {isGateway ? '🔄 Đang chuyển hướng đến trang đích trong 3 giây...' : 'Bạn đã hoàn thành tất cả các bước. Cảm ơn bạn!'}
-                                    </p>
-                                    {completionResult?.earning > 0 && (
-                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '12px', padding: '12px 24px', marginBottom: '20px' }}>
-                                            <span style={{ color: '#64748b', fontSize: '13px' }}>Tiền thưởng:</span>
-                                            <span style={{ color: '#f97316', fontSize: '18px', fontWeight: 800 }}>{Number(completionResult.earning).toLocaleString('vi-VN')} VNĐ</span>
-                                        </div>
-                                    )}
-                                    <br />
-                                    {isGateway && completionResult?.destination_url ? (
-                                        <a href={completionResult.destination_url}
-                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', textDecoration: 'none', padding: '12px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 700 }}>
-                                            Đến trang đích ngay <ArrowRight size={16} />
-                                        </a>
-                                    ) : (
-                                        <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', textDecoration: 'none', padding: '12px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 700 }}>
-                                            Quay về trang chủ <ArrowRight size={16} />
-                                        </Link>
-                                    )}
-                                </div>
-                            ) : (
-                                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                    {/* ── Flow steps ── */}
-                                    {[
-                                        {
-                                            num: '1', color: '#3b82f6', label: 'Cuộn & tìm nút',
-                                            content: (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                                                    <span style={{ fontSize: '12px', color: '#64748b' }}>Nút trông như thế này trên trang đích:</span>
-                                                    <div style={{
-                                                        display: 'inline-flex', alignItems: 'center', gap: '8px',
-                                                        background: widgetConfig?.buttonColor || '#f97316',
-                                                        color: widgetConfig?.textColor || '#fff',
-                                                        borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
-                                                        fontSize: `${widgetConfig?.fontSize || 15}px`,
-                                                        fontWeight: 700, padding: '8px 16px',
-                                                        boxShadow: `0 4px 16px ${(widgetConfig?.buttonColor || '#f97316')}55`,
-                                                        userSelect: 'none', whiteSpace: 'nowrap', cursor: 'default',
-                                                    }}>
-                                                        <img
-                                                            src={widgetConfig?.iconUrl || 'https://traffic68.com/lg.png'}
-                                                            width={widgetConfig?.iconSize ?? 22}
-                                                            height={widgetConfig?.iconSize ?? 22}
-                                                            alt=""
-                                                            style={{
-                                                                background: widgetConfig?.iconBg ?? 'rgba(255,255,255,0.92)',
-                                                                borderRadius: 6, padding: 2,
-                                                                objectFit: 'contain', flexShrink: 0, display: 'block',
-                                                            }}
-                                                            onError={e => { e.target.src = 'https://traffic68.com/lg.png'; }}
-                                                        />
-                                                        {widgetConfig?.buttonText || 'Lấy Mã'}
-                                                    </div>
-                                                </div>
-                                            ),
-                                        },
-                                        {
-                                            num: '2', color: '#f97316', label: 'Chờ đủ thời gian → bấm nút → sao chép mã',
-                                            content: (
-                                                <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                                                    Khi nút kích hoạt, bấm vào — popup sẽ hiện mã. Sao chép mã rồi quay lại đây.
-                                                </p>
-                                            ),
-                                        },
-                                    ].map(({ num, color, label, content }) => (
-                                        <div key={num} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                                            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
-                                                <span style={{ color: '#fff', fontSize: '12px', fontWeight: 900 }}>{num}</span>
-                                            </div>
-                                            <div style={{ flex: 1 }}>
-                                                <p style={{ fontSize: '11px', fontWeight: 800, color, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 6px' }}>{label}</p>
-                                                {content}
-                                            </div>
-                                        </div>
-                                    ))}
-
-                                    {/* ── Divider ── */}
-                                    <div style={{ borderTop: '1.5px dashed #bbf7d0', margin: '0' }} />
-
-                                    {/* ── Code input ── */}
-                                    <div>
-                                        <p style={{ color: '#16a34a', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#22c55e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#fff', fontWeight: 900, flexShrink: 0 }}>3</span>
-                                            Nhập mã xác nhận
-                                        </p>
-                                        <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                                            <input type="text" maxLength={6} value={inputCode}
-                                                onChange={e => setInputCode(e.target.value.toUpperCase())}
-                                                disabled={completing} placeholder="Nhập mã tại đây"
-                                                style={{ flex: 1, padding: '12px 14px', background: '#fff', border: `1.5px solid ${showError ? '#fca5a5' : '#86efac'}`, borderRadius: '10px', outline: 'none', color: '#1e293b', fontSize: '15px', fontWeight: 600, letterSpacing: '2px', textAlign: 'center' }}
-                                            />
-                                            <button onClick={handleVerify} disabled={inputCode.length < 4 || completing}
-                                                style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', background: inputCode.length >= 4 && !completing ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e2e8f0', color: inputCode.length >= 4 ? '#fff' : '#94a3b8', fontSize: '13px', fontWeight: 700, cursor: inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
-                                                {completing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
-                                                {completing ? 'Đang xử lý...' : 'Xác nhận'}
-                                            </button>
-                                        </div>
-                                        {showError && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
-                                                <AlertCircle size={14} style={{ color: '#ef4444' }} />
-                                                <span style={{ color: '#dc2626', fontSize: '12px', fontWeight: 500 }}>{error || 'Mã xác nhận không đúng.'}</span>
-                                            </div>
-                                        )}
-                                        <OrangeBtn onClick={handleVerify} disabled={inputCode.length < 4 || completing}>
-                                            {completing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN VÀ HOÀN TẤT →'}
-                                        </OrangeBtn>
-                                    </div>
+                            <h3 style={{ color: '#16a34a', fontWeight: 800, margin: '0 0 8px' }}>Xác nhận thành công!</h3>
+                            <p style={{ color: '#64748b', margin: '0 0 20px' }}>
+                                {isGateway ? '🔄 Đang chuyển hướng đến trang đích trong 3 giây...' : 'Bạn đã hoàn thành tất cả các bước. Cảm ơn bạ!'}
+                            </p>
+                            {completionResult?.earning > 0 && (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '12px', padding: '12px 24px', marginBottom: '20px' }}>
+                                    <span style={{ color: '#64748b', fontSize: '13px' }}>Tiền thưởng:</span>
+                                    <span style={{ color: '#f97316', fontSize: '18px', fontWeight: 800 }}>{Number(completionResult.earning).toLocaleString('vi-VN')} VNĐ</span>
                                 </div>
                             )}
-                        </StepPanel>
+                            <br />
+                            {isGateway && completionResult?.destination_url ? (
+                                <a href={completionResult.destination_url}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', textDecoration: 'none', padding: '12px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 700 }}>
+                                    Đến trang đích ngay <ArrowRight size={16} />
+                                </a>
+                            ) : (
+                                <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', textDecoration: 'none', padding: '12px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 700 }}>
+                                    Quay về trang chủ <ArrowRight size={16} />
+                                </Link>
+                            )}�n thành tất cả các bước. Cảm ơn bạn!</p>
+                        {completionResult?.earning > 0 && (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '12px', padding: '12px 24px', marginBottom: '20px' }}>
+                                <span style={{ color: '#64748b', fontSize: '13px' }}>Tiền thưởng:</span>
+                                <span style={{ color: '#f97316', fontSize: '18px', fontWeight: 800 }}>{Number(completionResult.earning).toLocaleString('vi-VN')} VNĐ</span>
+                            </div>
+                        )}
+                        <br />
+                        <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', textDecoration: 'none', padding: '12px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 700 }}>
+                            Quay về trang chủ <ArrowRight size={16} />
+                        </Link>
                     </div>
-                </div>
-            </div>
+                    ) : (
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-            <style>{`
-                @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-                @keyframes glow { 0%,100%{box-shadow:0 6px 24px rgba(249,115,22,0.4)} 50%{box-shadow:0 8px 36px rgba(249,115,22,0.6)} }
-                @media(max-width:540px) {
-                    .vl-grid { grid-template-columns: 1fr !important; gap: 0 !important; }
-                    .vl-timeline { display: none !important; }
-                }
-            `}</style>
-        </Wrapper>
+                        {/* ── Flow steps ── */}
+                        {[
+                            {
+                                num: '1', color: '#3b82f6', label: 'Cuộn & tìm nút',
+                                content: (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: '12px', color: '#64748b' }}>Nút trông như thế này trên trang đích:</span>
+                                        {/* Button preview — mirrors LivePreview exactly */}
+                                        <div style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: '8px',
+                                            background: widgetConfig?.buttonColor || '#f97316',
+                                            color: widgetConfig?.textColor || '#fff',
+                                            borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
+                                            fontSize: `${widgetConfig?.fontSize || 15}px`,
+                                            fontWeight: 700,
+                                            padding: '8px 16px',
+                                            boxShadow: `0 4px 16px ${(widgetConfig?.buttonColor || '#f97316')}55`,
+                                            userSelect: 'none', whiteSpace: 'nowrap', cursor: 'default',
+                                        }}>
+                                            {/* Icon: same as LivePreview — img with rounded square bg */}
+                                            <img
+                                                src={widgetConfig?.iconUrl || 'https://traffic68.com/lg.png'}
+                                                width={widgetConfig?.iconSize ?? 22}
+                                                height={widgetConfig?.iconSize ?? 22}
+                                                alt=""
+                                                style={{
+                                                    background: widgetConfig?.iconBg ?? 'rgba(255,255,255,0.92)',
+                                                    borderRadius: 6,
+                                                    padding: 2,
+                                                    objectFit: 'contain',
+                                                    flexShrink: 0,
+                                                    display: 'block',
+                                                }}
+                                                onError={e => { e.target.src = 'https://traffic68.com/lg.png'; }}
+                                            />
+                                            {widgetConfig?.buttonText || 'Lấy Mã'}
+                                        </div>
+                                    </div>
+                                ),
+                            },
+                            {
+                                num: '2', color: '#f97316', label: 'Chờ đủ thời gian → bấm nút → sao chép mã',
+                                content: (
+                                    <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+                                        Khi nút kích hoạt, bấm vào — popup sẽ hiện mã. Sao chép mã rồi quay lại đây.
+                                    </p>
+                                ),
+                            },
+                        ].map(({ num, color, label, content }) => (
+                            <div key={num} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
+                                    <span style={{ color: '#fff', fontSize: '12px', fontWeight: 900 }}>{num}</span>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <p style={{ fontSize: '11px', fontWeight: 800, color, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 6px' }}>{label}</p>
+                                    {content}
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* ── Divider ── */}
+                        <div style={{ borderTop: '1.5px dashed #bbf7d0', margin: '0' }} />
+
+                        {/* ── Code input ── */}
+                        <div>
+                            <p style={{ color: '#16a34a', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#22c55e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#fff', fontWeight: 900, flexShrink: 0 }}>3</span>
+                                Nhập mã xác nhận
+                            </p>
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                                <input type="text" maxLength={6} value={inputCode}
+                                    onChange={e => setInputCode(e.target.value.toUpperCase())}
+                                    disabled={completing} placeholder="Nhập mã tại đây"
+                                    style={{ flex: 1, padding: '12px 14px', background: '#fff', border: `1.5px solid ${showError ? '#fca5a5' : '#86efac'}`, borderRadius: '10px', outline: 'none', color: '#1e293b', fontSize: '15px', fontWeight: 600, letterSpacing: '2px', textAlign: 'center' }}
+                                />
+                                <button onClick={handleVerify} disabled={inputCode.length < 4 || completing}
+                                    style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', background: inputCode.length >= 4 && !completing ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e2e8f0', color: inputCode.length >= 4 ? '#fff' : '#94a3b8', fontSize: '13px', fontWeight: 700, cursor: inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
+                                    {completing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+                                    {completing ? 'Đang xử lý...' : 'Xác nhận'}
+                                </button>
+                            </div>
+                            {showError && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
+                                    <AlertCircle size={14} style={{ color: '#ef4444' }} />
+                                    <span style={{ color: '#dc2626', fontSize: '12px', fontWeight: 500 }}>{error || 'Mã xác nhận không đúng.'}</span>
+                                </div>
+                            )}
+                            <OrangeBtn onClick={handleVerify} disabled={inputCode.length < 4 || completing}>
+                                {completing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN VÀ HOÀN TẤT →'}
+                            </OrangeBtn>
+                        </div>
+                    </div>
+              )}
+                </StepPanel>
+            </div>
+        </div>{/* end grid */ }
+      </div > {/* end outer */ }
+
+        < style > {`
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes glow { 0%,100%{box-shadow:0 6px 24px rgba(249,115,22,0.4)} 50%{box-shadow:0 8px 36px rgba(249,115,22,0.6)} }
+        @media(max-width:540px) {
+          .vl-grid { grid-template-columns: 1fr !important; gap: 0 !important; }
+          .vl-timeline { display: none !important; }
+        }
+      `}</style >
+    </Wrapper >
   );
 }
 
