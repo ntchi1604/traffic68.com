@@ -239,31 +239,22 @@ async function _handleTaskPost(req, res) {
   let widgetConfig = null;
   try {
     let wRows;
-    // Priority 1: Use the widget linked to this campaign
-    if (campaign.widget_id) {
+    // Priority 1: Auto-match by domain from campaign URL
+    try {
+      const campaignDomain = new URL(campaign.url).hostname.replace(/^www\./, '');
       [wRows] = await pool.execute(
-        `SELECT config FROM widgets WHERE id = ? AND is_active = 1`,
-        [campaign.widget_id]
+        `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 AND website_url LIKE ? ORDER BY created_at DESC LIMIT 1`,
+        [campaign.user_id, `%${campaignDomain}%`]
       );
-    }
-    // Priority 2: Auto-match by domain from campaign URL
-    if (!wRows || wRows.length === 0) {
-      try {
-        const campaignDomain = new URL(campaign.url).hostname.replace(/^www\./, '');
-        [wRows] = await pool.execute(
-          `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 AND website_url LIKE ? ORDER BY created_at DESC LIMIT 1`,
-          [campaign.user_id, `%${campaignDomain}%`]
-        );
-      } catch (_) { /* invalid URL, skip */ }
-    }
-    // Priority 3: Fallback to latest active widget for this user
+    } catch (_) { /* invalid URL, skip */ }
+    // Priority 2: Fallback to latest active widget for this user
     if (!wRows || wRows.length === 0) {
       [wRows] = await pool.execute(
         `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1`,
         [campaign.user_id]
       );
     }
-    console.log(`[VuotLink] Widget query: user_id=${campaign.user_id}, widget_id=${campaign.widget_id || 'auto'}, found=${wRows.length}`);
+    console.log(`[VuotLink] Widget query: user_id=${campaign.user_id}, found=${wRows.length}`);
     if (wRows.length > 0) {
       const raw = JSON.parse(wRows[0].config || '{}');
       const DEFAULTS = {
