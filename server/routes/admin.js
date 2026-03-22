@@ -541,22 +541,22 @@ router.get('/security/users', async (req, res) => {
       `SELECT COUNT(*) as total FROM users u WHERE 1=1${searchWhere}`, params
     );
 
-    // Main query — users LEFT JOIN tasks
+    // Main query — users LEFT JOIN tasks (direct + via gateway links)
     const [rows] = await pool.execute(
       `SELECT
          u.id as worker_id,
          u.name,
          u.email,
-         COUNT(vt.id) as total,
-         COALESCE(SUM(vt.status = 'completed'), 0) as ok,
-         COALESCE(SUM(vt.bot_detected = 1), 0) as blocked,
-         COALESCE(SUM(vt.status = 'expired'), 0) as expired,
-         COALESCE(SUM(vt.status IN ('pending','step1','step2','step3')), 0) as pending,
+         COUNT(DISTINCT vt.id) as total,
+         COALESCE(SUM(CASE WHEN vt.status = 'completed' THEN 1 ELSE 0 END), 0) as ok,
+         COALESCE(SUM(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END), 0) as blocked,
+         COALESCE(SUM(CASE WHEN vt.status = 'expired' THEN 1 ELSE 0 END), 0) as expired,
+         COALESCE(SUM(CASE WHEN vt.status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END), 0) as pending,
          COALESCE(SUM(vt.earning), 0) as earned,
          MAX(vt.created_at) as last_at,
          GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips
        FROM users u
-       LEFT JOIN vuot_link_tasks vt ON vt.worker_id = u.id
+       LEFT JOIN vuot_link_tasks vt ON (vt.worker_id = u.id OR vt.worker_link_id IN (SELECT wl.id FROM worker_links wl WHERE wl.worker_id = u.id))
        WHERE 1=1${searchWhere}
        GROUP BY u.id
        ORDER BY blocked DESC, last_at DESC
@@ -615,7 +615,8 @@ router.get('/security/user/:uid/tasks', async (req, res) => {
     const offset = (Number(page) - 1) * Number(limit);
 
     const [cnt] = await pool.execute(
-      `SELECT COUNT(*) as total FROM vuot_link_tasks WHERE worker_id = ?`, [uid]
+      `SELECT COUNT(*) as total FROM vuot_link_tasks
+       WHERE worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?)`, [uid, uid]
     );
 
     const [rows] = await pool.execute(
@@ -628,10 +629,10 @@ router.get('/security/user/:uid/tasks', async (req, res) => {
        FROM vuot_link_tasks vt
        LEFT JOIN campaigns c ON c.id = vt.campaign_id
        LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
-       WHERE vt.worker_id = ?
+       WHERE vt.worker_id = ? OR vt.worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?)
        ORDER BY vt.created_at DESC
        LIMIT ? OFFSET ?`,
-      [uid, Number(limit), offset]
+      [uid, uid, Number(limit), offset]
     );
 
     res.json({
@@ -655,7 +656,9 @@ router.get('/security/user/:uid/events', async (req, res) => {
   try {
     const pool = getPool();
     const [ipRows] = await pool.execute(
-      `SELECT DISTINCT ip_address FROM vuot_link_tasks WHERE worker_id = ?`, [req.params.uid]
+      `SELECT DISTINCT ip_address FROM vuot_link_tasks
+       WHERE worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?)`,
+      [req.params.uid, req.params.uid]
     );
     const ips = ipRows.map(r => r.ip_address).filter(Boolean);
     if (!ips.length) return res.json({ events: [] });
