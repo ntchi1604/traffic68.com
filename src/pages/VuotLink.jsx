@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import {
   Search, Globe, Target, ShieldCheck,
   ExternalLink, ArrowRight,
-  AlertCircle, Loader2, WifiOff
+  AlertCircle, Loader2, WifiOff,
+  Copy, Check,
 } from 'lucide-react';
 
 /* ─── Load FingerprintJS + BotD from server files (same as embed script) ── */
