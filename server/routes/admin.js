@@ -576,6 +576,126 @@ router.get('/security', async (req, res) => {
   }
 });
 
+// ── GET /security/users — grouped by worker ──
+router.get('/security/users', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { search, page = 1, limit = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    let where = 'WHERE vt.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)';
+    const params = [];
+
+    if (search) {
+      where += ` AND (u.name LIKE ? OR u.email LIKE ? OR vt.ip_address LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(DISTINCT COALESCE(vt.worker_id, vt.ip_address)) as total
+       FROM vuot_link_tasks vt LEFT JOIN users u ON u.id = vt.worker_id ${where}`, params
+    );
+    const total = countRows[0].total;
+
+    const [rows] = await pool.execute(
+      `SELECT
+         COALESCE(vt.worker_id, 0) as worker_id,
+         MAX(u.name) as worker_name,
+         MAX(u.email) as worker_email,
+         COUNT(*) as total_tasks,
+         SUM(CASE WHEN vt.status = 'completed' THEN 1 ELSE 0 END) as completed,
+         SUM(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END) as blocked,
+         SUM(CASE WHEN vt.status = 'expired' THEN 1 ELSE 0 END) as expired,
+         SUM(CASE WHEN vt.status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) as pending,
+         COALESCE(SUM(vt.earning), 0) as total_earning,
+         MAX(vt.created_at) as last_activity,
+         GROUP_CONCAT(DISTINCT vt.ip_address ORDER BY vt.created_at DESC SEPARATOR ',') as ips,
+         (SELECT COUNT(*) FROM security_logs sl 
+          WHERE sl.ip_address IN (SELECT DISTINCT vt2.ip_address FROM vuot_link_tasks vt2 WHERE vt2.worker_id = vt.worker_id)
+          AND sl.reason NOT IN ('completed','probe_warning')
+          AND sl.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)) as security_events
+       FROM vuot_link_tasks vt
+       LEFT JOIN users u ON u.id = vt.worker_id
+       ${where}
+       GROUP BY COALESCE(vt.worker_id, vt.ip_address)
+       ORDER BY blocked DESC, security_events DESC, last_activity DESC
+       LIMIT ? OFFSET ?`,
+      [...params, Number(limit), offset]
+    );
+
+    res.json({
+      users: rows.map(r => ({
+        worker_id: r.worker_id,
+        worker_name: r.worker_name,
+        worker_email: r.worker_email,
+        total_tasks: r.total_tasks,
+        completed: r.completed,
+        blocked: r.blocked,
+        expired: r.expired,
+        pending: r.pending,
+        total_earning: r.total_earning,
+        last_activity: r.last_activity,
+        ips: (r.ips || '').split(',').filter(Boolean).slice(0, 5),
+        security_events: r.security_events,
+      })),
+      total,
+      page: Number(page),
+      limit: Number(limit),
+    });
+  } catch (err) {
+    console.error('Security users API error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /security/user/:id/tasks — individual tasks for a user ──
+router.get('/security/user/:id/tasks', async (req, res) => {
+  try {
+    const pool = getPool();
+    const userId = req.params.id;
+    const { page = 1, limit = 30 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const where = userId === '0'
+      ? 'WHERE vt.worker_id IS NULL'
+      : 'WHERE vt.worker_id = ?';
+    const whereParams = userId === '0' ? [] : [userId];
+
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) as total FROM vuot_link_tasks vt ${where} AND vt.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)`,
+      whereParams
+    );
+
+    const [rows] = await pool.execute(
+      `SELECT vt.id, vt.campaign_id, vt.status, vt.ip_address, vt.user_agent, vt.visitor_id,
+              vt.bot_detected, vt.earning, vt.time_on_site, vt.security_detail,
+              vt.created_at, vt.completed_at, vt.code_given, vt.keyword, vt.target_url,
+              c.name as campaign_name
+       FROM vuot_link_tasks vt
+       LEFT JOIN campaigns c ON c.id = vt.campaign_id
+       ${where} AND vt.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+       ORDER BY vt.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...whereParams, Number(limit), offset]
+    );
+
+    res.json({
+      tasks: rows.map(r => {
+        let secDetail = {};
+        try { secDetail = JSON.parse(r.security_detail || '{}'); } catch {}
+        return { ...r, security_detail: secDetail };
+      }),
+      total: countRows[0].total,
+      page: Number(page),
+      limit: Number(limit),
+    });
+  } catch (err) {
+    console.error('Security user tasks API error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Keep existing detail endpoint for backward compat
 router.get('/security/:id', async (req, res) => {
   try {
     const pool = getPool();

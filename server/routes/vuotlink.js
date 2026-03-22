@@ -483,6 +483,21 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     [now, timeOnSite, earning, ipCountry, task.id]
   );
 
+  // Log completed task to security_logs for admin review
+  try {
+    let secDetail = {};
+    try { secDetail = JSON.parse(task.security_detail || '{}'); } catch {}
+    logSecurityEvent('completed', task.ip_address, task.user_agent, task.visitor_id, {
+      taskId: task.id,
+      earning,
+      timeOnSite,
+      ipCountry,
+      campaignId: task.campaign_id,
+      workerId: task.worker_id,
+      ...secDetail,
+    });
+  } catch {}
+
   // Count view + auto-complete
   await pool.execute('UPDATE campaigns SET views_done = views_done + 1 WHERE id = ?', [task.campaign_id]);
   await pool.execute(
