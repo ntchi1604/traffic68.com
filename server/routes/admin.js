@@ -695,6 +695,38 @@ router.get('/security/user/:id/tasks', async (req, res) => {
   }
 });
 
+// ── GET /security/user/:id/events — security_logs for a user's IPs ──
+router.get('/security/user/:id/events', async (req, res) => {
+  try {
+    const pool = getPool();
+    const userId = req.params.id;
+
+    // Get user's IPs
+    const [ipRows] = await pool.execute(
+      `SELECT DISTINCT ip_address FROM vuot_link_tasks WHERE worker_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)`,
+      [userId]
+    );
+    const ips = ipRows.map(r => r.ip_address).filter(Boolean);
+    if (ips.length === 0) return res.json({ events: [] });
+
+    const placeholders = ips.map(() => '?').join(',');
+    const [rows] = await pool.execute(
+      `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at 
+       FROM security_logs 
+       WHERE ip_address IN (${placeholders})
+         AND reason NOT IN ('completed')
+         AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+       ORDER BY created_at DESC LIMIT 100`,
+      ips
+    );
+
+    res.json({ events: rows });
+  } catch (err) {
+    console.error('Security user events API error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Keep existing detail endpoint for backward compat
 router.get('/security/:id', async (req, res) => {
   try {

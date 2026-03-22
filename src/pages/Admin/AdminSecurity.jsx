@@ -180,12 +180,21 @@ function TaskDetailModal({ task, onClose }) {
 }
 
 /* ─── User Tasks View ─── */
+const REASON_VI = {
+  completed: 'Task OK', creep_detected: 'Fingerprint giả', automation_probes: 'Automation',
+  mouse_bot: 'Hành vi bot', bot_ua: 'UA bot', bot_behavior: 'Hành vi', suspicious: 'Nghi ngờ',
+  probe_warning: 'Browser probe', ip_rate_limit: 'Rate limit',
+};
+
 function UserTasksView({ user, onBack }) {
+  const [tab, setTab] = useState('tasks');
   const [tasks, setTasks] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
   const limit = 30;
 
   useEffect(() => {
@@ -195,6 +204,16 @@ function UserTasksView({ user, onBack }) {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [user.worker_id, page]);
+
+  useEffect(() => {
+    if (tab === 'events' && events.length === 0) {
+      setEventsLoading(true);
+      api.get(`/admin/security/user/${user.worker_id}/events`)
+        .then(d => setEvents(d.events || []))
+        .catch(console.error)
+        .finally(() => setEventsLoading(false));
+    }
+  }, [tab, user.worker_id]);
 
   const totalPages = Math.ceil(total / limit) || 1;
 
@@ -216,7 +235,7 @@ function UserTasksView({ user, onBack }) {
           ['Tổng', user.total_tasks, 'text-slate-800'],
           ['Hoàn thành', user.completed, 'text-green-600'],
           ['Blocked', user.blocked, 'text-red-600'],
-          ['Hết hạn', user.expired, 'text-amber-600'],
+          ['Cảnh báo', user.security_events, 'text-amber-600'],
           ['Thu nhập', fmtMoney(user.total_earning), 'text-emerald-600'],
         ].map(([l, v, c]) => (
           <div key={l} className="bg-white rounded-xl border border-slate-200 p-3 text-center">
@@ -226,72 +245,136 @@ function UserTasksView({ user, onBack }) {
         ))}
       </div>
 
-      {/* Tasks table */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Thời gian</th>
-                <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Trạng thái</th>
-                <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">IP</th>
-                <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Keyword</th>
-                <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Earning</th>
-                <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Đánh giá</th>
-                <th className="text-center px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Chi tiết</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={7} className="text-center py-12 text-slate-400">Đang tải...</td></tr>
-              ) : tasks.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-12 text-slate-400">Chưa có task nào</td></tr>
-              ) : tasks.map(t => {
-                const st = STATUS_MAP[t.status] || { label: t.status, cls: 'bg-slate-100 text-slate-600' };
-                return (
-                  <tr key={t.id} className={`border-b border-slate-100 hover:bg-slate-50/50 transition ${t.bot_detected ? 'bg-red-50/30' : ''}`}>
-                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{fmtDate(t.created_at)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${st.cls}`}>{st.label}</span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-slate-700">{t.ip_address}</td>
-                    <td className="px-4 py-3 text-slate-700 max-w-[150px] truncate">{t.keyword || '—'}</td>
-                    <td className="px-4 py-3 font-bold text-green-700">{t.earning ? fmtMoney(t.earning) : '—'}</td>
-                    <td className="px-4 py-3">
-                      {t.bot_detected
-                        ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">BOT</span>
-                        : t.status === 'completed'
-                        ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">Sạch</span>
-                        : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-50 text-slate-500 border border-slate-200">—</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => setSelectedTask(t)}
-                        className="px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 transition text-[11px] font-bold"
-                      >
-                        <Eye size={12} className="inline mr-1" />Xem
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-2">
+        {[['tasks', `Tasks (${total})`], ['events', `Cảnh báo (${user.security_events || 0})`]].map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${tab === key ? 'bg-violet-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-          <span className="text-[11px] text-slate-500">Trang {page} / {totalPages}</span>
-          <div className="flex gap-2">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white transition disabled:opacity-30">
-              <ChevronLeft size={14} />
-            </button>
-            <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages} className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white transition disabled:opacity-30">
-              <ChevronRight size={14} />
-            </button>
+      {tab === 'tasks' && (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Thời gian</th>
+                  <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Trạng thái</th>
+                  <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">IP</th>
+                  <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Keyword</th>
+                  <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Earning</th>
+                  <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Đánh giá</th>
+                  <th className="text-center px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Chi tiết</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={7} className="text-center py-12 text-slate-400">Đang tải...</td></tr>
+                ) : tasks.length === 0 ? (
+                  <tr><td colSpan={7} className="text-center py-12 text-slate-400">Chưa có task nào</td></tr>
+                ) : tasks.map(t => {
+                  const st = STATUS_MAP[t.status] || { label: t.status, cls: 'bg-slate-100 text-slate-600' };
+                  return (
+                    <tr key={t.id} className={`border-b border-slate-100 hover:bg-slate-50/50 transition ${t.bot_detected ? 'bg-red-50/30' : ''}`}>
+                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{fmtDate(t.created_at)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${st.cls}`}>{st.label}</span>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-slate-700">{t.ip_address}</td>
+                      <td className="px-4 py-3 text-slate-700 max-w-[150px] truncate">{t.keyword || '—'}</td>
+                      <td className="px-4 py-3 font-bold text-green-700">{t.earning ? fmtMoney(t.earning) : '—'}</td>
+                      <td className="px-4 py-3">
+                        {t.bot_detected
+                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">BOT</span>
+                          : t.status === 'completed'
+                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">Sạch</span>
+                          : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-50 text-slate-500 border border-slate-200">—</span>
+                        }
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => setSelectedTask(t)}
+                          className="px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 transition text-[11px] font-bold"
+                        >
+                          <Eye size={12} className="inline mr-1" />Xem
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+            <span className="text-[11px] text-slate-500">Trang {page} / {totalPages}</span>
+            <div className="flex gap-2">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white transition disabled:opacity-30">
+                <ChevronLeft size={14} />
+              </button>
+              <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages} className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white transition disabled:opacity-30">
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {tab === 'events' && (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          {eventsLoading ? (
+            <div className="text-center py-12 text-slate-400 text-xs">Đang tải...</div>
+          ) : events.length === 0 ? (
+            <div className="text-center py-12 text-slate-400 text-xs">Không có cảnh báo nào</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {events.map(ev => {
+                let details = {};
+                try { details = JSON.parse(ev.details || '{}'); } catch {}
+                const isBlocked = ['creep_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'bot_behavior'].includes(ev.reason);
+                const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(ev.user_agent || '');
+                return (
+                  <div key={ev.id} className={`px-4 py-3 ${isBlocked ? 'bg-red-50/30' : ''}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isBlocked ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {REASON_VI[ev.reason] || ev.reason}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+                          {ev.source === 'widget' ? 'Script nhúng' : ev.source === 'vuotlink' ? 'Vượt link' : ev.source}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isMobile ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {isMobile ? '📱' : '🖥️'}
+                        </span>
+                        <span className="font-mono text-[10px] text-slate-500">{ev.ip_address}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">{fmtDate(ev.created_at)}</span>
+                    </div>
+                    {/* Show key details inline */}
+                    {(details.totalLied > 0 || details.liedSections || details.probeWarnings || details.mobileToleranceApplied) && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {details.totalLied > 0 && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600">Lied: {details.totalLied}</span>}
+                        {(details.liedSections || []).map((s, i) => (
+                          <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600">{s}</span>
+                        ))}
+                        {(details.probeWarnings || []).map((w, i) => (
+                          <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-600">{w}</span>
+                        ))}
+                        {details.mobileToleranceApplied && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-cyan-50 text-cyan-600">Mobile tolerance ✓</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {selectedTask && <TaskDetailModal task={selectedTask} onClose={() => setSelectedTask(null)} />}
     </div>
