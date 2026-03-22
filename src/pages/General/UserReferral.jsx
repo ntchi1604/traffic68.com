@@ -121,7 +121,6 @@ export default function UserReferral() {
                       {r.commissionEarned > 0 ? (
                         <div>
                           <p className="font-bold text-amber-600 text-sm">{fmt(r.commissionEarned)}<span className="text-xs font-normal text-slate-400 ml-0.5">đ</span></p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{pct}% trên tổng nạp</p>
                         </div>
                       ) : (
                         <span className="text-slate-300 text-sm">—</span>
