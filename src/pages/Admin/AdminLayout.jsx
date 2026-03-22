@@ -21,7 +21,7 @@ const WORKER_NAV = [
   { to: '/admin/worker-users',       icon: Users,        label: 'Người dùng' },
   { to: '/admin/worker-tasks',       icon: HardHat,      label: 'Nhiệm vụ' },
   { to: '/admin/worker-withdrawals', icon: Receipt,      label: 'Rút tiền' },
-  { to: '/admin/worker-pricing',     icon: DollarSign,   label: 'Bảng giá Worker' },
+  { to: '/admin/worker-pricing',     icon: DollarSign,   label: 'Bảng giá' },
   { to: '/admin/referrals/workers',  icon: Gift,         label: 'Referral' },
   { to: '/admin/security',           icon: ShieldAlert,  label: 'Anti Cheat' },
 ];

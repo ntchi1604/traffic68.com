@@ -34,8 +34,7 @@ export default function AdminWorkerWithdrawals() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-slate-900">Rút tiền Worker</h1>
-        <p className="text-sm text-slate-500 mt-1">Quản lý yêu cầu rút tiền từ worker</p>
+        <h1 className="text-2xl font-black text-slate-900">Rút tiền</h1>
       </div>
 
       <div className="flex gap-2">

@@ -12,7 +12,7 @@ const TYPE_LABELS = {
 };
 
 export default function AdminWorkerPricing() {
-  usePageTitle('Admin - Bảng giá Worker');
+  usePageTitle('Admin - Bảng giá');
   const toast = useToast();
   const [tiers, setTiers] = useState([]);
   const [buyerTiers, setBuyerTiers] = useState([]);
@@ -69,11 +69,13 @@ export default function AdminWorkerPricing() {
     try {
       const workerRate = (100 - pct) / 100;
       for (const wt of tiers) {
-        // Find matching buyer tier
         const bt = buyerTiers.find(b => b.traffic_type === wt.traffic_type && b.duration === wt.duration);
         if (bt) {
-          const v1 = Math.round(bt.v1_price * workerRate);
-          const v2 = Math.round(bt.v2_price * workerRate);
+          // Use discount price (final price) if available, otherwise base price
+          const buyerV1 = bt.v1_discount > 0 ? bt.v1_discount : bt.v1_price;
+          const buyerV2 = bt.v2_discount > 0 ? bt.v2_discount : bt.v2_price;
+          const v1 = Math.round(buyerV1 * workerRate);
+          const v2 = Math.round(buyerV2 * workerRate);
           await api.put(`/admin/worker-pricing/${wt.id}`, { v1_price: v1, v2_price: v2 });
         }
       }
@@ -118,8 +120,8 @@ export default function AdminWorkerPricing() {
               <h2 className="font-bold text-slate-800">Tính giá theo % lãi</h2>
             </div>
             <p className="text-xs text-slate-500 mb-4">
-              Nhập % lãi mong muốn → giá worker = giá buyer × (100 - lãi)%.
-              Ví dụ: lãi 50% → worker nhận 50% giá buyer.
+              Nhập % lãi mong muốn → giá worker = giá buyer (sau giảm giá) × (100 - lãi)%.
+              Ví dụ: lãi 50% → worker nhận 50% giá buyer đã áp dụng.
             </p>
             <div className="flex items-end gap-3">
               <div className="flex-1 max-w-[200px]">
@@ -174,7 +176,7 @@ export default function AdminWorkerPricing() {
                         return (
                           <tr key={tier.id} className={isEditing ? 'bg-emerald-50/50' : 'hover:bg-slate-50/70'}>
                             <td className="px-5 py-3 font-bold text-slate-700">{tier.duration}</td>
-                            <td className="px-5 py-3 text-slate-400 text-xs">{buyer ? fmt(buyer.v1_price) + ' đ' : '—'}</td>
+                            <td className="px-5 py-3 text-slate-400 text-xs">{buyer ? fmt(buyer.v1_discount > 0 ? buyer.v1_discount : buyer.v1_price) + ' đ' : '—'}</td>
 
                             {isEditing ? (
                               <>
@@ -183,7 +185,7 @@ export default function AdminWorkerPricing() {
                                     onChange={e => setEditForm(f => ({ ...f, v1_price: Number(e.target.value) || 0 }))}
                                     className="w-20 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
                                 </td>
-                                <td className="px-5 py-3 text-slate-400 text-xs">{buyer ? fmt(buyer.v2_price) + ' đ' : '—'}</td>
+                                <td className="px-5 py-3 text-slate-400 text-xs">{buyer ? fmt(buyer.v2_discount > 0 ? buyer.v2_discount : buyer.v2_price) + ' đ' : '—'}</td>
                                 <td className="px-5 py-2">
                                   <input type="number" value={editForm.v2_price}
                                     onChange={e => setEditForm(f => ({ ...f, v2_price: Number(e.target.value) || 0 }))}
@@ -205,7 +207,7 @@ export default function AdminWorkerPricing() {
                             ) : (
                               <>
                                 <td className="px-5 py-3 text-emerald-700 font-bold">{fmt(tier.v1_price)} đ</td>
-                                <td className="px-5 py-3 text-slate-400 text-xs">{buyer ? fmt(buyer.v2_price) + ' đ' : '—'}</td>
+                                <td className="px-5 py-3 text-slate-400 text-xs">{buyer ? fmt(buyer.v2_discount > 0 ? buyer.v2_discount : buyer.v2_price) + ' đ' : '—'}</td>
                                 <td className="px-5 py-3 text-emerald-700 font-bold">{fmt(tier.v2_price)} đ</td>
                                 <td className="px-5 py-3">
                                   <div className="flex items-center justify-center">
