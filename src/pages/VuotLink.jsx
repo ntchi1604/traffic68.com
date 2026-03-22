@@ -410,6 +410,41 @@ export default function VuotLink() {
     const waitTime_ = task?.waitTime || waitTime || 60;
     const widgetConfig = task?.widgetConfig || null;
 
+    /* ─── No slug → invalid link ─────────────────────────── */
+    if (!slug) return (
+        <Wrapper>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px', textAlign: 'center', padding: '0 24px' }}>
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#fef2f2', border: '2px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <AlertCircle size={32} style={{ color: '#ef4444' }} />
+                </div>
+                <h2 style={{ color: '#1e3a6e', fontWeight: 800, margin: 0 }}>Link không hợp lệ</h2>
+                <p style={{ color: '#64748b', margin: 0, maxWidth: '400px' }}>
+                    Bạn cần truy cập qua link rút gọn do worker tạo ra.<br />
+                    Ví dụ: <span style={{ color: '#3b82f6', fontWeight: 600 }}>traffic68.com/vuot-link/abc123</span>
+                </p>
+                <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', textDecoration: 'none', padding: '12px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 700, marginTop: '8px' }}>
+                    Quay về trang chủ <ArrowRight size={16} />
+                </Link>
+            </div>
+            <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
+        </Wrapper>
+    );
+
+    /* ─── Link error (slug exists but invalid) ────────── */
+    if (linkError) return (
+        <Wrapper>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px', textAlign: 'center', padding: '0 24px' }}>
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#fef2f2', border: '2px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <AlertCircle size={32} style={{ color: '#ef4444' }} />
+                </div>
+                <h2 style={{ color: '#1e3a6e', fontWeight: 800, margin: 0 }}>Link không tồn tại</h2>
+                <p style={{ color: '#64748b', margin: 0 }}>{linkError}</p>
+                <Btn onClick={() => window.location.reload()}>Thử lại</Btn>
+            </div>
+            <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
+        </Wrapper>
+    );
+
     /* ─── Loading ──────────────────────────────────────── */
     if (loading) return (
         <Wrapper>
@@ -417,6 +452,7 @@ export default function VuotLink() {
                 <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '3px solid #e2e8f0', borderTopColor: '#3b82f6', animation: 'spin 1s linear infinite' }} />
                 <p style={{ color: '#64748b', fontWeight: 500 }}>Đang tải nhiệm vụ...</p>
             </div>
+            <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
         </Wrapper>
     );
 
