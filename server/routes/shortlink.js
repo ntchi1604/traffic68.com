@@ -18,16 +18,15 @@ router.get('/info/:slug', async (req, res) => {
   try {
     const pool = getPool();
     const [rows] = await pool.execute(
-      `SELECT wl.id, wl.slug, wl.title, wl.destination_url, wl.click_count, wl.completed_count,
-              u.name as worker_name
-       FROM worker_links wl JOIN users u ON u.id = wl.worker_id
+      `SELECT wl.id, wl.slug, wl.title
+       FROM worker_links wl
        WHERE wl.slug = ?`,
       [req.params.slug]
     );
     if (!rows.length) return res.status(404).json({ error: 'Link không tồn tại' });
     // Count click
     await pool.execute('UPDATE worker_links SET click_count = click_count + 1 WHERE id = ?', [rows[0].id]);
-    res.json({ link: rows[0] });
+    res.json({ link: { slug: rows[0].slug, title: rows[0].title } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

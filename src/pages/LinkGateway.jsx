@@ -468,8 +468,7 @@ export default function LinkGateway() {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontSize: 12, color: '#3B82F6', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Link được bảo vệ</p>
-            <p style={{ fontWeight: 700, color: '#1E293B', fontSize: 15, marginBottom: 2 }}>{linkInfo.title || 'Hoàn thành nhiệm vụ để truy cập link'}</p>
-            <p style={{ fontSize: 12, color: '#94A3B8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{linkInfo.destination_url}</p>
+            <p style={{ fontWeight: 700, color: '#1E293B', fontSize: 15 }}>{linkInfo.title || 'Hoàn thành nhiệm vụ để truy cập link'}</p>
           </div>
         </div>
 

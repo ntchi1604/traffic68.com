@@ -10,16 +10,19 @@ import api from '../../lib/api';
 /* ── Edit Modal ── */
 function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
-  const fileRef = useRef();
+  const fileRef1 = useRef();
+  const fileRef2 = useRef();
   const [dailyViews, setDailyViews] = useState(campaign.daily_views || 500);
   const [keyword, setKeyword] = useState(campaign.keyword || '');
   const [url, setUrl] = useState(campaign.url || '');
-  const [imageFile, setImageFile] = useState(null);
-  const [imageUrl, setImageUrl] = useState(campaign.image1_url || '');
-  const [uploading, setUploading] = useState(false);
+  const [url2, setUrl2] = useState(campaign.url2 || '');
+  const [image1Url, setImage1Url] = useState(campaign.image1_url || '');
+  const [image2Url, setImage2Url] = useState(campaign.image2_url || '');
+  const [uploading1, setUploading1] = useState(false);
+  const [uploading2, setUploading2] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const handleImageUpload = async (e) => {
+  const handleImageUpload = async (e, setUrl, setUploading) => {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
@@ -34,8 +37,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload thất bại');
-      setImageFile(file);
-      setImageUrl(data.imageUrl);
+      setUrl(data.imageUrl);
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -50,7 +52,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         dailyViews: Number(dailyViews),
         keyword,
         url,
-        image1_url: imageUrl || null,
+        url2: url2 || null,
+        image1_url: image1Url || null,
+        image2_url: image2Url || null,
       });
       toast.success('Cập nhật chiến dịch thành công');
       onSaved();
@@ -62,17 +66,41 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     }
   };
 
+  const ImageField = ({ label, imageUrl, setImageUrl, fileRef, uploading, setUploading }) => (
+    <div>
+      <label className="text-sm font-semibold text-slate-600 mb-1 block">{label}</label>
+      {imageUrl && (
+        <div className="mb-2 relative group">
+          <img src={imageUrl} alt="" className="w-full h-32 object-cover rounded-xl border border-slate-200" />
+          <button onClick={() => setImageUrl('')}
+            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+      <div onClick={() => fileRef.current.click()}
+        className="flex items-center gap-3 border border-dashed border-slate-300 rounded-xl px-4 py-2.5 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition group">
+        <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center">
+          <Upload size={14} className={`text-slate-400 group-hover:text-blue-500 transition ${uploading ? 'animate-spin' : ''}`} />
+        </div>
+        <span className="text-xs text-slate-500">{uploading ? 'Đang upload...' : imageUrl ? 'Thay ảnh' : 'Chọn ảnh'}</span>
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden"
+        onChange={e => handleImageUpload(e, setImageUrl, setUploading)} />
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 sticky top-0 bg-white z-10">
           <h3 className="text-lg font-bold text-slate-800">Sửa chiến dịch</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition">
             <X size={18} className="text-slate-500" />
           </button>
         </div>
 
-        <div className="px-6 py-5 space-y-5">
+        <div className="px-6 py-5 space-y-4">
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Tên chiến dịch</label>
             <p className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700">{campaign.name}</p>
@@ -83,8 +111,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
               className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" />
           </div>
           <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích</label>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích 1</label>
             <input type="url" value={url} onChange={e => setUrl(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích 2 <span className="text-slate-400 font-normal">(tùy chọn)</span></label>
+            <input type="url" value={url2} onChange={e => setUrl2(e.target.value)} placeholder="https://..."
               className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" />
           </div>
           <div>
@@ -92,29 +125,16 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)}
               className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" />
           </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">Hình ảnh</label>
-            {imageUrl && (
-              <div className="mb-2 relative group">
-                <img src={imageUrl} alt="Campaign" className="w-full h-40 object-cover rounded-xl border border-slate-200" />
-                <button onClick={() => { setImageUrl(''); setImageFile(null); }}
-                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
-                  <X size={14} />
-                </button>
-              </div>
-            )}
-            <div onClick={() => fileRef.current.click()}
-              className="flex items-center gap-3 border border-dashed border-slate-300 rounded-xl px-4 py-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition group">
-              <div className="w-9 h-9 rounded-lg bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center">
-                <Upload size={16} className={`text-slate-400 group-hover:text-blue-500 transition ${uploading ? 'animate-spin' : ''}`} />
-              </div>
-              <span className="text-sm text-slate-500">{imageFile ? imageFile.name : uploading ? 'Đang upload...' : 'Chọn ảnh mới'}</span>
-            </div>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+
+          <div className="grid grid-cols-2 gap-4">
+            <ImageField label="Hình ảnh 1" imageUrl={image1Url} setImageUrl={setImage1Url}
+              fileRef={fileRef1} uploading={uploading1} setUploading={setUploading1} />
+            <ImageField label="Hình ảnh 2" imageUrl={image2Url} setImageUrl={setImage2Url}
+              fileRef={fileRef2} uploading={uploading2} setUploading={setUploading2} />
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 sticky bottom-0 bg-white">
           <button onClick={onClose} className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Hủy</button>
           <button onClick={handleSave} disabled={saving}
             className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition disabled:opacity-50">

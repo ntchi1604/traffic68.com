@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Save, Edit3, X, DollarSign } from 'lucide-react';
+import { Save, Edit3, X, DollarSign, Percent } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
@@ -15,16 +15,23 @@ export default function AdminWorkerPricing() {
   usePageTitle('Admin - Bảng giá Worker');
   const toast = useToast();
   const [tiers, setTiers] = useState([]);
+  const [buyerTiers, setBuyerTiers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [profitPct, setProfitPct] = useState('');
+  const [applying, setApplying] = useState(false);
 
   const fetchData = () => {
     setLoading(true);
-    api.get('/admin/worker-pricing')
-      .then(data => setTiers(data.tiers || []))
-      .catch(console.error)
+    Promise.all([
+      api.get('/admin/worker-pricing'),
+      api.get('/admin/pricing'),
+    ]).then(([wp, bp]) => {
+      setTiers(wp.tiers || []);
+      setBuyerTiers(bp.tiers || []);
+    }).catch(console.error)
       .finally(() => setLoading(false));
   };
 
@@ -51,6 +58,31 @@ export default function AdminWorkerPricing() {
     finally { setSaving(false); }
   };
 
+  // Apply profit margin: worker gets (100 - profitPct)% of buyer price
+  const applyProfitMargin = async () => {
+    const pct = Number(profitPct);
+    if (isNaN(pct) || pct < 0 || pct > 100) {
+      toast.error('Phần trăm lãi phải từ 0 đến 100');
+      return;
+    }
+    setApplying(true);
+    try {
+      const workerRate = (100 - pct) / 100;
+      for (const wt of tiers) {
+        // Find matching buyer tier
+        const bt = buyerTiers.find(b => b.traffic_type === wt.traffic_type && b.duration === wt.duration);
+        if (bt) {
+          const v1 = Math.round(bt.v1_price * workerRate);
+          const v2 = Math.round(bt.v2_price * workerRate);
+          await api.put(`/admin/worker-pricing/${wt.id}`, { v1_price: v1, v2_price: v2 });
+        }
+      }
+      toast.success(`Đã áp dụng lãi ${pct}% — Worker nhận ${100 - pct}% giá buyer`);
+      fetchData();
+    } catch (err) { toast.error(err.message); }
+    finally { setApplying(false); }
+  };
+
   // Group tiers by traffic_type
   const grouped = {};
   tiers.forEach(t => {
@@ -58,11 +90,14 @@ export default function AdminWorkerPricing() {
     grouped[t.traffic_type].push(t);
   });
 
+  // Build buyer price map for comparison
+  const buyerMap = {};
+  buyerTiers.forEach(b => { buyerMap[`${b.traffic_type}_${b.duration}`] = b; });
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-black text-slate-900">Bảng giá Worker</h1>
-        <p className="text-sm text-slate-500 mt-1">Giá CPC mà worker nhận được mỗi lượt vượt link hoàn thành. Tách biệt với giá buyer.</p>
       </div>
 
       {loading ? (
@@ -75,10 +110,38 @@ export default function AdminWorkerPricing() {
         </div>
       ) : (
         <>
-          {/* Info banner */}
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-800">
-            <strong>💡 Lưu ý:</strong> Đây là giá worker <strong>nhận</strong> khi hoàn thành vượt link, không phải giá buyer trả.
-            V1 = campaign version 1, V2 = campaign version 2.
+          {/* Profit margin calculator */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <Percent size={16} className="text-emerald-600" />
+              </div>
+              <h2 className="font-bold text-slate-800">Tính giá theo % lãi</h2>
+            </div>
+            <p className="text-xs text-slate-500 mb-4">
+              Nhập % lãi mong muốn → giá worker = giá buyer × (100 - lãi)%.
+              Ví dụ: lãi 50% → worker nhận 50% giá buyer.
+            </p>
+            <div className="flex items-end gap-3">
+              <div className="flex-1 max-w-[200px]">
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">% Lãi</label>
+                <div className="relative">
+                  <input type="number" value={profitPct} onChange={e => setProfitPct(e.target.value)}
+                    placeholder="50" min="0" max="100" step="1"
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent pr-10" />
+                  <Percent size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
+              {profitPct && Number(profitPct) >= 0 && Number(profitPct) <= 100 && (
+                <p className="text-xs text-slate-500 pb-3">
+                  Worker nhận <strong className="text-emerald-600">{100 - Number(profitPct)}%</strong> giá buyer
+                </p>
+              )}
+              <button onClick={applyProfitMargin} disabled={applying || !profitPct}
+                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
+                <Save size={14} /> {applying ? 'Đang áp dụng...' : 'Áp dụng tất cả'}
+              </button>
+            </div>
           </div>
 
           {/* Pricing Tables */}
@@ -91,37 +154,41 @@ export default function AdminWorkerPricing() {
                   <span className={`px-3 py-1 text-xs font-bold rounded-full ${typeInfo.color}`}>
                     {typeInfo.label}
                   </span>
-                  <span className="text-xs text-slate-400">Worker CPC</span>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="min-w-[500px] w-full text-sm">
+                  <table className="min-w-[600px] w-full text-sm">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-5 py-3 text-left font-semibold text-slate-500">Thời gian</th>
-                        <th className="px-5 py-3 text-left font-semibold text-slate-500">V1 CPC (đ)</th>
-                        <th className="px-5 py-3 text-left font-semibold text-slate-500">V2 CPC (đ)</th>
+                        <th className="px-5 py-3 text-left font-semibold text-slate-400">Buyer V1</th>
+                        <th className="px-5 py-3 text-left font-semibold text-emerald-600">Worker V1</th>
+                        <th className="px-5 py-3 text-left font-semibold text-slate-400">Buyer V2</th>
+                        <th className="px-5 py-3 text-left font-semibold text-emerald-600">Worker V2</th>
                         <th className="px-5 py-3 text-center font-semibold text-slate-500">Sửa</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {items.map(tier => {
                         const isEditing = editingId === tier.id;
+                        const buyer = buyerMap[`${tier.traffic_type}_${tier.duration}`];
                         return (
                           <tr key={tier.id} className={isEditing ? 'bg-emerald-50/50' : 'hover:bg-slate-50/70'}>
                             <td className="px-5 py-3 font-bold text-slate-700">{tier.duration}</td>
+                            <td className="px-5 py-3 text-slate-400 text-xs">{buyer ? fmt(buyer.v1_price) + ' đ' : '—'}</td>
 
                             {isEditing ? (
                               <>
                                 <td className="px-5 py-2">
                                   <input type="number" value={editForm.v1_price}
                                     onChange={e => setEditForm(f => ({ ...f, v1_price: Number(e.target.value) || 0 }))}
-                                    className="w-24 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                                    className="w-20 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
                                 </td>
+                                <td className="px-5 py-3 text-slate-400 text-xs">{buyer ? fmt(buyer.v2_price) + ' đ' : '—'}</td>
                                 <td className="px-5 py-2">
                                   <input type="number" value={editForm.v2_price}
                                     onChange={e => setEditForm(f => ({ ...f, v2_price: Number(e.target.value) || 0 }))}
-                                    className="w-24 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                                    className="w-20 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
                                 </td>
                                 <td className="px-5 py-2">
                                   <div className="flex items-center justify-center gap-1">
@@ -139,6 +206,7 @@ export default function AdminWorkerPricing() {
                             ) : (
                               <>
                                 <td className="px-5 py-3 text-emerald-700 font-bold">{fmt(tier.v1_price)} đ</td>
+                                <td className="px-5 py-3 text-slate-400 text-xs">{buyer ? fmt(buyer.v2_price) + ' đ' : '—'}</td>
                                 <td className="px-5 py-3 text-emerald-700 font-bold">{fmt(tier.v2_price)} đ</td>
                                 <td className="px-5 py-3">
                                   <div className="flex items-center justify-center">
