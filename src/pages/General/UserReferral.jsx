@@ -6,7 +6,7 @@ import api from '../../lib/api';
 
 export default function UserReferral() {
   usePageTitle('Giới thiệu bạn bè');
-  const [data, setData] = useState({ referralCode: '', referrals: [], commissionPercent: null });
+  const [data, setData] = useState({ referralCode: '', referrals: [], commissionPercent: null, totalCommission: 0 });
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const location = useLocation();
@@ -26,7 +26,8 @@ export default function UserReferral() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const activeCount = data.referrals.filter(r => r.status === 'active').length;
+  const totalComm = data.totalCommission || 0;
+  const fmt = (n) => new Intl.NumberFormat('vi-VN').format(n);
 
   return (
     <div className="space-y-6">
@@ -79,8 +80,8 @@ export default function UserReferral() {
           <p className="text-3xl font-black text-slate-800 mt-1">{data.referrals.length}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 font-semibold uppercase">Đang hoạt động</p>
-          <p className="text-3xl font-black text-green-600 mt-1">{activeCount}</p>
+          <p className="text-xs text-slate-500 font-semibold uppercase">Tổng hoa hồng</p>
+          <p className="text-2xl font-black text-amber-600 mt-1">{fmt(totalComm)}<span className="text-sm font-semibold text-slate-400 ml-1">đ</span></p>
         </div>
       </div>
 
@@ -103,7 +104,7 @@ export default function UserReferral() {
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">#</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Người dùng</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Loại</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Hoa hồng</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Trạng thái</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Ngày tham gia</th>
                 </tr>
@@ -117,8 +118,8 @@ export default function UserReferral() {
                       <p className="text-xs text-slate-400">{r.email}</p>
                     </td>
                     <td className="px-5 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.service_type === 'worker' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`}>
-                        {r.service_type === 'worker' ? 'Worker' : 'Buyer'}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                        {pct ? `${pct}% hoa hồng` : '—'}
                       </span>
                     </td>
                     <td className="px-5 py-3">

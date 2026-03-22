@@ -64,7 +64,7 @@ function TestimonialCarousel() {
   const t = testimonials[idx];
 
   const animStyle = {
-    in:  { opacity: 1, transform: 'translateY(0) scale(1)',      filter: 'blur(0)' },
+    in: { opacity: 1, transform: 'translateY(0) scale(1)', filter: 'blur(0)' },
     out: { opacity: 0, transform: 'translateY(-12px) scale(0.96)', filter: 'blur(3px)' },
   };
 
@@ -344,34 +344,34 @@ export default function DangKy() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-blue-800">Được giới thiệu — Mua Traffic</p>
-                      <p className="text-xs text-blue-500 mt-0.5">Bạn được mời tham gia gói <strong>Mua Traffic</strong>. Dịch vụ đã được chọn sẵn.</p>
+                      <p className="text-xs text-blue-500 mt-0.5">Bạn được mời tham gia gói <strong>Mua Traffic</strong></p>
                     </div>
                   </div>
                 ) : (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-2">
-                    Bạn muốn sử dụng dịch vụ nào? *
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {serviceTypes.map(({ value, label, icon: Icon, desc, color, iconColor, activeRing }) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => set('service', value)}
-                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 text-center transition-all ${form.service === value
-                          ? `${color} ${activeRing}`
-                          : 'border-gray-200 bg-white hover:border-gray-300'
-                          }`}
-                      >
-                        <Icon className={`w-6 h-6 ${form.service === value ? iconColor : 'text-gray-400'}`} />
-                        <span className={`text-sm font-bold ${form.service === value ? 'text-gray-800' : 'text-gray-500'}`}>
-                          {label}
-                        </span>
-                        <span className="text-[10px] text-gray-400 leading-tight">{desc}</span>
-                      </button>
-                    ))}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-2">
+                      Bạn muốn sử dụng dịch vụ nào? *
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {serviceTypes.map(({ value, label, icon: Icon, desc, color, iconColor, activeRing }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => set('service', value)}
+                          className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 text-center transition-all ${form.service === value
+                            ? `${color} ${activeRing}`
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                            }`}
+                        >
+                          <Icon className={`w-6 h-6 ${form.service === value ? iconColor : 'text-gray-400'}`} />
+                          <span className={`text-sm font-bold ${form.service === value ? 'text-gray-800' : 'text-gray-500'}`}>
+                            {label}
+                          </span>
+                          <span className="text-[10px] text-gray-400 leading-tight">{desc}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
                 )}
 
                 {error && (

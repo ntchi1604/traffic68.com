@@ -117,10 +117,20 @@ router.get('/referrals', async (req, res) => {
     const commKey = context === 'worker' ? 'referral_commission_worker' : 'referral_commission_buyer';
     const [commRows] = await pool.execute('SELECT setting_value FROM site_settings WHERE setting_key = ?', [commKey]);
     const commissionPercent = commRows[0]?.setting_value || '5';
-    res.json({ referralCode: me[0]?.referral_code || '', referrals: refs, commissionPercent });
+
+    // Total commission earned from referrals
+    const [commTotal] = await pool.execute(
+      `SELECT COALESCE(SUM(amount), 0) as total FROM transactions
+       WHERE user_id = ? AND wallet_type = 'commission' AND method = 'referral' AND status = 'completed'`,
+      [req.userId]
+    );
+    const totalCommission = Number(commTotal[0]?.total || 0);
+
+    res.json({ referralCode: me[0]?.referral_code || '', referrals: refs, commissionPercent, totalCommission });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 module.exports = router;
