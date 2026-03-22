@@ -539,7 +539,6 @@ export default function TrafficTracking() {
                 const badge = { running: { label: 'Đang chạy', cls: 'bg-green-100 text-green-700' }, paused: { label: 'Tạm dừng', cls: 'bg-amber-100 text-amber-700' }, completed: { label: 'Hoàn thành', cls: 'bg-emerald-100 text-emerald-700' } }[effStatus] || { label: effStatus, cls: 'bg-slate-100 text-slate-600' };
                 const barColor = effStatus === 'completed' ? '#10B981' : effStatus === 'running' ? '#3B82F6' : '#F59E0B';
                 const isExpanded = expandedId === c.id;
-                const det = campDetails[c.id];
                 return (
                   <>
                     <tr key={c.id} className="hover:bg-slate-50 transition-colors">
