@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet, Briefcase, HardHat } from 'lucide-react';
+import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet, Briefcase, HardHat, MoreVertical } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
@@ -134,6 +134,14 @@ export default function AdminUsers({ type }) {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [balanceUser, setBalanceUser] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenuId(null); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const fetchUsers = useCallback((q = '') => {
     setLoading(true);
@@ -251,22 +259,52 @@ export default function AdminUsers({ type }) {
                 </td>
                 <td className="px-5 py-3 text-slate-500 text-xs">{new Date(u.created_at).toLocaleString('vi-VN')}</td>
                 <td className="px-5 py-3">
-                  <div className="flex items-center justify-center gap-1">
-                    <button onClick={() => setBalanceUser(u)} title="Cộng/Trừ tiền"
-                      className="p-1.5 rounded-lg hover:bg-green-50 text-slate-400 hover:text-green-600 transition"><Wallet size={15} /></button>
-                    {u.role !== 'admin' && (
-                      <button onClick={() => updateUser(u.id, { role: 'admin' })} title="Thăng Admin"
-                        className="p-1.5 rounded-lg hover:bg-orange-50 text-slate-400 hover:text-orange-600 transition"><Shield size={15} /></button>
+                  <div className="relative flex justify-center" ref={openMenuId === u.id ? menuRef : null}>
+                    <button
+                      onClick={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {openMenuId === u.id && (
+                      <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[170px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                        <button
+                          onClick={() => { setBalanceUser(u); setOpenMenuId(null); }}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition text-left"
+                        >
+                          <Wallet size={14} className="text-emerald-500" /> Cộng / Trừ tiền
+                        </button>
+                        {u.role !== 'admin' && (
+                          <button
+                            onClick={() => { updateUser(u.id, { role: 'admin' }); setOpenMenuId(null); }}
+                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition text-left"
+                          >
+                            <Shield size={14} className="text-orange-500" /> Thăng Admin
+                          </button>
+                        )}
+                        {u.role === 'admin' && (
+                          <button
+                            onClick={() => { updateUser(u.id, { role: 'user' }); setOpenMenuId(null); }}
+                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition text-left"
+                          >
+                            <UserCog size={14} className="text-slate-500" /> Hạ xuống User
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { updateUser(u.id, { status: u.status === 'banned' ? 'active' : 'banned' }); setOpenMenuId(null); }}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition text-left"
+                        >
+                          <Ban size={14} className="text-amber-500" /> {u.status === 'banned' ? 'Bỏ ban' : 'Ban tài khoản'}
+                        </button>
+                        <div className="border-t border-slate-100 my-1" />
+                        <button
+                          onClick={() => { deleteUser(u.id, u.name); setOpenMenuId(null); }}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition text-left"
+                        >
+                          <Trash2 size={14} /> Xóa người dùng
+                        </button>
+                      </div>
                     )}
-                    {u.role === 'admin' && (
-                      <button onClick={() => updateUser(u.id, { role: 'user' })} title="Hạ User"
-                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"><UserCog size={15} /></button>
-                    )}
-                    <button onClick={() => updateUser(u.id, { status: u.status === 'banned' ? 'active' : 'banned' })}
-                      title={u.status === 'banned' ? 'Bỏ ban' : 'Ban'}
-                      className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition"><Ban size={15} /></button>
-                    <button onClick={() => deleteUser(u.id, u.name)} title="Xóa"
-                      className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition"><Trash2 size={15} /></button>
                   </div>
                 </td>
               </tr>
