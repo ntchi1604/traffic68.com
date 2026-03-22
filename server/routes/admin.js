@@ -755,23 +755,6 @@ router.get('/security/user/:uid/events', async (req, res) => {
   }
 });
 
-
-
-// Keep existing detail endpoint for backward compat
-router.get('/security/:id', async (req, res) => {
-  try {
-    const pool = getPool();
-    const [rows] = await pool.execute(
-      `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at FROM security_logs WHERE id = ?`,
-      [req.params.id]
-    );
-    if (rows.length === 0) return res.status(404).json({ error: 'Không tìm thấy' });
-    res.json({ event: rows[0] });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ── GET /api/admin/security/ips — System-wide IP analysis ──
 router.get('/security/ips', async (req, res) => {
   try {
@@ -843,6 +826,23 @@ router.get('/security/ips', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Keep existing detail endpoint for backward compat
+router.get('/security/:id', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute(
+      `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at FROM security_logs WHERE id = ?`,
+      [req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Không tìm thấy' });
+    res.json({ event: rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 // ── GET /api/admin/security/ip/:ip — IP Evaluation ──
 router.get('/security/ip/:ip', async (req, res) => {
