@@ -248,7 +248,7 @@ export default function AdminCampaigns() {
         ) : (
           <>
             {/* Desktop table */}
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block">
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
