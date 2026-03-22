@@ -173,27 +173,27 @@ async function _handleTaskPost(req, res) {
 
   // ── 2. CreepJS check — with mobile tolerance ──
   const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
-  if (botDetection && botDetection.bot === true) {
-    console.log(`[VuotLink] 🚫 CreepJS BOT: IP=${ip}`);
-    logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
-    botDetected = true;
-    detectionLog.push('creep_detected');
-    return res.status(403).json(ERR);
-  }
-  if (botDetection && botDetection.totalLied > 0) {
-    // On mobile: clientRects, maths, css often differ due to DPI/font rendering — not reliable
-    const mobileSafe = ['clientRects', 'maths', 'css', 'domRect'];
+  if (botDetection) {
     const lied = botDetection.liedSections || [];
-    console.log(`[VuotLink] CreepJS lied debug: IP=${ip}, mobile=${isMobileDevice}, UA=${ua.substring(0,60)}, liedSections=${JSON.stringify(lied)}, totalLied=${botDetection.totalLied}`);
+    const mobileSafe = ['clientRects', 'maths', 'css', 'domRect'];
     const realLies = isMobileDevice ? lied.filter(s => !mobileSafe.some(safe => s === safe || s.startsWith(safe + ':'))) : lied;
-    if (realLies.length > 0 || (!isMobileDevice && botDetection.totalLied > 0)) {
-      console.log(`[VuotLink] 🚫 CreepJS BLOCKED: IP=${ip}, totalLied=${botDetection.totalLied}, realLies=${realLies.join(',')}, mobile=${isMobileDevice}`);
-      logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
-      botDetected = true;
-      detectionLog.push('creep_detected');
-      return res.status(403).json(ERR);
+
+    if (isMobileDevice) {
+      // Mobile: CreepJS is unreliable (bot=true, clientRects lies are common false positives)
+      // Only log, don't block — let behavior analysis be the gatekeeper
+      if (botDetection.bot === true || realLies.length > 0) {
+        console.log(`[VuotLink] ⚠️ CreepJS mobile warning (NOT blocking): IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
+        logSecurityEvent('creep_detected', ip, ua, visitorId, { ...botDetection, mobileToleranceApplied: true });
+      }
     } else {
-      console.log(`[VuotLink] ⚠️ CreepJS mobile tolerance: IP=${ip}, ignored: ${lied.join(',')}`);
+      // Desktop: block on bot=true or any real lies
+      if (botDetection.bot === true || realLies.length > 0) {
+        console.log(`[VuotLink] 🚫 CreepJS BLOCKED: IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
+        logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
+        botDetected = true;
+        detectionLog.push('creep_detected');
+        return res.status(403).json(ERR);
+      }
     }
   }
 
