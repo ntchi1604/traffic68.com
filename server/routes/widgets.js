@@ -295,8 +295,10 @@ router.post('/public/:token/get-code', async (req, res) => {
     logSecurityEvent('automation_probes', ip, ua, visitorId, probes);
     return res.status(403).json(ERR);
   }
+  const isMobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
   const probeWarnings = [];
-  if (probes.pluginCount === 0) probeWarnings.push('zero_plugins');
+  // Mobile browsers naturally have 0 plugins — skip this check on mobile
+  if (probes.pluginCount === 0 && !isMobileUA) probeWarnings.push('zero_plugins');
   if (probes.rtt === 0) probeWarnings.push('zero_rtt');
   if (probes.langCount === 0) probeWarnings.push('zero_languages');
   if (probeWarnings.length > 0) {

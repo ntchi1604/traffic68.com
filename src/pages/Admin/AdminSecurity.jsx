@@ -158,12 +158,17 @@ function DetailModal({ event: ev, onClose }) {
 
         {/* Summary row */}
         <div className="px-6 py-4 space-y-3 border-b border-slate-100">
-          <div className="flex flex-wrap gap-2 text-xs">
+          <div className="flex flex-wrap gap-2 text-xs items-center">
             <span className={`px-2.5 py-1 rounded-lg font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
               {ev.source === 'widget' ? 'Script nhúng' : ev.source === 'vuotlink' ? 'Vượt link' : ev.source}
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-slate-100 font-mono text-slate-700">{ev.ip_address}</span>
             <CopyId text={ev.visitor_id} />
+            {ev.worker_name && (
+              <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold">
+                👤 {ev.worker_name}{ev.worker_email ? ` (${ev.worker_email})` : ''}
+              </span>
+            )}
           </div>
 
           {/* Conclusion */}
@@ -387,6 +392,7 @@ export default function AdminSecurity() {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Thời gian</th>
+                <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">User</th>
                 <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Nguồn</th>
                 <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Phát hiện</th>
                 <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Địa chỉ IP</th>
@@ -397,9 +403,9 @@ export default function AdminSecurity() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="text-center py-12 text-slate-400">Đang tải...</td></tr>
+                <tr><td colSpan={8} className="text-center py-12 text-slate-400">Đang tải...</td></tr>
               ) : securityLogs.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-12 text-slate-400">Chưa có sự kiện bảo mật nào</td></tr>
+                <tr><td colSpan={8} className="text-center py-12 text-slate-400">Chưa có sự kiện bảo mật nào</td></tr>
               ) : securityLogs.map(ev => {
                 const detectMethods = {
                   completed: { label: 'Task OK', cls: 'bg-green-100 text-green-700' },
@@ -417,6 +423,13 @@ export default function AdminSecurity() {
                 return (
                   <tr key={ev.id} className={`border-b border-slate-100 hover:bg-slate-50/50 transition ${ev.is_bot ? 'bg-red-50/30' : ''}`}>
                     <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{fmtDate(ev.created_at)}</td>
+                    <td className="px-4 py-3">
+                      {ev.worker_name ? (
+                        <span className="text-xs font-bold text-indigo-700" title={ev.worker_email}>{ev.worker_name}</span>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
                         {sourceVi[ev.source] || ev.source}

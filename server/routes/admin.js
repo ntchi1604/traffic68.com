@@ -519,12 +519,18 @@ router.get('/security', async (req, res) => {
 
 
     let countSql = `SELECT COUNT(*) as total FROM security_logs WHERE 1=1`;
-    let listSql = `SELECT id, source, reason, ip_address, visitor_id, details, created_at FROM security_logs WHERE 1=1`;
+    let listSql = `SELECT sl.id, sl.source, sl.reason, sl.ip_address, sl.visitor_id, sl.details, sl.created_at,
+       vt.worker_id, u.name as worker_name, u.email as worker_email
+       FROM security_logs sl
+       LEFT JOIN vuot_link_tasks vt ON vt.ip_address = sl.ip_address
+         AND ABS(TIMESTAMPDIFF(SECOND, vt.created_at, sl.created_at)) < 120
+       LEFT JOIN users u ON u.id = vt.worker_id
+       WHERE 1=1`;
     const params = [];
 
     if (search) {
-      const searchClause = ` AND (ip_address LIKE ? OR visitor_id LIKE ? OR reason LIKE ?)`;
-      countSql += searchClause;
+      const searchClause = ` AND (sl.ip_address LIKE ? OR sl.visitor_id LIKE ? OR sl.reason LIKE ? OR u.name LIKE ? OR u.email LIKE ?)`;
+      countSql += ` AND (ip_address LIKE ? OR visitor_id LIKE ? OR reason LIKE ?)`;
       listSql += searchClause;
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
@@ -532,8 +538,10 @@ router.get('/security', async (req, res) => {
     const [countResult] = await pool.execute(countSql, params);
     const total = countResult[0].total;
 
-    listSql += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-    const listParams = [...params, Number(limit), offset];
+    listSql += ` GROUP BY sl.id ORDER BY sl.created_at DESC LIMIT ? OFFSET ?`;
+    const listParams = search
+      ? [...params, `%${search}%`, `%${search}%`, Number(limit), offset]
+      : [...params, Number(limit), offset];
     const [rows] = await pool.execute(listSql, listParams);
 
     // Compute is_bot for each row based on details assessments
@@ -549,7 +557,14 @@ router.get('/security', async (req, res) => {
       } catch {}
       // Also check reason-based blocking
       if (['creep_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'ip_rate_limit', 'bot_behavior'].includes(row.reason)) isBot = true;
-      return { id: row.id, source: row.source, reason: row.reason, ip_address: row.ip_address, visitor_id: row.visitor_id, created_at: row.created_at, is_bot: isBot };
+      return {
+        id: row.id, source: row.source, reason: row.reason,
+        ip_address: row.ip_address, visitor_id: row.visitor_id,
+        created_at: row.created_at, is_bot: isBot,
+        worker_id: row.worker_id || null,
+        worker_name: row.worker_name || null,
+        worker_email: row.worker_email || null,
+      };
     });
 
     res.json({ securityLogs, total, page: Number(page), limit: Number(limit) });

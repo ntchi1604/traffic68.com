@@ -262,8 +262,7 @@ async function _handleTaskPost(req, res) {
     waitTime = parseInt(tos) || 60;
   }
 
-  // Task expires after 5 minutes — code cannot be used after expiry
-  const expirySeconds = 300;
+  // Task expires after 10 minutes — code cannot be used after expiry\r\n  const expirySeconds = 600;
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   // Use worker_link_id from challenge session (server-side), NOT from client body
