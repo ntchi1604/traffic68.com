@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS vuot_link_tasks (
   earning      DECIMAL(10,2) NOT NULL DEFAULT 0,
   code_given   VARCHAR(100) DEFAULT '',
   expires_at   DATETIME DEFAULT NULL,
+  ip_country   VARCHAR(10)  DEFAULT NULL,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_visitor_status    (visitor_id, status, created_at),
   KEY idx_ip_status         (ip_address, status, created_at),

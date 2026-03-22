@@ -1,4 +1,5 @@
 const express = require('express');
+const geoip = require('geoip-lite');
 const crypto = require('crypto');
 const { getPool } = require('../db');
 const { authMiddleware, optionalAuth } = require('../middleware/auth');
@@ -340,9 +341,18 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const timeOnSite = Math.floor((Date.now() - new Date(task.created_at).getTime()) / 1000);
 
+  // Detect country from IP
+  let ipCountry = null;
+  try {
+    const ip = task.ip_address || '';
+    const cleanIp = ip.replace(/^::ffff:/, ''); // strip IPv6 prefix
+    const geo = geoip.lookup(cleanIp);
+    if (geo && geo.country) ipCountry = geo.country;
+  } catch (_) {}
+
   await pool.execute(
-    `UPDATE vuot_link_tasks SET status = 'completed', completed_at = ?, time_on_site = ?, earning = ? WHERE id = ?`,
-    [now, timeOnSite, earning, task.id]
+    `UPDATE vuot_link_tasks SET status = 'completed', completed_at = ?, time_on_site = ?, earning = ?, ip_country = ? WHERE id = ?`,
+    [now, timeOnSite, earning, ipCountry, task.id]
   );
 
   // Count view for campaign — auto-complete when target reached

@@ -142,136 +142,173 @@
     },
   };
 
-  /* ── State ────────────────────────────────────────────── */
   var cfg = {};
-  var t = {};          // active theme colors
+  var t = {};
   var remaining = 0;
   var revealed = false;
   var globalTimer = null;
   var circumference = 0;
-  var sessionCode = '';    // code fetched from server (vuot_link_tasks.code_given)
-  var _widgetToken = '';   // token for API calls
-  var _sessionToken = '';  // anti-bypass HMAC token from server
-  var _challengeId = '';   // anti-replay challenge token
-  var _challengeKey = '';  // challenge signature
-  var _visitorId = 'unknown';   // FingerprintJS visitor ID (same as VuotLink.jsx)
-  var _botDetection = null;     // BotD result (same as VuotLink.jsx)
-  var _noCampaign = false;
+  var sessionCode = '';
+  var _widgetToken = '';
+  var _sessionToken = '';
+  var _challengeId = '';
+  var _challengeKey = '';
+  var _visitorId = 'unknown';
+  var _botDetection = null;
+  var _noCampaign = false; // true when campaignFound: false — show msg instead of code
 
-  /* ── Load CreepJS (bot detection + visitorId) ── */
   var _fpLoaded = false;
   function _loadDetectionLibs(callback) {
     if (_fpLoaded) { callback(); return; }
     _fpLoaded = true;
 
     var _called = false;
-    function done() { if (!_called) { _called = true; callback(); } }
-
-    // CreepJS — capture data via console.log hook
-    var _origLog = console.log;
-    console.log = function () {
-      _origLog.apply(console, arguments);
-      for (var i = 0; i < arguments.length; i++) {
-        var arg = arguments[i];
-        if (arg && typeof arg === 'object' && arg.workerScope && arg.workerScope.lied !== undefined) {
-          var totalLied = 0;
-          var liedSections = [];
-          for (var key in arg) {
-            if (arg[key] && typeof arg[key] === 'object' && typeof arg[key].lied === 'number') {
-              totalLied += arg[key].lied;
-              if (arg[key].lied > 0) liedSections.push(key + ':' + arg[key].lied);
-            }
-          }
-          _botDetection = {
-            bot: totalLied > 0,
-            totalLied: totalLied,
-            liedSections: liedSections,
-            headless: arg.headless || (arg.headlessness ? arg.headlessness.lied : null),
-            stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null),
-          };
-          // Use workerScope.$hash as visitorId
-          if (arg.workerScope && arg.workerScope.$hash) {
-            _visitorId = arg.workerScope.$hash.substring(0, 16);
-          }
-          console.log = _origLog;
-          done();
-          return;
-        }
+    function done() {
+      if (!_called) {
+        _called = true;
+        if (_visitorId === 'unknown') _visitorId = _generateFallbackId();
+        callback();
       }
-    };
+    }
 
-    var crScript = document.createElement('script');
-    crScript.src = _scriptBase + '/creep.js';
-    crScript.onerror = function () {
+    window.addEventListener('message', function handler(e) {
+      if (!e.data || e.data.type !== 'creep-result') return;
+      var d = e.data.data;
+      if (d) {
+        if (d.visitorId && d.visitorId !== 'unknown') _visitorId = d.visitorId;
+        if (d.botDetection) _botDetection = d.botDetection;
+      }
+      window.removeEventListener('message', handler);
+      done();
+    });
+
+    var iframe = document.createElement('iframe');
+    iframe.src = _scriptBase + '/creep-frame.html';
+    iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.onerror = function () {
       _botDetection = { bot: false, creepError: true };
-      console.log = _origLog;
       done();
     };
-    document.head.appendChild(crScript);
+    document.body.appendChild(iframe);
 
-    // Safety timeout: 10s
     setTimeout(function () {
-      if (!_botDetection) { _botDetection = { bot: false, creepTimeout: true }; }
-      console.log = _origLog;
+      if (!_botDetection) {
+        _botDetection = { bot: false, creepTimeout: true };
+      }
       done();
-    }, 10000);
+    }, 12000);
   }
 
-  /* ── Behavioral tracker (same as VuotLink.jsx) ────────── */
   var _bhv = {
-    mouse: [],
-    clicks: 0,
-    keys: 0,
-    scrolls: 0,
     startTime: 0,
-    probes: {}, // automation detection probes
+    mouse: [],
+    clickPositions: [],
+    keyEvents: [],
+    _keyDownMap: {},
+    backspaceCount: 0,
+    totalKeys: 0,
+    scrollEvents: [],
+    scrollPauses: 0,
+    _lastScrollT: 0,
+    focusChanges: [],
+    totalBlur: 0,
+    rafStable: true,
+    _rafTimes: [],
+    probes: {},
   };
   var _bhvBound = false;
+
   function _bindBehavior() {
     if (_bhvBound) return;
     _bhvBound = true;
     _bhv.startTime = Date.now();
-    var MAX = 50;
+
+    var MOUSE_MAX = 80;
     document.addEventListener('mousemove', function (e) {
       _bhv.mouse.push({ x: e.clientX, y: e.clientY, t: Date.now() - _bhv.startTime });
-      if (_bhv.mouse.length > MAX) _bhv.mouse.shift();
+      if (_bhv.mouse.length > MOUSE_MAX) _bhv.mouse.shift();
     }, { passive: true });
-    document.addEventListener('click', function () { _bhv.clicks++; }, { passive: true });
-    document.addEventListener('keydown', function () { _bhv.keys++; }, { passive: true });
-    window.addEventListener('scroll', function () { _bhv.scrolls++; }, { passive: true });
 
-    // ── Automation detection probes ──
+    document.addEventListener('click', function (e) {
+      var cx = e.clientX, cy = e.clientY;
+      var el = e.target;
+      var rect = el ? el.getBoundingClientRect() : null;
+      var entry = { x: cx, y: cy, t: Date.now() - _bhv.startTime };
+      if (rect) {
+        entry.elCenterX = Math.round(rect.left + rect.width / 2);
+        entry.elCenterY = Math.round(rect.top + rect.height / 2);
+      }
+      _bhv.clickPositions.push(entry);
+      if (_bhv.clickPositions.length > 20) _bhv.clickPositions.shift();
+    }, { passive: true });
+
+    document.addEventListener('keydown', function (e) {
+      _bhv.totalKeys++;
+      if (e.key === 'Backspace') _bhv.backspaceCount++;
+      if (!_bhv._keyDownMap[e.key]) {
+        _bhv._keyDownMap[e.key] = Date.now();
+      }
+    }, { passive: true });
+
+    document.addEventListener('keyup', function (e) {
+      var downT = _bhv._keyDownMap[e.key];
+      if (downT) {
+        var dwellMs = Date.now() - downT;
+        _bhv.keyEvents.push({
+          dwellMs: dwellMs,
+          t: Date.now() - _bhv.startTime
+        });
+        if (_bhv.keyEvents.length > 30) _bhv.keyEvents.shift();
+        delete _bhv._keyDownMap[e.key];
+      }
+    }, { passive: true });
+
+    var scrollTimer = null;
+    window.addEventListener('scroll', function () {
+      var now = Date.now();
+      var y = window.scrollY || window.pageYOffset || 0;
+      if (_bhv._lastScrollT && (now - _bhv._lastScrollT) > 500) {
+        _bhv.scrollPauses++;
+      }
+      _bhv._lastScrollT = now;
+      _bhv.scrollEvents.push({ y: y, t: now - _bhv.startTime });
+      if (_bhv.scrollEvents.length > 40) _bhv.scrollEvents.shift();
+    }, { passive: true });
+
+    document.addEventListener('visibilitychange', function () {
+      var vis = !document.hidden;
+      _bhv.focusChanges.push({ visible: vis, t: Date.now() - _bhv.startTime });
+      if (_bhv.focusChanges.length > 20) _bhv.focusChanges.shift();
+      if (!vis) _bhv.totalBlur++;
+    });
+
+    var rafCount = 0;
+    var rafStart = performance.now();
+    function checkRaf(ts) {
+      rafCount++;
+      _bhv._rafTimes.push(ts);
+      if (_bhv._rafTimes.length > 30) _bhv._rafTimes.shift();
+      if (rafCount < 60) requestAnimationFrame(checkRaf);
+      else {
+        var elapsed = ts - rafStart;
+        _bhv.rafStable = elapsed < 3000;
+      }
+    }
+    if (window.requestAnimationFrame) requestAnimationFrame(checkRaf);
+
     try {
       var p = _bhv.probes;
-      // 1. navigator.webdriver (patched by undetected_chrome but check anyway)
       p.webdriver = !!navigator.webdriver;
-      // 2. Chrome DevTools Protocol traces
       p.cdc = !!(window.cdc_adoQpoasnfa76pfcZLmcfl_ || window.cdc_adoQpoasnfa76pfcZLmcfl_Array || window.cdc_adoQpoasnfa76pfcZLmcfl_Promise || window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol);
-      // 3. Selenium / automation properties
       p.selenium = !!(document.__selenium_unwrapped || document.__webdriver_evaluate || document.__driver_evaluate || window._Selenium_IDE_Recorder || window.__nightmare);
-      // 4. navigator.plugins (headless often has 0)
       p.pluginCount = navigator.plugins ? navigator.plugins.length : -1;
-      // 5. navigator.languages
       p.langCount = navigator.languages ? navigator.languages.length : 0;
-      // 6. Chrome runtime check — real Chrome has window.chrome
       p.hasChrome = !!window.chrome;
       p.hasChromeRuntime = !!(window.chrome && window.chrome.runtime);
-      // 7. Notification permission anomaly (headless gives denied + prompt)
-      if (window.Notification) {
-        p.notifPerm = Notification.permission;
-      }
-      // 8. Connection rtt (headless often has rtt=0)
-      if (navigator.connection) {
-        p.rtt = navigator.connection.rtt;
-      }
-      // 9. devtools open detection (debugger timing)
-      var t1 = performance.now();
-      // Regex that takes longer with devtools open
-      var devtoolsRegex = /./;
-      devtoolsRegex.toString = function () { return 'devtools'; };
-      // Just collect timing, server analyzes
-      p.perfTiming = Math.round(performance.now() - t1);
-    } catch (e) { /* probes failed, that's ok */ }
+      if (window.Notification) p.notifPerm = Notification.permission;
+      if (navigator.connection) p.rtt = navigator.connection.rtt;
+    } catch (e) { }
   }
 
 
@@ -919,6 +956,7 @@
         revealed = true;
         if (badge) badge.remove();
         if (_noCampaign) {
+          // No campaign — show 'đã đủ số lượng' message immediately, no server call
           closeModal();
           openModal();
           syncModalUI();
@@ -927,7 +965,7 @@
         // Fetch the session code from server
         fetchSessionCode(function () {
           closeModal();
-          openModal();
+          openModal(); // show code
           if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
         });
         return;
@@ -964,6 +1002,8 @@
   }
 
   /* ── Fetch challenge token (anti-replay — same as vuotlink) ── */
+  var _domText = '', _domFontSize = 16, _glColor = [0, 0, 0];
+
   function fetchChallenge(callback) {
     if (!_widgetToken) { callback(false); return; }
     var base = _scriptBase;
@@ -977,6 +1017,9 @@
           var resp = JSON.parse(xhr.responseText);
           _challengeId = resp.c || '';
           _challengeKey = resp._ck || '';
+          _domText = resp.dt || '';
+          _domFontSize = resp.df || 16;
+          _glColor = resp.gc || [0, 0, 0];
           callback(true);
         } catch (e) { callback(false); }
       } else {
@@ -1030,19 +1073,66 @@
     xhr.setRequestHeader('Content-Type', 'application/json');
     if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
 
-    // Collect behavioral data (same fields as VuotLink.jsx)
+    // Collect comprehensive behavioral data (v2)
     var countdownElapsed = _bhv.startTime ? Math.floor((Date.now() - _bhv.startTime) / 1000) : 0;
+
+    // Compute keystroke flight times (time between consecutive key releases)
+    var flightTimes = [];
+    for (var fi = 1; fi < _bhv.keyEvents.length; fi++) {
+      flightTimes.push(_bhv.keyEvents[fi].t - _bhv.keyEvents[fi - 1].t);
+    }
+
+    // Canvas 2D + WebGL proof
+    var _dw = 0, _glR = '', _glP = [0, 0, 0];
+    try {
+      var cv2 = document.createElement('canvas');
+      var ctx2 = cv2.getContext('2d');
+      ctx2.font = _domFontSize + 'px monospace';
+      _dw = ctx2.measureText(_domText).width;
+    } catch (e) { }
+    try {
+      var glCv = document.createElement('canvas');
+      glCv.width = 4; glCv.height = 4;
+      var gl = glCv.getContext('webgl') || glCv.getContext('experimental-webgl');
+      if (gl) {
+        var dbg = gl.getExtension('WEBGL_debug_renderer_info');
+        _glR = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+        gl.clearColor(_glColor[0], _glColor[1], _glColor[2], 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        var px = new Uint8Array(4);
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        _glP = [px[0], px[1], px[2]];
+      }
+    } catch (e) { }
+
     var payload = {
       challengeId: _challengeId,
       _ck: _challengeKey,
+      domWidth: _dw,
+      glRenderer: _glR,
+      glPixel: _glP,
       visitorId: _visitorId,
       botDetection: _botDetection,
       behavioral: {
+        // 1. Mouse dynamics
+        mouseTrail: _bhv.mouse.slice(-50),
         mousePoints: _bhv.mouse.length,
-        mouseTrail: _bhv.mouse.slice(-30),
-        clicks: _bhv.clicks,
-        keys: _bhv.keys,
-        scrolls: _bhv.scrolls,
+        clickPositions: _bhv.clickPositions,
+        // 2. Keystroke dynamics
+        keyDwellTimes: _bhv.keyEvents.map(function (k) { return k.dwellMs; }),
+        keyFlightTimes: flightTimes,
+        totalKeys: _bhv.totalKeys,
+        backspaceCount: _bhv.backspaceCount,
+        // 3. Scroll patterns
+        scrollEvents: _bhv.scrollEvents,
+        scrollPauses: _bhv.scrollPauses,
+        // 4. Focus & visibility
+        focusChanges: _bhv.focusChanges,
+        totalBlur: _bhv.totalBlur,
+        rafStable: _bhv.rafStable,
+        // 5. Probes
+        probes: _bhv.probes,
+        // Meta
         countdownTime: countdownElapsed,
         screen: {
           w: window.screen ? window.screen.width : 0,
@@ -1162,10 +1252,10 @@
             if (xhr.status === 200) {
               try {
                 var resp = JSON.parse(xhr.responseText);
-                if (resp._t) _sessionToken = resp._t;
+                if (resp._t) _sessionToken = resp._t; // save session token
                 var config = resp.config || {};
                 if (!resp.campaignFound) {
-                  _noCampaign = true;
+                  _noCampaign = true; // mark — show button/countdown but no code
                 }
                 window.LayNut.init(config);
               } catch (e) { }

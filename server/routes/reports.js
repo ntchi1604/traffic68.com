@@ -101,30 +101,47 @@ router.get('/traffic', async (req, res) => {
 
 // ── GET /api/reports/tasks  (completed tasks for a campaign, for detail modal) ──
 router.get('/tasks', async (req, res) => {
-  const pool = getPool();
-  const { campaignId, period } = req.query;
-  if (!campaignId) return res.status(400).json({ error: 'campaignId required' });
+  try {
+    const pool = getPool();
+    const { campaignId, period } = req.query;
+    if (!campaignId) return res.status(400).json({ error: 'campaignId required' });
 
-  const days = period === '30d' ? 30 : period === '90d' ? 90 : 7;
-  const from = new Date(); from.setDate(from.getDate() - days);
-  const fromDate = from.toISOString().slice(0, 10);
+    const days = period === '30d' ? 30 : period === '90d' ? 90 : 7;
+    const from = new Date(); from.setDate(from.getDate() - days);
+    const fromDate = from.toISOString().slice(0, 10);
 
-  // Verify campaign belongs to this user
-  const [check] = await pool.execute(
-    'SELECT id FROM campaigns WHERE id = ? AND user_id = ?',
-    [campaignId, req.userId]
-  );
-  if (!check.length) return res.status(403).json({ error: 'Forbidden' });
+    const [check] = await pool.execute(
+      'SELECT id FROM campaigns WHERE id = ? AND user_id = ?',
+      [campaignId, req.userId]
+    );
+    if (!check.length) return res.status(403).json({ error: 'Forbidden' });
 
-  const [tasks] = await pool.execute(
-    `SELECT vlt.completed_at, vlt.created_at, vlt.ip_address, vlt.user_agent, vlt.ip_country, vlt.time_on_site
-     FROM vuot_link_tasks vlt
-     WHERE vlt.campaign_id = ? AND vlt.status = 'completed' AND DATE(vlt.completed_at) >= ?
-     ORDER BY vlt.completed_at DESC LIMIT 500`,
-    [campaignId, fromDate]
-  );
+    let tasks;
+    try {
+      // Try with ip_country column (if migration has been run)
+      [tasks] = await pool.execute(
+        `SELECT vlt.completed_at, vlt.ip_address, vlt.user_agent, vlt.ip_country, vlt.time_on_site
+         FROM vuot_link_tasks vlt
+         WHERE vlt.campaign_id = ? AND vlt.status = 'completed' AND DATE(vlt.completed_at) >= ?
+         ORDER BY vlt.completed_at DESC LIMIT 500`,
+        [campaignId, fromDate]
+      );
+    } catch (colErr) {
+      // Fallback: ip_country column doesn't exist yet
+      [tasks] = await pool.execute(
+        `SELECT vlt.completed_at, vlt.ip_address, vlt.user_agent, NULL as ip_country, vlt.time_on_site
+         FROM vuot_link_tasks vlt
+         WHERE vlt.campaign_id = ? AND vlt.status = 'completed' AND DATE(vlt.completed_at) >= ?
+         ORDER BY vlt.completed_at DESC LIMIT 500`,
+        [campaignId, fromDate]
+      );
+    }
 
-  res.json({ tasks });
+    res.json({ tasks });
+  } catch (err) {
+    console.error('reports/tasks error:', err.message);
+    res.status(500).json({ error: 'Internal server error', tasks: [] });
+  }
 });
 
 
