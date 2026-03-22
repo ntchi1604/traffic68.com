@@ -63,6 +63,8 @@ export default function TrafficTracking() {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [expandedId, setExpandedId] = useState(null);
+  const [campDetails, setCampDetails] = useState({});
 
   useEffect(() => {
     setLoading(true);
@@ -78,6 +80,23 @@ export default function TrafficTracking() {
       setCampaigns(cp.campaigns || []);
     }).catch(console.error).finally(() => setLoading(false));
   }, [range, refreshKey]);
+
+  const toggleDetail = async (campId) => {
+    if (expandedId === campId) { setExpandedId(null); return; }
+    setExpandedId(campId);
+    if (campDetails[campId]) return; // already fetched
+    try {
+      const data = await api.get(`/reports/traffic?campaignId=${campId}&period=${range}`);
+      const rows = data.traffic || [];
+      const bd = data.byDevice || [];
+      const totalClicks = rows.reduce((s, t) => s + Number(t.clicks || 0), 0);
+      const totalViews  = rows.reduce((s, t) => s + Number(t.views  || 0), 0);
+      const mobile  = bd.find(x => x.name === 'Mobile')?.value  || 0;
+      const desktop = bd.find(x => x.name === 'Desktop')?.value || 0;
+      const tablet  = bd.find(x => x.name === 'Tablet')?.value  || 0;
+      setCampDetails(prev => ({ ...prev, [campId]: { totalClicks, totalViews, mobile, desktop, tablet } }));
+    } catch { }
+  };
 
   // "View" = lượt vượt link hoàn thành = cột `clicks` trong traffic_logs
   const totalCompleted = traffic.reduce((s, t) => s + Number(t.clicks || 0), 0);
@@ -99,7 +118,6 @@ export default function TrafficTracking() {
     { label: 'Tổng lượt xem', value: fmt(totalCompleted), sub: `đã hoàn thành trong ${range === '7d' ? '7' : range === '30d' ? '30' : '90'} ngày`, icon: Eye, color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
     { label: 'Trung bình / ngày', value: fmt(avgPerDay), sub: 'hoàn thành/ngày', icon: BarChart2, color: '#8B5CF6', bg: '#F5F3FF', border: '#DDD6FE' },
     { label: 'Chiến dịch đang chạy', value: overview.runningCampaigns || 0, sub: `/ ${overview.totalCampaigns || 0} chiến dịch`, icon: Zap, color: '#F97316', bg: '#FFF7ED', border: '#FED7AA' },
-    { label: 'Số dư ví', value: `${fmt(overview.mainBalance || 0)} đ`, sub: 'khả dụng', icon: Wallet, color: '#10B981', bg: '#ECFDF5', border: '#A7F3D0' },
   ];
 
   if (loading) return (
@@ -232,11 +250,12 @@ export default function TrafficTracking() {
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Tiến độ</th>
                 <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Views</th>
                 <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Ngân sách</th>
+                <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Chi tiết</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {visibleCampaigns.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-400">Chưa có chiến dịch nào</td></tr>
+                <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-400">Chưa có chiến dịch nào</td></tr>
               ) : visibleCampaigns.map(c => {
                 const done  = Number(c.views_done || 0);
                 const total = Number(c.total_views || 1);
@@ -245,29 +264,76 @@ export default function TrafficTracking() {
                 const effStatus = isCompleted ? 'completed' : c.status;
                 const badge = { running: { label: 'Đang chạy', cls: 'bg-green-100 text-green-700' }, paused: { label: 'Tạm dừng', cls: 'bg-amber-100 text-amber-700' }, completed: { label: 'Hoàn thành', cls: 'bg-emerald-100 text-emerald-700' } }[effStatus] || { label: effStatus, cls: 'bg-slate-100 text-slate-600' };
                 const barColor = effStatus === 'completed' ? '#10B981' : effStatus === 'running' ? '#3B82F6' : '#F59E0B';
+                const isExpanded = expandedId === c.id;
+                const det = campDetails[c.id];
                 return (
-                  <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <p className="font-semibold text-slate-800 truncate max-w-[180px]">{c.name}</p>
-                      <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[180px]">{c.url}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${badge.cls}`}>{badge.label}</span>
-                    </td>
-                    <td className="px-6 py-4 min-w-[140px]">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-slate-100 rounded-full h-2">
-                          <div className="h-2 rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: barColor }} />
+                  <>
+                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <p className="font-semibold text-slate-800 truncate max-w-[180px]">{c.name}</p>
+                        <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[180px]">{c.url}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${badge.cls}`}>{badge.label}</span>
+                      </td>
+                      <td className="px-6 py-4 min-w-[140px]">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-slate-100 rounded-full h-2">
+                            <div className="h-2 rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: barColor }} />
+                          </div>
+                          <span className="text-xs font-bold text-slate-600 flex-shrink-0">{pct}%</span>
                         </div>
-                        <span className="text-xs font-bold text-slate-600 flex-shrink-0">{pct}%</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="font-semibold text-slate-800">{fmt(done)}</span>
-                      <span className="text-slate-400 text-xs">/{fmt(total)}</span>
-                    </td>
-                    <td className="px-6 py-4 text-right font-semibold text-slate-800">{fmt(c.budget)} đ</td>
-                  </tr>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="font-semibold text-slate-800">{fmt(done)}</span>
+                        <span className="text-slate-400 text-xs">/{fmt(total)}</span>
+                      </td>
+                      <td className="px-6 py-4 text-right font-semibold text-slate-800">{fmt(c.budget)} đ</td>
+                      <td className="px-6 py-4 text-center">
+                        <button onClick={() => toggleDetail(c.id)}
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                            isExpanded ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}>
+                          {isExpanded ? '▲ Ẩn' : '▼ Xem'}
+                        </button>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr className="bg-blue-50/40">
+                        <td colSpan={6} className="px-8 py-4">
+                          {!det ? (
+                            <p className="text-xs text-slate-400">Đang tải...</p>
+                          ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              <div className="bg-white rounded-xl p-3 border border-blue-100">
+                                <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Hoàn thành</p>
+                                <p className="text-base font-black text-emerald-600">{fmt(det.totalClicks)}</p>
+                                <p className="text-[10px] text-slate-400">/ {fmt(det.totalViews)} nhận task</p>
+                              </div>
+                              <div className="bg-white rounded-xl p-3 border border-blue-100">
+                                <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Chi phí đã dùng</p>
+                                <p className="text-base font-black text-orange-600">{fmt(Number(c.views_done || 0) * Number(c.cpc || 0))} đ</p>
+                                <p className="text-[10px] text-slate-400">CPC: {fmt(c.cpc)} đ</p>
+                              </div>
+                              <div className="bg-white rounded-xl p-3 border border-blue-100">
+                                <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Thiết bị</p>
+                                <div className="flex gap-2 mt-1 flex-wrap">
+                                  <span className="text-[10px] bg-blue-100 text-blue-700 rounded px-1.5 py-0.5 font-semibold">💻 {fmt(det.desktop)}</span>
+                                  <span className="text-[10px] bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 font-semibold">📱 {fmt(det.mobile)}</span>
+                                  {det.tablet > 0 && <span className="text-[10px] bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 font-semibold">📲 {fmt(det.tablet)}</span>}
+                                </div>
+                              </div>
+                              <div className="bg-white rounded-xl p-3 border border-blue-100">
+                                <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Thông tin</p>
+                                <p className="text-[10px] text-slate-600">T/k: <span className="font-semibold">{c.keyword || '—'}</span></p>
+                                <p className="text-[10px] text-slate-600">Time: <span className="font-semibold">{c.time_on_site || '—'}s</span></p>
+                              </div>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 );
               })}
             </tbody>
