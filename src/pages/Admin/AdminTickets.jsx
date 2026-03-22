@@ -88,13 +88,14 @@ function ReplyModal({ ticket, onClose, onDone }) {
   );
 }
 
-export default function AdminTickets() {
+export default function AdminTickets({ defaultRole = 'all' }) {
   usePageTitle('Admin - Hỗ trợ');
   const toast = useToast();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [replyTicket, setReplyTicket] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState(defaultRole);
 
   const fetchTickets = () => {
     setLoading(true);
@@ -121,6 +122,9 @@ export default function AdminTickets() {
   ];
 
   const filteredTickets = tickets.filter(t => {
+    // Role filter
+    if (roleFilter !== 'all' && (t.role || 'worker') !== roleFilter) return false;
+    // Status filter
     if (statusFilter === 'all') return true;
     if (statusFilter === 'pending') return t.status === 'open' || t.status === 'in_progress';
     if (statusFilter === 'resolved') return t.status === 'resolved';
@@ -142,7 +146,28 @@ export default function AdminTickets() {
         <h1 className="text-2xl font-black text-slate-900">Hỗ trợ khách hàng</h1>
       </div>
 
-      {/* Filter tabs */}
+      {/* Role filter tabs */}
+      <div className="flex flex-wrap gap-2 mb-2">
+        {[
+          { key: 'all', label: 'Tất cả', count: tickets.length },
+          { key: 'buyer', label: '🛒 Buyer', count: tickets.filter(t => (t.role || 'worker') === 'buyer').length },
+          { key: 'worker', label: '👷 Worker', count: tickets.filter(t => (t.role || 'worker') === 'worker').length },
+        ].map(f => (
+          <button key={f.key} onClick={() => setRoleFilter(f.key)}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 ${
+              roleFilter === f.key
+                ? 'bg-blue-600 text-white'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}>
+            {f.label}
+            <span className={`px-1.5 py-0.5 text-[10px] font-black rounded-full ${
+              roleFilter === f.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+            }`}>{f.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Status filter tabs */}
       <div className="flex flex-wrap gap-2">
         {FILTERS.map(f => {
           const count = countFor(f.key);
@@ -179,6 +204,9 @@ export default function AdminTickets() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${(t.role || 'worker') === 'buyer' ? 'bg-purple-100 text-purple-700' : 'bg-cyan-100 text-cyan-700'}`}>
+                      {(t.role || 'worker') === 'buyer' ? '🛒 Buyer' : '👷 Worker'}
+                    </span>
                     <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${st.cls}`}>{st.label}</span>
                     <span className={`px-2 py-0.5 text-xs font-bold rounded-full
                       ${t.priority === 'high' ? 'bg-red-100 text-red-700' :

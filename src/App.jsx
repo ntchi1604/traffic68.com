@@ -158,7 +158,7 @@ function Layout() {
           <Route path="users" element={<AdminUsers type="buyers" />} />
           <Route path="campaigns" element={<AdminCampaigns />} />
           <Route path="transactions" element={<AdminTransactions />} />
-          <Route path="tickets" element={<AdminTickets />} />
+          <Route path="tickets" element={<AdminTickets defaultRole="buyer" />} />
           <Route path="pricing" element={<AdminPricing />} />
           <Route path="security" element={<AdminSecurity />} />
           <Route path="referrals/buyers" element={<AdminReferrals type="buyers" />} />
@@ -167,6 +167,7 @@ function Layout() {
           <Route path="worker-tasks" element={<AdminWorkerTasks />} />
           <Route path="worker-withdrawals" element={<AdminWorkerWithdrawals />} />
           <Route path="worker-pricing" element={<AdminWorkerPricing />} />
+          <Route path="worker-tickets" element={<AdminTickets defaultRole="worker" />} />
           <Route path="config" element={<AdminConfig />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
