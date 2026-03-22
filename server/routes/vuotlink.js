@@ -6,6 +6,15 @@ const { authMiddleware, optionalAuth } = require('../middleware/auth');
 const { analyzeBehavior } = require('../lib/behavior');
 
 const router = express.Router();
+
+// Helper: ensure wallet exists then credit — fixes bug where UPDATE affects 0 rows if wallet missing
+async function ensureWalletCredit(pool, userId, walletType, amount) {
+  await pool.execute(
+    `INSERT INTO wallets (user_id, type, balance) VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE balance = balance + ?`,
+    [userId, walletType, amount, amount]
+  );
+}
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
 const HMAC_SECRET = process.env.CHALLENGE_KEY || crypto.randomBytes(32).toString('hex');
 
@@ -495,7 +504,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   let paidWorkerId = null;
   if (task.worker_id && !task.worker_link_id) {
     paidWorkerId = task.worker_id;
-    await pool.execute("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'earning'", [earning, task.worker_id]);
+    await ensureWalletCredit(pool, task.worker_id, 'earning', earning);
     const refCode = 'VL-' + Date.now();
     await pool.execute(
       `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'earning', 'earning', 'system', ?, 'completed', ?, ?)`,
@@ -512,7 +521,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
         const wl = wlRows[0];
         destinationUrl = wl.destination_url;
         paidWorkerId = wl.worker_id;
-        await pool.execute("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'earning'", [earning, wl.worker_id]);
+        await ensureWalletCredit(pool, wl.worker_id, 'earning', earning);
         await pool.execute('UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?', [earning, wl.id]);
         const refCode = 'GL-' + Date.now();
         await pool.execute(
@@ -537,9 +546,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
         if (commPct > 0) {
           const commAmount = Math.floor(earning * commPct / 100);
           if (commAmount > 0) {
-            await pool.execute(
-              "UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'commission'",
-              [commAmount, referrerId]
+            await ensureWalletCredit(pool, referrerId, 'commission', commAmount
             );
             const commRef = `COMM-WORKER-${Date.now()}`;
             await pool.execute(

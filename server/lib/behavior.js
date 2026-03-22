@@ -6,30 +6,52 @@ function _cv(arr) {
   return Math.sqrt(variance) / avg;
 }
 
-function analyzeBehavior(b) {
+function analyzeBehavior(b, userAgent) {
   if (!b) return { score: 0, reasons: [], assessments: [] };
   let score = 0;
   const reasons = [];
   const assessments = [];
 
-  // ── Detect device type ──
+  // ── Detect device type (multi-layered) ──
   const touchTrail = b.touchTrail || [];
   const touchTaps = b.touchTaps || [];
   const mouseTrail = b.mouseTrail || [];
-  const isMobile = !!(b.isMobile || touchTrail.length > 0 || touchTaps.length > 0);
+
+  // 1. Server-side UA detection (most reliable — can't be spoofed by client code)
+  const MOBILE_UA = /Mobi|Android|iPhone|iPad|iPod|webOS|BlackBerry|Opera Mini|IEMobile|Windows Phone|Kindle|Silk/i;
+  const serverDetectMobile = userAgent ? MOBILE_UA.test(userAgent) : null;
+
+  // 2. Client-sent flag
+  const clientIsMobile = !!b.isMobile;
+
+  // 3. Screen-based detection (small screen or portrait = likely mobile)
+  const screen = b.screen || {};
+  const screenIsMobile = (screen.w && screen.w < 768) || (screen.w && screen.h && screen.h > screen.w && screen.w < 1024);
+
+  // 4. Touch-based detection (has touch events = likely mobile)
+  const touchIsMobile = touchTrail.length > 0 || touchTaps.length > 0;
+
+  // Final decision: server UA wins, then client flag, then screen/touch
+  const isMobile = serverDetectMobile !== null
+    ? serverDetectMobile
+    : (clientIsMobile || screenIsMobile || touchIsMobile);
 
   // On mobile: use touch data as primary movement signal
   // On desktop: use mouse data
   const trail = isMobile && touchTrail.length > 0 ? touchTrail : mouseTrail;
   const n = trail.length;
 
+  // Detection source for logging
+  const detectionSource = serverDetectMobile !== null
+    ? 'server-UA' : clientIsMobile ? 'client-flag' : screenIsMobile ? 'screen-size' : touchIsMobile ? 'touch-events' : 'default';
+
   assessments.push({
     cat: 'device', check: 'device_type',
     value: isMobile ? 'mobile' : 'desktop',
     flagged: false,
     note: isMobile
-      ? `Thiết bị di động — phân tích touch (${touchTrail.length} touchmove, ${touchTaps.length} taps)`
-      : `Desktop — phân tích mouse (${mouseTrail.length} mousemove)`
+      ? `Thiết bị di động (${detectionSource}) — phân tích touch (${touchTrail.length} touchmove, ${touchTaps.length} taps)`
+      : `Desktop (${detectionSource}) — phân tích mouse (${mouseTrail.length} mousemove)`
   });
 
   // ═══════════════════════════════════════════════════════════

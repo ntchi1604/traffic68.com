@@ -285,10 +285,11 @@ router.put('/transactions/:id/approve', async (req, res) => {
           const commAmount = Math.floor(tx.amount * commPct / 100);
 
           if (commAmount > 0) {
-            // Credit referrer's commission wallet
+            // Credit referrer's commission wallet (upsert to ensure wallet exists)
             await conn.execute(
-              "UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'commission'",
-              [commAmount, referrerId]
+              `INSERT INTO wallets (user_id, type, balance) VALUES (?, 'commission', ?)
+               ON DUPLICATE KEY UPDATE balance = balance + ?`,
+              [referrerId, commAmount, commAmount]
             );
 
             const refCode = `COMM-BUYER-${Date.now()}`;

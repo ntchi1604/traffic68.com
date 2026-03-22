@@ -177,6 +177,34 @@ app.use((err, req, res, next) => {
       }
     } catch (e) { console.error('  ⚠ worker_pricing_tiers:', e.message); }
 
+    // Backfill missing wallets for existing users
+    try {
+      for (const wType of ['main', 'earning', 'commission']) {
+        const [result] = await pool.execute(
+          `INSERT IGNORE INTO wallets (user_id, type, balance)
+           SELECT id, '${wType}', 0 FROM users WHERE id NOT IN (SELECT user_id FROM wallets WHERE type = '${wType}')`
+        );
+        if (result.affectedRows > 0) {
+          console.log(`  ✅ Backfilled ${result.affectedRows} missing '${wType}' wallets`);
+        }
+      }
+    } catch (e) { console.error('  ⚠ Wallet backfill:', e.message); }
+
+    // Recalculate earning wallet balances from actual transactions (fix zero-balance bug)
+    try {
+      const [fixed] = await pool.execute(
+        `UPDATE wallets w SET w.balance = (
+           SELECT COALESCE(SUM(CASE WHEN t.type IN ('earning','deposit','bonus') THEN t.amount ELSE -t.amount END), 0)
+           FROM transactions t WHERE t.user_id = w.user_id AND t.wallet_type = 'earning' AND t.status = 'completed'
+         ) WHERE w.type = 'earning' AND w.balance = 0 AND EXISTS (
+           SELECT 1 FROM transactions t2 WHERE t2.user_id = w.user_id AND t2.wallet_type = 'earning' AND t2.status = 'completed'
+         )`
+      );
+      if (fixed.affectedRows > 0) {
+        console.log(`  ✅ Recalculated ${fixed.affectedRows} earning wallet balances from transactions`);
+      }
+    } catch (e) { console.error('  ⚠ Earning balance recalc:', e.message); }
+
     app.listen(PORT, () => {
       console.log(`
 ╔════════════════════════════════════════════╗

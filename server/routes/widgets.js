@@ -316,7 +316,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
 
   if (behavioral) {
-    const result = analyzeBehavior(behavioral);
+    const result = analyzeBehavior(behavioral, ua);
     mouseScore = result.score;
     mouseReasons = result.reasons.join(',');
 
