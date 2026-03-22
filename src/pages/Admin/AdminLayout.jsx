@@ -106,7 +106,7 @@ export default function AdminLayout() {
           {/* Buyer Section */}
           <button onClick={() => setBuyerOpen(!buyerOpen)}
             className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200">
-            <div className="flex items-center gap-2">Quản lý Buyer</div>
+            <div className="flex items-center gap-2"><Briefcase size={12} /> Buyer</div>
             <ChevronDown className={`w-4 h-4 transition-transform ${buyerOpen ? '' : '-rotate-90'}`} />
           </button>
           {buyerOpen && <div className="ml-2 space-y-1">{BUYER_NAV.map(item => <NavItem key={item.to} {...item} />)}</div>}
@@ -115,7 +115,7 @@ export default function AdminLayout() {
           <div className="mt-2">
             <button onClick={() => setWorkerOpen(!workerOpen)}
               className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200">
-              <div className="flex items-center gap-2">Quản lý Worker</div>
+              <div className="flex items-center gap-2"><HardHat size={12} /> Worker</div>
               <ChevronDown className={`w-4 h-4 transition-transform ${workerOpen ? '' : '-rotate-90'}`} />
             </button>
             {workerOpen && <div className="ml-2 space-y-1">{WORKER_NAV.map(item => <NavItem key={item.to} {...item} />)}</div>}

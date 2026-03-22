@@ -6,7 +6,7 @@ import api from '../../lib/api';
 
 export default function AdminReferrals({ type = 'buyers' }) {
   const label = type === 'workers' ? 'Worker' : 'Buyer';
-  usePageTitle(`Admin - Referral ${label}`);
+  usePageTitle('Admin - Referral');
   const toast = useToast();
 
   const [data, setData] = useState({ referrers: [], totalReferred: 0, totalReferrers: 0 });
@@ -72,7 +72,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-slate-900">Referral {label}</h1>
+        <h1 className="text-2xl font-black text-slate-900">Referral</h1>
       </div>
 
       {/* Commission + Stats */}

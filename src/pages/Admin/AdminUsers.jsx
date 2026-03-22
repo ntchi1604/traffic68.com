@@ -128,7 +128,7 @@ function BalanceModal({ user, onClose, onDone }) {
 /* ── Main ── */
 export default function AdminUsers({ type }) {
   const isWorker = type === 'workers';
-  usePageTitle(isWorker ? 'Admin - Worker' : 'Admin - Buyer');
+  usePageTitle('Admin - Quản lý');
   const toast = useToast();
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
@@ -172,7 +172,7 @@ export default function AdminUsers({ type }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-900">
-            {isWorker ? 'Quản lý Worker' : 'Quản lý Buyer'}
+            Quản lý
           </h1>
           <p className="text-sm text-slate-500 mt-1">{users.length} {isWorker ? 'worker' : 'buyer'}</p>
         </div>

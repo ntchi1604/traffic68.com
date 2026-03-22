@@ -17,7 +17,7 @@ function StatusBadge({ status }) {
 }
 
 export default function AdminWorkerTasks() {
-  usePageTitle('Admin - Nhiệm vụ Worker');
+  usePageTitle('Admin - Nhiệm vụ');
   const [tasks, setTasks] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -46,7 +46,7 @@ export default function AdminWorkerTasks() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-slate-900">Nhiệm vụ Worker</h1>
+        <h1 className="text-2xl font-black text-slate-900">Nhiệm vụ</h1>
         <p className="text-sm text-slate-500 mt-1">{fmt(total)} nhiệm vụ</p>
       </div>
 

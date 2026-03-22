@@ -53,7 +53,7 @@ router.get('/transactions', async (req, res) => {
   const pool = getPool();
   const { type, period } = req.query;
 
-  let sql = 'SELECT * FROM transactions WHERE user_id = ?';
+  let sql = "SELECT * FROM transactions WHERE user_id = ? AND wallet_type IN ('main', 'commission')";
   const params = [req.userId];
 
   if (type && type !== 'all') { sql += ' AND type = ?'; params.push(type); }
