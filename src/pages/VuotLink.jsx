@@ -226,16 +226,6 @@ export default function VuotLink() {
     const [linkInfo, setLinkInfo] = useState(null);
     const [linkError, setLinkError] = useState('');
 
-    useEffect(() => {
-        if (!slug) return;
-        document.title = 'Vượt link để truy cập — traffic68.com';
-        fetch(`/api/shortlink/info/${slug}`)
-            .then(r => r.json())
-            .then(d => { if (d.error) setLinkError(d.error); else setLinkInfo(d.link); })
-            .catch(() => setLinkError('Không thể tải link'));
-    }, [slug]);
-
-
     /* ─── Fetch task from API on mount ─────────────── */
     useEffect(() => {
         let cancelled = false;
