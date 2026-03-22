@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../../components/Toast';
 import {
   Copy, Check, RefreshCw, Play,
   Code2, Sliders, Info,
@@ -275,7 +276,9 @@ function SectionTitle({ children }) {
 /* ────────────────────────────────────────────────────────── */
 export default function ScriptGenerator() {
   usePageTitle('Tạo Script');
+  const toast = useToast();
   const navigate = useNavigate();
+
   const [cfg, setCfg] = useState(DEFAULT_CFG);
   const [tab, setTab] = useState('button');
   const [countdown, setCountdown] = useState(DEFAULT_CFG.waitTime);
@@ -286,7 +289,6 @@ export default function ScriptGenerator() {
   // Token-based embed
   const [token, setToken] = useState('');
   const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
 
   const set = (k, v) => setCfg(c => ({ ...c, [k]: v }));
 
@@ -328,10 +330,9 @@ export default function ScriptGenerator() {
         config: cfg,
       });
       setToken(data.token);
-      setSaveMsg('✓ Đã lưu thành công!');
-      setTimeout(() => setSaveMsg(''), 3000);
+      toast.success('Đã lưu script thành công!', 'Lưu thành công');
     } catch (err) {
-      setSaveMsg('❌ ' + (err.message || 'Lỗi lưu widget'));
+      toast.error(err.message || 'Lỗi lưu widget');
     } finally {
       setSaving(false);
     }
@@ -661,17 +662,11 @@ export default function ScriptGenerator() {
               </div>
 
               {/* Save & Get Token */}
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
                 <button onClick={saveWidget} disabled={saving}
                   className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2">
                   {saving ? 'Đang lưu...' : 'Lưu Script'}
                 </button>
-
-                {saveMsg && (
-                  <p className={`text-sm font-semibold ${saveMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>
-                    {saveMsg}
-                  </p>
-                )}
               </div>
 
               {/* Generated code */}
