@@ -113,7 +113,6 @@ function Layout() {
         <Route path="/blog/:slug" element={<BlogPost />} />
         <Route path="/lien-he" element={<LienHe />} />
         <Route path="/vuot-link" element={<><VuotLink /><Footer /></>} />
-        <Route path="/vuot-link/:slug" element={<><VuotLink /><Footer /></>} />
         <Route path="/dang-nhap" element={<DangNhap />} />
         <Route path="/dang-ky" element={<DangKy />} />
 
