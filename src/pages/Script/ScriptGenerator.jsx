@@ -804,14 +804,6 @@ export default function ScriptGenerator() {
                   </Field>
                 </div>
 
-                {/* Save & Get Token */}
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-                  <button onClick={saveWidget} disabled={saving}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2">
-                    {saving ? 'Đang lưu...' : 'Lưu Script'}
-                  </button>
-                </div>
-
                 {/* Generated code */}
                 <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 text-xs text-blue-700">
                   <Info size={14} className="mt-0.5 flex-shrink-0" />

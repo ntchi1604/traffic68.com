@@ -174,7 +174,7 @@ export default function Sidebar({ isOpen, onClose }) {
             <NavLink to="/buyer/dashboard/script"
               className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
               <Code2 className="w-5 h-5" />
-              Script Tự động
+              Script Nút Lấy Mã
             </NavLink>
           </div>
         </nav>
