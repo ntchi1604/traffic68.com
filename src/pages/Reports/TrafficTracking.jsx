@@ -449,7 +449,7 @@ export default function TrafficTracking() {
           <div>
             <p className="text-xs font-semibold text-slate-500">Ngày đông nhất</p>
             <p className="text-lg font-black text-slate-900 mt-0.5">{peakDay ? fmtDate(peakDay.date) : '—'}</p>
-            <p className="text-xs text-amber-600 font-medium mt-0.5">{peakDay ? `${fmt(peakDay.views)} lượt xem` : 'Chưa có dữ liệu'}</p>
+            <p className="text-xs text-amber-600 font-medium mt-0.5">{peakDay ? `${fmt(peakDay.clicks)} lượt hoàn thành` : 'Chưa có dữ liệu'}</p>
           </div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-start gap-4">
