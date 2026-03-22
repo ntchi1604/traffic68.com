@@ -215,8 +215,8 @@ async function _handleTaskPost(req, res) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   const [result] = await pool.execute(
-    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))`,
-    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds]
+    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?)`,
+    [campaign.id, req.userId || null, campaign.keyword, campaign.url, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, req.body.worker_link_id || null]
   );
 
   console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, waitTime: ${waitTime}s`);
@@ -382,34 +382,49 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     );
   }
 
-  // Pay worker commission
-  if (task.worker_id) {
-    await pool.execute("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'commission'", [earning, task.worker_id]);
+  // Pay worker earning (standard task — not via gateway link)
+  if (task.worker_id && !task.worker_link_id) {
+    await pool.execute("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'earning'", [earning, task.worker_id]);
     const refCode = 'VL-' + Date.now();
     await pool.execute(
-      `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'commission', 'commission', 'system', ?, 'completed', ?, ?)`,
+      `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'earning', 'earning', 'system', ?, 'completed', ?, ?)`,
       [task.worker_id, earning, refCode, `Vượt link task #${task.id}`]
     );
   }
 
+  // Pay gateway link creator
+  let destinationUrl = null;
+  if (task.worker_link_id) {
+    try {
+      const [wlRows] = await pool.execute('SELECT * FROM worker_links WHERE id = ?', [task.worker_link_id]);
+      if (wlRows.length) {
+        const wl = wlRows[0];
+        destinationUrl = wl.destination_url;
+        await pool.execute("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'earning'", [earning, wl.worker_id]);
+        await pool.execute('UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?', [earning, wl.id]);
+        const refCode = 'GL-' + Date.now();
+        await pool.execute(
+          `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+           VALUES (?, 'earning', 'earning', 'gateway_link', ?, 'completed', ?, ?)`,
+          [wl.worker_id, earning, refCode, `Gateway link /v/${wl.slug} task #${task.id}`]
+        );
+      }
+    } catch (e) { console.error('[VuotLink] Gateway link pay error:', e.message); }
+  }
+
   console.log(`[VuotLink] Task #${task.id} VERIFIED — code=${code}, earning=${earning}`);
 
-  // Log security event at completion with behavioral assessment from widget
+  // Log security event at completion
   try {
     let secDetail = {};
     try { secDetail = JSON.parse(task.security_detail || '{}'); } catch { }
     const flagged = (secDetail.assessments || []).some(a => a.flagged);
-    const reason = flagged ? 'bot_behavior' : 'completed';
-    logSecurityEvent(reason, task.ip_address, task.user_agent, task.visitor_id, {
-      ...secDetail,
-      taskId: task.id,
-      source: 'vuotlink',
-      timeOnSite,
-      earning,
+    logSecurityEvent(flagged ? 'bot_behavior' : 'completed', task.ip_address, task.user_agent, task.visitor_id, {
+      ...secDetail, taskId: task.id, source: 'vuotlink', timeOnSite, earning,
     });
   } catch (e) { }
 
-  res.json({ success: true, earning });
+  res.json({ success: true, earning, destination_url: destinationUrl });
 });
 
 /* ═════════════════════════════════════════════════════════

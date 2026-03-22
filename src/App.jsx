@@ -22,6 +22,7 @@ import Blog from './pages/Blog';
 import BlogPost from './pages/BlogPost';
 import LienHe from './pages/LienHe';
 import VuotLink from './pages/VuotLink';
+import LinkGateway from './pages/LinkGateway';
 
 /* ── Buyer (traffic) pages ── */
 import DashboardLayout from './components/DashboardLayout';
@@ -65,7 +66,7 @@ import AdminReferrals from './pages/Admin/AdminReferrals';
 import AdminWorkerTasks from './pages/Admin/AdminWorkerTasks';
 import AdminWorkerWithdrawals from './pages/Admin/AdminWorkerWithdrawals';
 
-const DASHBOARD_ROUTES = ['/buyer', '/worker', '/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/admin'];
+const DASHBOARD_ROUTES = ['/buyer', '/worker', '/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/admin', '/v/'];
 
 function NotFound() {
   return (
@@ -113,6 +114,7 @@ function Layout() {
         <Route path="/blog/:slug" element={<BlogPost />} />
         <Route path="/lien-he" element={<LienHe />} />
         <Route path="/vuot-link" element={<><VuotLink /><Footer /></>} />
+        <Route path="/v/:slug" element={<LinkGateway />} />
         <Route path="/dang-nhap" element={<DangNhap />} />
         <Route path="/dang-ky" element={<DangKy />} />
 

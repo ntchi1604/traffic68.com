@@ -172,13 +172,14 @@ CREATE TABLE IF NOT EXISTS site_settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS worker_links (
-  id            INT PRIMARY KEY AUTO_INCREMENT,
-  worker_id     INT NOT NULL,
-  campaign_id   INT NOT NULL,
-  slug          VARCHAR(20) NOT NULL UNIQUE,
-  click_count   INT NOT NULL DEFAULT 0,
-  earning       DECIMAL(15,2) NOT NULL DEFAULT 0,
-  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (worker_id)   REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+  id              INT PRIMARY KEY AUTO_INCREMENT,
+  worker_id       INT NOT NULL,
+  slug            VARCHAR(20) NOT NULL UNIQUE,
+  title           VARCHAR(255),
+  destination_url VARCHAR(2048) NOT NULL,
+  click_count     INT NOT NULL DEFAULT 0,
+  completed_count INT NOT NULL DEFAULT 0,
+  earning         DECIMAL(15,2) NOT NULL DEFAULT 0,
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (worker_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
