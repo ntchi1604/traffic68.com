@@ -569,17 +569,37 @@ export default function VuotLink() {
                     content: (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '12px', color: '#64748b' }}>Nút trông như thế này trên trang đích:</span>
-                        <div style={{
-                          display: 'inline-flex', alignItems: 'center', gap: '6px',
-                          background: widgetConfig?.buttonColor || '#f97316',
-                          color: widgetConfig?.textColor || '#fff',
-                          padding: '8px 18px', borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
-                          fontSize: `${Math.min(widgetConfig?.fontSize || 15, 14)}px`, fontWeight: 700,
-                          boxShadow: `0 3px 12px ${(widgetConfig?.buttonColor || '#f97316')}44`,
-                          userSelect: 'none', flexShrink: 0,
-                        }}>
-                          {widgetConfig?.iconUrl && <img src={widgetConfig.iconUrl} alt="" style={{ width: '16px', height: '16px', borderRadius: '50%' }} onError={e => e.target.style.display = 'none'} />}
-                          {widgetConfig?.buttonText || 'Lấy Mã'}
+                        {/* Button preview — fit-content to prevent stretching */}
+                        <div style={{ display: 'flex' }}>
+                          <div style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '6px',
+                            width: 'fit-content',
+                            background: widgetConfig?.buttonColor || '#f97316',
+                            color: widgetConfig?.textColor || '#fff',
+                            padding: '8px 16px 8px 8px',
+                            borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
+                            fontSize: `${widgetConfig?.fontSize || 13}px`,
+                            fontWeight: 700,
+                            boxShadow: `0 4px 14px ${(widgetConfig?.buttonColor || '#f97316')}55`,
+                            userSelect: 'none', whiteSpace: 'nowrap',
+                          }}>
+                            {/* Icon badge — circular with iconBg, like real widget */}
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: `${widgetConfig?.iconSize || 20}px`, height: `${widgetConfig?.iconSize || 20}px`,
+                              borderRadius: '50%',
+                              background: widgetConfig?.iconBg || '#ffffff',
+                              flexShrink: 0, overflow: 'hidden',
+                            }}>
+                              <img
+                                src={widgetConfig?.iconUrl || '/lg.png'}
+                                alt=""
+                                style={{ width: '80%', height: '80%', objectFit: 'contain' }}
+                                onError={e => { e.target.src = '/lg.png'; }}
+                              />
+                            </span>
+                            {widgetConfig?.buttonText || 'Lấy Mã'}
+                          </div>
                         </div>
                       </div>
                     ),
