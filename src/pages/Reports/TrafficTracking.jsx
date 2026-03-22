@@ -80,7 +80,8 @@ export default function TrafficTracking() {
   }, [range, refreshKey]);
 
   const totalViews = traffic.reduce((s, t) => s + Number(t.views || 0), 0);
-  const avgPerDay  = traffic.length > 0 ? Math.round(totalViews / traffic.length) : 0;
+  const totalCompleted = Number(overview.totalClicks || 0); // verified/completed views
+  const avgPerDay  = traffic.length > 0 ? Math.round(totalCompleted / traffic.length) : 0;
   const peakDay    = traffic.reduce((best, t) => Number(t.views || 0) > Number(best?.views || 0) ? t : best, null);
   const trend      = getTrend(traffic);
   const deviceTotal = byDevice.reduce((s, x) => s + x.value, 0);
@@ -95,8 +96,8 @@ export default function TrafficTracking() {
   });
 
   const kpis = [
-    { label: 'Tổng lượt xem', value: fmt(totalViews), sub: `trong ${range === '7d' ? '7' : range === '30d' ? '30' : '90'} ngày`, icon: Eye, color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
-    { label: 'Trung bình / ngày', value: fmt(avgPerDay), sub: 'views/ngày', icon: BarChart2, color: '#8B5CF6', bg: '#F5F3FF', border: '#DDD6FE' },
+    { label: 'Tổng lượt xem', value: fmt(totalCompleted), sub: `đã hoàn thành trong ${range === '7d' ? '7' : range === '30d' ? '30' : '90'} ngày`, icon: Eye, color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
+    { label: 'Trung bình / ngày', value: fmt(avgPerDay), sub: 'hoàn thành/ngày', icon: BarChart2, color: '#8B5CF6', bg: '#F5F3FF', border: '#DDD6FE' },
     { label: 'Chiến dịch đang chạy', value: overview.runningCampaigns || 0, sub: `/ ${overview.totalCampaigns || 0} chiến dịch`, icon: Zap, color: '#F97316', bg: '#FFF7ED', border: '#FED7AA' },
     { label: 'Số dư ví', value: `${fmt(overview.mainBalance || 0)} đ`, sub: 'khả dụng', icon: Wallet, color: '#10B981', bg: '#ECFDF5', border: '#A7F3D0' },
   ];

@@ -22,7 +22,7 @@ router.get('/overview', async (req, res) => {
   );
 
   const [totalV] = await pool.execute(
-    `SELECT COALESCE(SUM(views), 0) as total FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ?`,
+    `SELECT COALESCE(SUM(views), 0) as total, COALESCE(SUM(clicks), 0) as totalClicks FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ?`,
     [req.userId]
   );
 
@@ -40,6 +40,7 @@ router.get('/overview', async (req, res) => {
       todayViews: todayTraffic[0].views,
       todayClicks: todayTraffic[0].clicks,
       totalViews: totalV[0].total,
+      totalClicks: totalV[0].totalClicks,
       totalSpent: totalS[0].total,
     },
   });
