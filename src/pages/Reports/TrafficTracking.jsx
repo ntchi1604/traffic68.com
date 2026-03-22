@@ -9,7 +9,7 @@ import {
   Globe, Smartphone, RefreshCw, Zap, Clock, BarChart2, Monitor, Minus,
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
-import { formatMoney as fmt } from '../../lib/format';
+import { formatMoney as fmt, fmtDay, fmtDate } from '../../lib/format';
 import api from '../../lib/api';
 
 const SOURCE_LABELS = { google_search: 'Google Search', social: 'Social Traffic', direct: 'Direct Traffic' };
@@ -20,16 +20,7 @@ const PERIODS = [
   { key: '90d', label: '90 ngày' },
 ];
 
-// Format date string (ISO or YYYY-MM-DD) to dd/MM or dd/MM/yyyy
-const fmtDay = (dateStr, full = false) => {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  if (isNaN(d)) return dateStr;
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return full ? `${dd}/${mm}/${yyyy}` : `${dd}/${mm}`;
-};
+
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -93,7 +84,7 @@ export default function TrafficTracking() {
   const peakDay    = traffic.reduce((best, t) => Number(t.views || 0) > Number(best?.views || 0) ? t : best, null);
   const trend      = getTrend(traffic);
   const deviceTotal = byDevice.reduce((s, x) => s + x.value, 0);
-  const chartData  = traffic.map(t => ({ date: fmtDay(t.date), fullDate: fmtDay(t.date, true), 'Lượt xem': Number(t.views || 0) }));
+  const chartData  = traffic.map(t => ({ date: fmtDay(t.date), 'Lượt xem': Number(t.views || 0) }));
 
   // Campaigns to show in progress: exclude completed > 24h
   const visibleCampaigns = campaigns.filter(c => {
@@ -164,7 +155,7 @@ export default function TrafficTracking() {
           <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0"><Clock size={18} className="text-amber-500" /></div>
           <div>
             <p className="text-xs font-semibold text-slate-500">Ngày đông nhất</p>
-            <p className="text-lg font-black text-slate-900 mt-0.5">{peakDay ? fmtDay(peakDay.date, true) : '—'}</p>
+            <p className="text-lg font-black text-slate-900 mt-0.5">{peakDay ? fmtDate(peakDay.date) : '—'}</p>
             <p className="text-xs text-amber-600 font-medium mt-0.5">{peakDay ? `${fmt(peakDay.views)} lượt xem` : 'Chưa có dữ liệu'}</p>
           </div>
         </div>
@@ -389,7 +380,7 @@ export default function TrafficTracking() {
                   <tr key={t.date} className={`hover:bg-slate-50 transition-colors ${isPeak ? 'bg-amber-50/50' : ''}`}>
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-800">{fmtDay(t.date, true)}</span>
+                        <span className="font-semibold text-slate-800">{fmtDate(t.date)}</span>
                         {isPeak && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">PEAK</span>}
                       </div>
                     </td>

@@ -1,3 +1,5 @@
+const VN_TZ = 'Asia/Ho_Chi_Minh';
+
 /**
  * Format number with Vietnamese style: 10.000
  */
@@ -14,30 +16,48 @@ export function formatVND(n) {
 }
 
 /**
- * Format date → dd/MM/yyyy
- * Accepts ISO string, Date object, or date-only string
+ * Format date → dd/MM/yyyy  (Vietnam timezone)
  */
 export function fmtDate(val) {
   if (!val) return '—';
   const d = new Date(val);
   if (isNaN(d)) return '—';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+  return d.toLocaleDateString('vi-VN', {
+    timeZone: VN_TZ,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 /**
- * Format datetime → dd/MM/yyyy HH:mm
+ * Format date → dd/MM  (short, for charts — Vietnam timezone)
+ */
+export function fmtDay(val) {
+  if (!val) return '—';
+  const d = new Date(val);
+  if (isNaN(d)) return '—';
+  return d.toLocaleDateString('vi-VN', {
+    timeZone: VN_TZ,
+    day: '2-digit',
+    month: '2-digit',
+  });
+}
+
+/**
+ * Format datetime → dd/MM/yyyy HH:mm  (Vietnam timezone)
  */
 export function fmtDateTime(val) {
   if (!val) return '—';
   const d = new Date(val);
   if (isNaN(d)) return '—';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+  return d.toLocaleString('vi-VN', {
+    timeZone: VN_TZ,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 }
