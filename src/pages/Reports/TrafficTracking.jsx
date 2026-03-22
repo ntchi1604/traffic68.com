@@ -71,15 +71,15 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
 
   const dailyData = (detail?.rows || []).map(r => ({
     date: fmtDay(r.date),
-    'Ho\u00e0n th\u00e0nh': Number(r.clicks || 0),
-    'Nh\u1eadn task': Number(r.views || 0),
+    'Hoàn thành': Number(r.clicks || 0),
+    'Nhận task':  Number(r.views  || 0),
   }));
 
   const kpis = [
-    { label: 'Ho\u00e0n th\u00e0nh', value: fmt(detail?.totalClicks || 0), sub: `/ ${fmt(detail?.totalViews || 0)} nh\u1eadn task`, color: '#10B981', bg: '#ECFDF5' },
-    { label: 'Chi ph\u00ed', value: `${fmt(spent)} \u0111`, sub: `CPC: ${fmt(c.cpc)} \u0111`, color: '#F97316', bg: '#FFF7ED' },
-    { label: 'Hi\u1ec7u su\u1ea5t', value: `${eff}%`, sub: 'ho\u00e0n th\u00e0nh / nh\u1eadn task', color: '#3B82F6', bg: '#EFF6FF' },
-    { label: 'Unique IPs', value: fmt(detail?.uniqueIps || 0), sub: 'IP kh\u00e1c nhau', color: '#8B5CF6', bg: '#F5F3FF' },
+    { label: 'Hoàn thành',  value: fmt(detail?.totalClicks || 0), sub: `/ ${fmt(detail?.totalViews || 0)} nhận task`, color: '#10B981', bg: '#ECFDF5' },
+    { label: 'Chi phí',     value: `${fmt(spent)} đ`,             sub: `CPC: ${fmt(c.cpc)} đ`,                       color: '#F97316', bg: '#FFF7ED' },
+    { label: 'Hiệu suất',   value: `${eff}%`,                     sub: 'hoàn thành / nhận task',                    color: '#3B82F6', bg: '#EFF6FF' },
+    { label: 'Unique IPs',  value: fmt(detail?.uniqueIps || 0),   sub: 'IP khác nhau',                              color: '#8B5CF6', bg: '#F5F3FF' },
   ];
 
   return (
@@ -87,22 +87,22 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
       style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 860, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 32px 80px rgba(0,0,0,0.25)', animation: 'ln-up .25s ease both' }}>
+      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 860, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 32px 80px rgba(0,0,0,0.25)' }}>
         {/* Header */}
         <div style={{ padding: '24px 28px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Chi ti\u1ebft chi\u1ebfn d\u1ecbch</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Chi tiết chiến dịch</p>
             <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: 0 }}>{c.name}</h2>
             <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{c.url}</p>
           </div>
-          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#f1f5f9', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>\u2715</button>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#f1f5f9', cursor: 'pointer', fontSize: 18, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
         </div>
 
         <div style={{ padding: '20px 28px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Progress bar */}
           <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
-              <span style={{ fontWeight: 600, color: '#64748b' }}>Ti\u1ebfn \u0111\u1ed9</span>
+              <span style={{ fontWeight: 600, color: '#64748b' }}>Tiến độ</span>
               <span style={{ fontWeight: 800, color: '#0f172a' }}>{fmt(done)} / {fmt(total)} views ({pct}%)</span>
             </div>
             <div style={{ height: 8, background: '#e2e8f0', borderRadius: 99 }}>
@@ -113,7 +113,7 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
           {/* KPI Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
             {!detail ? (
-              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: 13 }}>\u0110ang t\u1ea3i d\u1eef li\u1ec7u...</div>
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: 13 }}>Đang tải dữ liệu...</div>
             ) : kpis.map(k => (
               <div key={k.label} style={{ background: k.bg, borderRadius: 12, padding: '14px 16px' }}>
                 <p style={{ fontSize: 10, fontWeight: 700, color: k.color, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{k.label}</p>
@@ -123,20 +123,18 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
             ))}
           </div>
 
-          {detail && <>{
-            /* Charts row */
-          }
+          {detail && <>
+            {/* Charts */}
             <div style={{ display: 'grid', gridTemplateColumns: dailyData.length > 0 ? '1.6fr 1fr' : '1fr', gap: 16 }}>
-              {/* Area chart */}
               {dailyData.length > 0 && (
                 <div style={{ background: '#f8fafc', borderRadius: 14, padding: '16px 16px 8px' }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 12 }}>Ho\u00e0n th\u00e0nh theo ng\u00e0y</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 12 }}>Hoàn thành theo ngày</p>
                   <div style={{ height: 180 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={dailyData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
                         <defs>
                           <linearGradient id="gDet" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#10B981" stopOpacity={0.3} />
+                            <stop offset="0%"   stopColor="#10B981" stopOpacity={0.3} />
                             <stop offset="100%" stopColor="#10B981" stopOpacity={0.02} />
                           </linearGradient>
                         </defs>
@@ -144,18 +142,17 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
                         <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} />
                         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={28} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Area type="monotone" dataKey="Ho\u00e0n th\u00e0nh" stroke="#10B981" fill="url(#gDet)" strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: '#10B981' }} />
-                        <Area type="monotone" dataKey="Nh\u1eadn task" stroke="#3B82F6" fill="none" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                        <Area type="monotone" dataKey="Hoàn thành" stroke="#10B981" fill="url(#gDet)" strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: '#10B981' }} />
+                        <Area type="monotone" dataKey="Nhận task"  stroke="#3B82F6" fill="none" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
               )}
-              {/* Donut chart */}
               {deviceData.length > 0 && (
                 <div style={{ background: '#f8fafc', borderRadius: 14, padding: '16px 16px 8px' }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>Thi\u1ebft b\u1ecb</p>
-                  <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>Thiết bị</p>
+                  <div style={{ height: 140 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie data={deviceData} cx="50%" cy="50%" innerRadius={40} outerRadius={62} dataKey="value" paddingAngle={3}>
@@ -180,9 +177,9 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
             {/* Info */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
               {[
-                { label: 'Ngu\u1ed3n traffic', value: SOURCE_LABEL_MAP[c.traffic_type] || c.traffic_type || '\u2014' },
-                { label: 'T\u1eeb kh\u00f3a', value: c.keyword || '\u2014' },
-                { label: 'Th\u1eddi gian xem', value: c.time_on_site ? `${c.time_on_site}s` : '\u2014' },
+                { label: 'Nguồn traffic',   value: SOURCE_LABEL_MAP[c.traffic_type] || c.traffic_type || '—' },
+                { label: 'Từ khóa',         value: c.keyword || '—' },
+                { label: 'Thời gian xem',   value: c.time_on_site ? `${c.time_on_site}s` : '—' },
               ].map(item => (
                 <div key={item.label} style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px' }}>
                   <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{item.label}</p>
