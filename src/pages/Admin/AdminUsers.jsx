@@ -6,15 +6,15 @@ import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
 
 /* ── Balance Modal ── */
-function BalanceModal({ user, onClose, onDone }) {
+function BalanceModal({ user, isWorkerPage, onClose, onDone }) {
   const [type, setType] = useState('add');
   const [amount, setAmount] = useState('');
-  const [walletType, setWalletType] = useState(user.service_type === 'shortlink' ? 'earning' : 'main');
+  const isWorker = isWorkerPage || user.service_type === 'shortlink';
+  const [walletType, setWalletType] = useState(isWorker ? 'earning' : 'main');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const isWorker = user.service_type === 'shortlink';
 
   const QUICK_AMOUNTS = [50000, 100000, 500000, 1000000, 5000000, 10000000];
   const WALLET_OPTIONS = isWorker
@@ -315,7 +315,7 @@ export default function AdminUsers({ type }) {
         )}
       </div>
 
-      {balanceUser && <BalanceModal user={balanceUser} onClose={() => setBalanceUser(null)} onDone={() => fetchUsers(search)} />}
+      {balanceUser && <BalanceModal user={balanceUser} isWorkerPage={isWorker} onClose={() => setBalanceUser(null)} onDone={() => fetchUsers(search)} />}
     </div>
   );
 }
