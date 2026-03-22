@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
   user_id      INT NOT NULL,
   name         VARCHAR(255) NOT NULL,
   url          TEXT NOT NULL,
+  url2         TEXT DEFAULT NULL,
   traffic_type VARCHAR(50) NOT NULL DEFAULT 'google_search',
   version      INT NOT NULL DEFAULT 1,
   budget       DECIMAL(15,2) NOT NULL DEFAULT 0,
@@ -46,12 +47,17 @@ CREATE TABLE IF NOT EXISTS campaigns (
   target_page  VARCHAR(500) DEFAULT '',
   time_on_site VARCHAR(50)  DEFAULT '60-120',
   image1_url   TEXT DEFAULT NULL,
+  image2_url   TEXT DEFAULT NULL,
   status       VARCHAR(20)  NOT NULL DEFAULT 'running',
   views_done   INT NOT NULL DEFAULT 0,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migration for existing databases (run once if columns don't exist):
+-- ALTER TABLE campaigns ADD COLUMN url2 TEXT DEFAULT NULL AFTER url;
+-- ALTER TABLE campaigns ADD COLUMN image2_url TEXT DEFAULT NULL AFTER image1_url;
 
 CREATE TABLE IF NOT EXISTS transactions (
   id          INT PRIMARY KEY AUTO_INCREMENT,

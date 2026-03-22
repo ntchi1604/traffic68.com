@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const pool = getPool();
-    const { name, url, budget, cpc, keyword, note, trafficType, traffic_type, dailyViews, daily_views, totalViews, total_views, viewByHour, view_by_hour, version, targetPage, target_page, timeOnSite, time_on_site, duration, discount_applied, discount_code, image1_url } = req.body;
+    const { name, url, url2, budget, cpc, keyword, note, trafficType, traffic_type, dailyViews, daily_views, totalViews, total_views, viewByHour, view_by_hour, version, targetPage, target_page, timeOnSite, time_on_site, duration, discount_applied, discount_code, image1_url, image2_url } = req.body;
 
     const _trafficType = trafficType || traffic_type || 'google_search';
     const _dailyViews = dailyViews || daily_views || 500;
@@ -106,8 +106,8 @@ router.post('/', async (req, res) => {
     }
 
     const [result] = await pool.execute(
-      `INSERT INTO campaigns (user_id, name, url, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, target_page, time_on_site, image1_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.userId, name, url, _trafficType, _versionInt, realBudget, cpc || 0, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite, image1_url || null]
+      `INSERT INTO campaigns (user_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, target_page, time_on_site, image1_url, image2_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, cpc || 0, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite, image1_url || null, image2_url || null]
     );
 
     if (realBudget > 0) {
@@ -147,22 +147,24 @@ router.put('/:id', async (req, res) => {
     const [existing] = await pool.execute('SELECT * FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
     if (existing.length === 0) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
 
-    const { name, url, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, targetPage, timeOnSite, status, image1_url } = req.body;
+    const { name, url, url2, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, targetPage, timeOnSite, status, image1_url, image2_url } = req.body;
     const n = (v) => v === undefined ? null : v;
 
-    // Delete old image if new image is provided and different
-    const oldImage = existing[0].image1_url;
-    if (image1_url !== undefined && oldImage && oldImage !== image1_url) {
-      const oldPath = path.join(__dirname, '..', '..', oldImage);
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-        console.log('Deleted old campaign image:', oldPath);
-      }
+    // Delete old images if new ones provided
+    const oldImage1 = existing[0].image1_url;
+    const oldImage2 = existing[0].image2_url;
+    if (image1_url !== undefined && oldImage1 && oldImage1 !== image1_url) {
+      const p = path.join(__dirname, '..', '..', oldImage1);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    }
+    if (image2_url !== undefined && oldImage2 && oldImage2 !== image2_url) {
+      const p = path.join(__dirname, '..', '..', oldImage2);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
     }
 
     await pool.execute(
-      `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url) WHERE id = ? AND user_id = ?`,
-      [n(name), n(url), n(trafficType), n(version), n(budget), n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(targetPage), n(timeOnSite), n(status), n(image1_url), req.params.id, req.userId]
+      `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), url2=COALESCE(?,url2), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url) WHERE id = ? AND user_id = ?`,
+      [n(name), n(url), n(url2), n(trafficType), n(version), n(budget), n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(targetPage), n(timeOnSite), n(status), n(image1_url), n(image2_url), req.params.id, req.userId]
     );
 
     const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [req.params.id]);
