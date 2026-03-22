@@ -247,8 +247,11 @@ export default function CreateCampaign() {
     viewByHour: false,
     keyword: '',
     website: '',
+    website2: '',
     image1: null,
     image1_url: '',
+    image2: null,
+    image2_url: '',
     devices: ['desktop', 'mobile'],
     countries: ['VN'],
     discountCode: '',
@@ -301,6 +304,7 @@ export default function CreateCampaign() {
       await api.post('/campaigns', {
         name: form.campaignName,
         url: form.website,
+        url2: form.website2 || '',
         traffic_type: form.trafficType,
         keyword: form.keyword,
         total_views: form.totalViews,
@@ -314,6 +318,7 @@ export default function CreateCampaign() {
         device: form.devices.join(','),
         country: form.countries.join(','),
         image1_url: form.image1_url || '',
+        image2_url: form.image2_url || '',
         note: form.note,
       });
       setSubmitted(true);
@@ -533,16 +538,28 @@ export default function CreateCampaign() {
                   </Hint>
                 </div>
 
-                {/* Website */}
+                {/* Website 1 */}
                 <div>
-                  <Label required>Địa chỉ trang web</Label>
+                  <Label required>Địa chỉ trang web 1</Label>
                   <TextInput
                     type="url"
-                    placeholder="Nhập địa chỉ web. Ví dụ: https://traffic68.com/"
+                    placeholder="https://traffic68.com/"
                     value={form.website}
                     onChange={e => set('website', e.target.value)}
                   />
-                  <Hint>Nhập địa chỉ trang web cần view</Hint>
+                  <Hint>URL trang chính cần view traffic</Hint>
+                </div>
+
+                {/* Website 2 */}
+                <div>
+                  <Label>Địa chỉ trang web 2 <span className="text-gray-400 font-normal text-xs">(tuỳ chọn)</span></Label>
+                  <TextInput
+                    type="url"
+                    placeholder="https://traffic68.com/page-2/"
+                    value={form.website2}
+                    onChange={e => set('website2', e.target.value)}
+                  />
+                  <Hint>URL trang phụ — worker sẽ click qua trang này trong quá trình xử lý</Hint>
                 </div>
 
               </div>
@@ -557,14 +574,48 @@ export default function CreateCampaign() {
                 <h2 className="font-bold text-gray-800">Hình ảnh trang đích</h2>
               </div>
 
-              <div className="space-y-4">
-                <ImageUpload
-                  label="Hình ảnh"
-                  required
-                  hint="Hình ảnh tìm kiếm từ khóa theo google hoặc từ backlink"
-                  value={form.image1}
-                  onUploaded={(file, url) => { set('image1', file); set('image1_url', url); }}
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+                {/* Image 1 */}
+                <div className="space-y-2">
+                  <Label required hint="Hình ảnh tìm kiếm từ khóa theo google hoặc từ backlink">Hình ảnh 1</Label>
+                  {form.image1_url && (
+                    <div className="relative group mb-2">
+                      <img src={form.image1_url} alt="img1" className="w-full h-36 object-cover rounded-xl border border-gray-200" />
+                      <button type="button" onClick={() => { set('image1', null); set('image1_url', ''); }}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
+                  <ImageUpload
+                    label=""
+                    hint=""
+                    value={form.image1}
+                    onUploaded={(file, url) => { set('image1', file); set('image1_url', url); }}
+                  />
+                </div>
+
+                {/* Image 2 */}
+                <div className="space-y-2">
+                  <Label hint="Hình ảnh trang web phụ hoặc ảnh minh hoạ">Hình ảnh 2 <span className="text-gray-400 font-normal text-xs">(tuỳ chọn)</span></Label>
+                  {form.image2_url && (
+                    <div className="relative group mb-2">
+                      <img src={form.image2_url} alt="img2" className="w-full h-36 object-cover rounded-xl border border-gray-200" />
+                      <button type="button" onClick={() => { set('image2', null); set('image2_url', ''); }}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
+                  <ImageUpload
+                    label=""
+                    hint=""
+                    value={form.image2}
+                    onUploaded={(file, url) => { set('image2', file); set('image2_url', url); }}
+                  />
+                </div>
+
               </div>
             </div>
 

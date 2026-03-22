@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
-import { Pause, Play, Trash2, Pencil, X, Upload, MoreVertical, CheckCircle2 } from 'lucide-react';
+import { Pause, Play, Pencil, X, Upload, CheckCircle2, Plus, Zap } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
