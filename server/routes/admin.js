@@ -949,14 +949,23 @@ router.get('/worker-tasks', async (req, res) => {
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    const [countR] = await pool.execute(`SELECT COUNT(*) as c FROM vuot_link_tasks t LEFT JOIN users u ON t.worker_id = u.id LEFT JOIN campaigns c ON t.campaign_id = c.id WHERE ${where}`, params);
+    const [countR] = await pool.execute(
+      `SELECT COUNT(*) as c FROM vuot_link_tasks t
+       LEFT JOIN users u ON t.worker_id = u.id
+       LEFT JOIN worker_links wl ON t.worker_link_id = wl.id
+       LEFT JOIN users u2 ON wl.worker_id = u2.id
+       LEFT JOIN campaigns c ON t.campaign_id = c.id
+       WHERE ${where}`, params);
     const [tasks] = await pool.execute(
       `SELECT t.id, t.keyword, t.status, t.earning, t.completed_at, t.created_at,
        c.name as campaign_name, c.url as campaign_url,
-       u.name as worker_name, u.email as worker_email
+       COALESCE(u.name, u2.name) as worker_name,
+       COALESCE(u.email, u2.email) as worker_email
        FROM vuot_link_tasks t
        LEFT JOIN campaigns c ON t.campaign_id = c.id
        LEFT JOIN users u ON t.worker_id = u.id
+       LEFT JOIN worker_links wl ON t.worker_link_id = wl.id
+       LEFT JOIN users u2 ON wl.worker_id = u2.id
        WHERE ${where}
        ORDER BY t.created_at DESC LIMIT ${Number(limit)} OFFSET ${offset}`,
       params

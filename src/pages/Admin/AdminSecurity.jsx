@@ -241,7 +241,7 @@ function UserDetail({ user: u, onBack }) {
               : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
           }`}
         >
-          {banned ? '🔓 Mở ban' : '🚫 Ban'}
+          {banned ? 'Mở ban' : 'Ban'}
         </button>
         <button onClick={async () => {
           if (!confirm(`Xóa hoàn toàn ${u.name || u.email}?\nTất cả tasks, links, giao dịch, ví sẽ bị XÓA VĨNH VIỄN.`)) return;
@@ -254,7 +254,7 @@ function UserDetail({ user: u, onBack }) {
         }}
           className="px-4 py-2 rounded-xl text-xs font-bold bg-red-600 text-white hover:bg-red-700 transition"
         >
-          🗑️ Xóa
+          Xóa
         </button>
       </div>
 
@@ -508,7 +508,7 @@ export default function AdminSecurity() {
               ) : users.map(u => {
                 const danger = u.blocked > 0 || u.events > 0;
                 return (
-                  <tr key={u.id} className={`border-b border-slate-100 hover:bg-slate-50/50 ${danger ? 'bg-red-50/15' : ''}`}>
+                  <tr key={u.id} className={`border-b hover:bg-red-50/60 ${danger ? 'bg-red-50 border-red-100' : 'border-slate-100 hover:bg-slate-50/50'}`}>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
                         {u.avatar_url ? (
