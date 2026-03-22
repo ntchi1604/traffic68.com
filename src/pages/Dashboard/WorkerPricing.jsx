@@ -1,26 +1,35 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
-import { DollarSign, Wallet, TrendingUp, Zap, CheckCircle, Info } from 'lucide-react';
+import { DollarSign, Wallet, TrendingUp, CheckCircle, Info, Zap } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
 
+const TYPE_LABELS = {
+  google_search: { label: 'Google Search Traffic', color: 'bg-blue-100 text-blue-700' },
+  social: { label: 'Social Traffic', color: 'bg-pink-100 text-pink-700' },
+  direct: { label: 'Direct Traffic', color: 'bg-green-100 text-green-700' },
+};
+
 export default function WorkerPricing() {
   usePageTitle('Bảng giá');
-  const [workerCpc, setWorkerCpc] = useState(null);
+  const [tiers, setTiers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/pricing')
+    fetch('/api/worker-pricing')
       .then(r => r.json())
-      .then(data => {
-        const cfg = data.config || {};
-        const cpc = parseFloat(cfg.worker_cpc);
-        setWorkerCpc(cpc > 0 ? cpc : null);
-      })
+      .then(data => setTiers(data.tiers || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  // Group by traffic_type
+  const grouped = {};
+  tiers.forEach(t => {
+    if (!grouped[t.traffic_type]) grouped[t.traffic_type] = [];
+    grouped[t.traffic_type].push(t);
+  });
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
@@ -39,63 +48,65 @@ export default function WorkerPricing() {
         <p className="text-slate-500 text-sm mt-1">Số tiền bạn nhận được mỗi lượt vượt link hoàn thành</p>
       </div>
 
-      {/* Hero CPC Card */}
-      <div className="bg-gradient-to-br from-emerald-600 via-green-600 to-teal-700 rounded-2xl p-8 text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, #fff 0%, transparent 50%)' }} />
-        <div className="relative text-center">
-          <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center mx-auto mb-4">
-            <DollarSign size={32} className="text-white" />
-          </div>
-          <p className="text-green-200 text-sm font-medium mb-2">Thu nhập mỗi lượt hoàn thành</p>
-          <p className="text-5xl font-black tracking-tight mb-1">
-            {workerCpc ? fmt(workerCpc) : '—'} <span className="text-green-300 text-3xl">đ</span>
-          </p>
-          <p className="text-green-200 text-sm">/mỗi lượt vượt link thành công</p>
-        </div>
-      </div>
-
       {/* How it works */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
-          <Zap size={20} className="text-orange-500" />
-          Cách kiếm tiền
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            {
-              step: '1',
-              color: '#3B82F6',
-              bg: '#EFF6FF',
-              title: 'Tạo link kiếm tiền',
-              desc: 'Nhập URL bạn muốn chia sẻ → hệ thống tạo link /vuot-link/xxxxx',
-            },
-            {
-              step: '2',
-              color: '#F97316',
-              bg: '#FFF7ED',
-              title: 'Chia sẻ link',
-              desc: 'Chia sẻ link bạn tạo lên mạng xã hội, diễn đàn, blog...',
-            },
-            {
-              step: '3',
-              color: '#22C55E',
-              bg: '#F0FDF4',
-              title: 'Nhận tiền',
-              desc: `Mỗi người hoàn thành vượt link → bạn nhận ${workerCpc ? fmt(workerCpc) + ' đ' : 'CPC'}`,
-            },
-          ].map(s => (
-            <div key={s.step} className="rounded-xl border border-slate-200 p-5 text-center hover:shadow-md transition-shadow">
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                <span style={{ color: s.color, fontSize: 18, fontWeight: 900 }}>{s.step}</span>
+      <div className="bg-gradient-to-br from-emerald-600 via-green-600 to-teal-700 rounded-2xl p-6 text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, #fff 0%, transparent 50%)' }} />
+        <div className="relative">
+          <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <Zap size={20} /> Cách kiếm tiền
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { step: '1', title: 'Tạo link kiếm tiền', desc: 'Nhập URL → hệ thống tạo link /vuot-link/xxxxx' },
+              { step: '2', title: 'Chia sẻ link', desc: 'Đăng lên MXH, diễn đàn, blog...' },
+              { step: '3', title: 'Nhận tiền', desc: 'Mỗi lượt hoàn thành → nhận CPC bên dưới' },
+            ].map(s => (
+              <div key={s.step} className="bg-white/10 backdrop-blur rounded-xl p-4 text-center">
+                <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-2 font-black text-lg">{s.step}</div>
+                <h3 className="font-bold text-sm mb-1">{s.title}</h3>
+                <p className="text-green-100 text-xs">{s.desc}</p>
               </div>
-              <h3 className="font-bold text-slate-800 text-sm mb-2">{s.title}</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">{s.desc}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Stats grid */}
+      {/* Pricing Tables */}
+      {Object.entries(grouped).map(([type, items]) => {
+        const typeInfo = TYPE_LABELS[type] || { label: type, color: 'bg-gray-100 text-gray-700' };
+        return (
+          <div key={type} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+              <DollarSign size={18} className="text-emerald-500" />
+              <span className={`px-3 py-1 text-xs font-bold rounded-full ${typeInfo.color}`}>
+                {typeInfo.label}
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Thời gian chiến dịch</th>
+                    <th className="px-5 py-3 text-left font-semibold text-emerald-600">V1 — Thu nhập / lượt</th>
+                    <th className="px-5 py-3 text-left font-semibold text-emerald-600">V2 — Thu nhập / lượt</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {items.map(t => (
+                    <tr key={t.id} className="hover:bg-slate-50/70">
+                      <td className="px-5 py-3 font-bold text-slate-700">{t.duration}</td>
+                      <td className="px-5 py-3 font-bold text-emerald-700">{fmt(t.v1_price)} đ</td>
+                      <td className="px-5 py-3 font-bold text-emerald-700">{fmt(t.v2_price)} đ</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Info cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { icon: Wallet, color: 'text-blue-600', bg: 'bg-blue-50', label: 'Rút tiền tối thiểu', value: '50.000 đ' },
@@ -119,9 +130,9 @@ export default function WorkerPricing() {
         <Info size={18} className="text-blue-500 mt-0.5 flex-shrink-0" />
         <div className="text-xs text-blue-800 space-y-1">
           <p className="font-bold">Lưu ý</p>
-          <p>• Thu nhập được tính tự động khi người dùng hoàn thành vượt link</p>
-          <p>• Mức CPC có thể được admin điều chỉnh</p>
-          <p>• Thu nhập sẽ cộng ngay vào ví, bạn có thể rút bất kỳ lúc nào</p>
+          <p>• Thu nhập tự động cộng vào ví khi visitor hoàn thành vượt link</p>
+          <p>• CPC tùy thuộc vào thời gian và version chiến dịch</p>
+          <p>• Bảng giá có thể thay đổi, vui lòng kiểm tra thường xuyên</p>
         </div>
       </div>
     </div>

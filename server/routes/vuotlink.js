@@ -370,14 +370,25 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   }
 
   // Code correct! → Complete task, count as 1 view
-  const [campaigns] = await pool.execute('SELECT cpc, user_id, traffic_type FROM campaigns WHERE id = ?', [task.campaign_id]);
+  const [campaigns] = await pool.execute('SELECT cpc, user_id, traffic_type, time_on_site, version FROM campaigns WHERE id = ?', [task.campaign_id]);
   if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
   const campaign = campaigns[0];
 
-  // Worker earning uses admin-configurable worker_cpc (separate from buyer's campaign CPC)
-  const [wcpcRows] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'worker_cpc'");
-  const workerCpc = wcpcRows.length > 0 ? parseFloat(wcpcRows[0].setting_value) : null;
-  const earning = workerCpc > 0 ? workerCpc : campaign.cpc;
+  // Worker earning from worker_pricing_tiers (separate table managed by admin)
+  let earning = campaign.cpc; // fallback to campaign CPC
+  try {
+    const duration = (campaign.time_on_site || '60').split('-')[0] + 's';
+    const [wptRows] = await pool.execute(
+      'SELECT v1_price, v2_price FROM worker_pricing_tiers WHERE traffic_type = ? AND duration = ?',
+      [campaign.traffic_type || 'google_search', duration]
+    );
+    if (wptRows.length > 0) {
+      const wpt = wptRows[0];
+      earning = campaign.version === 2 ? wpt.v2_price : wpt.v1_price;
+    }
+  } catch (e) {
+    console.error('[VuotLink] Worker pricing lookup error:', e.message);
+  }
 
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const timeOnSite = Math.floor((Date.now() - new Date(task.created_at).getTime()) / 1000);

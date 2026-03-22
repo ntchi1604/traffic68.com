@@ -197,20 +197,12 @@ export default function AdminPricing() {
                   placeholder="2" min="1" max="100"
                   className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
               </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Worker CPC (đ/lượt hoàn thành)</label>
-                <input type="number" value={config.worker_cpc || ''}
-                  onChange={e => setConfig(c => ({ ...c, worker_cpc: e.target.value }))}
-                  placeholder="50" min="0" step="1"
-                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                <p className="text-[10px] text-slate-400 mt-1">Số tiền worker nhận mỗi lượt vượt link. Để trống = dùng CPC campaign.</p>
-              </div>
             </div>
             <div className="mt-4">
               <button onClick={async () => {
                 setConfigSaving(true);
                 try {
-                  await api.put('/admin/settings/site', { settings: { views_per_ip: config.views_per_ip || '2', worker_cpc: config.worker_cpc || '' } });
+                  await api.put('/admin/settings/site', { settings: { views_per_ip: config.views_per_ip || '2' } });
                   toast.success('Đã lưu cài đặt vượt link');
                 } catch (err) { toast.error(err.message); }
                 finally { setConfigSaving(false); }

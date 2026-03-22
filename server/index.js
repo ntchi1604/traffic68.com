@@ -57,6 +57,18 @@ app.get('/api/pricing', async (req, res) => {
   }
 });
 
+// ── Public worker pricing API (no auth) ──
+app.get('/api/worker-pricing', async (req, res) => {
+  try {
+    const { getPool } = require('./db');
+    const pool = getPool();
+    const [tiers] = await pool.execute('SELECT * FROM worker_pricing_tiers ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)');
+    res.json({ tiers });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Routes ──
 app.use('/api/auth',       require('./routes/auth'));
 app.use('/api/campaigns',  require('./routes/campaigns'));
@@ -115,6 +127,33 @@ app.use((err, req, res, next) => {
     try {
       await pool.execute(`ALTER TABLE vuot_link_tasks ADD COLUMN worker_link_id INT DEFAULT NULL`);
     } catch (e) { }
+
+    // worker_pricing_tiers: separate pricing for worker earnings (mirrors pricing_tiers structure)
+    try {
+      await pool.execute(`CREATE TABLE IF NOT EXISTS worker_pricing_tiers (
+        id             INT PRIMARY KEY AUTO_INCREMENT,
+        traffic_type   VARCHAR(50) NOT NULL,
+        duration       VARCHAR(20) NOT NULL,
+        v1_price       INT NOT NULL DEFAULT 0,
+        v2_price       INT NOT NULL DEFAULT 0,
+        updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_tier (traffic_type, duration)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+      // Seed from pricing_tiers if worker_pricing_tiers is empty
+      const [wptCount] = await pool.execute('SELECT COUNT(*) as c FROM worker_pricing_tiers');
+      if (wptCount[0].c === 0) {
+        const [buyerTiers] = await pool.execute('SELECT traffic_type, duration, v1_price, v2_price FROM pricing_tiers');
+        for (const t of buyerTiers) {
+          await pool.execute(
+            'INSERT IGNORE INTO worker_pricing_tiers (traffic_type, duration, v1_price, v2_price) VALUES (?, ?, ?, ?)',
+            [t.traffic_type, t.duration, t.v1_price, t.v2_price]
+          );
+        }
+        console.log(`  ✅ worker_pricing_tiers seeded from pricing_tiers (${buyerTiers.length} rows)`);
+      } else {
+        console.log('  ✅ worker_pricing_tiers table ready');
+      }
+    } catch (e) { console.error('  ⚠ worker_pricing_tiers:', e.message); }
 
     app.listen(PORT, () => {
       console.log(`

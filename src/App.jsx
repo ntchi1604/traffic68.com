@@ -64,6 +64,7 @@ import AdminSecurity from './pages/Admin/AdminSecurity';
 import AdminReferrals from './pages/Admin/AdminReferrals';
 import AdminWorkerTasks from './pages/Admin/AdminWorkerTasks';
 import AdminWorkerWithdrawals from './pages/Admin/AdminWorkerWithdrawals';
+import AdminWorkerPricing from './pages/Admin/AdminWorkerPricing';
 
 const DASHBOARD_ROUTES = ['/buyer', '/worker', '/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/admin'];
 
@@ -163,6 +164,7 @@ function Layout() {
           <Route path="worker-users" element={<AdminUsers type="workers" />} />
           <Route path="worker-tasks" element={<AdminWorkerTasks />} />
           <Route path="worker-withdrawals" element={<AdminWorkerWithdrawals />} />
+          <Route path="worker-pricing" element={<AdminWorkerPricing />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 
