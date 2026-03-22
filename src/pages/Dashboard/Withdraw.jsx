@@ -24,6 +24,7 @@ export default function Withdraw() {
   const [bankEnabled, setBankEnabled] = useState(true);
   const [cryptoEnabled, setCryptoEnabled] = useState(true);
   const [configLoaded, setConfigLoaded] = useState(false);
+  const [usdtRate, setUsdtRate] = useState(null);
 
   const minWithdraw = 50000;
 
@@ -42,6 +43,18 @@ export default function Withdraw() {
       else if (crypto) setMethod('crypto');
       setConfigLoaded(true);
     }).catch(() => setConfigLoaded(true));
+    // Fetch USDT/VND rate from Binance
+    fetch('https://api.binance.com/api/v3/ticker/price?symbol=USDTBRL')
+      .catch(() => null);
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=vnd')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.tether?.vnd) setUsdtRate(d.tether.vnd);
+      })
+      .catch(() => {
+        // Fallback rate
+        setUsdtRate(25500);
+      });
   }, []);
 
   const handleSubmit = async (e) => {
@@ -100,6 +113,19 @@ export default function Withdraw() {
                   <button key={v} type="button" onClick={() => setAmount(v)} className="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 rounded-lg transition">{fmt(v)}</button>
                 ))}
               </div>
+
+              {/* USDT conversion display */}
+              {method === 'crypto' && amount && Number(amount) > 0 && usdtRate && (
+                <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-3 mt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-orange-700">≈ Quy đổi USDT</span>
+                    <span className="text-lg font-black text-orange-600">
+                      {(Number(amount) / usdtRate).toFixed(2)} USDT
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-orange-500 mt-1">Tỷ giá: 1 USDT ≈ {fmt(Math.round(usdtRate))} VNĐ (CoinGecko)</p>
+                </div>
+              )}
             </div>
 
             {/* Traffic Source */}
