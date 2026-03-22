@@ -9,13 +9,19 @@ import Breadcrumb from '../components/Breadcrumb';
 import { formatMoney as fmt } from '../lib/format';
 import api from '../lib/api';
 
-const deviceTraffic = [
-  { name: 'Mobile', value: 58, color: '#3B82F6' },
-  { name: 'Desktop', value: 28, color: '#F97316' },
-  { name: 'Tablet', value: 14, color: '#FACC15' },
-];
-
 const DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+const SOURCE_LABELS = {
+  google_search: 'Google Search',
+  social:        'Social Traffic',
+  direct:        'Direct Traffic',
+};
+const SOURCE_COLORS = {
+  google_search: '#3B82F6',
+  social:        '#8B5CF6',
+  direct:        '#10B981',
+};
+
 
 const STAT_CARDS = [
   { key: 'todayViews', label: 'Lưu lượng hôm nay', suffix: ' views', Icon: Eye, iconBg: 'bg-blue-100', iconColor: 'text-blue-600', border: 'border-blue-200' },
@@ -28,6 +34,7 @@ export default function TrafficDashboard() {
   usePageTitle('Tổng quan');
   const [overview, setOverview] = useState(null);
   const [traffic, setTraffic] = useState([]);
+  const [bySource, setBySource] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,7 +45,6 @@ export default function TrafficDashboard() {
       api.get('/campaigns'),
     ]).then(([ov, tr, cp]) => {
       setOverview(ov.overview);
-      // Map traffic data for chart
       setTraffic(
         (tr.traffic || []).map((t) => ({
           day: DAYS[new Date(t.date).getDay()],
@@ -46,9 +52,11 @@ export default function TrafficDashboard() {
           clicks: t.clicks,
         }))
       );
+      setBySource(tr.bySource || []);
       setCampaigns(cp.campaigns || []);
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
+
 
 
 
@@ -136,42 +144,54 @@ export default function TrafficDashboard() {
               </ResponsiveContainer>
             </div>
           </div>
+          {/* Traffic theo thiết bị */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 min-w-0">
             <h3 className="text-sm font-semibold text-slate-800 mb-3">Traffic theo thiết bị</h3>
-            <div className="h-48 sm:h-52 flex items-center justify-center w-full overflow-hidden">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={deviceTraffic} dataKey="value" innerRadius={55} outerRadius={85} paddingAngle={3}>
-                    {deviceTraffic.map((item) => <Cell key={item.name} fill={item.color} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4 space-y-2">
-              {deviceTraffic.map((item) => (
-                <div key={item.name} className="flex items-center justify-between text-sm text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                    {item.name}
-                  </div>
-                  <span className="font-medium text-slate-800">{item.value}%</span>
-                </div>
-              ))}
+            <div className="h-48 sm:h-52 flex flex-col items-center justify-center gap-3 text-center">
+              <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v5" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round"/><rect x="9" y="11" width="13" height="10" rx="2" stroke="#94a3b8" strokeWidth="1.8"/><circle cx="15.5" cy="19" r="0.5" fill="#94a3b8"/></svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-500">Chưa có dữ liệu thiết bị</p>
+                <p className="text-xs text-slate-400 mt-1">Dữ liệu sẽ được cập nhật trong phiên bản tới</p>
+              </div>
             </div>
           </div>
+
+          {/* Traffic theo nguồn */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 min-w-0">
             <h3 className="text-sm font-semibold text-slate-800 mb-3">Traffic theo nguồn</h3>
-            <div className="h-48 sm:h-52 w-full overflow-hidden">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={traffic} margin={{ left: 0, right: 10, top: 10, bottom: 0 }}>
-                  <XAxis dataKey="day" tick={{ fill: '#64748B', fontSize: 10 }} />
-                  <YAxis width={28} tick={{ fill: '#64748B', fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="visitors" name="Views" radius={[8, 8, 0, 0]} fill="#2563EB" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {bySource.length === 0 ? (
+              <div className="h-48 sm:h-52 flex items-center justify-center text-xs text-slate-400">Chưa có dữ liệu</div>
+            ) : (
+              <>
+                <div className="h-36 sm:h-40 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={bySource.map(s => ({ name: SOURCE_LABELS[s.source] || s.source, views: s.views }))} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+                      <XAxis dataKey="name" tick={{ fill: '#64748B', fontSize: 9 }} />
+                      <YAxis width={28} tick={{ fill: '#64748B', fontSize: 10 }} />
+                      <Tooltip />
+                      <Bar dataKey="views" name="Views" radius={[6, 6, 0, 0]}>
+                        {bySource.map((s, i) => (
+                          <Cell key={i} fill={SOURCE_COLORS[s.source] || '#3B82F6'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {bySource.map((s, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: SOURCE_COLORS[s.source] || '#3B82F6' }} />
+                        <span className="text-slate-600">{SOURCE_LABELS[s.source] || s.source}</span>
+                      </div>
+                      <span className="font-semibold text-slate-800">{s.views} views</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
