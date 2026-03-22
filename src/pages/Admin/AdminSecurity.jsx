@@ -70,9 +70,9 @@ function TaskModal({ task: t, onClose }) {
               <span className="text-sm font-black text-slate-800">Task #{t.id}</span>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${st.c}`}>{st.l}</span>
               <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${mobile ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-600'}`}>
-                {mobile ? '📱 Mobile' : '🖥️ Desktop'}
+                {mobile ? 'Mobile' : 'Desktop'}
               </span>
-              {t.bot_detected ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">🚫 BOT</span> : null}
+              {t.bot_detected ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">BOT</span> : null}
             </div>
             <p className="text-[11px] text-slate-500 mt-1">{fmt(t.created_at)} · {t.ip_address}</p>
           </div>
@@ -362,7 +362,7 @@ function UserDetail({ user: u, onBack }) {
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
                           {ev.source === 'widget' ? 'Script' : ev.source === 'vuotlink' ? 'Vượt link' : ev.source}
                         </span>
-                        <span className="text-[10px]">{mob ? '📱' : '🖥️'}</span>
+                        <span className="text-[10px]">{mob ? 'Mobile' : 'Desktop'}</span>
                         <span className="font-mono text-[10px] text-slate-400">{ev.ip_address}</span>
                       </div>
                       <span className="text-[10px] text-slate-400">{fmt(ev.created_at)}</span>
@@ -387,11 +387,119 @@ function UserDetail({ user: u, onBack }) {
   );
 }
 
+/* ─── IP Analysis Tab ─── */
+function IPAnalysis() {
+  const [ips, setIps] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [sort, setSort] = useState('tasks');
+  const [days, setDays] = useState(7);
+  const [page, setPage] = useState(1);
+  const LIMIT = 30;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const d = await api.get(`/admin/security/ips?sort=${sort}&days=${days}&page=${page}&limit=${LIMIT}`);
+      setIps(d.ips || []); setTotal(d.total || 0); setSummary(d.summary || {});
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, [sort, days, page]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="space-y-4">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          ['IP duy nhất', summary.total_ips || 0, 'text-blue-600'],
+          ['Tổng tasks', summary.total_tasks || 0, 'text-slate-800'],
+          ['Bot detected', summary.total_bots || 0, 'text-red-600'],
+          ['Workers', summary.total_workers || 0, 'text-emerald-600'],
+        ].map(([l, v, c]) => (
+          <div key={l} className="bg-white rounded-xl border border-slate-200 p-3 text-center">
+            <p className="text-[9px] text-slate-400 font-bold uppercase">{l}</p>
+            <p className={`text-xl font-black ${c}`}>{Number(v).toLocaleString('vi-VN')}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 items-center">
+        {[['7 ngày', 7], ['14 ngày', 14], ['30 ngày', 30]].map(([l, d]) => (
+          <button key={d} onClick={() => { setDays(d); setPage(1); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${days === d ? 'bg-violet-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          >{l}</button>
+        ))}
+        <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}
+          className="ml-auto px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 bg-white">
+          <option value="tasks">Tasks nhiều nhất</option>
+          <option value="blocked">Blocked nhiều nhất</option>
+          <option value="workers">Nhiều worker</option>
+          <option value="incomplete">Tỷ lệ thất bại cao</option>
+        </select>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                {['IP', 'Tasks', 'OK', 'Expired', 'Bot', 'Blocked', 'Workers', 'Devices', 'Thất bại %', 'Hoạt động'].map(h => (
+                  <th key={h} className={`px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px] ${h === 'IP' || h === 'Hoạt động' ? 'text-left' : 'text-center'}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={10} className="text-center py-10 text-slate-400">Dang tải...</td></tr>
+              ) : ips.length === 0 ? (
+                <tr><td colSpan={10} className="text-center py-10 text-slate-400">Chưa có dữ liệu</td></tr>
+              ) : ips.map(ip => {
+                const danger = ip.blocked > 0 || ip.unique_workers > 2;
+                return (
+                  <tr key={ip.ip_address} className={`border-b ${danger ? 'bg-red-50/30 border-red-100' : 'border-slate-100'} hover:bg-slate-50/50`}>
+                    <td className="px-3 py-2.5 font-mono text-[11px] text-slate-700 font-bold">{ip.ip_address}</td>
+                    <td className="px-3 py-2.5 text-center font-bold text-slate-700">{ip.total_tasks}</td>
+                    <td className="px-3 py-2.5 text-center text-emerald-600 font-bold">{ip.completed}</td>
+                    <td className="px-3 py-2.5 text-center text-slate-400">{ip.expired}</td>
+                    <td className="px-3 py-2.5 text-center">
+                      {ip.bot_detected > 0 ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{ip.bot_detected}</span> : <span className="text-slate-300">0</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {ip.blocked > 0 ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{ip.blocked}</span> : <span className="text-slate-300">0</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {ip.unique_workers > 1 ? <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ip.unique_workers > 2 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{ip.unique_workers}</span> : <span className="text-slate-400">1</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-center text-slate-500">{ip.unique_devices}</td>
+                    <td className="px-3 py-2.5 text-center">
+                      {ip.incomplete_rate > 50 ? <span className="font-bold text-red-600">{ip.incomplete_rate}%</span>
+                        : ip.incomplete_rate > 20 ? <span className="font-bold text-amber-600">{ip.incomplete_rate}%</span>
+                        : <span className="text-slate-400">{ip.incomplete_rate}%</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{ago(ip.last_seen)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════ */
 /* MAIN PAGE                                                  */
 /* ═══════════════════════════════════════════════════════════ */
 export default function AdminSecurity() {
   usePageTitle('Admin - Anti Cheat');
+  const [mainTab, setMainTab] = useState('users');
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -446,7 +554,18 @@ export default function AdminSecurity() {
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Làm mới
         </button>
       </div>
+      {/* Main tabs */}
+      <div className="flex gap-2">
+        {[['users', 'Users'], ['ips', 'Phân tích IP']].map(([k, l]) => (
+          <button key={k} onClick={() => setMainTab(k)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${mainTab === k ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          >{l}</button>
+        ))}
+      </div>
 
+      {mainTab === 'ips' && <IPAnalysis />}
+
+      {mainTab === 'users' && <>
       {/* Filters row */}
       <div className="flex flex-wrap gap-2 items-center">
         {/* Time presets */}
@@ -555,6 +674,7 @@ export default function AdminSecurity() {
         </div>
         <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
       </div>
+      </>}
     </div>
   );
 }

@@ -71,8 +71,17 @@ export default function WorkerTransactions() {
               ) : transactions.length === 0 ? (
                 <tr><td colSpan={5} className="py-12 text-center text-slate-400">Chưa có giao dịch nào</td></tr>
               ) : transactions.map(t => {
-                const isPositive = t.type === 'deposit' || t.type === 'earning' || t.type === 'bonus';
-                const desc = t.note || (t.type === 'withdraw' ? `Rút tiền (${t.ref_code})` : t.type === 'deposit' ? `Nạp tiền (${t.ref_code})` : t.ref_code);
+                const formatNote = (note) => {
+                  if (!note) return null;
+                  // Clean old "Gateway link /v/xxxxx task #123" → "task #123"
+                  let cleaned = note.replace(/Gateway link \/v\/\w+\s*/g, '');
+                  // Clean old "Vượt link task" → "task"
+                  cleaned = cleaned.replace(/Vượt link\s*/g, '');
+                  return cleaned.trim() || note;
+                };
+                const rawDesc = t.note || (t.type === 'withdraw' ? `Rút tiền (${t.ref_code})` : t.type === 'deposit' ? `Nạp tiền (${t.ref_code})` : t.ref_code);
+                const desc = formatNote(rawDesc);
+                const isPositive = t.type === 'deposit' || t.type === 'earning' || t.type === 'bonus' || t.type === 'commission';
                 return (
                   <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                     <td className="py-3">

@@ -118,12 +118,12 @@ export default function Withdraw() {
               {method === 'crypto' && amount && Number(amount) > 0 && usdtRate && (
                 <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-3 mt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-orange-700">≈ Quy đổi USDT</span>
+                    <span className="text-xs font-semibold text-orange-700">Quy đổi USDT</span>
                     <span className="text-lg font-black text-orange-600">
                       {(Number(amount) / usdtRate).toFixed(2)} USDT
                     </span>
                   </div>
-                  <p className="text-[10px] text-orange-500 mt-1">Tỷ giá: 1 USDT ≈ {fmt(Math.round(usdtRate))} VNĐ (CoinGecko)</p>
+                  <p className="text-[10px] text-orange-500 mt-1">Tỷ giá: 1 USDT ~ {fmt(Math.round(usdtRate))} VNĐ (CoinGecko)</p>
                 </div>
               )}
             </div>
@@ -200,7 +200,7 @@ export default function Withdraw() {
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Địa chỉ ví *</label>
                   <input type="text" value={cryptoAddress} onChange={e => setCryptoAddress(e.target.value)} placeholder="Nhập địa chỉ ví nhận" required
                     className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 font-mono text-xs" />
-                  <p className="text-[10px] text-red-500 mt-1 font-semibold">⚠️ Vui lòng kiểm tra kỹ địa chỉ ví. Giao dịch crypto không thể hoàn lại.</p>
+                  <p className="text-[10px] text-red-500 mt-1 font-semibold">Vui lòng kiểm tra kỹ địa chỉ ví. Giao dịch crypto không thể hoàn lại.</p>
                 </div>
               </>
             )}
