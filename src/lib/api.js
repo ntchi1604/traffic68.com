@@ -37,16 +37,27 @@ async function apiFetch(endpoint, options = {}) {
 
   const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
 
-  // Auto logout on 401
+  // Auto logout on 401 (token expired) or 403 (banned)
   if (res.status === 401) {
     clearAuth();
+    window.location.href = '/dang-nhap';
     throw new Error('Phiên đăng nhập hết hạn');
+  }
+  if (res.status === 403) {
+    const data = await res.json().catch(() => ({}));
+    // Only force logout if it's an account suspension (not a permissions error)
+    if (data.error && data.error.includes('tạm ngưng')) {
+      clearAuth();
+      window.location.href = '/dang-nhap?banned=1';
+      throw new Error(data.error);
+    }
   }
 
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Lỗi không xác định');
   return data;
 }
+
 
 // Shorthand methods
 const api = {

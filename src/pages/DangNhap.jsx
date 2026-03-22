@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../hooks/usePageTitle';
-import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, User, Rocket, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Eye, EyeOff, Lock, Mail, User, Rocket, ArrowRight, CheckCircle2, ShieldOff } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import useHCaptcha from '../hooks/useHCaptcha';
 
@@ -9,6 +9,8 @@ export default function DangNhap() {
   usePageTitle('Đăng nhập');
   const navigate = useNavigate();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
+  const isBanned = searchParams.get('banned') === '1';
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({ login: '', password: '' });
   const [remember, setRemember] = useState(false);
@@ -124,6 +126,15 @@ export default function DangNhap() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-8">
+            {isBanned && (
+              <div className="mb-4 flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700">
+                <ShieldOff size={18} className="shrink-0" />
+                <div>
+                  <p className="font-bold text-sm">Tài khoản bị tạm ngưng</p>
+                  <p className="text-xs text-red-500 mt-0.5">Tài khoản của bạn đã bị admin tạm nghiĩnh. Liên hệ hỗ trợ để biết thêm.</p>
+                </div>
+              </div>
+            )}
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm font-medium text-center">
                 {error}
