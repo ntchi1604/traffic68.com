@@ -108,7 +108,7 @@ router.put('/password', async (req, res) => {
 router.get('/referrals', async (req, res) => {
   try {
     const pool = getPool();
-    const { context } = req.query; // 'worker' or 'buyer' from frontend
+    const { context } = req.query;
     const [me] = await pool.execute('SELECT referral_code, service_type FROM users WHERE id = ?', [req.userId]);
     const [refs] = await pool.execute(
       `SELECT id, name, email, service_type, status, created_at FROM users WHERE referred_by = ? ORDER BY created_at DESC`,
@@ -118,7 +118,7 @@ router.get('/referrals', async (req, res) => {
     const [commRows] = await pool.execute('SELECT setting_value FROM site_settings WHERE setting_key = ?', [commKey]);
     const commissionPercent = commRows[0]?.setting_value || '5';
 
-    // Total commission earned from referrals
+    // Total commission from all referrals
     const [commTotal] = await pool.execute(
       `SELECT COALESCE(SUM(amount), 0) as total FROM transactions
        WHERE user_id = ? AND wallet_type = 'commission' AND method = 'referral' AND status = 'completed'`,
@@ -126,7 +126,31 @@ router.get('/referrals', async (req, res) => {
     );
     const totalCommission = Number(commTotal[0]?.total || 0);
 
-    res.json({ referralCode: me[0]?.referral_code || '', referrals: refs, commissionPercent, totalCommission });
+    // Per-referral commission: join transactions note which contains buyer's deposit info
+    // We store ref_code like 'COMM-BUYER-<timestamp>' tied to the referrer.
+    // To get per-person breakdown, we check deposits made by each referred user
+    // and compute commPct% of each approved deposit sum for that referred user.
+    const commPct = Number(commissionPercent) / 100;
+    const refIds = refs.map(r => r.id);
+    let commByRef = {};
+    if (refIds.length > 0) {
+      const placeholders = refIds.map(() => '?').join(',');
+      const [depRows] = await pool.execute(
+        `SELECT user_id, COALESCE(SUM(amount), 0) as total_deposited
+         FROM transactions
+         WHERE user_id IN (${placeholders}) AND type = 'deposit' AND wallet_type = 'main' AND status = 'completed'
+         GROUP BY user_id`,
+        refIds
+      );
+      depRows.forEach(row => {
+        commByRef[row.user_id] = Math.floor(Number(row.total_deposited) * commPct);
+      });
+    }
+
+    // Attach per-referral commission to each ref object
+    const referrals = refs.map(r => ({ ...r, commissionEarned: commByRef[r.id] || 0 }));
+
+    res.json({ referralCode: me[0]?.referral_code || '', referrals, commissionPercent, totalCommission });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

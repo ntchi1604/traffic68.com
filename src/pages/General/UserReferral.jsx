@@ -118,9 +118,14 @@ export default function UserReferral() {
                       <p className="text-xs text-slate-400">{r.email}</p>
                     </td>
                     <td className="px-5 py-3">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                        {pct ? `${pct}% hoa hồng` : '—'}
-                      </span>
+                      {r.commissionEarned > 0 ? (
+                        <div>
+                          <p className="font-bold text-amber-600 text-sm">{fmt(r.commissionEarned)}<span className="text-xs font-normal text-slate-400 ml-0.5">đ</span></p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{pct}% trên tổng nạp</p>
+                        </div>
+                      ) : (
+                        <span className="text-slate-300 text-sm">—</span>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
