@@ -35,6 +35,7 @@ export default function TrafficDashboard() {
   const [overview, setOverview] = useState(null);
   const [traffic, setTraffic] = useState([]);
   const [bySource, setBySource] = useState([]);
+  const [byDevice, setByDevice] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,6 +54,7 @@ export default function TrafficDashboard() {
         }))
       );
       setBySource(tr.bySource || []);
+      setByDevice(tr.byDevice || []);
       setCampaigns(cp.campaigns || []);
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
@@ -147,17 +149,46 @@ export default function TrafficDashboard() {
           {/* Traffic theo thiết bị */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 min-w-0">
             <h3 className="text-sm font-semibold text-slate-800 mb-3">Traffic theo thiết bị</h3>
-            <div className="h-48 sm:h-52 flex flex-col items-center justify-center gap-3 text-center">
-              <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v5" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round"/><rect x="9" y="11" width="13" height="10" rx="2" stroke="#94a3b8" strokeWidth="1.8"/><circle cx="15.5" cy="19" r="0.5" fill="#94a3b8"/></svg>
+            {byDevice.length === 0 ? (
+              <div className="h-48 sm:h-52 flex flex-col items-center justify-center gap-3 text-center">
+                <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v5" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round"/><rect x="9" y="11" width="13" height="10" rx="2" stroke="#94a3b8" strokeWidth="1.8"/><circle cx="15.5" cy="19" r="0.5" fill="#94a3b8"/></svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-500">Chưa có dữ liệu thiết bị</p>
+                  <p className="text-xs text-slate-400 mt-1">Sẽ hiện thị sau khi có lưu lượng</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-500">Chưa có dữ liệu thiết bị</p>
-                <p className="text-xs text-slate-400 mt-1">Dữ liệu sẽ được cập nhật trong phiên bản tới</p>
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="h-36 sm:h-40 flex items-center justify-center w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={byDevice} dataKey="value" innerRadius={50} outerRadius={78} paddingAngle={3}>
+                        {byDevice.map((item) => <Cell key={item.name} fill={item.color} />)}
+                      </Pie>
+                      <Tooltip formatter={(v) => `${v} views`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {byDevice.map((item) => {
+                    const total = byDevice.reduce((s, x) => s + x.value, 0);
+                    const pct = total > 0 ? Math.round(item.value / total * 100) : 0;
+                    return (
+                      <div key={item.name} className="flex items-center justify-between text-xs text-slate-600">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                          {item.name}
+                        </div>
+                        <span className="font-semibold text-slate-800">{pct}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
-
           {/* Traffic theo nguồn */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 min-w-0">
             <h3 className="text-sm font-semibold text-slate-800 mb-3">Traffic theo nguồn</h3>

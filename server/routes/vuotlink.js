@@ -336,13 +336,24 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     [task.campaign_id]
   );
 
-  // Update traffic log
+  // Update traffic log — with device tracking
   const today = new Date().toISOString().slice(0, 10);
+  const ua = (task.user_agent || '').toLowerCase();
+  const isTablet = /ipad|tablet|kindle|playbook|silk|(android(?!.*mobile))/i.test(ua);
+  const isMobile = !isTablet && /mobile|android|iphone|ipod|blackberry|windows phone/i.test(ua);
+  const deviceCol = isTablet ? 'tablet_views' : isMobile ? 'mobile_views' : 'desktop_views';
+
   const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [task.campaign_id, today]);
   if (logs.length > 0) {
-    await pool.execute('UPDATE traffic_logs SET views = views + 1, clicks = clicks + 1 WHERE id = ?', [logs[0].id]);
+    await pool.execute(
+      `UPDATE traffic_logs SET views = views + 1, clicks = clicks + 1, ${deviceCol} = ${deviceCol} + 1 WHERE id = ?`,
+      [logs[0].id]
+    );
   } else {
-    await pool.execute('INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source) VALUES (?, ?, 1, 1, 1, ?)', [task.campaign_id, today, campaign.traffic_type || 'google_search']);
+    await pool.execute(
+      `INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source, ${deviceCol}) VALUES (?, ?, 1, 1, 1, ?, 1)`,
+      [task.campaign_id, today, campaign.traffic_type || 'google_search']
+    );
   }
 
   // Pay worker commission

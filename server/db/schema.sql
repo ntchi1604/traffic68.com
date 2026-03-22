@@ -105,13 +105,16 @@ CREATE TABLE IF NOT EXISTS support_tickets (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS traffic_logs (
-  id          INT PRIMARY KEY AUTO_INCREMENT,
-  campaign_id INT NOT NULL,
-  date        DATE NOT NULL,
-  views       INT NOT NULL DEFAULT 0,
-  clicks      INT NOT NULL DEFAULT 0,
-  unique_ips  INT NOT NULL DEFAULT 0,
-  source      VARCHAR(50) DEFAULT 'google_search',
+  id            INT PRIMARY KEY AUTO_INCREMENT,
+  campaign_id   INT NOT NULL,
+  date          DATE NOT NULL,
+  views         INT NOT NULL DEFAULT 0,
+  clicks        INT NOT NULL DEFAULT 0,
+  unique_ips    INT NOT NULL DEFAULT 0,
+  source        VARCHAR(50) DEFAULT 'google_search',
+  mobile_views  INT NOT NULL DEFAULT 0,
+  desktop_views INT NOT NULL DEFAULT 0,
+  tablet_views  INT NOT NULL DEFAULT 0,
   UNIQUE KEY unique_campaign_date (campaign_id, date),
   FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

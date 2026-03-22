@@ -77,7 +77,18 @@ router.get('/traffic', async (req, res) => {
     [req.userId, fromDate, toDate]
   );
 
-  res.json({ traffic: data, bySource, period: { from: fromDate, to: toDate } });
+  const [deviceRows] = await pool.execute(
+    `SELECT SUM(tl.mobile_views) as mobile, SUM(tl.desktop_views) as desktop, SUM(tl.tablet_views) as tablet FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ? AND tl.date BETWEEN ? AND ?`,
+    [req.userId, fromDate, toDate]
+  );
+  const d = deviceRows[0] || {};
+  const byDevice = [
+    { name: 'Mobile',  value: Number(d.mobile  || 0), color: '#3B82F6' },
+    { name: 'Desktop', value: Number(d.desktop || 0), color: '#F97316' },
+    { name: 'Tablet',  value: Number(d.tablet  || 0), color: '#FACC15' },
+  ].filter(x => x.value > 0);
+
+  res.json({ traffic: data, bySource, byDevice, period: { from: fromDate, to: toDate } });
 });
 
 module.exports = router;
