@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../hooks/usePageTitle';
-import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, User, Rocket, CheckCircle2, TrendingUp, Link2 } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Eye, EyeOff, Lock, Mail, User, Rocket, CheckCircle2, TrendingUp, Link2, Gift } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import useHCaptcha from '../hooks/useHCaptcha';
 
@@ -101,6 +101,10 @@ export default function DangKy() {
   usePageTitle('Đăng ký');
   const navigate = useNavigate();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
+  const refCode = searchParams.get('ref') || '';
+  const isRefLink = !!refCode;
+
   const [show, setShow] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [form, setForm] = useState({
@@ -109,14 +113,17 @@ export default function DangKy() {
     email: '',
     password: '',
     confirm: '',
-    service: '',
+    service: isRefLink ? 'traffic' : '',
   });
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
   const { captchaRef, token: captchaToken, resetCaptcha } = useHCaptcha();
 
-
+  // If ref link, ensure service is always traffic
+  useEffect(() => {
+    if (isRefLink) set('service', 'traffic');
+  }, [isRefLink]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -147,6 +154,7 @@ export default function DangKy() {
           username: form.username,
           phone: '',
           service: form.service,
+          referralCode: refCode || '',
           captchaToken,
         }),
       });
@@ -329,6 +337,17 @@ export default function DangKy() {
                 </div>
 
                 {/* Service type selector */}
+                {isRefLink ? (
+                  <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                    <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <Gift size={18} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-blue-800">Được giới thiệu — Mua Traffic</p>
+                      <p className="text-xs text-blue-500 mt-0.5">Bạn được mời tham gia gói <strong>Mua Traffic</strong>. Dịch vụ đã được chọn sẵn.</p>
+                    </div>
+                  </div>
+                ) : (
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-2">
                     Bạn muốn sử dụng dịch vụ nào? *
@@ -353,6 +372,7 @@ export default function DangKy() {
                     ))}
                   </div>
                 </div>
+                )}
 
                 {error && (
                   <p className="text-red-500 text-xs font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2">
