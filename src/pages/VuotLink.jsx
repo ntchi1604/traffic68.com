@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+﻿import { useState, useEffect, useCallback } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import {
   Search, Globe, Target, ShieldCheck,
   ExternalLink, ArrowRight,
@@ -202,6 +202,14 @@ export default function VuotLink() {
   const [task, setTask] = useState(null);
   const [isIncognito, setIsIncognito] = useState(false);
 
+  // Gateway link support (?ref=slug)
+  const [searchParams] = useSearchParams();
+  const refSlug = searchParams.get('ref');
+  const [workerLinkId, setWorkerLinkId] = useState(null);
+  const [workerLinkInfo, setWorkerLinkInfo] = useState(null);
+  const [redirectDest, setRedirectDest] = useState(null);
+  const taskStartTime = useRef(null);
+
   // UI state
   const [inputCode, setInputCode] = useState('');
   const [verified, setVerified] = useState(false);
@@ -210,6 +218,21 @@ export default function VuotLink() {
   const [completing, setCompleting] = useState(false);
 
   const waitTime = task?.waitTime || 60;
+
+  // ── Gateway mode (link locker) — runs when mounted at /v/:slug ──
+  const { slug } = useParams();
+  const isGateway = !!slug;
+  const [linkInfo, setLinkInfo] = useState(null);
+  const [linkError, setLinkError] = useState('');
+
+  useEffect(() => {
+    if (!slug) return;
+    document.title = 'Vượt link để truy cập — traffic68.com';
+    fetch(`/api/shortlink/info/${slug}`)
+      .then(r => r.json())
+      .then(d => { if (d.error) setLinkError(d.error); else setLinkInfo(d.link); })
+      .catch(() => setLinkError('Không thể tải link'));
+  }, [slug]);
 
 
   /* ─── Fetch task from API on mount ─────────────── */
@@ -303,6 +326,7 @@ export default function VuotLink() {
             botDetection: botDetectionResult,
             probes: probeData,
             behavioral: getBehavioralData(),
+            worker_link_id: linkInfo?.id || null,
           }),
         });
 
@@ -330,7 +354,7 @@ export default function VuotLink() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [linkInfo]); // re-runs when gateway linkInfo arrives
 
   /* ─── (step reporting removed — no step nav required) ── */
 
@@ -364,6 +388,10 @@ export default function VuotLink() {
       setCompletionResult(data);
       setVerified(true);
       setShowError(false);
+      // Gateway: redirect to destination after 3s
+      if (data.destination_url) {
+        setTimeout(() => { window.location.href = data.destination_url; }, 3000);
+      }
     } catch (err) {
       setShowError(true);
       setError(err.message);
@@ -559,25 +587,30 @@ export default function VuotLink() {
               )}
               <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '14px', padding: '14px' }}>
                 {['Cuộn tìm trong kết quả Google', hasMultiSite ? 'Tìm trang có giao diện giống 1 trong 2 hình trên' : 'Tìm trang có giao diện giống hình trên', 'Click vào kết quả để truy cập trang'].map((t, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', borderRadius: '8px', padding: '8px 12px', marginBottom: i < 2 ? '8px' : 0 }}>
-                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>{i + 1}</span>
-                    </div>
-                    <span style={{ color: '#374151', fontSize: '13px' }}>{t}</span>
-                  </div>
-                ))}
-              </div>
-            </StepPanel>
-
-            {/* ── CARD 4: Mã xác nhận — always unlocked ── */}
-            <StepPanel n={4} title="MÃ XÁC NHẬN" desc={`Vào trang đích, đợi ${waitTime_}s để hiện mã. Quay lại đây nhập mã xác nhận.`} verified={verified}>
-              {verified ? (
-                <div style={{ textAlign: 'center', padding: '32px 0' }}>
-                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#f0fef4', border: '3px solid #86efac', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div key={i} style={{ display: 'flex', alignI                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#f0fef4', border: '3px solid #86efac', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </div>
                   <h3 style={{ color: '#16a34a', fontWeight: 800, margin: '0 0 8px' }}>Xác nhận thành công!</h3>
-                  <p style={{ color: '#64748b', margin: '0 0 20px' }}>Bạn đã hoàn thành tất cả các bước. Cảm ơn bạn!</p>
+                  <p style={{ color: '#64748b', margin: '0 0 20px' }}>
+                    {isGateway ? '🔄 Đang chuyển hướng đến trang đích trong 3 giây...' : 'Bạn đã hoàn thành tất cả các bước. Cảm ơn bạ!'}
+                  </p>
+                  {completionResult?.earning > 0 && (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '12px', padding: '12px 24px', marginBottom: '20px' }}>
+                      <span style={{ color: '#64748b', fontSize: '13px' }}>Tiền thưởng:</span>
+                      <span style={{ color: '#f97316', fontSize: '18px', fontWeight: 800 }}>{Number(completionResult.earning).toLocaleString('vi-VN')} VNĐ</span>
+                    </div>
+                  )}
+                  <br />
+                  {isGateway && completionResult?.destination_url ? (
+                    <a href={completionResult.destination_url}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', textDecoration: 'none', padding: '12px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 700 }}>
+                      Đến trang đích ngay <ArrowRight size={16} />
+                    </a>
+                  ) : (
+                    <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', textDecoration: 'none', padding: '12px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 700 }}>
+                      Quay về trang chủ <ArrowRight size={16} />
+                    </Link>
+                  )}�n thành tất cả các bước. Cảm ơn bạn!</p>
                   {completionResult?.earning > 0 && (
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '12px', padding: '12px 24px', marginBottom: '20px' }}>
                       <span style={{ color: '#64748b', fontSize: '13px' }}>Tiền thưởng:</span>
