@@ -94,7 +94,7 @@ export default function AdminWorkerTasks() {
                     <p className="text-[10px] text-slate-400">{t.worker_email || ''}</p>
                   </td>
                   <td className="px-4 py-3 max-w-[200px]">
-                    <p className="text-xs text-slate-800 font-bold truncate">🔑 {t.keyword || '—'}</p>
+                    <p className="text-xs text-slate-800 font-bold truncate">{t.keyword || '—'}</p>
                     <p className="text-[10px] text-slate-400 truncate">{t.campaign_name}</p>
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500 max-w-[160px] truncate">{t.campaign_url || '—'}</td>

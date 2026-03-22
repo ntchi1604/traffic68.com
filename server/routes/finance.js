@@ -172,8 +172,8 @@ router.post('/withdraw', async (req, res) => {
 
     const refCode = `WD-${Date.now()}-${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`;
     const note = method === 'bank'
-      ? `🏦 ${bankName} - ${accountNumber} - ${accountName} | Nguồn: ${trafficSource.trim()}`
-      : `🪙 ${cryptoNetwork} - ${cryptoAddress} | Nguồn: ${trafficSource.trim()}`;
+      ? `[Bank] ${bankName} - ${accountNumber} - ${accountName} | Nguồn: ${trafficSource.trim()}`
+      : `[Crypto] ${cryptoNetwork} - ${cryptoAddress} | Nguồn: ${trafficSource.trim()}`;
 
     await conn.execute(
       `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

@@ -237,7 +237,7 @@ export default function Withdraw() {
                   <div>
                     <p className="text-xs font-semibold text-slate-700">{fmt(w.amount)} đ</p>
                     <p className="text-[10px] text-slate-400">
-                      {w.method === 'crypto' ? '🪙 Crypto' : '🏦 Bank'} • {w.note} • {new Date(w.created_at).toLocaleDateString('vi-VN')}
+                      {w.method === 'crypto' ? 'Crypto' : 'Bank'} • {w.note} • {new Date(w.created_at).toLocaleDateString('vi-VN')}
                     </p>
                   </div>
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${w.status === 'completed' ? 'bg-green-50 text-green-600' : w.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}>

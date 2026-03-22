@@ -77,7 +77,7 @@ export default function AdminWorkerWithdrawals() {
                       return (
                         <>
                           <p className="truncate font-medium">{parts[0] || '—'}</p>
-                          {parts[1] && <p className="text-[10px] text-blue-600 mt-0.5 truncate">🌐 {parts[1]}</p>}
+                          {parts[1] && <p className="text-[10px] text-blue-600 mt-0.5 truncate">Nguồn: {parts[1]}</p>}
                         </>
                       );
                     })()}

@@ -549,7 +549,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     const refCode = 'VL-' + Date.now();
     await pool.execute(
       `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'earning', 'earning', 'system', ?, 'completed', ?, ?)`,
-      [task.worker_id, earning, refCode, `Vượt link task #${task.id}`]
+      [task.worker_id, earning, refCode, `${task.keyword || 'Vượt link'} - ${campaign.name} #${task.id}`]
     );
   }
 
@@ -568,7 +568,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
         await pool.execute(
           `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
            VALUES (?, 'earning', 'earning', 'gateway_link', ?, 'completed', ?, ?)`,
-          [wl.worker_id, earning, refCode, `Gateway link /v/${wl.slug} task #${task.id}`]
+          [wl.worker_id, earning, refCode, `${task.keyword || 'Gateway link'} - ${campaign.name} #${task.id}`]
         );
       }
     } catch (e) { console.error('[VuotLink] Gateway link pay error:', e.message); }
