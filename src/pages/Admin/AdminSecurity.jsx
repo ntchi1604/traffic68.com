@@ -362,20 +362,37 @@ export default function AdminSecurity() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [detail, setDetail] = useState(null);
+  const [sort, setSort] = useState('ok');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const LIMIT = 20;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const p = new URLSearchParams({ page, limit: LIMIT });
+      const p = new URLSearchParams({ page, limit: LIMIT, sort });
       if (search) p.set('search', search);
+      if (dateFrom) p.set('from', dateFrom);
+      if (dateTo) p.set('to', dateTo);
       const d = await api.get(`/admin/security/users?${p}`);
       setUsers(d.users || []); setTotal(d.total || 0);
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, [search, page]);
+  }, [search, page, sort, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Quick date presets
+  const setPreset = (days) => {
+    if (days === 0) { setDateFrom(''); setDateTo(''); }
+    else {
+      const now = new Date();
+      const from = new Date(now); from.setDate(now.getDate() - days);
+      setDateFrom(from.toISOString().slice(0, 10));
+      setDateTo(now.toISOString().slice(0, 10));
+    }
+    setPage(1);
+  };
 
   if (detail) return <UserDetail user={detail} onBack={() => { setDetail(null); load(); }} />;
 
@@ -394,11 +411,43 @@ export default function AdminSecurity() {
         </button>
       </div>
 
+      {/* Filters row */}
+      <div className="flex flex-wrap gap-2 items-center">
+        {/* Time presets */}
+        {[['Hôm nay', 1], ['7 ngày', 7], ['30 ngày', 30], ['Tất cả', 0]].map(([l, d]) => {
+          const active = d === 0 ? (!dateFrom && !dateTo) : false;
+          return (
+            <button key={l} onClick={() => setPreset(d)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${active ? 'bg-violet-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            >{l}</button>
+          );
+        })}
+
+        {/* Custom date range */}
+        <div className="flex items-center gap-1 ml-1">
+          <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+            className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-400" />
+          <span className="text-slate-400 text-xs">→</span>
+          <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
+            className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-400" />
+        </div>
+
+        {/* Sort */}
+        <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}
+          className="ml-auto px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-violet-400">
+          <option value="ok">Hoàn thành ↓</option>
+          <option value="blocked">Blocked ↓</option>
+          <option value="earned">Thu nhập ↓</option>
+          <option value="total">Tổng task ↓</option>
+          <option value="last_at">Mới nhất ↓</option>
+        </select>
+      </div>
+
       {/* Search */}
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input
-          placeholder="Tìm tên, email, hoặc IP..."
+          placeholder="Tìm tên, email..."
           value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
           className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400"
         />

@@ -526,7 +526,7 @@ router.get('/security/init', async (req, res) => {
 router.get('/security/users', async (req, res) => {
   try {
     const pool = getPool();
-    const { search, page = 1, limit = 20 } = req.query;
+    const { search, page = 1, limit = 20, from, to, sort = 'ok' } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
     const params = [];
 
@@ -536,10 +536,20 @@ router.get('/security/users', async (req, res) => {
       params.push(`%${search}%`, `%${search}%`);
     }
 
+    // Time filter on tasks
+    let timeWhere = '';
+    const timeParams = [];
+    if (from) { timeWhere += ` AND vt.created_at >= ?`; timeParams.push(from); }
+    if (to) { timeWhere += ` AND vt.created_at <= ?`; timeParams.push(to + ' 23:59:59'); }
+
     // Count all users
     const [cnt] = await pool.execute(
       `SELECT COUNT(*) as total FROM users u WHERE 1=1${searchWhere}`, params
     );
+
+    // Sort mapping
+    const sortMap = { ok: 'ok', blocked: 'blocked', earned: 'earned', total: 'total', last_at: 'last_at' };
+    const orderCol = sortMap[sort] || 'ok';
 
     // Main query — users LEFT JOIN tasks (direct + via gateway links)
     const [rows] = await pool.execute(
@@ -556,12 +566,12 @@ router.get('/security/users', async (req, res) => {
          MAX(vt.created_at) as last_at,
          GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips
        FROM users u
-       LEFT JOIN vuot_link_tasks vt ON (vt.worker_id = u.id OR vt.worker_link_id IN (SELECT wl.id FROM worker_links wl WHERE wl.worker_id = u.id))
+       LEFT JOIN vuot_link_tasks vt ON (vt.worker_id = u.id OR vt.worker_link_id IN (SELECT wl.id FROM worker_links wl WHERE wl.worker_id = u.id))${timeWhere}
        WHERE 1=1${searchWhere}
        GROUP BY u.id
-       ORDER BY blocked DESC, last_at DESC
+       ORDER BY ${orderCol} DESC, last_at DESC
        LIMIT ? OFFSET ?`,
-      [...params, Number(limit), offset]
+      [...timeParams, ...params, Number(limit), offset]
     );
 
     // Security events count per worker (separate simple query)
