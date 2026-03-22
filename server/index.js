@@ -213,6 +213,22 @@ app.use((err, req, res, next) => {
 ║   Health: http://localhost:${PORT}/api/health ║
 ╚════════════════════════════════════════════╝
       `);
+
+      // ── Background job: expire stale tasks every 60s ──
+      setInterval(async () => {
+        try {
+          const { getPool } = require('./db');
+          const pool = getPool();
+          const [result] = await pool.execute(
+            `UPDATE vuot_link_tasks SET status = 'expired'
+             WHERE status IN ('pending','step1','step2','step3')
+             AND expires_at IS NOT NULL AND expires_at < NOW()`
+          );
+          if (result.affectedRows > 0) {
+            console.log(`[Expiry] Expired ${result.affectedRows} stale tasks`);
+          }
+        } catch (e) { /* silent */ }
+      }, 60000);
     });
   } catch (err) {
     console.error('❌ Failed to start server:', err.message);
