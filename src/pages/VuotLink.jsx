@@ -7,21 +7,7 @@ import {
     Copy, Check, ShieldOff,
 } from 'lucide-react';
 
-/* ─── Load FingerprintJS + BotD from server files (same as embed script) ── */
-function loadScript(src) {
-    return new Promise((resolve) => {
-        if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-        const s = document.createElement('script');
-        s.src = src;
-        s.onload = () => resolve();
-        s.onerror = () => resolve();
-        document.head.appendChild(s);
-    });
-}
-
-// CreepJS provides both bot detection and visitorId
-
-// CreepJS — for bot detection (intercept console.log since it doesn't set globals)
+/* ─── CreepJS via iframe (same approach as embed script — avoids console.log conflicts) ── */
 let _creepResult = null;
 let _creepVisitorId = 'unknown';
 let _creepDone = false;
@@ -35,51 +21,57 @@ function _resolveCreep(result) {
     _creepResolvers = [];
 }
 
-if (typeof window !== 'undefined') {
-    // Console already muted by index.html — just need to capture CreepJS data
-    const _savedLog = console.log; // currently a no-op
-    // Override with capture logic
-    console.log = function (...args) {
-        for (const arg of args) {
-            if (arg && typeof arg === 'object' && arg.workerScope && arg.workerScope.lied !== undefined) {
-                let totalLied = 0;
-                const liedSections = [];
-                for (const key in arg) {
-                    if (arg[key] && typeof arg[key] === 'object' && arg[key].lied !== undefined) {
-                        const liedVal = arg[key].lied === true ? 1 : (typeof arg[key].lied === 'number' ? arg[key].lied : 0);
-                        totalLied += liedVal;
-                        if (liedVal > 0) liedSections.push(key + ':' + liedVal);
-                    }
-                }
-                // Use $hash as visitorId
-                if (arg.workerScope && arg.workerScope.$hash) {
-                    _creepVisitorId = arg.workerScope.$hash;
-                }
-                _resolveCreep({
-                    bot: totalLied > 0,
-                    totalLied,
-                    liedSections,
-                    headless: arg.headless || (arg.headlessness ? arg.headlessness.lied : null),
-                    stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null),
-                });
-                console.log = _savedLog;
-                return;
-            }
-        }
-        _savedLog.apply(console, args);
-    };
+// Fallback visitorId from canvas + WebGL fingerprint
+function _generateFallbackId() {
+    try {
+        const cv = document.createElement('canvas');
+        cv.width = 200; cv.height = 50;
+        const ctx = cv.getContext('2d');
+        ctx.textBaseline = 'top';
+        ctx.font = '14px Arial';
+        ctx.fillText('traffic68-fp-' + navigator.userAgent.length, 2, 2);
+        return 'fb-' + cv.toDataURL().slice(-32);
+    } catch { return 'fb-' + Date.now().toString(36); }
+}
 
-    loadScript('/creep.js').catch(() => {
-        console.log = _savedLog;
-        _resolveCreep({ bot: false, creepError: true });
+if (typeof window !== 'undefined') {
+    // Listen for creep-frame.html postMessage
+    window.addEventListener('message', function handler(e) {
+        if (!e.data || e.data.type !== 'creep-result') return;
+        const d = e.data.data;
+        if (d) {
+            if (d.visitorId && d.visitorId !== 'unknown') _creepVisitorId = d.visitorId;
+            _resolveCreep(d.botDetection || { bot: false });
+        }
+        window.removeEventListener('message', handler);
     });
 
+    // Load creep-frame.html in hidden iframe
+    const _loadCreepFrame = () => {
+        const iframe = document.createElement('iframe');
+        iframe.src = '/creep-frame.html';
+        iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.onerror = () => {
+            if (_creepVisitorId === 'unknown') _creepVisitorId = _generateFallbackId();
+            _resolveCreep({ bot: false, creepError: true });
+        };
+        document.body.appendChild(iframe);
+    };
+
+    if (document.body) {
+        _loadCreepFrame();
+    } else {
+        document.addEventListener('DOMContentLoaded', _loadCreepFrame);
+    }
+
+    // Timeout fallback
     setTimeout(() => {
         if (!_creepDone) {
-            console.log = _savedLog;
+            if (_creepVisitorId === 'unknown') _creepVisitorId = _generateFallbackId();
             _resolveCreep({ bot: false, creepTimeout: true });
         }
-    }, 10000);
+    }, 12000);
 }
 
 function getCreepData() {
@@ -87,8 +79,11 @@ function getCreepData() {
     return new Promise(resolve => {
         _creepResolvers.push(r => resolve({ botDetection: r, visitorId: _creepVisitorId }));
         setTimeout(() => {
-            if (!_creepDone) _resolveCreep({ bot: false, creepTimeout: true });
-        }, 10000);
+            if (!_creepDone) {
+                if (_creepVisitorId === 'unknown') _creepVisitorId = _generateFallbackId();
+                _resolveCreep({ bot: false, creepTimeout: true });
+            }
+        }, 12000);
     });
 }
 
