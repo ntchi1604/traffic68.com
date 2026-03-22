@@ -122,7 +122,7 @@ export default function AdminTransactions() {
   const pendingCount = transactions.filter(t => t.status === 'pending').length;
   const totalDeposit = transactions.filter(t => t.type === 'deposit' && t.status === 'completed')
     .reduce((s, t) => s + Number(t.amount), 0);
-  const totalWithdraw = transactions.filter(t => t.type === 'withdraw' && t.status === 'completed')
+  const totalWithdraw = transactions.filter(t => ['withdraw', 'campaign'].includes(t.type) && t.status === 'completed')
     .reduce((s, t) => s + Number(t.amount), 0);
 
   return (
@@ -191,7 +191,7 @@ export default function AdminTransactions() {
         <div className="flex flex-wrap gap-4">
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-semibold text-slate-500">Loại:</span>
-            {['all', 'deposit', 'withdraw', 'commission'].map(t => (
+            {['all', 'deposit', 'withdraw', 'campaign', 'commission'].map(t => (
               <button key={t} onClick={() => setTypeFilter(t)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${typeFilter === t
                   ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
