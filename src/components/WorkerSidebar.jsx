@@ -77,7 +77,7 @@ export default function WorkerSidebar({ isOpen, onClose }) {
             </button>
             {isLinksOpen && (
               <div className="ml-2 space-y-1">
-                <NavLink to="/worker/dashboard/links"
+                <NavLink to="/worker/dashboard/links" end
                   className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
                   <List className="w-4 h-4" />
                   Tất cả liên kết

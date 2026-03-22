@@ -7,7 +7,7 @@ import api from '../../lib/api';
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
 
 export default function HiddenLinks() {
-  usePageTitle('Nhiệm vụ hết hạn');
+  usePageTitle('Liên kết ẩn');
   const [tasks, setTasks] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -25,9 +25,9 @@ export default function HiddenLinks() {
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Nhiệm vụ hết hạn' }]} />
+      <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Liên kết ẩn' }]} />
       <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Nhiệm vụ hết hạn</h1>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Liên kết ẩn</h1>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-5">
@@ -42,7 +42,7 @@ export default function HiddenLinks() {
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center">
             <EyeOff size={48} className="mx-auto text-slate-200 mb-3" />
-            <p className="text-slate-400 font-medium">Không có nhiệm vụ hết hạn</p>
+            <p className="text-slate-400 font-medium">Không có liên kết ẩn</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
