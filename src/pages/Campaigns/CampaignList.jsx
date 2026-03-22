@@ -232,7 +232,7 @@ export default function CampaignList() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-4">
           {filtered.map(c => {
             const isDone = Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0;
             const effStatus = isDone ? 'completed' : c.status;
