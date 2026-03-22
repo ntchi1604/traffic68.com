@@ -53,6 +53,156 @@ function isWithin24h(dateStr) {
   return Date.now() - new Date(dateStr).getTime() < 24 * 60 * 60 * 1000;
 }
 
+const SOURCE_LABEL_MAP = { google_search: 'Google Search', social: 'Social', direct: 'Direct' };
+
+function CampaignDetailModal({ campaign: c, detail, onClose }) {
+  if (!c) return null;
+  const done  = Number(c.views_done || 0);
+  const total = Number(c.total_views || 1);
+  const pct   = Math.min(Math.round((done / total) * 100), 100);
+  const spent = done * Number(c.cpc || 0);
+  const eff   = detail?.totalViews > 0 ? Math.round((detail.totalClicks / detail.totalViews) * 100) : 0;
+
+  const deviceData = [
+    { name: 'Desktop', value: detail?.desktop || 0, color: '#3B82F6' },
+    { name: 'Mobile',  value: detail?.mobile  || 0, color: '#8B5CF6' },
+    { name: 'Tablet',  value: detail?.tablet  || 0, color: '#F59E0B' },
+  ].filter(d => d.value > 0);
+
+  const dailyData = (detail?.rows || []).map(r => ({
+    date: fmtDay(r.date),
+    'Ho\u00e0n th\u00e0nh': Number(r.clicks || 0),
+    'Nh\u1eadn task': Number(r.views || 0),
+  }));
+
+  const kpis = [
+    { label: 'Ho\u00e0n th\u00e0nh', value: fmt(detail?.totalClicks || 0), sub: `/ ${fmt(detail?.totalViews || 0)} nh\u1eadn task`, color: '#10B981', bg: '#ECFDF5' },
+    { label: 'Chi ph\u00ed', value: `${fmt(spent)} \u0111`, sub: `CPC: ${fmt(c.cpc)} \u0111`, color: '#F97316', bg: '#FFF7ED' },
+    { label: 'Hi\u1ec7u su\u1ea5t', value: `${eff}%`, sub: 'ho\u00e0n th\u00e0nh / nh\u1eadn task', color: '#3B82F6', bg: '#EFF6FF' },
+    { label: 'Unique IPs', value: fmt(detail?.uniqueIps || 0), sub: 'IP kh\u00e1c nhau', color: '#8B5CF6', bg: '#F5F3FF' },
+  ];
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 860, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 32px 80px rgba(0,0,0,0.25)', animation: 'ln-up .25s ease both' }}>
+        {/* Header */}
+        <div style={{ padding: '24px 28px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Chi ti\u1ebft chi\u1ebfn d\u1ecbch</p>
+            <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: 0 }}>{c.name}</h2>
+            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{c.url}</p>
+          </div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#f1f5f9', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>\u2715</button>
+        </div>
+
+        <div style={{ padding: '20px 28px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Progress bar */}
+          <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+              <span style={{ fontWeight: 600, color: '#64748b' }}>Ti\u1ebfn \u0111\u1ed9</span>
+              <span style={{ fontWeight: 800, color: '#0f172a' }}>{fmt(done)} / {fmt(total)} views ({pct}%)</span>
+            </div>
+            <div style={{ height: 8, background: '#e2e8f0', borderRadius: 99 }}>
+              <div style={{ height: 8, borderRadius: 99, background: pct >= 100 ? '#10b981' : '#3b82f6', width: `${pct}%`, transition: 'width 0.5s ease' }} />
+            </div>
+          </div>
+
+          {/* KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+            {!detail ? (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: 13 }}>\u0110ang t\u1ea3i d\u1eef li\u1ec7u...</div>
+            ) : kpis.map(k => (
+              <div key={k.label} style={{ background: k.bg, borderRadius: 12, padding: '14px 16px' }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: k.color, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{k.label}</p>
+                <p style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', margin: 0 }}>{k.value}</p>
+                <p style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{k.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {detail && <>{
+            /* Charts row */
+          }
+            <div style={{ display: 'grid', gridTemplateColumns: dailyData.length > 0 ? '1.6fr 1fr' : '1fr', gap: 16 }}>
+              {/* Area chart */}
+              {dailyData.length > 0 && (
+                <div style={{ background: '#f8fafc', borderRadius: 14, padding: '16px 16px 8px' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 12 }}>Ho\u00e0n th\u00e0nh theo ng\u00e0y</p>
+                  <div style={{ height: 180 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={dailyData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="gDet" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#10B981" stopOpacity={0.3} />
+                            <stop offset="100%" stopColor="#10B981" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                        <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={28} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Area type="monotone" dataKey="Ho\u00e0n th\u00e0nh" stroke="#10B981" fill="url(#gDet)" strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: '#10B981' }} />
+                        <Area type="monotone" dataKey="Nh\u1eadn task" stroke="#3B82F6" fill="none" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+              {/* Donut chart */}
+              {deviceData.length > 0 && (
+                <div style={{ background: '#f8fafc', borderRadius: 14, padding: '16px 16px 8px' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>Thi\u1ebft b\u1ecb</p>
+                  <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={deviceData} cx="50%" cy="50%" innerRadius={40} outerRadius={62} dataKey="value" paddingAngle={3}>
+                          {deviceData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                        </Pie>
+                        <Tooltip formatter={v => [v.toLocaleString('vi-VN'), '']} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', paddingBottom: 8 }}>
+                    {deviceData.map(d => (
+                      <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#475569' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, display: 'inline-block' }} />
+                        {d.name}: {d.value.toLocaleString('vi-VN')}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Info */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+              {[
+                { label: 'Ngu\u1ed3n traffic', value: SOURCE_LABEL_MAP[c.traffic_type] || c.traffic_type || '\u2014' },
+                { label: 'T\u1eeb kh\u00f3a', value: c.keyword || '\u2014' },
+                { label: 'Th\u1eddi gian xem', value: c.time_on_site ? `${c.time_on_site}s` : '\u2014' },
+              ].map(item => (
+                <div key={item.label} style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px' }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{item.label}</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </>}
+        </div>
+      </div>
+      {/* Campaign Detail Modal */}
+      <CampaignDetailModal
+        campaign={modalCamp}
+        detail={modalCamp ? campDetails[modalCamp.id] : null}
+        onClose={closeDetail}
+      />
+    </div>
+  );
+}
+
 export default function TrafficTracking() {
   usePageTitle('Theo dõi lưu lượng');
   const [range, setRange] = useState('7d');
@@ -63,8 +213,9 @@ export default function TrafficTracking() {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [expandedId, setExpandedId] = useState(null);
-  const [campDetails, setCampDetails] = useState({});
+  const [expandedId, setExpandedId] = useState(null);   // campId of open modal
+  const [campDetails, setCampDetails] = useState({});    // { [campId]: detail }
+  const [modalCamp, setModalCamp] = useState(null);      // full campaign object for open modal
 
   useEffect(() => {
     setLoading(true);
@@ -81,22 +232,25 @@ export default function TrafficTracking() {
     }).catch(console.error).finally(() => setLoading(false));
   }, [range, refreshKey]);
 
-  const toggleDetail = async (campId) => {
-    if (expandedId === campId) { setExpandedId(null); return; }
-    setExpandedId(campId);
-    if (campDetails[campId]) return; // already fetched
+  const openDetail = async (camp) => {
+    setModalCamp(camp);
+    setExpandedId(camp.id);
+    if (campDetails[camp.id]) return;
     try {
-      const data = await api.get(`/reports/traffic?campaignId=${campId}&period=${range}`);
+      const data = await api.get(`/reports/traffic?campaignId=${camp.id}&period=${range}`);
       const rows = data.traffic || [];
-      const bd = data.byDevice || [];
+      const bd   = data.byDevice || [];
       const totalClicks = rows.reduce((s, t) => s + Number(t.clicks || 0), 0);
       const totalViews  = rows.reduce((s, t) => s + Number(t.views  || 0), 0);
+      const uniqueIps   = rows.reduce((s, t) => s + Number(t.unique_ips || 0), 0);
       const mobile  = bd.find(x => x.name === 'Mobile')?.value  || 0;
       const desktop = bd.find(x => x.name === 'Desktop')?.value || 0;
       const tablet  = bd.find(x => x.name === 'Tablet')?.value  || 0;
-      setCampDetails(prev => ({ ...prev, [campId]: { totalClicks, totalViews, mobile, desktop, tablet } }));
+      setCampDetails(prev => ({ ...prev, [camp.id]: { totalClicks, totalViews, uniqueIps, mobile, desktop, tablet, rows } }));
     } catch { }
   };
+
+  const closeDetail = () => { setExpandedId(null); setModalCamp(null); };
 
   // "View" = lượt vượt link hoàn thành = cột `clicks` trong traffic_logs
   const totalCompleted = traffic.reduce((s, t) => s + Number(t.clicks || 0), 0);
@@ -290,51 +444,14 @@ export default function TrafficTracking() {
                       </td>
                       <td className="px-6 py-4 text-right font-semibold text-slate-800">{fmt(c.budget)} đ</td>
                       <td className="px-6 py-4 text-center">
-                        <button onClick={() => toggleDetail(c.id)}
-                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                            isExpanded ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                          }`}>
-                          {isExpanded ? '▲ Ẩn' : '▼ Xem'}
+                        <button onClick={() => openDetail(c)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-700 transition">
+                          📊 Xem
                         </button>
                       </td>
                     </tr>
-                    {isExpanded && (
-                      <tr className="bg-blue-50/40">
-                        <td colSpan={6} className="px-8 py-4">
-                          {!det ? (
-                            <p className="text-xs text-slate-400">Đang tải...</p>
-                          ) : (
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                              <div className="bg-white rounded-xl p-3 border border-blue-100">
-                                <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Hoàn thành</p>
-                                <p className="text-base font-black text-emerald-600">{fmt(det.totalClicks)}</p>
-                                <p className="text-[10px] text-slate-400">/ {fmt(det.totalViews)} nhận task</p>
-                              </div>
-                              <div className="bg-white rounded-xl p-3 border border-blue-100">
-                                <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Chi phí đã dùng</p>
-                                <p className="text-base font-black text-orange-600">{fmt(Number(c.views_done || 0) * Number(c.cpc || 0))} đ</p>
-                                <p className="text-[10px] text-slate-400">CPC: {fmt(c.cpc)} đ</p>
-                              </div>
-                              <div className="bg-white rounded-xl p-3 border border-blue-100">
-                                <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Thiết bị</p>
-                                <div className="flex gap-2 mt-1 flex-wrap">
-                                  <span className="text-[10px] bg-blue-100 text-blue-700 rounded px-1.5 py-0.5 font-semibold">💻 {fmt(det.desktop)}</span>
-                                  <span className="text-[10px] bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 font-semibold">📱 {fmt(det.mobile)}</span>
-                                  {det.tablet > 0 && <span className="text-[10px] bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 font-semibold">📲 {fmt(det.tablet)}</span>}
-                                </div>
-                              </div>
-                              <div className="bg-white rounded-xl p-3 border border-blue-100">
-                                <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Thông tin</p>
-                                <p className="text-[10px] text-slate-600">T/k: <span className="font-semibold">{c.keyword || '—'}</span></p>
-                                <p className="text-[10px] text-slate-600">Time: <span className="font-semibold">{c.time_on_site || '—'}s</span></p>
-                              </div>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    )}
                   </>
-                );
+                  );
               })}
             </tbody>
           </table>
