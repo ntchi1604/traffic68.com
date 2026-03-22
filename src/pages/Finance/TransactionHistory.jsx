@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
-import { ArrowDownCircle, ArrowUpCircle, Wallet } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Wallet, Gift } from 'lucide-react';
 import api from '../../lib/api';
 import { formatMoney } from '../../lib/format';
 
@@ -37,7 +37,10 @@ export default function TransactionHistory() {
   const fmt = (n) => formatMoney(n);
 
   const totalDeposit = transactions
-    .filter(t => (t.type === 'deposit' || t.type === 'commission') && t.status === 'completed')
+    .filter(t => t.type === 'deposit' && t.status === 'completed')
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const totalCommission = transactions
+    .filter(t => t.type === 'commission' && t.status === 'completed')
     .reduce((s, t) => s + Number(t.amount), 0);
   const totalWithdraw = transactions
     .filter(t => (t.type === 'withdraw' || t.type === 'campaign') && t.status === 'completed')
@@ -72,7 +75,7 @@ export default function TransactionHistory() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border-l-4 border-l-green-400 border border-slate-200 p-4 flex items-center gap-3">
           <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
             <ArrowDownCircle size={20} className="text-green-600" />
@@ -80,6 +83,15 @@ export default function TransactionHistory() {
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase">Tổng nạp</p>
             <p className="text-lg font-black text-green-600">+{fmt(totalDeposit)} ₫</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border-l-4 border-l-orange-400 border border-slate-200 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+            <Gift size={20} className="text-orange-600" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase">Hoa hồng</p>
+            <p className="text-lg font-black text-orange-600">+{fmt(totalCommission)} ₫</p>
           </div>
         </div>
         <div className="bg-white rounded-xl border-l-4 border-l-red-400 border border-slate-200 p-4 flex items-center gap-3">
