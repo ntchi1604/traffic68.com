@@ -48,7 +48,6 @@ CREATE TABLE IF NOT EXISTS campaigns (
   time_on_site VARCHAR(50)  DEFAULT '60-120',
   image1_url   TEXT DEFAULT NULL,
   image2_url   TEXT DEFAULT NULL,
-  widget_id    INT DEFAULT NULL,
   status       VARCHAR(20)  NOT NULL DEFAULT 'running',
   views_done   INT NOT NULL DEFAULT 0,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
