@@ -7,16 +7,17 @@ router.use(authMiddleware);
 
 // ── POST /api/support/tickets ──
 router.post('/tickets', async (req, res) => {
-  const { subject, description, priority } = req.body;
+  const { subject, description, priority, role } = req.body;
   if (!subject) return res.status(400).json({ error: 'Chủ đề là bắt buộc' });
 
   const pool = getPool();
   const validPriority = ['low', 'medium', 'high', 'urgent'];
   const prio = validPriority.includes(priority) ? priority : 'medium';
+  const ticketRole = ['buyer', 'worker'].includes(role) ? role : 'worker';
 
   const [result] = await pool.execute(
-    `INSERT INTO support_tickets (user_id, subject, description, priority) VALUES (?, ?, ?, ?)`,
-    [req.userId, subject, description || '', prio]
+    `INSERT INTO support_tickets (user_id, subject, description, priority, role) VALUES (?, ?, ?, ?, ?)`,
+    [req.userId, subject, description || '', prio, ticketRole]
   );
 
   await pool.execute(
@@ -30,7 +31,15 @@ router.post('/tickets', async (req, res) => {
 // ── GET /api/support/tickets ──
 router.get('/tickets', async (req, res) => {
   const pool = getPool();
-  const [tickets] = await pool.execute('SELECT * FROM support_tickets WHERE user_id = ? ORDER BY created_at DESC', [req.userId]);
+  const { role } = req.query;
+  let sql = 'SELECT * FROM support_tickets WHERE user_id = ?';
+  const params = [req.userId];
+  if (role && ['buyer', 'worker'].includes(role)) {
+    sql += ' AND role = ?';
+    params.push(role);
+  }
+  sql += ' ORDER BY created_at DESC';
+  const [tickets] = await pool.execute(sql, params);
   res.json({ tickets });
 });
 

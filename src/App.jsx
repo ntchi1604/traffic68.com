@@ -36,6 +36,7 @@ import UserProfileAndAccountSettings from './pages/General/UserProfileAndAccount
 import ScriptGenerator from './pages/Script/ScriptGenerator';
 import UserPricing from './pages/Dashboard/UserPricing';
 import UserReferral from './pages/General/UserReferral';
+import BuyerSupport from './pages/Campaigns/BuyerSupport';
 
 /* ── Worker (shortlink) pages ── */
 import WorkerDashboardLayout from './components/WorkerDashboardLayout';
@@ -129,7 +130,7 @@ function Layout() {
           <Route path="finance/deposit" element={<Deposit />} />
           <Route path="finance/transactions" element={<TransactionHistory />} />
           <Route path="script" element={<ScriptGenerator />} />
-          <Route path="support" element={<SettingsAndSupport />} />
+          <Route path="support" element={<BuyerSupport />} />
           <Route path="pricing" element={<UserPricing />} />
           <Route path="referral" element={<UserReferral />} />
           <Route path="profile" element={<UserProfileAndAccountSettings />} />

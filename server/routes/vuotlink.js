@@ -182,14 +182,11 @@ async function _handleTaskPost(req, res) {
     const realLies = isMobileDevice ? lied.filter(s => !mobileSafe.some(safe => s === safe || s.startsWith(safe + ':'))) : lied;
 
     if (isMobileDevice) {
-      // Mobile: CreepJS is unreliable (bot=true, clientRects lies are common false positives)
-      // Only log, don't block — let behavior analysis be the gatekeeper
       if (botDetection.bot === true || realLies.length > 0) {
         console.log(`[VuotLink] ⚠️ CreepJS mobile warning (NOT blocking): IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
         logSecurityEvent('creep_detected', ip, ua, visitorId, { ...botDetection, mobileToleranceApplied: true });
       }
     } else {
-      // Desktop: block on bot=true or any real lies
       if (botDetection.bot === true || realLies.length > 0) {
         console.log(`[VuotLink] 🚫 CreepJS BLOCKED: IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
         logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);

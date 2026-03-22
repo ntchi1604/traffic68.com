@@ -129,10 +129,11 @@ export default function AdminConfig() {
               <div className="shrink-0">
                 {field.type === 'toggle' ? (
                   <button
+                    type="button"
                     onClick={() => updateField(field.key, config[field.key] === 'true' ? 'false' : 'true')}
-                    className={`relative w-14 h-7 rounded-full transition-colors ${config[field.key] === 'true' ? 'bg-green-500' : 'bg-slate-300'}`}
+                    className={`relative inline-flex w-14 h-7 rounded-full transition-colors duration-200 ${config[field.key] === 'true' ? 'bg-green-500' : 'bg-slate-300'}`}
                   >
-                    <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${config[field.key] === 'true' ? 'translate-x-7' : 'translate-x-0.5'}`} />
+                    <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-200 ${config[field.key] === 'true' ? 'translate-x-7' : 'translate-x-0'}`} />
                   </button>
                 ) : (
                   <input

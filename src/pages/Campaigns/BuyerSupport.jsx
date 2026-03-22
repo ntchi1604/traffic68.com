@@ -5,7 +5,7 @@ import { useToast } from '../../components/Toast';
 import { HelpCircle, MessageCircle, Send, Clock, CheckCircle2 } from 'lucide-react';
 import api from '../../lib/api';
 
-export default function WorkerSupport() {
+export default function BuyerSupport() {
   usePageTitle('Hỗ trợ');
   const toast = useToast();
   const [tickets, setTickets] = useState([]);
@@ -15,7 +15,7 @@ export default function WorkerSupport() {
   const [sending, setSending] = useState(false);
 
   const fetchTickets = () => {
-    api.get('/support/tickets?role=worker')
+    api.get('/support/tickets?role=buyer')
       .then(d => { setTickets(d.tickets || []); setLoading(false); })
       .catch(() => setLoading(false));
   };
@@ -27,7 +27,7 @@ export default function WorkerSupport() {
     if (!subject.trim() || !message.trim()) return;
     setSending(true);
     try {
-      await api.post('/support/tickets', { subject, description: message, priority: 'medium', role: 'worker' });
+      await api.post('/support/tickets', { subject, description: message, priority: 'medium', role: 'buyer' });
       toast.success('Gửi yêu cầu thành công!', 'Hỗ trợ');
       setSubject('');
       setMessage('');
@@ -40,7 +40,7 @@ export default function WorkerSupport() {
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Hỗ trợ' }]} />
+      <Breadcrumb items={[{ label: 'Dashboard', to: '/buyer/dashboard' }, { label: 'Hỗ trợ' }]} />
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Hỗ trợ kỹ thuật</h1>
         <p className="text-slate-500 text-sm mt-1">Gửi yêu cầu hỗ trợ hoặc báo cáo lỗi</p>
@@ -54,7 +54,7 @@ export default function WorkerSupport() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tiêu đề *</label>
-              <input type="text" value={subject} onChange={e => setSubject(e.target.value)} placeholder="VD: Không nhận được thu nhập..." required
+              <input type="text" value={subject} onChange={e => setSubject(e.target.value)} placeholder="VD: Chiến dịch không chạy..." required
                 className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
             </div>
             <div>

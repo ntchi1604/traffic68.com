@@ -205,6 +205,10 @@ app.use((err, req, res, next) => {
       }
     } catch (e) { console.error('  ⚠ Earning balance recalc:', e.message); }
 
+    // support_tickets: add role + admin_reply columns
+    try { await pool.execute(`ALTER TABLE support_tickets ADD COLUMN role VARCHAR(10) DEFAULT 'worker'`); } catch (e) {}
+    try { await pool.execute(`ALTER TABLE support_tickets ADD COLUMN admin_reply TEXT DEFAULT NULL`); } catch (e) {}
+
     app.listen(PORT, () => {
       console.log(`
 ╔════════════════════════════════════════════╗
