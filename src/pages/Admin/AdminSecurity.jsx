@@ -85,6 +85,7 @@ function TaskModal({ task: t, onClose }) {
           <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
             {[
               ['Nguồn', t.worker_link_id ? `Gateway /${t.gateway_slug || ''}` : 'Vượt link'],
+              ['Visitor ID', t.visitor_id || '—'],
               ['Keyword', t.keyword],
               ['URL đích', t.target_url],
               ['Chiến dịch', t.campaign_name || `#${t.campaign_id}`],
