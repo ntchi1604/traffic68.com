@@ -189,7 +189,7 @@ export default function TrafficTracking() {
             <h2 className="text-base font-bold text-slate-900">Lượt xem theo ngày</h2>
             <p className="text-xs text-slate-500 mt-0.5">Biểu đồ lưu lượng truy cập link</p>
           </div>
-          <span className="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full font-medium">Tổng {fmt(totalViews)} views</span>
+          <span className="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full font-medium">Tổng {fmt(totalCompleted)} views</span>
         </div>
         {chartData.length === 0 ? (
           <div className="h-64 flex items-center justify-center text-slate-400 text-sm">Chưa có dữ liệu</div>
