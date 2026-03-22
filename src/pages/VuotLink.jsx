@@ -238,6 +238,10 @@ export default function VuotLink() {
 
     /* ─── Fetch task from API on mount ─────────────── */
     useEffect(() => {
+        // Wait for linkInfo to be loaded before fetching task
+        // (slug exists → must wait for linkInfo from /api/shortlink/info)
+        if (slug && !linkInfo) return;
+
         let cancelled = false;
         (async () => {
             try {
