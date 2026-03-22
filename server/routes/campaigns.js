@@ -105,23 +105,19 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: `Số dư ví không đủ. Cần ${realBudget} VNĐ, hiện có ${wallets[0]?.balance || 0} VNĐ` });
     }
 
+    // Calculate CPC (buyer cost per view) from pricing
+    const calculatedCpc = _totalViews > 0 ? Math.round(realBudget / _totalViews) : (cpc || 0);
+
     const [result] = await pool.execute(
       `INSERT INTO campaigns (user_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, target_page, time_on_site, image1_url, image2_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, cpc || 0, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite, image1_url || null, image2_url || null]
+      [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite, image1_url || null, image2_url || null]
     );
 
-    if (realBudget > 0) {
-      await pool.execute('UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = ?', [realBudget, req.userId, 'main']);
-      const refCode = 'CMP-' + Date.now();
-      await pool.execute(
-        `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [req.userId, 'main', 'campaign', 'system', realBudget, 'completed', refCode, `Tạo chiến dịch: ${name}`]
-      );
-    }
+    // Tiền KHÔNG trừ ngay — sẽ trừ dần mỗi khi worker hoàn thành task
 
     await pool.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
-      [req.userId, 'Chiến dịch mới được tạo', `Chiến dịch "${name}" đã được tạo thành công.`, 'success', 'buyer']
+      [req.userId, 'Chiến dịch mới được tạo', `Chiến dịch "${name}" đã được tạo thành công. Ngân sách ${realBudget.toLocaleString('vi-VN')} đ sẽ trừ dần theo lượt xem.`, 'success', 'buyer']
     );
 
     const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [result.insertId]);

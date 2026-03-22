@@ -391,12 +391,42 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   }
 
   // Code correct! → Complete task, count as 1 view
-  const [campaigns] = await pool.execute('SELECT cpc, user_id, traffic_type, time_on_site, version FROM campaigns WHERE id = ?', [task.campaign_id]);
+  const [campaigns] = await pool.execute('SELECT cpc, user_id, traffic_type, time_on_site, version, name FROM campaigns WHERE id = ?', [task.campaign_id]);
   if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
   const campaign = campaigns[0];
 
-  // Worker earning from worker_pricing_tiers (separate table managed by admin)
-  let earning = campaign.cpc; // fallback to campaign CPC
+  // ── Buyer CPC: look up from pricing_tiers (giá admin set cho buyer) ──
+  let buyerCpc = campaign.cpc || 0;
+  try {
+    const duration = (campaign.time_on_site || '60').split('-')[0] + 's';
+    const [bptRows] = await pool.execute(
+      'SELECT v1_price, v2_price FROM pricing_tiers WHERE traffic_type = ? AND duration = ?',
+      [campaign.traffic_type || 'google_search', duration]
+    );
+    if (bptRows.length > 0) {
+      buyerCpc = campaign.version === 2 ? bptRows[0].v2_price : bptRows[0].v1_price;
+    }
+  } catch (e) {
+    console.error('[VuotLink] Buyer CPC lookup error:', e.message);
+  }
+
+  // ── Check buyer balance ──
+  const [buyerWallets] = await pool.execute(
+    "SELECT balance FROM wallets WHERE user_id = ? AND type = 'main'", [campaign.user_id]
+  );
+  if ((buyerWallets[0]?.balance || 0) < buyerCpc) {
+    // Hết tiền → auto-pause, task hoàn thành nhưng không trả
+    await pool.execute("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [task.campaign_id]);
+    const now2 = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await pool.execute(
+      `UPDATE vuot_link_tasks SET status = 'completed', completed_at = ?, time_on_site = ?, earning = 0 WHERE id = ?`,
+      [now2, Math.floor((Date.now() - new Date(task.created_at).getTime()) / 1000), task.id]
+    );
+    return res.json({ success: true, message: 'Chiến dịch hết ngân sách', earning: 0, destinationUrl: null });
+  }
+
+  // ── Worker earning: look up from worker_pricing_tiers (giá admin set cho worker) ──
+  let earning = campaign.cpc;
   try {
     const duration = (campaign.time_on_site || '60').split('-')[0] + 's';
     const [wptRows] = await pool.execute(
@@ -404,8 +434,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
       [campaign.traffic_type || 'google_search', duration]
     );
     if (wptRows.length > 0) {
-      const wpt = wptRows[0];
-      earning = campaign.version === 2 ? wpt.v2_price : wpt.v1_price;
+      earning = campaign.version === 2 ? wptRows[0].v2_price : wptRows[0].v1_price;
     }
   } catch (e) {
     console.error('[VuotLink] Worker pricing lookup error:', e.message);
@@ -418,7 +447,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   let ipCountry = null;
   try {
     const ip = task.ip_address || '';
-    const cleanIp = ip.replace(/^::ffff:/, ''); // strip IPv6 prefix
+    const cleanIp = ip.replace(/^::ffff:/, '');
     const geo = geoip.lookup(cleanIp);
     if (geo && geo.country) ipCountry = geo.country;
   } catch (_) { }
@@ -428,14 +457,14 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     [now, timeOnSite, earning, ipCountry, task.id]
   );
 
-  // Count view for campaign — auto-complete when target reached
+  // Count view + auto-complete
   await pool.execute('UPDATE campaigns SET views_done = views_done + 1 WHERE id = ?', [task.campaign_id]);
   await pool.execute(
     `UPDATE campaigns SET status = 'completed' WHERE id = ? AND views_done >= total_views AND status != 'completed'`,
     [task.campaign_id]
   );
 
-  // Update traffic log — clicks = successful code retrieval, device tracking
+  // Traffic log
   const today = new Date().toISOString().slice(0, 10);
   const ua = (task.user_agent || '').toLowerCase();
   const isTablet = /ipad|tablet|kindle|playbook|silk|(android(?!.*mobile))/i.test(ua);
@@ -444,10 +473,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
 
   const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [task.campaign_id, today]);
   if (logs.length > 0) {
-    await pool.execute(
-      `UPDATE traffic_logs SET clicks = clicks + 1, ${deviceCol} = ${deviceCol} + 1 WHERE id = ?`,
-      [logs[0].id]
-    );
+    await pool.execute(`UPDATE traffic_logs SET clicks = clicks + 1, ${deviceCol} = ${deviceCol} + 1 WHERE id = ?`, [logs[0].id]);
   } else {
     await pool.execute(
       `INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source, ${deviceCol}) VALUES (?, ?, 1, 1, 1, ?, 1)`,
@@ -455,7 +481,17 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     );
   }
 
-  // Pay worker earning (standard task — not via gateway link)
+  // ── Trừ tiền buyer (theo giá set) ──
+  if (buyerCpc > 0) {
+    await pool.execute("UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main'", [buyerCpc, campaign.user_id]);
+    const buyerRef = 'VW-' + Date.now();
+    await pool.execute(
+      `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'completed', ?, ?)`,
+      [campaign.user_id, buyerCpc, buyerRef, `Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id})`]
+    );
+  }
+
+  // ── Cộng tiền worker (theo giá set) ──
   let paidWorkerId = null;
   if (task.worker_id && !task.worker_link_id) {
     paidWorkerId = task.worker_id;
