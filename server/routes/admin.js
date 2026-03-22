@@ -187,10 +187,31 @@ router.get('/campaigns', async (req, res) => {
 
 // ── PUT /api/admin/campaigns/:id ──
 router.put('/campaigns/:id', async (req, res) => {
-  const pool = getPool();
-  const { status } = req.body;
-  await pool.execute('UPDATE campaigns SET status = ? WHERE id = ?', [status, req.params.id]);
-  res.json({ message: 'Đã cập nhật chiến dịch' });
+  try {
+    const pool = getPool();
+    const { status, name, url, url2, keyword, dailyViews, image1_url, image2_url, totalViews, budget, cpc, trafficType, version, timeOnSite, targetPage } = req.body;
+    const n = (v) => v === undefined ? null : v;
+
+    // If only status is provided (legacy quick-update)
+    if (status && Object.keys(req.body).length === 1) {
+      await pool.execute('UPDATE campaigns SET status = ? WHERE id = ?', [status, req.params.id]);
+      return res.json({ message: 'Đã cập nhật trạng thái' });
+    }
+
+    await pool.execute(
+      `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), url2=COALESCE(?,url2), keyword=COALESCE(?,keyword),
+       daily_views=COALESCE(?,daily_views), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url),
+       total_views=COALESCE(?,total_views), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc),
+       traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), time_on_site=COALESCE(?,time_on_site),
+       target_page=COALESCE(?,target_page), status=COALESCE(?,status) WHERE id = ?`,
+      [n(name), n(url), n(url2), n(keyword), n(dailyViews), n(image1_url), n(image2_url),
+       n(totalViews), n(budget), n(cpc), n(trafficType), n(version), n(timeOnSite), n(targetPage), n(status), req.params.id]
+    );
+    const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Cập nhật thành công', campaign: campaigns[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── GET /api/admin/transactions ──

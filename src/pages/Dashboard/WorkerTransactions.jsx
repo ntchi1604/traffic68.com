@@ -29,7 +29,7 @@ export default function WorkerTransactions() {
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams({ scope: 'worker' });
     if (filter !== 'all') params.set('type', filter);
     api.get(`/finance/transactions?${params}`)
       .then(d => { setTransactions(d.transactions || []); setLoading(false); })

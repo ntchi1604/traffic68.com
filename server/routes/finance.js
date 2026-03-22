@@ -51,12 +51,24 @@ router.post('/deposits', async (req, res) => {
 // ── GET /api/transactions ──
 router.get('/transactions', async (req, res) => {
   const pool = getPool();
-  const { type, period } = req.query;
+  const { type, period, scope } = req.query;
 
-  let sql = "SELECT * FROM transactions WHERE user_id = ? AND wallet_type IN ('main', 'commission')";
-  const params = [req.userId];
+  // Strict separation: buyer sees only 'main', worker sees only 'earning'
+  const walletType = scope === 'worker' ? 'earning' : 'main';
 
-  if (type && type !== 'all') { sql += ' AND type = ?'; params.push(type); }
+  let sql = `SELECT * FROM transactions WHERE user_id = ? AND wallet_type = ?`;
+  const params = [req.userId, walletType];
+
+  if (type && type !== 'all') {
+    if (type === 'commission') {
+      // Special case: show commission wallet instead
+      sql = `SELECT * FROM transactions WHERE user_id = ? AND wallet_type = 'commission'`;
+      params.length = 0;
+      params.push(req.userId);
+    } else {
+      sql += ' AND type = ?'; params.push(type);
+    }
+  }
 
   if (period && period !== 'all') {
     const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 0;
