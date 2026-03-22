@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import {
   Shield, Search, RefreshCw, X, Eye, Copy, Check,
@@ -396,6 +396,9 @@ function IPAnalysis() {
   const [sort, setSort] = useState('tasks');
   const [days, setDays] = useState(7);
   const [page, setPage] = useState(1);
+  const [expandedIp, setExpandedIp] = useState(null);
+  const [ipDetail, setIpDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const LIMIT = 30;
 
   const load = useCallback(async () => {
@@ -409,13 +412,24 @@ function IPAnalysis() {
 
   useEffect(() => { load(); }, [load]);
 
+  const toggleDetail = async (ipAddr) => {
+    if (expandedIp === ipAddr) { setExpandedIp(null); setIpDetail(null); return; }
+    setExpandedIp(ipAddr);
+    setDetailLoading(true);
+    try {
+      const d = await api.get(`/admin/security/ip/${ipAddr}`);
+      setIpDetail(d);
+    } catch (e) { console.error(e); setIpDetail(null); }
+    setDetailLoading(false);
+  };
+
   return (
     <div className="space-y-4">
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          ['IP duy nhất', summary.total_ips || 0, 'text-blue-600'],
-          ['Tổng tasks', summary.total_tasks || 0, 'text-slate-800'],
+          ['IP duy nhat', summary.total_ips || 0, 'text-blue-600'],
+          ['Tong tasks', summary.total_tasks || 0, 'text-slate-800'],
           ['Bot detected', summary.total_bots || 0, 'text-red-600'],
           ['Workers', summary.total_workers || 0, 'text-emerald-600'],
         ].map(([l, v, c]) => (
@@ -428,17 +442,17 @@ function IPAnalysis() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
-        {[['7 ngày', 7], ['14 ngày', 14], ['30 ngày', 30]].map(([l, d]) => (
+        {[['7 ngay', 7], ['14 ngay', 14], ['30 ngay', 30]].map(([l, d]) => (
           <button key={d} onClick={() => { setDays(d); setPage(1); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${days === d ? 'bg-violet-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
           >{l}</button>
         ))}
         <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}
           className="ml-auto px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 bg-white">
-          <option value="tasks">Tasks nhiều nhất</option>
-          <option value="blocked">Blocked nhiều nhất</option>
-          <option value="workers">Nhiều worker</option>
-          <option value="incomplete">Tỷ lệ thất bại cao</option>
+          <option value="tasks">Tasks nhieu nhat</option>
+          <option value="blocked">Blocked nhieu nhat</option>
+          <option value="workers">Nhieu worker</option>
+          <option value="incomplete">Ty le that bai cao</option>
         </select>
       </div>
 
@@ -448,41 +462,148 @@ function IPAnalysis() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                {['IP', 'Tasks', 'OK', 'Expired', 'Bot', 'Blocked', 'Workers', 'Devices', 'Thất bại %', 'Hoạt động'].map(h => (
-                  <th key={h} className={`px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px] ${h === 'IP' || h === 'Hoạt động' ? 'text-left' : 'text-center'}`}>{h}</th>
+                {['IP', 'Tasks', 'OK', 'Expired', 'Bot', 'Blocked', 'Workers', 'Devices', 'That bai %', 'Hoat dong'].map(h => (
+                  <th key={h} className={`px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px] ${h === 'IP' || h === 'Hoat dong' ? 'text-left' : 'text-center'}`}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={10} className="text-center py-10 text-slate-400">Dang tải...</td></tr>
+                <tr><td colSpan={10} className="text-center py-10 text-slate-400">Dang tai...</td></tr>
               ) : ips.length === 0 ? (
-                <tr><td colSpan={10} className="text-center py-10 text-slate-400">Chưa có dữ liệu</td></tr>
+                <tr><td colSpan={10} className="text-center py-10 text-slate-400">Chua co du lieu</td></tr>
               ) : ips.map(ip => {
                 const danger = ip.blocked > 0 || ip.unique_workers > 2;
+                const isExpanded = expandedIp === ip.ip_address;
                 return (
-                  <tr key={ip.ip_address} className={`border-b ${danger ? 'bg-red-50/30 border-red-100' : 'border-slate-100'} hover:bg-slate-50/50`}>
-                    <td className="px-3 py-2.5 font-mono text-[11px] text-slate-700 font-bold">{ip.ip_address}</td>
-                    <td className="px-3 py-2.5 text-center font-bold text-slate-700">{ip.total_tasks}</td>
-                    <td className="px-3 py-2.5 text-center text-emerald-600 font-bold">{ip.completed}</td>
-                    <td className="px-3 py-2.5 text-center text-slate-400">{ip.expired}</td>
-                    <td className="px-3 py-2.5 text-center">
-                      {ip.bot_detected > 0 ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{ip.bot_detected}</span> : <span className="text-slate-300">0</span>}
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      {ip.blocked > 0 ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{ip.blocked}</span> : <span className="text-slate-300">0</span>}
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      {ip.unique_workers > 1 ? <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ip.unique_workers > 2 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{ip.unique_workers}</span> : <span className="text-slate-400">1</span>}
-                    </td>
-                    <td className="px-3 py-2.5 text-center text-slate-500">{ip.unique_devices}</td>
-                    <td className="px-3 py-2.5 text-center">
-                      {ip.incomplete_rate > 50 ? <span className="font-bold text-red-600">{ip.incomplete_rate}%</span>
-                        : ip.incomplete_rate > 20 ? <span className="font-bold text-amber-600">{ip.incomplete_rate}%</span>
-                        : <span className="text-slate-400">{ip.incomplete_rate}%</span>}
-                    </td>
-                    <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{ago(ip.last_seen)}</td>
-                  </tr>
+                  <React.Fragment key={ip.ip_address}>
+                    <tr onClick={() => toggleDetail(ip.ip_address)}
+                      className={`border-b cursor-pointer ${danger ? 'bg-red-50/30 border-red-100' : 'border-slate-100'} ${isExpanded ? 'bg-violet-50/50' : 'hover:bg-slate-50/50'}`}>
+                      <td className="px-3 py-2.5 font-mono text-[11px] text-slate-700 font-bold">
+                        <span className="underline decoration-dotted">{ip.ip_address}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-center font-bold text-slate-700">{ip.total_tasks}</td>
+                      <td className="px-3 py-2.5 text-center text-emerald-600 font-bold">{ip.completed}</td>
+                      <td className="px-3 py-2.5 text-center text-slate-400">{ip.expired}</td>
+                      <td className="px-3 py-2.5 text-center">
+                        {ip.bot_detected > 0 ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{ip.bot_detected}</span> : <span className="text-slate-300">0</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {ip.blocked > 0 ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{ip.blocked}</span> : <span className="text-slate-300">0</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {ip.unique_workers > 1 ? <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ip.unique_workers > 2 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{ip.unique_workers}</span> : <span className="text-slate-400">1</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-center text-slate-500">{ip.unique_devices}</td>
+                      <td className="px-3 py-2.5 text-center">
+                        {ip.incomplete_rate > 50 ? <span className="font-bold text-red-600">{ip.incomplete_rate}%</span>
+                          : ip.incomplete_rate > 20 ? <span className="font-bold text-amber-600">{ip.incomplete_rate}%</span>
+                          : <span className="text-slate-400">{ip.incomplete_rate}%</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{ago(ip.last_seen)}</td>
+                    </tr>
+                    {/* Expanded detail row */}
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={10} className="px-4 py-4 bg-slate-50/80 border-b border-slate-200">
+                          {detailLoading ? (
+                            <div className="flex justify-center py-4">
+                              <div className="w-5 h-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          ) : ipDetail ? (
+                            <div className="space-y-3">
+                              {/* Risk Score */}
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <div className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                                  ipDetail.riskLevel === 'high' ? 'bg-red-100 text-red-700' :
+                                  ipDetail.riskLevel === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-emerald-100 text-emerald-700'
+                                }`}>
+                                  Risk: {ipDetail.riskScore}/100 ({ipDetail.riskLevel === 'high' ? 'Cao' : ipDetail.riskLevel === 'medium' ? 'Trung binh' : 'Thap'})
+                                </div>
+                                {(ipDetail.risks || []).map((r, i) => (
+                                  <span key={i} className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    r.severity === 'high' ? 'bg-red-50 text-red-700' :
+                                    r.severity === 'medium' ? 'bg-amber-50 text-amber-700' :
+                                    'bg-blue-50 text-blue-700'
+                                  }`}>{r.label}</span>
+                                ))}
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {/* Workers */}
+                                <div className="bg-white rounded-xl border border-slate-200 p-3">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Workers ({(ipDetail.workers || []).length})</p>
+                                  {(ipDetail.workers || []).length === 0 ? (
+                                    <p className="text-[10px] text-slate-400">Khong co worker</p>
+                                  ) : (ipDetail.workers || []).map(w => (
+                                    <div key={w.id} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
+                                      <div className="min-w-0">
+                                        <p className="text-[11px] font-bold text-slate-700 truncate">{w.name || 'N/A'}</p>
+                                        <p className="text-[9px] text-slate-400 truncate">{w.email}</p>
+                                      </div>
+                                      <div className="text-right shrink-0 ml-2">
+                                        <p className="text-[10px] font-bold text-slate-600">{w.task_count} tasks</p>
+                                        {w.status === 'banned' && <span className="text-[8px] font-bold text-red-600">BAN</span>}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Geo Info */}
+                                <div className="bg-white rounded-xl border border-slate-200 p-3">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Thong tin IP</p>
+                                  {ipDetail.geo ? (
+                                    <div className="space-y-1.5 text-[10px]">
+                                      {[
+                                        ['Quoc gia', ipDetail.geo.country],
+                                        ['Thanh pho', [ipDetail.geo.city, ipDetail.geo.region].filter(Boolean).join(', ')],
+                                        ['ISP', ipDetail.geo.isp],
+                                        ['Org', ipDetail.geo.org],
+                                      ].map(([k, v]) => v && (
+                                        <div key={k} className="flex justify-between">
+                                          <span className="text-slate-400">{k}</span>
+                                          <span className="font-semibold text-slate-700 text-right max-w-[60%] truncate">{v}</span>
+                                        </div>
+                                      ))}
+                                      <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                                        {ipDetail.geo.proxy && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700">VPN/Proxy</span>}
+                                        {ipDetail.geo.hosting && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700">Datacenter</span>}
+                                        {ipDetail.geo.mobile && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-100 text-cyan-700">Mobile</span>}
+                                        {!ipDetail.geo.proxy && !ipDetail.geo.hosting && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">Residential</span>}
+                                      </div>
+                                    </div>
+                                  ) : <p className="text-[10px] text-slate-400">Khong co du lieu geo</p>}
+                                </div>
+
+                                {/* Daily breakdown */}
+                                <div className="bg-white rounded-xl border border-slate-200 p-3">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">7 ngay gan day</p>
+                                  {(ipDetail.dailyBreakdown || []).length === 0 ? (
+                                    <p className="text-[10px] text-slate-400">Khong co du lieu</p>
+                                  ) : (ipDetail.dailyBreakdown || []).slice(0, 7).map((d, i) => (
+                                    <div key={i} className="flex items-center justify-between py-1 border-b border-slate-50 last:border-0">
+                                      <span className="text-[10px] text-slate-500">{new Date(d.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}</span>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold text-slate-700">{d.tasks} tasks</span>
+                                        <span className="text-[10px] text-emerald-600">{d.completed} OK</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {ipDetail.allTime && (
+                                    <div className="mt-2 pt-2 border-t border-slate-100">
+                                      <p className="text-[9px] text-slate-400">Tong lich su: {ipDetail.allTime.total} tasks</p>
+                                      {ipDetail.allTime.firstSeen && <p className="text-[9px] text-slate-400">Tu: {fmt(ipDetail.allTime.firstSeen)}</p>}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ) : <p className="text-center text-slate-400 text-xs">Khong tai duoc du lieu</p>}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
