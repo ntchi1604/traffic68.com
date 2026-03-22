@@ -366,14 +366,12 @@ export default function TrafficTracking() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Ngày</th>
                 <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Hoàn thành</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Lượt vào trang</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Tỷ lệ HT</th>
                 <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Unique IPs</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {traffic.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-400">Không có dữ liệu</td></tr>
+                <tr><td colSpan={3} className="px-6 py-10 text-center text-slate-400">Không có dữ liệu</td></tr>
               ) : [...traffic].reverse().map(t => {
                 const rate = t.views > 0 ? Math.round((t.clicks / t.views) * 100) : 0;
                 const isPeak = peakDay && t.date === peakDay.date;
@@ -386,10 +384,6 @@ export default function TrafficTracking() {
                       </div>
                     </td>
                     <td className="px-6 py-3 text-right font-semibold text-emerald-600">{fmt(t.clicks)}</td>
-                    <td className="px-6 py-3 text-right text-slate-600">{fmt(t.views)}</td>
-                    <td className="px-6 py-3 text-right">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${rate >= 80 ? 'bg-green-100 text-green-700' : rate >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{rate}%</span>
-                    </td>
                     <td className="px-6 py-3 text-right text-slate-500">{fmt(t.unique_ips)}</td>
                   </tr>
                 );
