@@ -193,12 +193,6 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
           </>}
         </div>
       </div>
-      {/* Campaign Detail Modal */}
-      <CampaignDetailModal
-        campaign={modalCamp}
-        detail={modalCamp ? campDetails[modalCamp.id] : null}
-        onClose={closeDetail}
-      />
     </div>
   );
 }
@@ -446,7 +440,7 @@ export default function TrafficTracking() {
                       <td className="px-6 py-4 text-center">
                         <button onClick={() => openDetail(c)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-700 transition">
-                          📊 Xem
+                          Xem
                         </button>
                       </td>
                     </tr>
@@ -575,6 +569,11 @@ export default function TrafficTracking() {
           </table>
         </div>
       </div>
+      <CampaignDetailModal
+        campaign={modalCamp}
+        detail={modalCamp ? campDetails[modalCamp.id] : null}
+        onClose={closeDetail}
+      />
     </div>
   );
 }
