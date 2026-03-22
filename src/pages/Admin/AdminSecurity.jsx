@@ -85,16 +85,28 @@ function TaskModal({ task: t, onClose }) {
           <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
             {[
               ['Nguồn', t.worker_link_id ? `Gateway /${t.gateway_slug || ''}` : 'Vượt link'],
-              ['Visitor ID', t.visitor_id || '—'],
+              ['Visitor ID', t.visitor_id || '—', true],
+              ['IP', t.ip_address || '—', true],
               ['Keyword', t.keyword],
-              ['URL đích', t.target_url],
+              ['URL đích', t.target_url, true],
               ['Chiến dịch', t.campaign_name || `#${t.campaign_id}`],
               ['Thu nhập', money(t.earning)],
               ['Thời gian trang', t.time_on_site ? `${t.time_on_site}s` : '—'],
-            ].map(([k, v]) => (
-              <div key={k} className="flex justify-between gap-2">
+            ].map(([k, v, copyable]) => (
+              <div key={k} className="flex justify-between gap-2 items-center">
                 <span className="text-slate-400 shrink-0">{k}</span>
-                <span className="font-semibold text-slate-700 text-right truncate max-w-[65%]">{v || '—'}</span>
+                <div className="flex items-center gap-1 min-w-0 max-w-[65%]">
+                  <span className="font-semibold text-slate-700 text-right truncate">{v || '—'}</span>
+                  {copyable && v && v !== '—' && (
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(v); }}
+                      className="p-0.5 rounded hover:bg-slate-200 transition shrink-0"
+                      title="Sao chép"
+                    >
+                      <Copy size={11} className="text-slate-400" />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
