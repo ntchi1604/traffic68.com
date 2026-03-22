@@ -71,21 +71,30 @@ function analyzeBehavior(b) {
   // 1a. Số lượng sự kiện di chuyển
   //     Người thật tạo ra nhiều sự kiện liên tục
   //     Bot chỉ tạo 1-2 sự kiện tại điểm đầu và cuối
-  const tooFewMove = n < 5 && hasClicks;
-  // On mobile, it's normal to have few touchmove if user just taps (doesn't swipe)
-  // Only flag if there are zero touchmove events AND no scroll (pure programmatic tap)
-  const skipMoveCheck = isMobile && touchTaps.length > 0 && scrollEvts.length > 3;
-  if (!skipMoveCheck) {
+  //     ⚠ Trên mobile: ít/không có touchmove là BÌNH THƯỜNG (user tap, không swipe)
+  //       và KHÔNG CÓ mousemove là hoàn toàn tự nhiên (điện thoại dùng touch)
+  if (isMobile) {
+    // Mobile: chỉ ghi nhận thông tin, KHÔNG TRỪNG PHẠT
     assessments.push({
       cat: catLabel, check: `${moveLabel}_count`, value: n,
-      flagged: tooFewMove && !isMobile,
+      flagged: false,
+      note: n >= 10
+        ? `${n} touchmove — đủ dữ liệu phân tích chuyển động`
+        : touchTrail.length > 0
+          ? `${touchTrail.length} touchmove, ${touchTaps.length} taps — người dùng tap, ít vuốt`
+          : `Không có touchmove — người dùng chỉ tap, bình thường trên điện thoại`
+    });
+  } else {
+    // Desktop: ít mousemove + có click = đáng ngờ
+    const tooFewMove = n < 5 && hasClicks;
+    assessments.push({
+      cat: catLabel, check: `${moveLabel}_count`, value: n,
+      flagged: tooFewMove,
       note: tooFewMove
-        ? (isMobile
-          ? `Chỉ ${n} touchmove — có thể chỉ tap, cần kiểm tra thêm`
-          : `Chỉ ${n} sự kiện mousemove — bot click trực tiếp không rê chuột`)
+        ? `Chỉ ${n} sự kiện mousemove — bot click trực tiếp không rê chuột`
         : n >= 10 ? `${n} sự kiện — đủ dữ liệu phân tích` : `${n} sự kiện — ít`
     });
-    if (tooFewMove && !isMobile) { score += 15; reasons.push('no_hover_before_click'); }
+    if (tooFewMove) { score += 15; reasons.push('no_hover_before_click'); }
   }
 
   if (n >= 10) {

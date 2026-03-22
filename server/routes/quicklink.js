@@ -18,6 +18,73 @@ function genApiKey() {
   return 'tf68_' + crypto.randomBytes(24).toString('hex');
 }
 
+/* ════════════════════════════════════════════════
+   QUICKLINK — GET /st?api=API_KEY&url=DEST_URL
+   Tự tạo shortlink rồi redirect đến trang vượt link.
+   Nếu URL đã có shortlink thì redirect luôn (không tạo mới).
+   ════════════════════════════════════════════════ */
+router.get('/st', async (req, res) => {
+  try {
+    const { api, url } = req.query;
+
+    // 1. Validate params
+    if (!api) return res.status(400).json({ error: 'Thiếu API key. Sử dụng: /st?api=YOUR_API_KEY&url=YOUR_URL' });
+    if (!url) return res.status(400).json({ error: 'Thiếu URL đích. Sử dụng: /st?api=YOUR_API_KEY&url=YOUR_URL' });
+
+    // Basic URL validation
+    let destUrl = url;
+    if (!/^https?:\/\//i.test(destUrl)) destUrl = 'https://' + destUrl;
+    try { new URL(destUrl); } catch { return res.status(400).json({ error: 'URL không hợp lệ' }); }
+
+    // 2. Validate API key
+    const pool = getPool();
+    const [keyRows] = await pool.execute(
+      'SELECT ak.id, ak.user_id FROM api_keys ak WHERE ak.api_key = ? AND ak.active = 1',
+      [api]
+    );
+    if (!keyRows.length) return res.status(401).json({ error: 'API key không hợp lệ hoặc đã bị thu hồi' });
+
+    const userId = keyRows[0].user_id;
+    const apiKeyId = keyRows[0].id;
+
+    // Update usage stats
+    pool.execute('UPDATE api_keys SET last_used_at = NOW(), request_count = request_count + 1 WHERE id = ?', [apiKeyId]);
+
+    // 3. Check if this user already has a shortlink for this URL
+    const [existing] = await pool.execute(
+      'SELECT slug FROM worker_links WHERE worker_id = ? AND destination_url = ? AND hidden = 0 LIMIT 1',
+      [userId, destUrl]
+    );
+
+    let slug;
+    if (existing.length) {
+      // Reuse existing shortlink
+      slug = existing[0].slug;
+    } else {
+      // Create new shortlink
+      for (let i = 0; i < 10; i++) {
+        const s = genSlug(7);
+        const [dup] = await pool.execute('SELECT id FROM worker_links WHERE slug = ?', [s]);
+        if (!dup.length) { slug = s; break; }
+      }
+      if (!slug) return res.status(500).json({ error: 'Không thể tạo link' });
+
+      await pool.execute(
+        'INSERT INTO worker_links (worker_id, slug, destination_url) VALUES (?, ?, ?)',
+        [userId, slug, destUrl]
+      );
+    }
+
+    // 4. Redirect to gateway page
+    const host = req.headers['x-forwarded-host'] || req.headers['host'] || 'traffic68.com';
+    const proto = req.headers['x-forwarded-proto'] || req.protocol;
+    res.redirect(302, `${proto}://${host}/vuot-link/${slug}`);
+  } catch (err) {
+    console.error('QuickLink /st error:', err.message);
+    res.status(500).json({ error: 'Lỗi máy chủ' });
+  }
+});
+
 /* ── API-key auth middleware ───────────────────── */
 async function apiKeyAuth(req, res, next) {
   const header = req.headers['authorization'] || '';

@@ -63,6 +63,7 @@ export default function WorkerApi() {
   const apiKey = keyData?.api_key || 'YOUR_API_KEY';
 
   const endpoints = [
+    { method: 'GET', path: '/st', desc: '⚡ Tạo link & redirect ngay', body: '?api=API_KEY&url=URL_ĐÍCH', highlight: true },
     { method: 'GET', path: '/api/quicklink/v1/links', desc: 'Danh sách link (phân trang)', body: '?page=1&limit=20' },
     { method: 'GET', path: '/api/quicklink/v1/links/:id', desc: 'Chi tiết 1 link', body: null },
     { method: 'GET', path: '/api/quicklink/v1/stats', desc: 'Thống kê tổng', body: null },
@@ -84,22 +85,34 @@ export default function WorkerApi() {
         </p>
       </div>
 
-      {/* How it works */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-5">
-        <h3 className="text-sm font-black text-blue-900 mb-2">⚡ Cách hoạt động</h3>
-        <div className="grid grid-cols-4 gap-3 text-center text-xs">
+      {/* QuickLink URL — Hero */}
+      <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border border-orange-200 p-5">
+        <h3 className="text-sm font-black text-orange-900 mb-2 flex items-center gap-2">⚡ QuickLink — Tạo link cực nhanh bằng URL</h3>
+        <p className="text-xs text-orange-700 mb-3">Chỉ cần 1 URL duy nhất, tự động tạo shortlink và redirect người dùng đến trang vượt link:</p>
+        <div className="bg-white rounded-xl border border-orange-200 p-4 mb-3">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700">GET</span>
+            <span className="text-xs text-slate-400">Format:</span>
+          </div>
+          <code className="block bg-slate-900 text-green-400 rounded-lg p-3 text-xs font-mono overflow-x-auto">
+            {`${BASE}/st?api=`}<span className="text-yellow-300">{apiKey}</span>{`&url=`}<span className="text-cyan-300">https://example.com</span>
+          </code>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
           {[
-            { step: '1', title: 'Tạo link', desc: 'Tạo link rút gọn từ web' },
-            { step: '2', title: 'Chia sẻ', desc: 'Gửi short URL cho người dùng' },
-            { step: '3', title: 'Theo dõi', desc: 'Dùng API xem stats' },
-            { step: '4', title: 'Kiếm tiền', desc: 'Vượt link xong → CPC' },
+            { step: '1', title: 'Dán URL', desc: 'Thay url= bằng link đích', color: 'bg-orange-500' },
+            { step: '2', title: 'Auto tạo link', desc: 'Hệ thống tạo shortlink ngay', color: 'bg-blue-500' },
+            { step: '3', title: 'Redirect', desc: 'Người dùng vượt link → CPC', color: 'bg-green-500' },
           ].map(s => (
-            <div key={s.step} className="bg-white/80 rounded-xl p-3 border border-blue-100">
-              <div className="w-7 h-7 rounded-full bg-blue-600 text-white font-black text-sm flex items-center justify-center mx-auto mb-1.5">{s.step}</div>
-              <p className="font-bold text-blue-900">{s.title}</p>
-              <p className="text-blue-500 mt-0.5">{s.desc}</p>
+            <div key={s.step} className="bg-white/80 rounded-xl p-3 border border-orange-100">
+              <div className={`w-7 h-7 rounded-full ${s.color} text-white font-black text-sm flex items-center justify-center mx-auto mb-1.5`}>{s.step}</div>
+              <p className="font-bold text-slate-800">{s.title}</p>
+              <p className="text-slate-500 mt-0.5">{s.desc}</p>
             </div>
           ))}
+        </div>
+        <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
+          <p className="text-[11px] text-blue-800">💡 <strong>Mẹo:</strong> Nếu URL đích đã tạo shortlink trước đó, hệ thống sẽ tái sử dụng link cũ (không tạo trùng).</p>
         </div>
       </div>
 
@@ -173,7 +186,7 @@ export default function WorkerApi() {
             </thead>
             <tbody>
               {endpoints.map((ep, i) => (
-                <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 transition-colors ${ep.highlight ? 'bg-orange-50/50' : ''}`}>
                   <td className="py-3">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                       ep.method === 'GET' ? 'bg-green-100 text-green-700' :
@@ -181,7 +194,7 @@ export default function WorkerApi() {
                       'bg-red-100 text-red-700'
                     }`}>{ep.method}</span>
                   </td>
-                  <td className="py-3 font-mono text-[11px] text-slate-700">{ep.path}</td>
+                  <td className="py-3 font-mono text-[11px] text-slate-700">{ep.highlight ? <strong>{ep.path}</strong> : ep.path}</td>
                   <td className="py-3 text-xs text-slate-500">{ep.desc}</td>
                   <td className="py-3 font-mono text-[10px] text-slate-400">{ep.body || '—'}</td>
                 </tr>
@@ -192,6 +205,43 @@ export default function WorkerApi() {
       </div>
 
       {/* Curl Examples */}
+      <div className="grid grid-cols-1 gap-4">
+        {/* QuickLink /st example */}
+        <div className="bg-white rounded-2xl border-2 border-orange-200 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-slate-900">⚡ QuickLink — Tạo & Redirect</h3>
+            <button onClick={() => handleCopy(`${BASE}/st?api=${apiKey}&url=https://example.com`, 'curl-st')}
+              className="text-[10px] text-slate-400 hover:text-blue-500 flex items-center gap-1">
+              {copied === 'curl-st' ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
+            </button>
+          </div>
+          <p className="text-xs text-slate-500 mb-3">Dán URL này vào trình duyệt hoặc embed trong website — sẽ tự tạo shortlink rồi redirect đến trang vượt link:</p>
+          <pre className="bg-slate-900 text-green-400 rounded-xl p-4 text-[11px] overflow-x-auto whitespace-pre-wrap">
+{`${BASE}/st?api=${apiKey}&url=https://example.com`}
+          </pre>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 mb-1">Embed trong HTML:</p>
+              <pre className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-600 overflow-x-auto">
+{`<a href="${BASE}/st?api=${apiKey}&url=https://example.com">
+  Click để truy cập
+</a>`}
+              </pre>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 mb-1">Redirect bằng PHP/JS:</p>
+              <pre className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-600 overflow-x-auto">
+{`// PHP
+header("Location: ${BASE}/st?api=KEY&url=" . $url);
+
+// JS
+window.location = "${BASE}/st?api=KEY&url=" + url;`}
+              </pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <div className="flex items-center justify-between mb-3">
@@ -256,11 +306,13 @@ export default function WorkerApi() {
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-orange-200 p-5">
         <h3 className="text-sm font-black text-orange-900 mb-2">⚠️ Lưu ý</h3>
         <ul className="text-xs text-orange-800 space-y-1.5 list-disc pl-4">
-          <li>Tạo link rút gọn trên web → dùng API để <strong>theo dõi thống kê</strong></li>
-          <li>Link rút gọn redirect sang <strong>/vuot-link/slug</strong> — người dùng phải vượt link trước khi đến URL đích</li>
+          <li>Dùng <strong>/st?api=KEY&url=URL</strong> để tạo link & redirect trong 1 bước duy nhất</li>
+          <li>Nếu URL đã tạo trước đó → <strong>tái sử dụng</strong> shortlink cũ (không tạo trùng)</li>
+          <li>Link redirect sang <strong>/vuot-link/slug</strong> — người dùng phải vượt link trước khi đến URL đích</li>
           <li>Bạn nhận <strong>CPC</strong> cho mỗi lượt vượt link hoàn thành</li>
           <li>API key bị lộ → nhấn <strong>Đổi key</strong> ngay, key cũ sẽ mất hiệu lực</li>
           <li>Mỗi tài khoản chỉ có <strong>1 API key</strong></li>
+          <li>Dùng <strong>/api/quicklink/v1/links</strong> và <strong>/v1/stats</strong> để theo dõi thống kê (cần header Authorization)</li>
         </ul>
       </div>
     </div>
