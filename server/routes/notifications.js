@@ -5,11 +5,18 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
-// ── GET /api/notifications ──
+// ── GET /api/notifications?role=buyer|worker ──
 router.get('/', async (req, res) => {
   const pool = getPool();
-  const [notifications] = await pool.execute('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50', [req.userId]);
-  const [unread] = await pool.execute('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0', [req.userId]);
+  const role = req.query.role || 'all'; // buyer, worker, or all
+  const [notifications] = await pool.execute(
+    `SELECT * FROM notifications WHERE user_id = ? AND (role = ? OR role = 'all') ORDER BY created_at DESC LIMIT 50`,
+    [req.userId, role]
+  );
+  const [unread] = await pool.execute(
+    `SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0 AND (role = ? OR role = 'all')`,
+    [req.userId, role]
+  );
   res.json({ notifications, unreadCount: unread[0].count });
 });
 
@@ -23,7 +30,12 @@ router.put('/:id/read', async (req, res) => {
 // ── PUT /api/notifications/read-all ──
 router.put('/read-all', async (req, res) => {
   const pool = getPool();
-  await pool.execute('UPDATE notifications SET is_read = 1 WHERE user_id = ?', [req.userId]);
+  const role = req.query.role || 'all';
+  if (role === 'all') {
+    await pool.execute('UPDATE notifications SET is_read = 1 WHERE user_id = ?', [req.userId]);
+  } else {
+    await pool.execute('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND (role = ? OR role = \'all\')', [req.userId, role]);
+  }
   res.json({ message: 'Đã đánh dấu tất cả đã đọc' });
 });
 

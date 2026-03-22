@@ -120,8 +120,8 @@ router.post('/', async (req, res) => {
     }
 
     await pool.execute(
-      `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
-      [req.userId, 'Chiến dịch mới được tạo', `Chiến dịch "${name}" đã được tạo thành công.`, 'success']
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [req.userId, 'Chiến dịch mới được tạo', `Chiến dịch "${name}" đã được tạo thành công.`, 'success', 'buyer']
     );
 
     const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [result.insertId]);

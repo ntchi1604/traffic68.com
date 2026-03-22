@@ -20,8 +20,8 @@ router.post('/tickets', async (req, res) => {
   );
 
   await pool.execute(
-    `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
-    [req.userId, 'Yêu cầu hỗ trợ đã gửi', `Ticket #${result.insertId}: "${subject}" đã được tạo. Chúng tôi sẽ phản hồi sớm nhất.`, 'info']
+    `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+    [req.userId, 'Yêu cầu hỗ trợ đã gửi', `Ticket #${result.insertId}: "${subject}" đã được tạo. Chúng tôi sẽ phản hồi sớm nhất.`, 'info', 'all']
   );
 
   res.status(201).json({ message: 'Gửi yêu cầu hỗ trợ thành công', ticketId: result.insertId });

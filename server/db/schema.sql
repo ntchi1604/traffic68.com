@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   title      VARCHAR(255) NOT NULL,
   message    TEXT NOT NULL,
   type       VARCHAR(20) NOT NULL DEFAULT 'info',
+  role       VARCHAR(20) NOT NULL DEFAULT 'all',
   is_read    TINYINT NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

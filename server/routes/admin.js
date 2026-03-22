@@ -160,11 +160,13 @@ router.post('/users/:id/balance', async (req, res) => {
     [req.params.id, wType, txType, 'admin', numAmount, 'completed', refCode, txNote]
   );
 
-  await pool.execute(`INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`, [
+  const notifRole = wType === 'earning' ? 'worker' : 'buyer';
+  await pool.execute(`INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`, [
     req.params.id,
     type === 'add' ? 'Ví được cộng tiền' : 'Ví bị trừ tiền',
     `${type === 'add' ? '+' : '-'}${numAmount.toLocaleString('vi-VN')} đ vào ví ${wType === 'main' ? 'Traffic' : wType === 'earning' ? 'Thu nhập' : 'Hoa hồng'}. Lý do: ${txNote}`,
-    type === 'add' ? 'success' : 'warning'
+    type === 'add' ? 'success' : 'warning',
+    notifRole
   ]);
 
   res.json({ message: `Đã ${type === 'add' ? 'cộng' : 'trừ'} ${numAmount.toLocaleString('vi-VN')} đ`, newBalance, refCode });
@@ -258,8 +260,8 @@ router.put('/transactions/:id/approve', async (req, res) => {
 
     const fmt = new Intl.NumberFormat('vi-VN').format(tx.amount);
     await conn.execute(
-      `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
-      [tx.user_id, 'Nạp tiền thành công ✓', `Đơn nạp ${fmt} VND (Mã: ${tx.ref_code}) đã được admin duyệt. Tiền đã vào ví!`, 'success']
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [tx.user_id, 'Nạp tiền thành công ✓', `Đơn nạp ${fmt} VND (Mã: ${tx.ref_code}) đã được admin duyệt. Tiền đã vào ví!`, 'success', 'buyer']
     );
 
     // 2. Referral commission: if this is a deposit to 'main' wallet (buyer top-up)
@@ -298,8 +300,8 @@ router.put('/transactions/:id/approve', async (req, res) => {
 
             const fmtComm = new Intl.NumberFormat('vi-VN').format(commAmount);
             await conn.execute(
-              `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
-              [referrerId, 'Hoa hồng giới thiệu 🎉', `Bạn nhận được ${fmtComm} VND hoa hồng (${commPct}%) từ người bạn giới thiệu vừa nạp tiền.`, 'success']
+              `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+              [referrerId, 'Hoa hồng giới thiệu 🎉', `Bạn nhận được ${fmtComm} VND hoa hồng (${commPct}%) từ người bạn giới thiệu vừa nạp tiền.`, 'success', 'buyer']
             );
           }
         }
@@ -332,8 +334,8 @@ router.put('/transactions/:id/reject', async (req, res) => {
 
     const fmt = new Intl.NumberFormat('vi-VN').format(tx.amount);
     await pool.execute(
-      `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
-      [tx.user_id, 'Đơn nạp tiền bị từ chối', `Đơn nạp ${fmt} VND (Mã: ${tx.ref_code}) đã bị từ chối. Lý do: ${reason || 'Không hợp lệ'}`, 'error']
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [tx.user_id, 'Đơn nạp tiền bị từ chối', `Đơn nạp ${fmt} VND (Mã: ${tx.ref_code}) đã bị từ chối. Lý do: ${reason || 'Không hợp lệ'}`, 'error', 'buyer']
     );
     res.json({ message: 'Đã từ chối đơn nạp' });
   } catch (err) {
@@ -361,7 +363,7 @@ router.put('/tickets/:id', async (req, res) => {
   if (reply) {
     const [tickets] = await pool.execute('SELECT user_id, subject FROM support_tickets WHERE id = ?', [req.params.id]);
     if (tickets[0]) {
-      await pool.execute(`INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`, [tickets[0].user_id, `Phản hồi ticket: ${tickets[0].subject}`, reply, 'info']);
+      await pool.execute(`INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`, [tickets[0].user_id, `Phản hồi ticket: ${tickets[0].subject}`, reply, 'info', 'all']);
     }
   }
   res.json({ message: 'Đã cập nhật ticket' });
@@ -819,11 +821,12 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
     // Notify user
     const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
     await conn.execute(
-      `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
       [tx.user_id,
        action === 'approve' ? 'Rút tiền thành công' : 'Rút tiền bị từ chối',
        action === 'approve' ? `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) đã được duyệt.` : `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) bị từ chối. Số tiền đã hoàn lại ví.`,
-       action === 'approve' ? 'success' : 'warning']
+       action === 'approve' ? 'success' : 'warning',
+       'worker']
     );
 
     await conn.commit();

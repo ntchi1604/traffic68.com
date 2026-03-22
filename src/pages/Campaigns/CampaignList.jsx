@@ -31,10 +31,34 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     return imgs.filter(Boolean).length ? imgs.filter(Boolean) : [''];
   });
   const [saving, setSaving] = useState(false);
+  const [uploadingIdx, setUploadingIdx] = useState(-1);
 
   const addItem = (setter) => setter(prev => [...prev, '']);
   const removeItem = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
   const updateItem = (setter, idx, val) => setter(prev => prev.map((v, i) => i === idx ? val : v));
+
+  const handleImageUpload = async (e, idx) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingIdx(idx);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/campaigns/upload-image', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload thất bại');
+      updateItem(setImageUrls, idx, data.imageUrl);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setUploadingIdx(-1);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -122,19 +146,22 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
           {/* Images */}
           <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">Link ảnh</label>
-            <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">Hình ảnh</label>
+            <div className="space-y-3">
               {imageUrls.map((img, i) => (
                 <div key={i}>
+                  {img && <img src={img} alt="" className="w-full h-24 object-cover rounded-xl border border-slate-200 mb-1.5" onError={e => e.target.style.display='none'} />}
                   <div className="flex gap-2">
-                    <input type="url" value={img} onChange={e => updateItem(setImageUrls, i, e.target.value)}
-                      placeholder={`Link ảnh ${i + 1}`} className={inputCls} />
+                    <label className="flex-1 flex items-center gap-2 border border-dashed border-slate-300 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition group">
+                      <Upload size={14} className={`text-slate-400 group-hover:text-blue-500 ${uploadingIdx === i ? 'animate-spin' : ''}`} />
+                      <span className="text-xs text-slate-500">{uploadingIdx === i ? 'Đang upload...' : img ? 'Thay ảnh' : 'Chọn ảnh'}</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, i)} />
+                    </label>
                     {imageUrls.length > 1 && (
                       <button onClick={() => removeItem(setImageUrls, i)}
                         className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"><Trash2 size={16} /></button>
                     )}
                   </div>
-                  {img && <img src={img} alt="" className="mt-1 w-full h-24 object-cover rounded-xl border border-slate-200" onError={e => e.target.style.display='none'} />}
                 </div>
               ))}
             </div>

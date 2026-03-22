@@ -62,6 +62,12 @@ async function initDb() {
     conn.release();
     console.log('✅ MySQL database initialized (individual)');
   }
+
+  // Auto-migrations for existing databases
+  try {
+    const p2 = getPool();
+    await p2.execute("ALTER TABLE notifications ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'all' AFTER type").catch(() => {});
+  } catch (_) {}
 }
 
 

@@ -41,8 +41,8 @@ router.post('/deposits', async (req, res) => {
 
   const fmt = new Intl.NumberFormat('vi-VN').format(amount);
   await pool.execute(
-    `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
-    [req.userId, 'Đơn nạp tiền đang chờ duyệt', `Đơn nạp ${fmt} VND (Mã: ${refCode}) đang chờ admin xác minh.`, 'info']
+    `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+    [req.userId, 'Đơn nạp tiền đang chờ duyệt', `Đơn nạp ${fmt} VND (Mã: ${refCode}) đang chờ admin xác minh.`, 'info', 'buyer']
   );
 
   res.status(201).json({ message: 'Đơn nạp tiền đã gửi, đang chờ admin xác minh', refCode, status: 'pending' });
@@ -119,8 +119,8 @@ router.post('/transfer', async (req, res) => {
     // Notification
     const fmtAmount = new Intl.NumberFormat('vi-VN').format(num);
     await conn.execute(
-      `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
-      [req.userId, 'Chuyển ví thành công', `Đã chuyển ${fmtAmount} VND từ Ví Hoa Hồng sang Ví Traffic.`, 'success']
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [req.userId, 'Chuyển ví thành công', `Đã chuyển ${fmtAmount} VND từ Ví Hoa Hồng sang Ví Traffic.`, 'success', 'buyer']
     );
 
     await conn.commit();
@@ -169,8 +169,8 @@ router.post('/withdraw', async (req, res) => {
 
     const fmtAmount = new Intl.NumberFormat('vi-VN').format(num);
     await conn.execute(
-      `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
-      [req.userId, 'Yêu cầu rút tiền', `Yêu cầu rút ${fmtAmount} đ (${refCode}) đang chờ xử lý.`, 'info']
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [req.userId, 'Yêu cầu rút tiền', `Yêu cầu rút ${fmtAmount} đ (${refCode}) đang chờ xử lý.`, 'info', 'worker']
     );
 
     await conn.commit();

@@ -89,8 +89,8 @@ router.post('/register', async (req, res) => {
 
     // Welcome notification
     await pool.execute(
-      `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
-      [userId, 'Chào mừng bạn!', 'Tài khoản của bạn đã được tạo thành công. Hãy bắt đầu tạo chiến dịch đầu tiên!', 'success']
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [userId, 'Chào mừng bạn!', 'Tài khoản của bạn đã được tạo thành công. Hãy bắt đầu tạo chiến dịch đầu tiên!', 'success', 'all']
     );
 
     // Generate token

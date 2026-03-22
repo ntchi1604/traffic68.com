@@ -125,7 +125,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
     csvRows.push(['Tên', c.name]);
     csvRows.push(['URL', c.url]);
     csvRows.push(['Nguồn traffic', SOURCE_LABEL_MAP[c.traffic_type] || c.traffic_type || '']);
-    csvRows.push(['Từ khóa', c.keyword || '']);
+    csvRows.push(['Từ khóa', (() => { try { const a = JSON.parse(c.keyword); if (Array.isArray(a)) return a.join(', '); } catch {} return c.keyword || ''; })() ]);
     csvRows.push(['Thời gian xem', c.time_on_site ? `${c.time_on_site}s` : '']);
     csvRows.push(['CPC', `${c.cpc} đ`]);
     csvRows.push(['Ngân sách', `${c.budget} đ`]);
@@ -287,18 +287,71 @@ function CampaignDetailModal({ campaign: c, onClose }) {
             </div>
 
             {/* Info row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
-              {[
-                { label: 'Nguồn traffic', value: SOURCE_LABEL_MAP[c.traffic_type] || c.traffic_type || '—' },
-                { label: 'Từ khóa',       value: c.keyword || '—' },
-                { label: 'Thời gian xem', value: c.time_on_site ? `${c.time_on_site}s` : '—' },
-              ].map(item => (
-                <div key={item.label} style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px' }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{item.label}</p>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>{item.value}</p>
+            {(() => {
+              const parseArr = (val) => {
+                if (!val) return [];
+                try { const a = JSON.parse(val); if (Array.isArray(a)) return a.filter(Boolean); } catch {}
+                return val ? [val] : [];
+              };
+              const keywords = parseArr(c.keyword);
+              const urls2 = parseArr(c.url2);
+              const allUrls = [c.url, ...urls2].filter(Boolean);
+              const images = [...parseArr(c.image1_url), ...(c.image2_url ? parseArr(c.image2_url) : [])].filter(Boolean);
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Nguồn + TG xem */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px' }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Nguồn traffic</p>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>{SOURCE_LABEL_MAP[c.traffic_type] || c.traffic_type || '—'}</p>
+                    </div>
+                    <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px' }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Thời gian xem</p>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>{c.time_on_site ? `${c.time_on_site}s` : '—'}</p>
+                    </div>
+                  </div>
+
+                  {/* Keywords */}
+                  {keywords.length > 0 && (
+                    <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px' }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Từ khóa ({keywords.length})</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {keywords.map((kw, i) => (
+                          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#dbeafe', color: '#1e40af', fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 8 }}>{kw}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* URLs */}
+                  {allUrls.length > 0 && (
+                    <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px' }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>URL đích ({allUrls.length})</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {allUrls.map((url, i) => (
+                          <a key={i} href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', wordBreak: 'break-all', fontWeight: 500 }} onMouseEnter={e => e.target.style.textDecoration='underline'} onMouseLeave={e => e.target.style.textDecoration='none'}>
+                            {i === 0 ? '🔗 ' : '↳ '}{url}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Images */}
+                  {images.length > 0 && (
+                    <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px' }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Hình ảnh ({images.length})</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(images.length, 3)}, 1fr)`, gap: 8 }}>
+                        {images.map((img, i) => (
+                          <img key={i} src={img} alt="" style={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} onError={e => e.target.style.display='none'} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
 
             {/* Tasks table */}
             {tasks.length > 0 && (

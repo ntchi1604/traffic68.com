@@ -222,6 +222,7 @@ export default function CreateCampaign() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [uploadingIdx, setUploadingIdx] = useState(-1);
 
   // Pricing from API
   const [pricingTiers, setPricingTiers] = useState([]);
@@ -293,6 +294,29 @@ export default function CreateCampaign() {
   const addArrayItem = (key) => setForm(f => ({ ...f, [key]: [...f[key], ''] }));
   const removeArrayItem = (key, idx) => setForm(f => ({ ...f, [key]: f[key].filter((_, i) => i !== idx) }));
   const updateArrayItem = (key, idx, val) => setForm(f => ({ ...f, [key]: f[key].map((v, i) => i === idx ? val : v) }));
+
+  const handleImageUpload = async (e, idx) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingIdx(idx);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/campaigns/upload-image', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload thất bại');
+      updateArrayItem('imageUrls', idx, data.imageUrl);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setUploadingIdx(-1);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -594,19 +618,23 @@ export default function CreateCampaign() {
                 <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
                   <Upload size={16} className="text-purple-600" />
                 </div>
-                <h2 className="font-bold text-gray-800">Link hình ảnh</h2>
+                <h2 className="font-bold text-gray-800">Hình ảnh</h2>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {form.imageUrls.map((imgUrl, i) => (
                   <div key={i}>
+                    {imgUrl && (
+                      <img src={imgUrl} alt="" className="w-full h-28 object-cover rounded-xl border border-gray-200 mb-1.5" onError={e => e.target.style.display='none'} />
+                    )}
                     <div className="flex gap-2">
-                      <TextInput
-                        type="url"
-                        placeholder={`Link ảnh ${i + 1} (https://...)`}
-                        value={imgUrl}
-                        onChange={e => updateArrayItem('imageUrls', i, e.target.value)}
-                      />
+                      <label className="flex-1 flex items-center gap-3 border border-dashed border-gray-300 rounded-xl px-4 py-2.5 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition group">
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-blue-100 flex items-center justify-center flex-shrink-0">
+                          <Upload size={14} className={`text-gray-400 group-hover:text-blue-500 transition ${uploadingIdx === i ? 'animate-spin' : ''}`} />
+                        </div>
+                        <span className="text-xs text-gray-500">{uploadingIdx === i ? 'Đang upload...' : imgUrl ? 'Thay ảnh' : `Chọn ảnh ${i + 1}`}</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, i)} />
+                      </label>
                       {form.imageUrls.length > 1 && (
                         <button type="button" onClick={() => removeArrayItem('imageUrls', i)}
                           className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
@@ -614,9 +642,6 @@ export default function CreateCampaign() {
                         </button>
                       )}
                     </div>
-                    {imgUrl && (
-                      <img src={imgUrl} alt="" className="mt-1.5 w-full h-28 object-cover rounded-xl border border-gray-200" onError={e => e.target.style.display='none'} />
-                    )}
                   </div>
                 ))}
               </div>
@@ -624,7 +649,7 @@ export default function CreateCampaign() {
                 className="mt-2 flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition">
                 <Plus size={14} /> Thêm ảnh
               </button>
-              <Hint>Dán link ảnh trực tiếp, thêm không giới hạn</Hint>
+              <Hint>Upload ảnh lên hệ thống, thêm không giới hạn</Hint>
             </div>
 
             {/* ── Card: Target thiết bị & Quốc gia ── */}

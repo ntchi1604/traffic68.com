@@ -98,7 +98,7 @@ export default function DashboardHeader({ onMenuClick }) {
           </button>
 
           {/* Bell */}
-          <NotificationDropdown />
+          <NotificationDropdown isWorker={isWorker} />
 
           {/* Profile */}
           <div className="relative border-l border-slate-200 pl-2 sm:pl-3" ref={profileRef}>

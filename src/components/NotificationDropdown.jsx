@@ -29,7 +29,8 @@ const initialNotifications = [
   },
 ];
 
-export default function NotificationDropdown() {
+export default function NotificationDropdown({ isWorker = false }) {
+  const role = isWorker ? 'worker' : 'buyer';
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [selectedNotification, setSelectedNotification] = useState(null);
@@ -38,7 +39,7 @@ export default function NotificationDropdown() {
 
   // Fetch notifications from API
   useEffect(() => {
-    api.get('/notifications').then(data => {
+    api.get(`/notifications?role=${role}`).then(data => {
       setNotifications((data.notifications || []).map(n => ({
         ...n,
         isRead: !!n.is_read,
@@ -70,7 +71,7 @@ export default function NotificationDropdown() {
   );
 
   const handleMarkAllRead = () => {
-    api.put('/notifications/read-all').catch(() => {});
+    api.put(`/notifications/read-all?role=${role}`).catch(() => {});
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
   };
 
