@@ -63,7 +63,7 @@ export default function WorkerApi() {
   const apiKey = keyData?.api_key || 'YOUR_API_KEY';
 
   const endpoints = [
-    { method: 'GET', path: '/st', desc: '⚡ Tạo link & redirect ngay', body: '?api=API_KEY&url=URL_ĐÍCH', highlight: true },
+    { method: 'GET', path: '/api/quicklink/st', desc: '⚡ Tạo link & redirect ngay', body: '?api=API_KEY&url=URL_ĐÍCH', highlight: true },
     { method: 'GET', path: '/api/quicklink/v1/links', desc: 'Danh sách link (phân trang)', body: '?page=1&limit=20' },
     { method: 'GET', path: '/api/quicklink/v1/links/:id', desc: 'Chi tiết 1 link', body: null },
     { method: 'GET', path: '/api/quicklink/v1/stats', desc: 'Thống kê tổng', body: null },
@@ -95,7 +95,7 @@ export default function WorkerApi() {
             <span className="text-xs text-slate-400">Format:</span>
           </div>
           <code className="block bg-slate-900 text-green-400 rounded-lg p-3 text-xs font-mono overflow-x-auto">
-            {`${BASE}/st?api=`}<span className="text-yellow-300">{apiKey}</span>{`&url=`}<span className="text-cyan-300">https://example.com</span>
+            {`${BASE}/api/quicklink/st?api=`}<span className="text-yellow-300">{apiKey}</span>{`&url=`}<span className="text-cyan-300">https://example.com</span>
           </code>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
@@ -210,20 +210,20 @@ export default function WorkerApi() {
         <div className="bg-white rounded-2xl border-2 border-orange-200 p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-slate-900">⚡ QuickLink — Tạo & Redirect</h3>
-            <button onClick={() => handleCopy(`${BASE}/st?api=${apiKey}&url=https://example.com`, 'curl-st')}
+            <button onClick={() => handleCopy(`${BASE}/api/quicklink/st?api=${apiKey}&url=https://example.com`, 'curl-st')}
               className="text-[10px] text-slate-400 hover:text-blue-500 flex items-center gap-1">
               {copied === 'curl-st' ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
             </button>
           </div>
           <p className="text-xs text-slate-500 mb-3">Dán URL này vào trình duyệt hoặc embed trong website — sẽ tự tạo shortlink rồi redirect đến trang vượt link:</p>
           <pre className="bg-slate-900 text-green-400 rounded-xl p-4 text-[11px] overflow-x-auto whitespace-pre-wrap">
-{`${BASE}/st?api=${apiKey}&url=https://example.com`}
+{`${BASE}/api/quicklink/st?api=${apiKey}&url=https://example.com`}
           </pre>
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <p className="text-[10px] font-bold text-slate-500 mb-1">Embed trong HTML:</p>
               <pre className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-600 overflow-x-auto">
-{`<a href="${BASE}/st?api=${apiKey}&url=https://example.com">
+{`<a href="${BASE}/api/quicklink/st?api=${apiKey}&url=https://example.com">
   Click để truy cập
 </a>`}
               </pre>
@@ -232,10 +232,10 @@ export default function WorkerApi() {
               <p className="text-[10px] font-bold text-slate-500 mb-1">Redirect bằng PHP/JS:</p>
               <pre className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-600 overflow-x-auto">
 {`// PHP
-header("Location: ${BASE}/st?api=KEY&url=" . $url);
+header("Location: ${BASE}/api/quicklink/st?api=KEY&url=" . $url);
 
 // JS
-window.location = "${BASE}/st?api=KEY&url=" + url;`}
+window.location = "${BASE}/api/quicklink/st?api=KEY&url=" + url;`}
               </pre>
             </div>
           </div>
@@ -306,7 +306,7 @@ window.location = "${BASE}/st?api=KEY&url=" + url;`}
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-orange-200 p-5">
         <h3 className="text-sm font-black text-orange-900 mb-2">⚠️ Lưu ý</h3>
         <ul className="text-xs text-orange-800 space-y-1.5 list-disc pl-4">
-          <li>Dùng <strong>/st?api=KEY&url=URL</strong> để tạo link & redirect trong 1 bước duy nhất</li>
+          <li>Dùng <strong>/api/quicklink/st?api=KEY&url=URL</strong> để tạo link & redirect trong 1 bước duy nhất</li>
           <li>Nếu URL đã tạo trước đó → <strong>tái sử dụng</strong> shortlink cũ (không tạo trùng)</li>
           <li>Link redirect sang <strong>/vuot-link/slug</strong> — người dùng phải vượt link trước khi đến URL đích</li>
           <li>Bạn nhận <strong>CPC</strong> cho mỗi lượt vượt link hoàn thành</li>
