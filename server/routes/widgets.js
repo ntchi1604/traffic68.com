@@ -290,9 +290,9 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json(ERR);
   }
   if (botDetection && botDetection.totalLied > 0) {
-    const mobileSafe = ['clientRects', 'maths', 'css'];
+    const mobileSafe = ['clientRects', 'maths', 'css', 'domRect'];
     const lied = botDetection.liedSections || [];
-    const realLies = isMobileDevice ? lied.filter(s => !mobileSafe.includes(s)) : lied;
+    const realLies = isMobileDevice ? lied.filter(s => !mobileSafe.some(safe => s === safe || s.startsWith(safe + ':'))) : lied;
     if (realLies.length > 0 || (!isMobileDevice && botDetection.totalLied > 0)) {
       console.log(`[Widget] 🚫 CreepJS BLOCKED: IP=${ip}, totalLied=${botDetection.totalLied}, realLies=${realLies.join(',')}, mobile=${isMobileDevice}`);
       logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);

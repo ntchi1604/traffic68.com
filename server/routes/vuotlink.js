@@ -182,9 +182,10 @@ async function _handleTaskPost(req, res) {
   }
   if (botDetection && botDetection.totalLied > 0) {
     // On mobile: clientRects, maths, css often differ due to DPI/font rendering — not reliable
-    const mobileSafe = ['clientRects', 'maths', 'css'];
+    const mobileSafe = ['clientRects', 'maths', 'css', 'domRect'];
     const lied = botDetection.liedSections || [];
-    const realLies = isMobileDevice ? lied.filter(s => !mobileSafe.includes(s)) : lied;
+    console.log(`[VuotLink] CreepJS lied debug: IP=${ip}, mobile=${isMobileDevice}, UA=${ua.substring(0,60)}, liedSections=${JSON.stringify(lied)}, totalLied=${botDetection.totalLied}`);
+    const realLies = isMobileDevice ? lied.filter(s => !mobileSafe.some(safe => s === safe || s.startsWith(safe + ':'))) : lied;
     if (realLies.length > 0 || (!isMobileDevice && botDetection.totalLied > 0)) {
       console.log(`[VuotLink] 🚫 CreepJS BLOCKED: IP=${ip}, totalLied=${botDetection.totalLied}, realLies=${realLies.join(',')}, mobile=${isMobileDevice}`);
       logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
