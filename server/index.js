@@ -83,13 +83,6 @@ app.use('/api/admin',      require('./routes/admin'));
 app.use('/api/shortlink',  require('./routes/shortlink'));
 app.use('/api/quicklink',  require('./routes/quicklink'));
 
-// ── QuickLink shortcut: /st?api=KEY&url=URL (giống uptolink.one) ──
-app.get('/st', (req, res, next) => {
-  // Forward to quicklink router's /st handler
-  req.url = '/st' + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '');
-  require('./routes/quicklink')(req, res, next);
-});
-
 
 // ── 404 handler ──
 app.use('/api', (req, res) => {
