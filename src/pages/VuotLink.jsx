@@ -79,7 +79,7 @@ if (typeof window !== 'undefined') {
             console.log = _savedLog;
             _resolveCreep({ bot: false, creepTimeout: true });
         }
-    }, 5000);
+    }, 10000);
 }
 
 function getCreepData() {
@@ -88,7 +88,7 @@ function getCreepData() {
         _creepResolvers.push(r => resolve({ botDetection: r, visitorId: _creepVisitorId }));
         setTimeout(() => {
             if (!_creepDone) _resolveCreep({ bot: false, creepTimeout: true });
-        }, 5000);
+        }, 10000);
     });
 }
 
@@ -253,12 +253,8 @@ export default function VuotLink() {
                     }
                 }
 
-                // Step 1+2: Run CreepJS + challenge fetch IN PARALLEL
-                const [creepData, chRes] = await Promise.all([
-                    getCreepData(),
-                    fetch(`${API}/challenge`),
-                ]);
-
+                // Step 1: Load CreepJS for bot detection + visitorId
+                const creepData = await getCreepData();
                 let visitorId = creepData.visitorId || 'unknown';
                 let botDetectionResult = creepData.botDetection;
 
@@ -268,6 +264,8 @@ export default function VuotLink() {
                     window.clarity('identify', visitorId);
                 }
 
+                // Step 2: Get challenge + solve Proof-of-Work
+                const chRes = await fetch(`${API}/challenge`);
                 if (!chRes.ok) throw new Error('Không thể lấy challenge');
                 const challenge = await chRes.json();
 

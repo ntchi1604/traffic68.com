@@ -51,7 +51,7 @@ router.get('/challenge', (req, res) => {
 
   const challengeId = crypto.randomBytes(16).toString('hex');
   const prefix = crypto.randomBytes(8).toString('hex');
-  const difficulty = 3;
+  const difficulty = 4;
   const domText = crypto.randomBytes(6).toString('hex');
   const domFontSize = 14 + Math.floor(Math.random() * 10);
   const glSalt = crypto.randomBytes(8).toString('hex');
