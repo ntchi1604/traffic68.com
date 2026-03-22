@@ -47,7 +47,7 @@ export default function TrafficTracking() {
 
   const stats = [
     { label: 'Tổng lượt xem', value: fmt(totalViews), icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Tổng clicks', value: fmt(totalClicks), icon: MousePointer, color: 'text-green-600', bg: 'bg-green-50' },
+    { label: 'Tổng mã đã lấy', value: fmt(totalClicks), icon: MousePointer, color: 'text-green-600', bg: 'bg-green-50' },
     { label: 'Chiến dịch', value: overview.runningCampaigns || 0, icon: TrendingUp, color: 'text-orange-600', bg: 'bg-orange-50' },
     { label: 'Số dư ví', value: `${fmt(overview.mainBalance)} đ`, icon: DollarSign, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
