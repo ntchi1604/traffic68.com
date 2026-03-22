@@ -76,8 +76,8 @@ export default function AdminWorkerTasks() {
               <tr>
                 <th className="px-4 py-3 text-left font-semibold text-slate-500">ID</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-500">Worker</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-500">Chiến dịch</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-500">Từ khóa</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500">Từ khóa / Chiến dịch</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500">URL</th>
                 <th className="px-4 py-3 text-center font-semibold text-slate-500">Trạng thái</th>
                 <th className="px-4 py-3 text-right font-semibold text-slate-500">Thu nhập</th>
                 <th className="px-4 py-3 text-right font-semibold text-slate-500">Thời gian</th>
@@ -94,9 +94,10 @@ export default function AdminWorkerTasks() {
                     <p className="text-[10px] text-slate-400">{t.worker_email || ''}</p>
                   </td>
                   <td className="px-4 py-3 max-w-[200px]">
-                    <p className="text-xs text-slate-700 font-medium truncate">{t.campaign_name}</p>
+                    <p className="text-xs text-slate-800 font-bold truncate">🔑 {t.keyword || '—'}</p>
+                    <p className="text-[10px] text-slate-400 truncate">{t.campaign_name}</p>
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{t.keyword || '—'}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500 max-w-[160px] truncate">{t.campaign_url || '—'}</td>
                   <td className="px-4 py-3 text-center"><StatusBadge status={t.status} /></td>
                   <td className="px-4 py-3 text-right font-bold text-green-600 text-xs">{fmt(t.earning)} đ</td>
                   <td className="px-4 py-3 text-right text-slate-400 text-xs">

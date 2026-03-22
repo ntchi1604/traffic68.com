@@ -187,7 +187,13 @@ export default function AdminCampaigns() {
   const menuRef = useRef(null);
 
   useEffect(() => {
-    const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenuId(null); };
+    const handler = (e) => {
+      requestAnimationFrame(() => {
+        if (menuRef.current && !menuRef.current.contains(e.target)) {
+          setOpenMenuId(null);
+        }
+      });
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
