@@ -322,7 +322,6 @@ export default function ScriptGenerator() {
   /* Save config to server — always updates the single widget for this user */
   const saveWidget = async () => {
     setSaving(true);
-    setSaveMsg('');
     try {
       const api = (await import('../../lib/api')).default;
       const data = await api.put('/widgets/my', {
