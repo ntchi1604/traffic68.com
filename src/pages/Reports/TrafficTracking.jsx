@@ -57,29 +57,29 @@ const SOURCE_LABEL_MAP = { google_search: 'Google Search', social: 'Social', dir
 
 function CampaignDetailModal({ campaign: c, detail, onClose }) {
   if (!c) return null;
-  const done  = Number(c.views_done || 0);
+  const done = Number(c.views_done || 0);
   const total = Number(c.total_views || 1);
-  const pct   = Math.min(Math.round((done / total) * 100), 100);
+  const pct = Math.min(Math.round((done / total) * 100), 100);
   const spent = done * Number(c.cpc || 0);
-  const eff   = detail?.totalViews > 0 ? Math.round((detail.totalClicks / detail.totalViews) * 100) : 0;
+  const eff = detail?.totalViews > 0 ? Math.round((detail.totalClicks / detail.totalViews) * 100) : 0;
 
   const deviceData = [
     { name: 'Desktop', value: detail?.desktop || 0, color: '#3B82F6' },
-    { name: 'Mobile',  value: detail?.mobile  || 0, color: '#8B5CF6' },
-    { name: 'Tablet',  value: detail?.tablet  || 0, color: '#F59E0B' },
+    { name: 'Mobile', value: detail?.mobile || 0, color: '#8B5CF6' },
+    { name: 'Tablet', value: detail?.tablet || 0, color: '#F59E0B' },
   ].filter(d => d.value > 0);
 
   const dailyData = (detail?.rows || []).map(r => ({
     date: fmtDay(r.date),
     'Hoàn thành': Number(r.clicks || 0),
-    'Nhận task':  Number(r.views  || 0),
+    'Nhận task': Number(r.views || 0),
   }));
 
   const kpis = [
-    { label: 'Hoàn thành',  value: fmt(detail?.totalClicks || 0), sub: `/ ${fmt(detail?.totalViews || 0)} nhận task`, color: '#10B981', bg: '#ECFDF5' },
-    { label: 'Chi phí',     value: `${fmt(spent)} đ`,             sub: `CPC: ${fmt(c.cpc)} đ`,                       color: '#F97316', bg: '#FFF7ED' },
-    { label: 'Hiệu suất',   value: `${eff}%`,                     sub: 'hoàn thành / nhận task',                    color: '#3B82F6', bg: '#EFF6FF' },
-    { label: 'Unique IPs',  value: fmt(detail?.uniqueIps || 0),   sub: 'IP khác nhau',                              color: '#8B5CF6', bg: '#F5F3FF' },
+    { label: 'Hoàn thành', value: fmt(detail?.totalClicks || 0), sub: `/ ${fmt(detail?.totalViews || 0)} nhận task`, color: '#10B981', bg: '#ECFDF5' },
+    { label: 'Chi phí', value: `${fmt(spent)} đ`, sub: `CPC: ${fmt(c.cpc)} đ`, color: '#F97316', bg: '#FFF7ED' },
+    { label: 'Hiệu suất', value: `${eff}%`, sub: 'hoàn thành / nhận task', color: '#3B82F6', bg: '#EFF6FF' },
+    { label: 'Unique IPs', value: fmt(detail?.uniqueIps || 0), sub: 'IP khác nhau', color: '#8B5CF6', bg: '#F5F3FF' },
   ];
 
   return (
@@ -134,7 +134,7 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
                       <AreaChart data={dailyData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
                         <defs>
                           <linearGradient id="gDet" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%"   stopColor="#10B981" stopOpacity={0.3} />
+                            <stop offset="0%" stopColor="#10B981" stopOpacity={0.3} />
                             <stop offset="100%" stopColor="#10B981" stopOpacity={0.02} />
                           </linearGradient>
                         </defs>
@@ -143,7 +143,7 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
                         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={28} />
                         <Tooltip content={<CustomTooltip />} />
                         <Area type="monotone" dataKey="Hoàn thành" stroke="#10B981" fill="url(#gDet)" strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: '#10B981' }} />
-                        <Area type="monotone" dataKey="Nhận task"  stroke="#3B82F6" fill="none" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                        <Area type="monotone" dataKey="Nhận task" stroke="#3B82F6" fill="none" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -177,9 +177,9 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
             {/* Info */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
               {[
-                { label: 'Nguồn traffic',   value: SOURCE_LABEL_MAP[c.traffic_type] || c.traffic_type || '—' },
-                { label: 'Từ khóa',         value: c.keyword || '—' },
-                { label: 'Thời gian xem',   value: c.time_on_site ? `${c.time_on_site}s` : '—' },
+                { label: 'Nguồn traffic', value: SOURCE_LABEL_MAP[c.traffic_type] || c.traffic_type || '—' },
+                { label: 'Từ khóa', value: c.keyword || '—' },
+                { label: 'Thời gian xem', value: c.time_on_site ? `${c.time_on_site}s` : '—' },
               ].map(item => (
                 <div key={item.label} style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px' }}>
                   <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{item.label}</p>
@@ -230,13 +230,13 @@ export default function TrafficTracking() {
     try {
       const data = await api.get(`/reports/traffic?campaignId=${camp.id}&period=${range}`);
       const rows = data.traffic || [];
-      const bd   = data.byDevice || [];
+      const bd = data.byDevice || [];
       const totalClicks = rows.reduce((s, t) => s + Number(t.clicks || 0), 0);
-      const totalViews  = rows.reduce((s, t) => s + Number(t.views  || 0), 0);
-      const uniqueIps   = rows.reduce((s, t) => s + Number(t.unique_ips || 0), 0);
-      const mobile  = bd.find(x => x.name === 'Mobile')?.value  || 0;
+      const totalViews = rows.reduce((s, t) => s + Number(t.views || 0), 0);
+      const uniqueIps = rows.reduce((s, t) => s + Number(t.unique_ips || 0), 0);
+      const mobile = bd.find(x => x.name === 'Mobile')?.value || 0;
       const desktop = bd.find(x => x.name === 'Desktop')?.value || 0;
-      const tablet  = bd.find(x => x.name === 'Tablet')?.value  || 0;
+      const tablet = bd.find(x => x.name === 'Tablet')?.value || 0;
       setCampDetails(prev => ({ ...prev, [camp.id]: { totalClicks, totalViews, uniqueIps, mobile, desktop, tablet, rows } }));
     } catch { }
   };
@@ -245,11 +245,11 @@ export default function TrafficTracking() {
 
   // "View" = lượt vượt link hoàn thành = cột `clicks` trong traffic_logs
   const totalCompleted = traffic.reduce((s, t) => s + Number(t.clicks || 0), 0);
-  const avgPerDay  = traffic.length > 0 ? Math.round(totalCompleted / traffic.length) : 0;
-  const peakDay    = traffic.reduce((best, t) => Number(t.clicks || 0) > Number(best?.clicks || 0) ? t : best, null);
-  const trend      = getTrend(traffic);
+  const avgPerDay = traffic.length > 0 ? Math.round(totalCompleted / traffic.length) : 0;
+  const peakDay = traffic.reduce((best, t) => Number(t.clicks || 0) > Number(best?.clicks || 0) ? t : best, null);
+  const trend = getTrend(traffic);
   const deviceTotal = byDevice.reduce((s, x) => s + x.value, 0);
-  const chartData  = traffic.map(t => ({ date: fmtDay(t.date), 'Lượt xem': Number(t.clicks || 0) }));
+  const chartData = traffic.map(t => ({ date: fmtDay(t.date), 'Lượt xem': Number(t.clicks || 0) }));
 
   // Campaigns to show in progress: exclude completed > 24h
   const visibleCampaigns = campaigns.filter(c => {
@@ -280,7 +280,6 @@ export default function TrafficTracking() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Theo dõi lưu lượng</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Phân tích chi tiết traffic theo chiến dịch của bạn</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
@@ -402,7 +401,7 @@ export default function TrafficTracking() {
               {visibleCampaigns.length === 0 ? (
                 <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-400">Chưa có chiến dịch nào</td></tr>
               ) : visibleCampaigns.map(c => {
-                const done  = Number(c.views_done || 0);
+                const done = Number(c.views_done || 0);
                 const total = Number(c.total_views || 1);
                 const isCompleted = done >= total || c.status === 'completed';
                 const pct = Math.min(Math.round((done / total) * 100), 100);
@@ -442,7 +441,7 @@ export default function TrafficTracking() {
                       </td>
                     </tr>
                   </>
-                  );
+                );
               })}
             </tbody>
           </table>
