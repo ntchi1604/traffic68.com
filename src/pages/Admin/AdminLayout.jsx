@@ -8,7 +8,6 @@ import {
 import api from '../../lib/api';
 
 const BUYER_NAV = [
-  { to: '/admin',              icon: LayoutDashboard, label: 'Tổng quan',    end: true },
   { to: '/admin/users',        icon: Users,           label: 'Người dùng' },
   { to: '/admin/campaigns',    icon: Megaphone,       label: 'Chiến dịch' },
   { to: '/admin/transactions', icon: Receipt,         label: 'Giao dịch' },
@@ -105,13 +104,18 @@ export default function AdminLayout() {
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          {/* Tổng quan - standalone */}
+          <NavItem to="/admin" icon={LayoutDashboard} label="Tổng quan" end />
+
           {/* Buyer Section */}
+          <div className="mt-2">
           <button onClick={() => setBuyerOpen(!buyerOpen)}
             className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200">
             <div className="flex items-center gap-2"><Briefcase size={12} /> Buyer</div>
             <ChevronDown className={`w-4 h-4 transition-transform ${buyerOpen ? '' : '-rotate-90'}`} />
           </button>
           {buyerOpen && <div className="ml-2 space-y-1">{BUYER_NAV.map(item => <NavItem key={item.to} {...item} />)}</div>}
+          </div>
 
           {/* Worker Section */}
           <div className="mt-2">
