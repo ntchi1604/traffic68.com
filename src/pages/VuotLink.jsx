@@ -204,7 +204,8 @@ export default function VuotLink() {
 
   // Gateway link support (?ref=slug)
   const [searchParams] = useSearchParams();
-  const refSlug = searchParams.get('ref');
+  const { slug: _routeSlug } = useParams();
+  const refSlug = _routeSlug || searchParams.get('ref');
   const [workerLinkId, setWorkerLinkId] = useState(null);
   const [workerLinkInfo, setWorkerLinkInfo] = useState(null);
   const [redirectDest, setRedirectDest] = useState(null);

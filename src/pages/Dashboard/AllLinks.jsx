@@ -62,7 +62,7 @@ export default function AllLinks() {
   };
 
   const copyLink = (slug) => {
-    navigator.clipboard.writeText(`${BASE}/vuot-link?ref=${slug}`);
+    navigator.clipboard.writeText(`${BASE}/vuot-link/${slug}`);
     setCopied(slug); setTimeout(() => setCopied(null), 1500);
   };
 
@@ -193,7 +193,7 @@ export default function AllLinks() {
                         <button onClick={() => copyLink(l.slug)} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${copied === l.slug ? 'bg-green-50 border-green-200 text-green-600' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
                           {copied === l.slug ? 'âœ“' : 'Copy'}
                         </button>
-                        <a href={`/vuot-link?ref=${l.slug}`} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-blue-500 transition-colors"><ExternalLink size={12} /></a>
+                        <a href={`/vuot-link/${l.slug}`} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-blue-500 transition-colors"><ExternalLink size={12} /></a>
                       </div>
                     </td>
                     <td className="py-3 px-4 text-center font-semibold text-slate-600 text-xs">{fmt(l.click_count)}</td>

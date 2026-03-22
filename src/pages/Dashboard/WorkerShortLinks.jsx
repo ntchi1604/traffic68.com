@@ -64,7 +64,7 @@ export default function WorkerShortLinks() {
   };
 
   const copyLink = (slug) => {
-    navigator.clipboard.writeText(`${BASE}/vuot-link?ref=${slug}`);
+    navigator.clipboard.writeText(`${BASE}/vuot-link/${slug}`);
     setCopied(slug); setTimeout(() => setCopied(null), 1500);
   };
 
@@ -251,7 +251,7 @@ export default function WorkerShortLinks() {
                       <button onClick={() => copyLink(l.slug)} title="Copy link" style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #E2E8F0', background: copied === l.slug ? '#F0FDF4' : '#F8FAFC', cursor: 'pointer', color: copied === l.slug ? '#16A34A' : '#64748B', fontSize: 11, fontWeight: 700 }}>
                         {copied === l.slug ? 'âœ“' : <Copy size={12} />}
                       </button>
-                      <a href={`/vuot-link?ref=${l.slug}`} target="_blank" rel="noreferrer" style={{ color: '#94A3B8' }}><ExternalLink size={12} /></a>
+                      <a href={`/vuot-link/${l.slug}`} target="_blank" rel="noreferrer" style={{ color: '#94A3B8' }}><ExternalLink size={12} /></a>
                     </div>
                   </td>
                   <td style={{ padding: '12px 16px', fontWeight: 700, color: '#64748B' }}>{fmt(l.click_count)}</td>
