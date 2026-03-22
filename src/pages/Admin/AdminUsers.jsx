@@ -19,13 +19,13 @@ function BalanceModal({ user, onClose, onDone }) {
   const QUICK_AMOUNTS = [50000, 100000, 500000, 1000000, 5000000, 10000000];
   const WALLET_OPTIONS = isWorker
     ? [
-        { key: 'earning', label: 'Ví Thu nhập', color: 'green' },
-        { key: 'commission', label: 'Ví Hoa hồng', color: 'orange' },
-      ]
+      { key: 'earning', label: 'Ví Thu nhập', color: 'green' },
+      { key: 'commission', label: 'Ví Hoa hồng', color: 'orange' },
+    ]
     : [
-        { key: 'main', label: 'Ví Traffic', color: 'blue' },
-        { key: 'commission', label: 'Ví Hoa hồng', color: 'orange' },
-      ];
+      { key: 'main', label: 'Ví Traffic', color: 'blue' },
+      { key: 'commission', label: 'Ví Hoa hồng', color: 'orange' },
+    ];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -47,7 +47,7 @@ function BalanceModal({ user, onClose, onDone }) {
             <h3 className="text-lg font-black text-slate-900">Quản lý số dư</h3>
             <p className="text-xs text-slate-500">{user.name} — {user.email}</p>
             <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${isWorker ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-              {isWorker ? <><HardHat size={10}/> Worker</> : <><Briefcase size={10}/> Buyer</>}
+              {isWorker ? <><HardHat size={10} /> Worker</> : <><Briefcase size={10} /> Buyer</>}
             </span>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition"><X size={18} className="text-slate-400" /></button>
@@ -191,126 +191,126 @@ export default function AdminUsers({ type }) {
         {loading ? (
           <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="px-5 py-3 text-left font-semibold text-slate-500">ID</th>
-              <th className="px-5 py-3 text-left font-semibold text-slate-500">Người dùng</th>
-              <th className="px-5 py-3 text-left font-semibold text-slate-500">SĐT</th>
-              <th className="px-5 py-3 text-left font-semibold text-slate-500">Role</th>
-              <th className="px-5 py-3 text-left font-semibold text-slate-500">Số dư</th>
-              {isWorker ? (
-                <>
-                  <th className="px-5 py-3 text-left font-semibold text-slate-500">Nhiệm vụ</th>
-                  <th className="px-5 py-3 text-left font-semibold text-slate-500">Thu nhập</th>
-                </>
-              ) : (
-                <th className="px-5 py-3 text-left font-semibold text-slate-500">Chiến dịch</th>
-              )}
-              <th className="px-5 py-3 text-left font-semibold text-slate-500">Trạng thái</th>
-              <th className="px-5 py-3 text-left font-semibold text-slate-500">Ngày tạo</th>
-              <th className="px-5 py-3 text-center font-semibold text-slate-500">Hành động</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {users.length === 0 ? (
-              <tr><td colSpan={isWorker ? 10 : 9} className="py-12 text-center text-slate-400">Không có người dùng</td></tr>
-            ) : users.map(u => (
-              <tr key={u.id} className="hover:bg-slate-50/70">
-                <td className="px-5 py-3 font-mono text-slate-500">#{u.id}</td>
-                <td className="px-5 py-3">
-                  <p className="font-semibold text-slate-800">{u.name}</p>
-                  <p className="text-xs text-slate-400">{u.email}</p>
-                  {u.username && <p className="text-[10px] text-blue-500 font-medium">@{u.username}</p>}
-                </td>
-                <td className="px-5 py-3 text-slate-600">{u.phone || '—'}</td>
-                <td className="px-5 py-3">
-                  <span className={`px-2 py-1 text-xs font-bold rounded-full ${u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {u.role === 'admin' ? 'Admin' : 'User'}
-                  </span>
-                </td>
-                <td className="px-5 py-3">
-                  {isWorker ? (
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-semibold text-emerald-600">{fmt(u.earning_balance)} đ</p>
-                      <p className="text-[10px] text-slate-400">{fmt(u.commission_balance)} đ</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-semibold text-slate-700">{fmt(u.main_balance)} đ</p>
-                      <p className="text-[10px] text-slate-400">{fmt(u.commission_balance)} đ</p>
-                    </div>
-                  )}
-                </td>
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-5 py-3 text-left font-semibold text-slate-500">ID</th>
+                <th className="px-5 py-3 text-left font-semibold text-slate-500">Người dùng</th>
+                <th className="px-5 py-3 text-left font-semibold text-slate-500">SĐT</th>
+                <th className="px-5 py-3 text-left font-semibold text-slate-500">Role</th>
+                <th className="px-5 py-3 text-left font-semibold text-slate-500">Số dư</th>
                 {isWorker ? (
                   <>
-                    <td className="px-5 py-3 text-center text-slate-600 font-semibold">{u.task_count}</td>
-                    <td className="px-5 py-3 font-semibold text-green-600 text-xs">{fmt(u.total_earning)} đ</td>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Nhiệm vụ</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Thu nhập</th>
                   </>
                 ) : (
-                  <td className="px-5 py-3 text-center text-slate-600">{u.campaign_count}</td>
+                  <th className="px-5 py-3 text-left font-semibold text-slate-500">Chiến dịch</th>
                 )}
-                <td className="px-5 py-3">
-                  <span className={`px-2 py-1 text-xs font-bold rounded-full
-                    ${u.status === 'active' ? 'bg-green-100 text-green-700' :
-                      u.status === 'banned' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
-                    {u.status === 'active' ? 'Active' : u.status === 'banned' ? 'Banned' : u.status || 'Active'}
-                  </span>
-                </td>
-                <td className="px-5 py-3 text-slate-500 text-xs">{new Date(u.created_at).toLocaleString('vi-VN')}</td>
-                <td className="px-5 py-3">
-                  <div className="relative flex justify-center" ref={openMenuId === u.id ? menuRef : null}>
-                    <button
-                      onClick={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
-                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-                    {openMenuId === u.id && (
-                      <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[170px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
-                        <button
-                          onClick={() => { setBalanceUser(u); setOpenMenuId(null); }}
-                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition text-left"
-                        >
-                          <Wallet size={14} className="text-emerald-500" /> Cộng / Trừ tiền
-                        </button>
-                        {u.role !== 'admin' && (
-                          <button
-                            onClick={() => { updateUser(u.id, { role: 'admin' }); setOpenMenuId(null); }}
-                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition text-left"
-                          >
-                            <Shield size={14} className="text-orange-500" /> Thăng Admin
-                          </button>
-                        )}
-                        {u.role === 'admin' && (
-                          <button
-                            onClick={() => { updateUser(u.id, { role: 'user' }); setOpenMenuId(null); }}
-                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition text-left"
-                          >
-                            <UserCog size={14} className="text-slate-500" /> Hạ xuống User
-                          </button>
-                        )}
-                        <button
-                          onClick={() => { updateUser(u.id, { status: u.status === 'banned' ? 'active' : 'banned' }); setOpenMenuId(null); }}
-                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition text-left"
-                        >
-                          <Ban size={14} className="text-amber-500" /> {u.status === 'banned' ? 'Bỏ ban' : 'Ban tài khoản'}
-                        </button>
-                        <div className="border-t border-slate-100 my-1" />
-                        <button
-                          onClick={() => { deleteUser(u.id, u.name); setOpenMenuId(null); }}
-                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition text-left"
-                        >
-                          <Trash2 size={14} /> Xóa người dùng
-                        </button>
+                <th className="px-5 py-3 text-left font-semibold text-slate-500">Trạng thái</th>
+                <th className="px-5 py-3 text-left font-semibold text-slate-500">Ngày tạo</th>
+                <th className="px-5 py-3 text-center font-semibold text-slate-500">Hành động</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {users.length === 0 ? (
+                <tr><td colSpan={isWorker ? 10 : 9} className="py-12 text-center text-slate-400">Không có người dùng</td></tr>
+              ) : users.map(u => (
+                <tr key={u.id} className="hover:bg-slate-50/70">
+                  <td className="px-5 py-3 font-mono text-slate-500">#{u.id}</td>
+                  <td className="px-5 py-3">
+                    <p className="font-semibold text-slate-800">{u.name}</p>
+                    <p className="text-xs text-slate-400">{u.email}</p>
+                    {u.username && <p className="text-[10px] text-blue-500 font-medium">@{u.username}</p>}
+                  </td>
+                  <td className="px-5 py-3 text-slate-600">{u.phone || '—'}</td>
+                  <td className="px-5 py-3">
+                    <span className={`px-2 py-1 text-xs font-bold rounded-full ${u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {u.role === 'admin' ? 'Admin' : 'User'}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    {isWorker ? (
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-semibold text-emerald-600">{fmt(u.earning_balance)} đ</p>
+                        <p className="text-[10px] text-slate-400">{fmt(u.commission_balance)} đ</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-semibold text-slate-700">{fmt(u.main_balance)} đ</p>
+                        <p className="text-[10px] text-slate-400">{fmt(u.commission_balance)} đ</p>
                       </div>
                     )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                  {isWorker ? (
+                    <>
+                      <td className="px-5 py-3 text-center text-slate-600 font-semibold">{u.task_count}</td>
+                      <td className="px-5 py-3 font-semibold text-green-600 text-xs">{fmt(u.total_earning)} đ</td>
+                    </>
+                  ) : (
+                    <td className="px-5 py-3 text-center text-slate-600">{u.campaign_count}</td>
+                  )}
+                  <td className="px-5 py-3">
+                    <span className={`px-2 py-1 text-xs font-bold rounded-full
+                    ${u.status === 'active' ? 'bg-green-100 text-green-700' :
+                        u.status === 'banned' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
+                      {u.status === 'active' ? 'Active' : u.status === 'banned' ? 'Banned' : u.status || 'Active'}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-slate-500 text-xs">{new Date(u.created_at).toLocaleString('vi-VN')}</td>
+                  <td className="px-5 py-3">
+                    <div className="relative flex justify-center" ref={openMenuId === u.id ? menuRef : null}>
+                      <button
+                        onClick={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      {openMenuId === u.id && (
+                        <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[170px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                          <button
+                            onClick={() => { setBalanceUser(u); setOpenMenuId(null); }}
+                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition text-left"
+                          >
+                            <Wallet size={14} className="text-emerald-500" /> Cộng / Trừ tiền
+                          </button>
+                          {u.role !== 'admin' && (
+                            <button
+                              onClick={() => { updateUser(u.id, { role: 'admin' }); setOpenMenuId(null); }}
+                              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition text-left"
+                            >
+                              <Shield size={14} className="text-orange-500" /> Thăng lên Admin
+                            </button>
+                          )}
+                          {u.role === 'admin' && (
+                            <button
+                              onClick={() => { updateUser(u.id, { role: 'user' }); setOpenMenuId(null); }}
+                              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition text-left"
+                            >
+                              <UserCog size={14} className="text-slate-500" /> Hạ xuống User
+                            </button>
+                          )}
+                          <button
+                            onClick={() => { updateUser(u.id, { status: u.status === 'banned' ? 'active' : 'banned' }); setOpenMenuId(null); }}
+                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition text-left"
+                          >
+                            <Ban size={14} className="text-amber-500" /> {u.status === 'banned' ? 'Bỏ ban' : 'Ban tài khoản'}
+                          </button>
+                          <div className="border-t border-slate-100 my-1" />
+                          <button
+                            onClick={() => { deleteUser(u.id, u.name); setOpenMenuId(null); }}
+                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition text-left"
+                          >
+                            <Trash2 size={14} /> Xóa người dùng
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
