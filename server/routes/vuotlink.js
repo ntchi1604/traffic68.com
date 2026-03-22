@@ -220,6 +220,20 @@ async function _handleTaskPost(req, res) {
 
   console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, waitTime: ${waitTime}s`);
 
+  // Track view (worker entered the page/claimed task)
+  try {
+    const todayView = new Date().toISOString().slice(0, 10);
+    const [vLogs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [campaign.id, todayView]);
+    if (vLogs.length > 0) {
+      await pool.execute('UPDATE traffic_logs SET views = views + 1 WHERE id = ?', [vLogs[0].id]);
+    } else {
+      await pool.execute(
+        'INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source) VALUES (?, ?, 1, 0, 1, ?)',
+        [campaign.id, todayView, campaign.traffic_type || 'google_search']
+      );
+    }
+  } catch (_) {}
+
   // Fetch widget config from advertiser (for button preview in Step 4)
   let widgetConfig = null;
   try {
@@ -336,7 +350,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     [task.campaign_id]
   );
 
-  // Update traffic log — with device tracking
+  // Update traffic log — clicks = successful code retrieval, device tracking
   const today = new Date().toISOString().slice(0, 10);
   const ua = (task.user_agent || '').toLowerCase();
   const isTablet = /ipad|tablet|kindle|playbook|silk|(android(?!.*mobile))/i.test(ua);
@@ -346,7 +360,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [task.campaign_id, today]);
   if (logs.length > 0) {
     await pool.execute(
-      `UPDATE traffic_logs SET views = views + 1, clicks = clicks + 1, ${deviceCol} = ${deviceCol} + 1 WHERE id = ?`,
+      `UPDATE traffic_logs SET clicks = clicks + 1, ${deviceCol} = ${deviceCol} + 1 WHERE id = ?`,
       [logs[0].id]
     );
   } else {
