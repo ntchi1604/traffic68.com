@@ -863,7 +863,7 @@ export default function ScriptGenerator() {
               {activeWidgetId && (
                 <button onClick={saveWidget} disabled={saving}
                   className="w-full mt-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition disabled:opacity-50">
-                  {saving ? 'Đang lưu...' : '💾 Lưu Script'}
+                  {saving ? 'Đang lưu...' : 'Lưu Script'}
                 </button>
               )}
             </div>
