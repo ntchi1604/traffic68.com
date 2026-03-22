@@ -75,15 +75,20 @@ CREATE TABLE IF NOT EXISTS transactions (
 
 CREATE TABLE IF NOT EXISTS widgets (
   id         INT PRIMARY KEY AUTO_INCREMENT,
-  user_id    INT NOT NULL UNIQUE,
+  user_id    INT NOT NULL,
   token      VARCHAR(100) NOT NULL UNIQUE,
   name       VARCHAR(255) NOT NULL DEFAULT 'Nút mặc định',
   config     TEXT NOT NULL,
   is_active  TINYINT NOT NULL DEFAULT 1,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_user_id (user_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migration for multi-widget support (run once on existing databases):
+-- ALTER TABLE widgets DROP INDEX user_id;
+-- ALTER TABLE widgets ADD KEY idx_user_id (user_id);
 
 CREATE TABLE IF NOT EXISTS notifications (
   id         INT PRIMARY KEY AUTO_INCREMENT,

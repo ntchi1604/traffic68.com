@@ -7,6 +7,7 @@ import {
   Code2, Sliders, Info,
   Pin, MessageSquare,
   Crosshair, Settings2,
+  Plus, Trash2, Globe,
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 
@@ -243,15 +244,6 @@ function TextInput({ value, onChange, placeholder, mono }) {
                   ${mono ? 'font-mono' : ''}`} />
   );
 }
-function ColorRow({ label, colorKey, cfg, set }) {
-  return (
-    <div>
-      <Label>{label}</Label>
-      <input type="color" value={cfg[colorKey]} onChange={e => set(colorKey, e.target.value)}
-        className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5" />
-    </div>
-  );
-}
 function Toggle({ checked, onChange, label }) {
   return (
     <label className="flex items-center gap-3 cursor-pointer">
@@ -286,11 +278,19 @@ export default function ScriptGenerator() {
   const [running, setRunning] = useState(false);
   const timerRef = useRef(null);
 
-  // Token-based embed
-  const [token, setToken] = useState('');
+  // Multi-widget state
+  const [widgets, setWidgets] = useState([]);           // all widgets from API
+  const [activeWidgetId, setActiveWidgetId] = useState(null); // currently selected widget id
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(null);
 
   const set = (k, v) => setCfg(c => ({ ...c, [k]: v }));
+
+  // Compute active widget from list
+  const activeWidget = widgets.find(w => w.id === activeWidgetId);
+  const token = activeWidget?.token || '';
 
   useEffect(() => {
     setCountdown(cfg.waitTime); setRevealed(false);
@@ -307,28 +307,68 @@ export default function ScriptGenerator() {
     }, 1000);
   };
 
-  // Load existing widget on mount
+  // Load all widgets on mount
   useEffect(() => {
     (async () => {
       try {
         const api = (await import('../../lib/api')).default;
         const data = await api.get('/widgets/my');
-        if (data?.config) setCfg(c => ({ ...c, ...data.config }));
-        if (data?.token) setToken(data.token);
-      } catch { /* not logged in or no widget yet */ }
+        const list = data?.widgets || [];
+        setWidgets(list);
+        if (list.length > 0) {
+          setActiveWidgetId(list[0].id);
+          setCfg(c => ({ ...c, ...list[0].config }));
+        }
+      } catch { /* not logged in */ }
+      setLoading(false);
     })();
   }, []);
 
-  /* Save config to server — always updates the single widget for this user */
+  // When switching active widget, load its config
+  const selectWidget = (id) => {
+    const w = widgets.find(w => w.id === id);
+    if (w) {
+      setActiveWidgetId(id);
+      setCfg(c => ({ ...DEFAULT_CFG, ...w.config }));
+    }
+  };
+
+  // Create new widget
+  const createWidget = async () => {
+    setCreating(true);
+    try {
+      const api = (await import('../../lib/api')).default;
+      const data = await api.post('/widgets', {
+        name: `Widget ${widgets.length + 1}`,
+        config: DEFAULT_CFG,
+      });
+      const newW = data.widget;
+      const entry = { id: newW.id, token: newW.token, name: newW.name, config: newW.config, is_active: newW.is_active };
+      setWidgets(prev => [...prev, entry]);
+      setActiveWidgetId(newW.id);
+      setCfg({ ...DEFAULT_CFG, ...newW.config });
+      toast.success('Đã tạo widget mới!');
+    } catch (err) {
+      toast.error(err.message || 'Lỗi tạo widget');
+    }
+    setCreating(false);
+  };
+
+  // Save current widget config
   const saveWidget = async () => {
+    if (!activeWidgetId) {
+      // Auto-create
+      return createWidget();
+    }
     setSaving(true);
     try {
       const api = (await import('../../lib/api')).default;
-      const data = await api.put('/widgets/my', {
+      const data = await api.put(`/widgets/${activeWidgetId}`, {
         name: cfg.buttonText || 'Nút mặc định',
         config: cfg,
       });
-      setToken(data.token);
+      const updated = data.widget;
+      setWidgets(prev => prev.map(w => w.id === activeWidgetId ? { ...w, name: updated.name, config: updated.config, token: updated.token } : w));
       toast.success('Đã lưu script thành công!', 'Lưu thành công');
     } catch (err) {
       toast.error(err.message || 'Lỗi lưu widget');
@@ -337,9 +377,33 @@ export default function ScriptGenerator() {
     }
   };
 
+  // Delete widget
+  const deleteWidget = async (id) => {
+    if (!confirm('Xoá widget này? Mã nhúng sẽ ngừng hoạt động.')) return;
+    setDeleting(id);
+    try {
+      const api = (await import('../../lib/api')).default;
+      await api.delete(`/widgets/${id}`);
+      setWidgets(prev => prev.filter(w => w.id !== id));
+      if (activeWidgetId === id) {
+        const remaining = widgets.filter(w => w.id !== id);
+        if (remaining.length > 0) {
+          selectWidget(remaining[0].id);
+        } else {
+          setActiveWidgetId(null);
+          setCfg(DEFAULT_CFG);
+        }
+      }
+      toast.success('Đã xoá widget');
+    } catch (err) {
+      toast.error(err.message || 'Lỗi xoá');
+    }
+    setDeleting(null);
+  };
+
   /* Embed code — token-based (secure) */
   const embedCode = useMemo(() => {
-    if (!token) return '// Nhấn "Lưu & Lấy Script" để tạo mã nhúng an toàn';
+    if (!token) return '// Nhấn "Lưu Script" hoặc tạo mới để lấy mã nhúng';
     return [
       `<script src="${window.location.origin}/api_seo_traffic68.js" data-token="${token}" async><\/script>`,
     ].join('\n');
@@ -356,411 +420,431 @@ export default function ScriptGenerator() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black text-gray-900">Script Nút Lấy Mã</h1>
+          <p className="text-sm text-gray-500 mt-1">Mỗi website cần 1 widget riêng với insertTarget phù hợp</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+      {/* ══ Widget selector bar ══════════════════════════════ */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+            <Globe size={15} className="text-blue-500" />
+            Widget của bạn ({widgets.length})
+          </h3>
+          <button onClick={createWidget} disabled={creating || widgets.length >= 10}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300
+                       text-white text-xs font-bold rounded-xl transition active:scale-95">
+            <Plus size={13} />
+            {creating ? 'Đang tạo...' : 'Thêm Widget'}
+          </button>
+        </div>
 
-        {/* ══ Config panel (3/5) ══════════════════════════════ */}
-        <div className="xl:col-span-3 space-y-4">
-
-          {/* Tab bar — 4 tabs only */}
-          <div className="flex bg-gray-100 dark:bg-slate-800 rounded-xl p-1 gap-1">
-            {TABS.map(({ key, label, Icon }) => (
-              <button key={key} onClick={() => setTab(key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-bold rounded-lg whitespace-nowrap transition-all
-                            ${tab === key
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700'}`}>
-                <Icon size={13} /> {label}
-              </button>
-            ))}
-          </div>
-
-          {/* ─────────────────────────────────────────────────── */}
-          {/* TAB 1: Nút — appearance only, NO position          */}
-          {/* ─────────────────────────────────────────────────── */}
-          {tab === 'button' && (
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
-
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Text nút">
-                  <TextInput value={cfg.buttonText} onChange={e => set('buttonText', e.target.value)} placeholder="Lấy Mã" />
-                </Field>
-                <Field label={`Cỡ chữ — ${cfg.fontSize}px`}>
-                  <input type="range" min="0" max="13" value={cfg.fontSize}
-                    onChange={e => set('fontSize', +e.target.value)}
-                    className="w-full accent-blue-500 cursor-pointer mt-2" />
-                </Field>
-              </div>
-
-              {/* Màu — inline compact */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-3">
-                  <input type="color" value={cfg.buttonColor} onChange={e => set('buttonColor', e.target.value)}
-                    className="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer p-0.5 flex-shrink-0" />
-                  <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">Màu nền nút</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input type="color" value={cfg.textColor} onChange={e => set('textColor', e.target.value)}
-                    className="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer p-0.5 flex-shrink-0" />
-                  <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">Màu chữ nút</span>
-                </div>
-              </div>
-
-              <Field label={`Border radius — ${cfg.borderRadius}px`}>
-                <input type="range" min="0" max="20" value={cfg.borderRadius}
-                  onChange={e => set('borderRadius', +e.target.value)}
-                  className="w-full accent-blue-500 cursor-pointer" />
-                <div className="flex justify-between text-[10px] text-gray-400 mt-1"><span>Vuông</span><span>Pill</span></div>
-              </Field>
-
-              <Toggle checked={cfg.shadow} onChange={v => set('shadow', v)} label="Hiệu ứng đổ bóng" />
-
-              {/* Icon section — compact card */}
-              <SectionTitle>Icon / Logo nút</SectionTitle>
-              <Field label="URL ảnh logo"
-                hint="Để trống sẽ dùng logo mặc định — dùng chung icon nút + logo popup">
-                <TextInput value={cfg.iconUrl} onChange={e => { set('iconUrl', e.target.value); set('brandLogo', e.target.value); }}
-                  mono />
-              </Field>
-
-              <div className="flex items-center gap-4 bg-gray-50 rounded-xl p-3">
-                <img
-                  src={cfg.iconUrl || '/lg.png'} alt="icon"
-                  className="w-11 h-11 object-contain rounded-lg p-1 flex-shrink-0"
-                  style={{ background: cfg.iconBg !== 'transparent' ? cfg.iconBg : '#f3f4f6', border: '1px solid #e5e7eb' }}
-                  onError={e => { e.target.src = '/lg.png'; }}
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-700 truncate">
-                    {cfg.iconUrl ? 'Ảnh tùy chỉnh' : 'Logo mặc định'}
-                  </p>
-                  <div className="flex items-center gap-3 mt-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Toggle
-                        checked={cfg.iconBg !== 'transparent'}
-                        onChange={v => set('iconBg', v ? '#ffffff' : 'transparent')}
-                        label="Nền"
-                      />
-                      {cfg.iconBg !== 'transparent' && (
-                        <input type="color"
-                          value={cfg.iconBg.startsWith('rgba') ? '#ffffff' : cfg.iconBg}
-                          onChange={e => set('iconBg', e.target.value)}
-                          className="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer p-0.5" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {cfg.iconUrl && (
-                  <button onClick={() => set('iconUrl', '')}
-                    className="text-xs text-red-400 hover:text-red-600 font-semibold flex-shrink-0">✕</button>
-                )}
-              </div>
-
-              <Field label={`Kích thước icon — ${cfg.iconSize}px`}>
-                <input type="range" min="14" max="40" value={cfg.iconSize}
-                  onChange={e => set('iconSize', +e.target.value)}
-                  className="w-full accent-blue-500 cursor-pointer" />
-              </Field>
+        {loading ? (
+          <div className="py-6 text-center text-sm text-gray-400">Đang tải...</div>
+        ) : widgets.length === 0 ? (
+          <div className="py-8 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-3">
+              <Code2 size={24} className="text-blue-500" />
             </div>
-          )}
-
-          {/* ── TAB 2: Nhúng ─────────────────────────────────── */}
-          {tab === 'position' && (
-            <div className="space-y-4">
-
-              {/* ── 1. Phần tử tham chiếu ── */}
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
-                    <Crosshair size={14} className="text-blue-600" />
+            <p className="text-sm font-bold text-gray-700 mb-1">Chưa có widget nào</p>
+            <p className="text-xs text-gray-400 mb-3">Tạo widget đầu tiên để nhúng vào website của bạn</p>
+            <button onClick={createWidget} disabled={creating}
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition">
+              <Plus size={14} className="inline mr-1" />Tạo Widget
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {widgets.map(w => {
+              const isActive = w.id === activeWidgetId;
+              return (
+                <div key={w.id}
+                  onClick={() => selectWidget(w.id)}
+                  className={`relative flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all
+                    ${isActive
+                      ? 'border-blue-500 bg-blue-50 shadow-sm ring-2 ring-blue-200'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
+                  {/* Color dot */}
+                  <div className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ background: w.config?.buttonColor || '#f97316' }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-gray-800 truncate">{w.name || 'Nút mặc định'}</p>
+                    <p className="text-[10px] text-gray-400 font-mono truncate">{w.config?.insertTarget || '.footer'}</p>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-800">Phần tử tham chiếu</h3>
-                    <p className="text-[11px] text-gray-400">CSS selector — script sẽ tìm phần tử này trên trang khách</p>
-                  </div>
+                  {isActive && <span className="text-blue-500 text-sm font-bold flex-shrink-0">✓</span>}
+                  {/* Delete btn */}
+                  <button
+                    onClick={e => { e.stopPropagation(); deleteWidget(w.id); }}
+                    disabled={deleting === w.id}
+                    className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition flex-shrink-0"
+                    title="Xoá widget">
+                    <Trash2 size={13} />
+                  </button>
                 </div>
-                <input type="text" value={cfg.insertTarget}
-                  onChange={e => set('insertTarget', e.target.value)}
-                  placeholder=".footer · #sidebar · header · .cta-section"
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl
-                             focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition font-mono bg-white" />
-                <p className="text-[11px] text-gray-400 leading-relaxed">
-                  Script tự tạo 1 <code className="bg-gray-100 px-1 rounded text-gray-600">div</code> mới và chèn vào vị trí bạn chọn bên dưới.
-                  Khách hàng chỉ cần dán thẻ <code className="bg-gray-100 px-1 rounded text-gray-600">&lt;script&gt;</code>, không cần sửa HTML.
-                </p>
-              </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-              {/* ── 2. Vị trí chèn ── */}
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center">
-                    <Pin size={14} className="text-violet-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-800">Vị trí chèn</h3>
-                    <p className="text-[11px] text-gray-400">Div mới sẽ xuất hiện ở đâu so với phần tử tham chiếu?</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {INSERT_MODES.map(m => {
-                    const sel = cfg.insertMode === m.id;
-                    return (
-                      <button key={m.id} type="button" onClick={() => set('insertMode', m.id)}
-                        className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all
-                          ${sel ? 'border-violet-500 bg-violet-50 text-violet-700 shadow-sm' : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600'}`}>
-                        <span className="text-base font-bold leading-none">{m.arrow}</span>
-                        <span className="text-[11px] font-semibold">{m.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-[11px] text-violet-500 font-medium mt-1">
-                  {INSERT_MODES.find(m => m.id === cfg.insertMode)?.arrow}{' '}
-                  <strong>{INSERT_MODES.find(m => m.id === cfg.insertMode)?.label}</strong>
-                  {' — '}{INSERT_MODES.find(m => m.id === cfg.insertMode)?.desc}
-                </p>
-              </div>
+      {/* Only show config panel when a widget is selected */}
+      {activeWidgetId && (
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
 
-              {/* ── 3. Căn chỉnh + Padding ── */}
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-sm">↔</div>
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-800">Căn chỉnh & khoảng cách</h3>
-                    <p className="text-[11px] text-gray-400">Nút hiển thị inline, tự chiếm không gian trong div mới</p>
-                  </div>
-                </div>
+          {/* ══ Config panel (3/5) ══════════════════════════════ */}
+          <div className="xl:col-span-3 space-y-4">
 
-                <div className="grid grid-cols-3 gap-2">
-                  {ALIGNS.map(a => (
-                    <button key={a.id} type="button" onClick={() => set('align', a.id)}
-                      className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 text-xs font-bold transition-all
-                        ${cfg.align === a.id ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' : 'border-gray-200 text-gray-400 hover:border-gray-300'}`}>
-                      <span className="text-sm">{a.arrow}</span> {a.label}
-                    </button>
-                  ))}
-                </div>
+            {/* Tab bar — 4 tabs only */}
+            <div className="flex bg-gray-100 dark:bg-slate-800 rounded-xl p-1 gap-1">
+              {TABS.map(({ key, label, Icon }) => (
+                <button key={key} onClick={() => setTab(key)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-bold rounded-lg whitespace-nowrap transition-all
+                              ${tab === key
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700'}`}>
+                  <Icon size={13} /> {label}
+                </button>
+              ))}
+            </div>
+
+            {/* ─────────────────────────────────────────────────── */}
+            {/* TAB 1: Nút — appearance only, NO position          */}
+            {/* ─────────────────────────────────────────────────── */}
+            {tab === 'button' && (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
 
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label={`Padding ngang — ${cfg.padX}px`}>
-                    <input type="range" min="0" max="60" value={cfg.padX}
-                      onChange={e => set('padX', +e.target.value)} className="w-full accent-emerald-500 cursor-pointer" />
+                  <Field label="Text nút">
+                    <TextInput value={cfg.buttonText} onChange={e => set('buttonText', e.target.value)} placeholder="Lấy Mã" />
                   </Field>
-                  <Field label={`Padding dọc — ${cfg.padY}px`}>
-                    <input type="range" min="0" max="60" value={cfg.padY}
-                      onChange={e => set('padY', +e.target.value)} className="w-full accent-emerald-500 cursor-pointer" />
+                  <Field label={`Cỡ chữ — ${cfg.fontSize}px`}>
+                    <input type="range" min="0" max="13" value={cfg.fontSize}
+                      onChange={e => set('fontSize', +e.target.value)}
+                      className="w-full accent-blue-500 cursor-pointer mt-2" />
                   </Field>
                 </div>
-              </div>
 
-              {/* ── 4. Nâng cao ── */}
-              <details className="bg-white rounded-2xl border border-gray-200 shadow-sm group">
-                <summary className="flex items-center gap-2 p-5 cursor-pointer select-none">
-                  <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center">
-                    <Settings2 size={14} className="text-gray-500" />
+                {/* Màu — inline compact */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3">
+                    <input type="color" value={cfg.buttonColor} onChange={e => set('buttonColor', e.target.value)}
+                      className="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer p-0.5 flex-shrink-0" />
+                    <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">Màu nền nút</span>
                   </div>
-                  <span className="text-sm font-bold text-gray-600">Nâng cao</span>
-                  <span className="ml-auto text-gray-300 text-xs group-open:rotate-90 transition-transform">▶</span>
-                </summary>
-                <div className="px-5 pb-5 grid grid-cols-2 gap-4 -mt-1">
-                  <Field label="ID container" hint="Mặc định: laynut-auto-container">
-                    <TextInput value={cfg.insertId} onChange={e => set('insertId', e.target.value)}
-                      placeholder="laynut-auto-container" mono />
-                  </Field>
-                  <Field label="CSS cho container" hint="VD: background:#f5f5f5;">
-                    <TextInput value={cfg.insertStyle} onChange={e => set('insertStyle', e.target.value)}
-                      placeholder="padding:20px;" mono />
-                  </Field>
+                  <div className="flex items-center gap-3">
+                    <input type="color" value={cfg.textColor} onChange={e => set('textColor', e.target.value)}
+                      className="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer p-0.5 flex-shrink-0" />
+                    <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">Màu chữ nút</span>
+                  </div>
                 </div>
-              </details>
-            </div>
-          )}
 
-          {/* ─────────────────────────────────────────────────── */}
-          {/* TAB 3: Popup — theme + brand + content             */}
-          {/* ─────────────────────────────────────────────────── */}
-          {tab === 'popup' && (
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
+                <Field label={`Border radius — ${cfg.borderRadius}px`}>
+                  <input type="range" min="0" max="20" value={cfg.borderRadius}
+                    onChange={e => set('borderRadius', +e.target.value)}
+                    className="w-full accent-blue-500 cursor-pointer" />
+                  <div className="flex justify-between text-[10px] text-gray-400 mt-1"><span>Vuông</span><span>Pill</span></div>
+                </Field>
 
-              {/* Theme */}
-              <Field label="Kiểu giao diện popup" hint="Ảnh hưởng màu sắc toàn bộ cửa sổ popup">
-                <div className="grid grid-cols-2 gap-3">
-                  {THEMES.map(th => {
-                    const sel = cfg.theme === th.id;
-                    return (
-                      <button key={th.id} type="button" onClick={() => set('theme', th.id)}
-                        className={`relative p-4 rounded-2xl border-2 text-left transition-all
-                                    ${sel ? 'border-blue-500 shadow-sm scale-[1.02]' : 'border-gray-200 hover:border-gray-300'}`}>
-                        {sel && <span className="absolute top-2 right-2 text-blue-500 text-sm">✓</span>}
-                        <div className="rounded-xl p-3 mb-2.5"
-                          style={{
-                            background: th.preview.modal, border: th.id === 'glass' ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e5e7eb',
-                            backdropFilter: th.id === 'glass' ? 'blur(10px)' : undefined
-                          }}>
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <div className="w-5 h-5 rounded-full" style={{ background: th.preview.accent, opacity: 0.9 }} />
-                            <div className="h-2 rounded flex-1" style={{ background: th.preview.text, opacity: 0.15 }} />
-                          </div>
-                          <div className="h-1.5 rounded w-3/4 mb-1" style={{ background: th.preview.text, opacity: 0.1 }} />
-                          <div className="flex gap-1">
-                            <div className="flex-1 h-5 rounded" style={{ background: th.preview.ring, border: `1px solid ${th.preview.text}22` }} />
-                            <div className="w-10 h-5 rounded text-[7px] font-bold flex items-center justify-center"
-                              style={{ background: th.preview.accent, color: th.id === 'glass' ? '#0f172a' : '#fff' }}>COPY</div>
-                          </div>
-                        </div>
-                        <p className="font-bold text-gray-900 text-sm">{th.label}</p>
-                        <p className="text-xs text-gray-400">{th.desc}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Field>
-            </div>
-          )}
+                <Toggle checked={cfg.shadow} onChange={v => set('shadow', v)} label="Hiệu ứng đổ bóng" />
 
-          {/* ─────────────────────────────────────────────────── */}
-          {/* TAB 4: Embed — custom CSS + generated code          */}
-          {/* ─────────────────────────────────────────────────── */}
-          {tab === 'embed' && (
-            <div className="space-y-4">
+                {/* Icon section — compact card */}
+                <SectionTitle>Icon / Logo nút</SectionTitle>
+                <Field label="URL ảnh logo"
+                  hint="Để trống sẽ dùng logo mặc định — dùng chung icon nút + logo popup">
+                  <TextInput value={cfg.iconUrl} onChange={e => { set('iconUrl', e.target.value); set('brandLogo', e.target.value); }}
+                    mono />
+                </Field>
 
-              {/* Custom CSS */}
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
-                <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-700">
-                  <Info size={13} className="mt-0.5 flex-shrink-0" />
-                  <span>Ghi đè CSS mặc định. Selector chính: <code className="bg-blue-100 px-1 rounded font-mono">#laynut-btn</code> và <code className="bg-blue-100 px-1 rounded font-mono">#laynut-modal</code>.</span>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-gray-400 mb-1.5">Selector cheatsheet</p>
-                  <div className="grid grid-cols-2 gap-y-1 text-[10px] font-mono">
-                    {[
-                      ['#laynut-btn', 'Nút'],
-                      ['#laynut-modal', 'Cửa sổ popup'],
-                      ['#laynut-overlay', 'Lớp nền tối'],
-                      ['.ln-ring-prog', 'Vòng đếm ngược'],
-                      ['.ln-code-val', 'Hộp mã'],
-                      ['.ln-copy-btn', 'Nút sao chép'],
-                      ['.ln-title', 'Tiêu đề popup'],
-                      ['.ln-brand', 'Thương hiệu'],
-                    ].map(([sel, desc]) => (
-                      <div key={sel} className="flex gap-1.5">
-                        <span className="text-blue-600">{sel}</span>
-                        <span className="text-gray-400">— {desc}</span>
+                <div className="flex items-center gap-4 bg-gray-50 rounded-xl p-3">
+                  <img
+                    src={cfg.iconUrl || '/lg.png'} alt="icon"
+                    className="w-11 h-11 object-contain rounded-lg p-1 flex-shrink-0"
+                    style={{ background: cfg.iconBg !== 'transparent' ? cfg.iconBg : '#f3f4f6', border: '1px solid #e5e7eb' }}
+                    onError={e => { e.target.src = '/lg.png'; }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700 truncate">
+                      {cfg.iconUrl ? 'Ảnh tùy chỉnh' : 'Logo mặc định'}
+                    </p>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Toggle
+                          checked={cfg.iconBg !== 'transparent'}
+                          onChange={v => set('iconBg', v ? '#ffffff' : 'transparent')}
+                          label="Nền"
+                        />
+                        {cfg.iconBg !== 'transparent' && (
+                          <input type="color"
+                            value={cfg.iconBg.startsWith('rgba') ? '#ffffff' : cfg.iconBg}
+                            onChange={e => set('iconBg', e.target.value)}
+                            className="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer p-0.5" />
+                        )}
                       </div>
-                    ))}
+                    </div>
                   </div>
+                  {cfg.iconUrl && (
+                    <button onClick={() => set('iconUrl', '')}
+                      className="text-xs text-red-400 hover:text-red-600 font-semibold flex-shrink-0">✕</button>
+                  )}
                 </div>
-                <Field label="Custom CSS" hint="Được chèn sau toàn bộ style mặc định">
-                  <textarea rows={8} value={cfg.customCSS} onChange={e => set('customCSS', e.target.value)}
-                    placeholder={`/* Ví dụ */\n#laynut-btn {\n  border: 2px solid rgba(255,255,255,0.4);\n}\n#laynut-modal {\n  border-radius: 8px;\n}`}
-                    className="w-full px-3 py-2.5 text-xs border border-gray-200 rounded-xl focus:outline-none
-                               focus:ring-2 focus:ring-blue-500 transition resize-y font-mono leading-relaxed bg-white" />
+
+                <Field label={`Kích thước icon — ${cfg.iconSize}px`}>
+                  <input type="range" min="14" max="40" value={cfg.iconSize}
+                    onChange={e => set('iconSize', +e.target.value)}
+                    className="w-full accent-blue-500 cursor-pointer" />
                 </Field>
               </div>
+            )}
 
-              {/* Save & Get Token */}
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-                <button onClick={saveWidget} disabled={saving}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2">
-                  {saving ? 'Đang lưu...' : 'Lưu Script'}
-                </button>
-              </div>
+            {/* ── TAB 2: Nhúng ─────────────────────────────────── */}
+            {tab === 'position' && (
+              <div className="space-y-4">
 
-              {/* Generated code */}
-              <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 text-xs text-blue-700">
-                <Info size={14} className="mt-0.5 flex-shrink-0" />
-                Dán đoạn code này trước thẻ <code className="font-mono bg-blue-100 px-1 rounded">&lt;/body&gt;</code>
-              </div>
-
-              <div className="relative">
-                <pre className="bg-slate-900 text-green-400 rounded-2xl p-5 text-xs overflow-x-auto leading-relaxed font-mono whitespace-pre-wrap break-all">
-                  {embedCode}
-                </pre>
-                <div className="absolute top-3 right-3">
-                  <CopyButton text={embedCode} />
+                {/* ── 1. Phần tử tham chiếu ── */}
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
+                      <Crosshair size={14} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-800">Phần tử tham chiếu</h3>
+                      <p className="text-[11px] text-gray-400">CSS selector — script sẽ tìm phần tử này trên trang khách</p>
+                    </div>
+                  </div>
+                  <input type="text" value={cfg.insertTarget}
+                    onChange={e => set('insertTarget', e.target.value)}
+                    placeholder=".footer · #sidebar · header · .cta-section"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl
+                               focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition font-mono bg-white" />
+                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs text-amber-700">
+                    <Info size={13} className="mt-0.5 flex-shrink-0" />
+                    <span><strong>Mỗi website khác nhau</strong> thường có insertTarget khác nhau. Hãy tạo widget riêng cho mỗi website.</span>
+                  </div>
                 </div>
-              </div>
 
-              {/* Options reference */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                <h3 className="font-bold text-gray-800 text-sm mb-3">Tất cả tùy chọn</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-100">
-                        <th className="text-left py-2 pr-3 font-semibold text-gray-500 whitespace-nowrap">Tùy chọn</th>
-                        <th className="text-left py-2 pr-3 font-semibold text-gray-500">Mặc định</th>
-                        <th className="text-left py-2 font-semibold text-gray-500">Mô tả</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {[
-                        ['insertTarget', '.footer', 'CSS selector phần tử tham chiếu'],
-                        ['insertMode', 'after', 'before | after | prepend | append'],
-                        ['insertId', 'laynut-auto-container', 'ID cho div tự tạo'],
-                        ['insertStyle', '""', 'Inline CSS cho div tự tạo'],
-                        ['align', 'center', 'Căn chỉnh: top-left / center / top-right'],
-                        ['padX / padY', '0 / 12', 'Padding trong container (px)'],
-                        ['buttonText', 'Lấy Mã', 'Text nút'],
-                        ['buttonColor', '#f97316', 'Màu nền nút'],
-                        ['textColor', '#ffffff', 'Màu chữ nút'],
-                        ['borderRadius', '50', 'Bo góc (px)'],
-                        ['fontSize', '15', 'Cỡ chữ (px)'],
-                        ['shadow', 'true', 'Đổ bóng'],
-                        ['icon', '🎁', 'Emoji icon'],
-                        ['iconUrl', '""', 'URL ảnh icon'],
-                        ['theme', 'default', 'default · dark · minimal · glass'],
-                        ['waitTime', '30', 'Giây chờ trước khi hiện mã'],
-                        ['title', 'Mã của bạn!', 'Tiêu đề popup'],
-                        ['message', '...', 'Mô tả popup'],
-                        ['countdownText', '...{s}...', 'Text đếm, {s} = giây còn lại'],
-                        ['successText', 'Nhấn để sao chép!', 'Gợi ý dưới hộp mã'],
-                        ['brandName', 'Traffic68', 'Tên thương hiệu'],
-                        ['brandUrl', 'traffic68.com', 'URL thương hiệu'],
-                        ['brandLogo', '""', 'URL logo thương hiệu'],
-                        ['customCSS', '""', 'CSS tùy chỉnh'],
-                        ['onReveal(code)', 'null', 'Callback khi mã được hiện'],
-                        ['onCopy(code)', 'null', 'Callback khi user sao chép'],
-                      ].map(([opt, def, desc]) => (
-                        <tr key={opt} className="hover:bg-gray-50">
-                          <td className="py-1.5 pr-3 font-mono text-blue-600 font-semibold whitespace-nowrap">{opt}</td>
-                          <td className="py-1.5 pr-3 font-mono text-orange-500 whitespace-nowrap">{def}</td>
-                          <td className="py-1.5 text-gray-500">{desc}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                {/* ── 2. Vị trí chèn ── */}
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center">
+                      <Pin size={14} className="text-violet-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-800">Vị trí chèn</h3>
+                      <p className="text-[11px] text-gray-400">Div mới sẽ xuất hiện ở đâu so với phần tử tham chiếu?</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {INSERT_MODES.map(m => {
+                      const sel = cfg.insertMode === m.id;
+                      return (
+                        <button key={m.id} type="button" onClick={() => set('insertMode', m.id)}
+                          className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all
+                            ${sel ? 'border-violet-500 bg-violet-50 text-violet-700 shadow-sm' : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600'}`}>
+                          <span className="text-base font-bold leading-none">{m.arrow}</span>
+                          <span className="text-[11px] font-semibold">{m.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-violet-500 font-medium mt-1">
+                    {INSERT_MODES.find(m => m.id === cfg.insertMode)?.arrow}{' '}
+                    <strong>{INSERT_MODES.find(m => m.id === cfg.insertMode)?.label}</strong>
+                    {' — '}{INSERT_MODES.find(m => m.id === cfg.insertMode)?.desc}
+                  </p>
                 </div>
-              </div>
-            </div>
-          )}
-        </div>
 
-        {/* ══ Preview panel (2/5) ═════════════════════════════ */}
-        <div className="xl:col-span-2">
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sticky top-20">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-gray-800 text-sm">Xem trước trực tiếp</h2>
-              <button onClick={startPreview} disabled={running}
-                className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 hover:bg-orange-600
-                           disabled:bg-orange-300 text-white text-xs font-bold rounded-xl transition active:scale-95">
-                {running
-                  ? <><RefreshCw size={12} className="animate-spin" />{countdown}s</>
-                  : <><Play size={12} />Chạy thử</>}
-              </button>
-            </div>
-            <LivePreview cfg={cfg} countdown={countdown} revealed={revealed} />
-            {!running && !revealed && (
-              <p className="text-center text-xs text-gray-400 mt-3">
-                Nhấn <strong className="text-orange-500">Chạy thử</strong> để xem countdown
-              </p>
+                {/* ── 3. Căn chỉnh + Padding ── */}
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-sm">↔</div>
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-800">Căn chỉnh & khoảng cách</h3>
+                      <p className="text-[11px] text-gray-400">Nút hiển thị inline, tự chiếm không gian trong div mới</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {ALIGNS.map(a => (
+                      <button key={a.id} type="button" onClick={() => set('align', a.id)}
+                        className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 text-xs font-bold transition-all
+                          ${cfg.align === a.id ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm' : 'border-gray-200 text-gray-400 hover:border-gray-300'}`}>
+                        <span className="text-sm">{a.arrow}</span> {a.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label={`Padding ngang — ${cfg.padX}px`}>
+                      <input type="range" min="0" max="60" value={cfg.padX}
+                        onChange={e => set('padX', +e.target.value)} className="w-full accent-emerald-500 cursor-pointer" />
+                    </Field>
+                    <Field label={`Padding dọc — ${cfg.padY}px`}>
+                      <input type="range" min="0" max="60" value={cfg.padY}
+                        onChange={e => set('padY', +e.target.value)} className="w-full accent-emerald-500 cursor-pointer" />
+                    </Field>
+                  </div>
+                </div>
+
+                {/* ── 4. Nâng cao ── */}
+                <details className="bg-white rounded-2xl border border-gray-200 shadow-sm group">
+                  <summary className="flex items-center gap-2 p-5 cursor-pointer select-none">
+                    <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center">
+                      <Settings2 size={14} className="text-gray-500" />
+                    </div>
+                    <span className="text-sm font-bold text-gray-600">Nâng cao</span>
+                    <span className="ml-auto text-gray-300 text-xs group-open:rotate-90 transition-transform">▶</span>
+                  </summary>
+                  <div className="px-5 pb-5 grid grid-cols-2 gap-4 -mt-1">
+                    <Field label="ID container" hint="Mặc định: laynut-auto-container">
+                      <TextInput value={cfg.insertId} onChange={e => set('insertId', e.target.value)}
+                        placeholder="laynut-auto-container" mono />
+                    </Field>
+                    <Field label="CSS cho container" hint="VD: background:#f5f5f5;">
+                      <TextInput value={cfg.insertStyle} onChange={e => set('insertStyle', e.target.value)}
+                        placeholder="padding:20px;" mono />
+                    </Field>
+                  </div>
+                </details>
+              </div>
+            )}
+
+            {/* ─────────────────────────────────────────────────── */}
+            {/* TAB 3: Popup — theme + brand + content             */}
+            {/* ─────────────────────────────────────────────────── */}
+            {tab === 'popup' && (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
+
+                {/* Theme */}
+                <Field label="Kiểu giao diện popup" hint="Ảnh hưởng màu sắc toàn bộ cửa sổ popup">
+                  <div className="grid grid-cols-2 gap-3">
+                    {THEMES.map(th => {
+                      const sel = cfg.theme === th.id;
+                      return (
+                        <button key={th.id} type="button" onClick={() => set('theme', th.id)}
+                          className={`relative p-4 rounded-2xl border-2 text-left transition-all
+                                      ${sel ? 'border-blue-500 shadow-sm scale-[1.02]' : 'border-gray-200 hover:border-gray-300'}`}>
+                          {sel && <span className="absolute top-2 right-2 text-blue-500 text-sm">✓</span>}
+                          <div className="rounded-xl p-3 mb-2.5"
+                            style={{
+                              background: th.preview.modal, border: th.id === 'glass' ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e5e7eb',
+                              backdropFilter: th.id === 'glass' ? 'blur(10px)' : undefined
+                            }}>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <div className="w-5 h-5 rounded-full" style={{ background: th.preview.accent, opacity: 0.9 }} />
+                              <div className="h-2 rounded flex-1" style={{ background: th.preview.text, opacity: 0.15 }} />
+                            </div>
+                            <div className="h-1.5 rounded w-3/4 mb-1" style={{ background: th.preview.text, opacity: 0.1 }} />
+                            <div className="flex gap-1">
+                              <div className="flex-1 h-5 rounded" style={{ background: th.preview.ring, border: `1px solid ${th.preview.text}22` }} />
+                              <div className="w-10 h-5 rounded text-[7px] font-bold flex items-center justify-center"
+                                style={{ background: th.preview.accent, color: th.id === 'glass' ? '#0f172a' : '#fff' }}>COPY</div>
+                            </div>
+                          </div>
+                          <p className="font-bold text-gray-900 text-sm">{th.label}</p>
+                          <p className="text-xs text-gray-400">{th.desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Field>
+              </div>
+            )}
+
+            {/* ─────────────────────────────────────────────────── */}
+            {/* TAB 4: Embed — custom CSS + generated code          */}
+            {/* ─────────────────────────────────────────────────── */}
+            {tab === 'embed' && (
+              <div className="space-y-4">
+
+                {/* Custom CSS */}
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+                  <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-700">
+                    <Info size={13} className="mt-0.5 flex-shrink-0" />
+                    <span>Ghi đè CSS mặc định. Selector chính: <code className="bg-blue-100 px-1 rounded font-mono">#laynut-btn</code> và <code className="bg-blue-100 px-1 rounded font-mono">#laynut-modal</code>.</span>
+                  </div>
+                  <Field label="Custom CSS" hint="Được chèn sau toàn bộ style mặc định">
+                    <textarea rows={6} value={cfg.customCSS} onChange={e => set('customCSS', e.target.value)}
+                      placeholder={`/* Ví dụ */\n#laynut-btn {\n  border: 2px solid rgba(255,255,255,0.4);\n}`}
+                      className="w-full px-3 py-2.5 text-xs border border-gray-200 rounded-xl focus:outline-none
+                                 focus:ring-2 focus:ring-blue-500 transition resize-y font-mono leading-relaxed bg-white" />
+                  </Field>
+                </div>
+
+                {/* Save & Get Token */}
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                  <button onClick={saveWidget} disabled={saving}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2">
+                    {saving ? 'Đang lưu...' : 'Lưu Script'}
+                  </button>
+                </div>
+
+                {/* Generated code */}
+                <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 text-xs text-blue-700">
+                  <Info size={14} className="mt-0.5 flex-shrink-0" />
+                  Dán đoạn code này trước thẻ <code className="font-mono bg-blue-100 px-1 rounded">&lt;/body&gt;</code>
+                </div>
+
+                <div className="relative">
+                  <pre className="bg-slate-900 text-green-400 rounded-2xl p-5 text-xs overflow-x-auto leading-relaxed font-mono whitespace-pre-wrap break-all">
+                    {embedCode}
+                  </pre>
+                  <div className="absolute top-3 right-3">
+                    <CopyButton text={embedCode} />
+                  </div>
+                </div>
+
+                {/* Info about current widget */}
+                {activeWidget && (
+                  <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                    <h3 className="font-bold text-gray-800 text-sm mb-2">Widget hiện tại</h3>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-gray-400">Token:</span>
+                        <span className="ml-2 font-mono text-blue-600 font-bold">{token}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Insert target:</span>
+                        <span className="ml-2 font-mono text-orange-600 font-bold">{cfg.insertTarget}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
-        </div>
 
-      </div>
+          {/* ══ Preview panel (2/5) ═════════════════════════════ */}
+          <div className="xl:col-span-2">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sticky top-20">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-gray-800 text-sm">Xem trước trực tiếp</h2>
+                <button onClick={startPreview} disabled={running}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 hover:bg-orange-600
+                             disabled:bg-orange-300 text-white text-xs font-bold rounded-xl transition active:scale-95">
+                  {running
+                    ? <><RefreshCw size={12} className="animate-spin" />{countdown}s</>
+                    : <><Play size={12} />Chạy thử</>}
+                </button>
+              </div>
+              <LivePreview cfg={cfg} countdown={countdown} revealed={revealed} />
+              {!running && !revealed && (
+                <p className="text-center text-xs text-gray-400 mt-3">
+                  Nhấn <strong className="text-orange-500">Chạy thử</strong> để xem countdown
+                </p>
+              )}
+
+              {/* Quick save button in preview panel */}
+              {activeWidgetId && (
+                <button onClick={saveWidget} disabled={saving}
+                  className="w-full mt-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition disabled:opacity-50">
+                  {saving ? 'Đang lưu...' : '💾 Lưu Script'}
+                </button>
+              )}
+            </div>
+          </div>
+
+        </div>
+      )}
     </div>
   );
 }
