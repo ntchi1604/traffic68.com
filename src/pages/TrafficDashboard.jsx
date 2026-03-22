@@ -157,7 +157,7 @@ export default function TrafficDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Tạo chiến dịch mới', desc: 'Bắt đầu chiến dịch traffic mới', icon: Plus, color: '#3b82f6', bg: '#eff6ff', to: '/buyer/dashboard/campaigns/create' },
-          { label: 'Xem báo cáo traffic', desc: 'Phân tích chi tiết lưu lượng', icon: TrendingUp, color: '#8b5cf6', bg: '#f5f3ff', to: '/buyer/dashboard/reports/traffic' },
+          { label: 'Xem báo cáo traffic', desc: 'Phân tích chi tiết lưu lượng', icon: TrendingUp, color: '#8b5cf6', bg: '#f5f3ff', to: '/buyer/dashboard/reports' },
           { label: 'Nạp tiền vào ví', desc: 'Bổ sung ngân sách chiến dịch', icon: CreditCard, color: '#10b981', bg: '#ecfdf5', to: '/buyer/dashboard/finance/deposit' },
         ].map(a => (
           <button
