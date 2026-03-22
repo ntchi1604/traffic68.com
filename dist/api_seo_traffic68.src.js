@@ -56,7 +56,7 @@
   /* ── Defaults ─────────────────────────────────────────── */
   var D = {
     /* Vị trí chèn */
-    insertTarget: '.footer',
+    insertTarget: '',
     insertMode: 'after',
     insertId: 'API_SEO_TRAFFIC68',
     insertStyle: '',

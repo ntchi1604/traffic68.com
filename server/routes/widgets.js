@@ -60,7 +60,7 @@ function signWidgetChallenge(challengeId, ip) {
 const DEPRECATED_FIELDS = ['code', 'icon'];
 
 const JS_DEFAULTS = {
-  insertTarget: '.footer', insertMode: 'after', insertId: 'API_SEO_TRAFFIC68',
+  insertTarget: '', insertMode: 'after', insertId: 'API_SEO_TRAFFIC68',
   insertStyle: '', align: 'center', padX: 0, padY: 12,
   buttonText: 'Lấy Mã', buttonColor: '#f97316', textColor: '#ffffff',
   borderRadius: 50, fontSize: 15, shadow: true,

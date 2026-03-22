@@ -37,7 +37,7 @@ const ALIGNS = [
 
 const DEFAULT_CFG = {
   /* Vị trí chèn */
-  insertTarget: '.footer',
+  insertTarget: '',
   insertMode: 'after',
   insertId: 'API_SEO_TRAFFIC68',
   insertStyle: '',
@@ -172,7 +172,7 @@ function LivePreview({ cfg, countdown, revealed }) {
           <div className="flex items-center justify-center gap-1.5 py-1">
             <Pin size={9} className={theme.dark ? 'text-indigo-300' : 'text-indigo-500'} />
             <p className="text-[9px] font-bold tracking-wide"
-              style={{ color: theme.dark ? '#a5b4fc' : '#6366f1' }}>{cfg.insertTarget || '.footer'}</p>
+              style={{ color: theme.dark ? '#a5b4fc' : '#6366f1' }}>{'#API_SEO_TRAFFIC68'}</p>
           </div>
           <div style={{ display: 'flex', justifyContent: wrapJustify, padding: `${cfg.padY || 0}px ${cfg.padX || 0}px` }}>
             {btn}
@@ -514,69 +514,60 @@ export default function ScriptGenerator() {
             {tab === 'position' && (
               <div className="space-y-4">
 
-                {/* ── 1. Phần tử tham chiếu ── */}
+                {/* Step 1: Place div */}
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
-                      <Crosshair size={14} className="text-blue-600" />
-                    </div>
+                    <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-black text-sm">1</div>
                     <div>
-                      <h3 className="text-sm font-bold text-gray-800">Phần tử tham chiếu</h3>
-                      <p className="text-[11px] text-gray-400">CSS selector — script sẽ tìm phần tử này trên trang khách</p>
+                      <h3 className="text-sm font-bold text-gray-800">Đặt div vào vị trí bạn muốn</h3>
+                      <p className="text-[11px] text-gray-400">Thêm đoạn HTML này vào bất kỳ đâu trên trang web của bạn</p>
                     </div>
                   </div>
-                  <input type="text" value={cfg.insertTarget}
-                    onChange={e => set('insertTarget', e.target.value)}
-                    placeholder=".footer · #sidebar · header · .cta-section"
-                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl
-                               focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition font-mono bg-white" />
-                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs text-amber-700">
+                  <div className="relative">
+                    <pre className="bg-slate-900 text-green-400 rounded-xl p-4 text-xs font-mono overflow-x-auto">
+{`<div id="API_SEO_TRAFFIC68"></div>`}
+                    </pre>
+                    <div className="absolute top-2 right-2">
+                      <CopyButton text='<div id="API_SEO_TRAFFIC68"></div>' />
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-700">
                     <Info size={13} className="mt-0.5 flex-shrink-0" />
-                    <span><strong>Mỗi website khác nhau</strong> thường có insertTarget khác nhau. Hãy tạo widget riêng cho mỗi website.</span>
+                    <span>Nút "Lấy Mã" sẽ xuất hiện đúng tại vị trí bạn đặt thẻ <code className="bg-blue-100 px-1 rounded font-mono">&lt;div&gt;</code> này.</span>
                   </div>
                 </div>
 
-                {/* ── 2. Vị trí chèn ── */}
+                {/* Step 2: Embed script */}
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center">
-                      <Pin size={14} className="text-violet-600" />
-                    </div>
+                    <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600 font-black text-sm">2</div>
                     <div>
-                      <h3 className="text-sm font-bold text-gray-800">Vị trí chèn</h3>
-                      <p className="text-[11px] text-gray-400">Div mới sẽ xuất hiện ở đâu so với phần tử tham chiếu?</p>
+                      <h3 className="text-sm font-bold text-gray-800">Nhúng script</h3>
+                      <p className="text-[11px] text-gray-400">Dán trước thẻ &lt;/body&gt; — script sẽ tự tìm div và chèn nút vào</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {INSERT_MODES.map(m => {
-                      const sel = cfg.insertMode === m.id;
-                      return (
-                        <button key={m.id} type="button" onClick={() => set('insertMode', m.id)}
-                          className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all
-                            ${sel ? 'border-violet-500 bg-violet-50 text-violet-700 shadow-sm' : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600'}`}>
-                          <span className="text-base font-bold leading-none">{m.arrow}</span>
-                          <span className="text-[11px] font-semibold">{m.label}</span>
-                        </button>
-                      );
-                    })}
+                  <div className="relative">
+                    <pre className="bg-slate-900 text-green-400 rounded-xl p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all">
+                      {embedCode}
+                    </pre>
+                    <div className="absolute top-2 right-2">
+                      <CopyButton text={embedCode} />
+                    </div>
                   </div>
-                  <p className="text-[11px] text-violet-500 font-medium mt-1">
-                    {INSERT_MODES.find(m => m.id === cfg.insertMode)?.arrow}{' '}
-                    <strong>{INSERT_MODES.find(m => m.id === cfg.insertMode)?.label}</strong>
-                    {' — '}{INSERT_MODES.find(m => m.id === cfg.insertMode)?.desc}
-                  </p>
+                  {!token && (
+                    <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs text-amber-700">
+                      <Info size={13} className="mt-0.5 flex-shrink-0" />
+                      <span>Nhấn <strong>"Lưu Script"</strong> bên phải để tạo token trước khi copy.</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* ── 3. Căn chỉnh + Padding ── */}
+                {/* Căn chỉnh */}
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-sm">↔</div>
-                    <div>
-                      <h3 className="text-sm font-bold text-gray-800">Căn chỉnh & khoảng cách</h3>
-                      <p className="text-[11px] text-gray-400">Nút hiển thị inline, tự chiếm không gian trong div mới</p>
-                    </div>
+                    <h3 className="text-sm font-bold text-gray-800">Căn chỉnh nút</h3>
                   </div>
-
                   <div className="grid grid-cols-3 gap-2">
                     {ALIGNS.map(a => (
                       <button key={a.id} type="button" onClick={() => set('align', a.id)}
@@ -586,7 +577,6 @@ export default function ScriptGenerator() {
                       </button>
                     ))}
                   </div>
-
                   <div className="grid grid-cols-2 gap-4">
                     <Field label={`Padding ngang — ${cfg.padX}px`}>
                       <input type="range" min="0" max="60" value={cfg.padX}
@@ -598,27 +588,6 @@ export default function ScriptGenerator() {
                     </Field>
                   </div>
                 </div>
-
-                {/* ── 4. Nâng cao ── */}
-                <details className="bg-white rounded-2xl border border-gray-200 shadow-sm group">
-                  <summary className="flex items-center gap-2 p-5 cursor-pointer select-none">
-                    <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center">
-                      <Settings2 size={14} className="text-gray-500" />
-                    </div>
-                    <span className="text-sm font-bold text-gray-600">Nâng cao</span>
-                    <span className="ml-auto text-gray-300 text-xs group-open:rotate-90 transition-transform">▶</span>
-                  </summary>
-                  <div className="px-5 pb-5 grid grid-cols-2 gap-4 -mt-1">
-                    <Field label="ID container" hint="Mặc định: laynut-auto-container">
-                      <TextInput value={cfg.insertId} onChange={e => set('insertId', e.target.value)}
-                        placeholder="laynut-auto-container" mono />
-                    </Field>
-                    <Field label="CSS cho container" hint="VD: background:#f5f5f5;">
-                      <TextInput value={cfg.insertStyle} onChange={e => set('insertStyle', e.target.value)}
-                        placeholder="padding:20px;" mono />
-                    </Field>
-                  </div>
-                </details>
               </div>
             )}
 
