@@ -484,7 +484,7 @@ router.get('/settings/site', async (req, res) => {
 router.put('/settings/site', async (req, res) => {
   try {
     const pool = getPool();
-    const { settings } = req.body; // { discount_code: '...', discount_percent: '40', ... }
+    const { settings } = req.body;
     for (const [key, value] of Object.entries(settings || {})) {
       await pool.execute(
         'INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?',
@@ -497,12 +497,14 @@ router.put('/settings/site', async (req, res) => {
   }
 });
 
-router.get('/security', async (req, res) => {
+// ═══════════════════════════════════════════════════════════
+// ANTI CHEAT — Rebuilt
+// ═══════════════════════════════════════════════════════════
+
+// Ensure table exists
+router.get('/security/init', async (req, res) => {
   try {
     const pool = getPool();
-    const { search, page = 1, limit = 30 } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
-
     await pool.execute(`CREATE TABLE IF NOT EXISTS security_logs (
       id INT AUTO_INCREMENT PRIMARY KEY,
       source VARCHAR(20) NOT NULL DEFAULT 'unknown',
@@ -516,230 +518,166 @@ router.get('/security', async (req, res) => {
       INDEX idx_reason (reason),
       INDEX idx_ip (ip_address)
     )`);
-
-
-    let countSql = `SELECT COUNT(*) as total FROM security_logs WHERE 1=1`;
-    let listSql = `SELECT sl.id, sl.source, sl.reason, sl.ip_address, sl.visitor_id, sl.details, sl.created_at,
-       (SELECT vt2.worker_id FROM vuot_link_tasks vt2
-        WHERE vt2.ip_address = sl.ip_address AND ABS(TIMESTAMPDIFF(SECOND, vt2.created_at, sl.created_at)) < 120
-        ORDER BY ABS(TIMESTAMPDIFF(SECOND, vt2.created_at, sl.created_at)) LIMIT 1) as worker_id,
-       (SELECT u2.name FROM vuot_link_tasks vt3 JOIN users u2 ON u2.id = vt3.worker_id
-        WHERE vt3.ip_address = sl.ip_address AND ABS(TIMESTAMPDIFF(SECOND, vt3.created_at, sl.created_at)) < 120
-        ORDER BY ABS(TIMESTAMPDIFF(SECOND, vt3.created_at, sl.created_at)) LIMIT 1) as worker_name,
-       (SELECT u3.email FROM vuot_link_tasks vt4 JOIN users u3 ON u3.id = vt4.worker_id
-        WHERE vt4.ip_address = sl.ip_address AND ABS(TIMESTAMPDIFF(SECOND, vt4.created_at, sl.created_at)) < 120
-        ORDER BY ABS(TIMESTAMPDIFF(SECOND, vt4.created_at, sl.created_at)) LIMIT 1) as worker_email
-       FROM security_logs sl
-       WHERE 1=1`;
-    const params = [];
-
-    if (search) {
-      countSql += ` AND (ip_address LIKE ? OR visitor_id LIKE ? OR reason LIKE ?)`;
-      listSql += ` AND (sl.ip_address LIKE ? OR sl.visitor_id LIKE ? OR sl.reason LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-    }
-
-    const [countResult] = await pool.execute(countSql, params);
-    const total = countResult[0].total;
-
-    listSql += ` ORDER BY sl.created_at DESC LIMIT ? OFFSET ?`;
-    const listParams = [...params, Number(limit), offset];
-    const [rows] = await pool.execute(listSql, listParams);
-
-    // Compute is_bot for each row based on details assessments
-    const securityLogs = rows.map(row => {
-      let isBot = false;
-      try {
-        const d = JSON.parse(row.details || '{}');
-        if ((d.assessments || []).some(a => a.flagged)) isBot = true;
-        const bd = d.botDetection || (d.totalLied !== undefined ? d : null);
-        if (bd && (bd.bot === true || bd.totalLied > 0)) isBot = true;
-        const probes = d.probes || {};
-        if (probes.webdriver || probes.selenium || probes.cdc) isBot = true;
-      } catch {}
-      // Also check reason-based blocking
-      if (['creep_detected', 'automation_probes', 'mouse_bot', 'bot_ua', 'ip_rate_limit', 'bot_behavior'].includes(row.reason)) isBot = true;
-      return {
-        id: row.id, source: row.source, reason: row.reason,
-        ip_address: row.ip_address, visitor_id: row.visitor_id,
-        created_at: row.created_at, is_bot: isBot,
-        worker_id: row.worker_id || null,
-        worker_name: row.worker_name || null,
-        worker_email: row.worker_email || null,
-      };
-    });
-
-    res.json({ securityLogs, total, page: Number(page), limit: Number(limit) });
-  } catch (err) {
-    console.error('Security API error:', err);
-    res.status(500).json({ error: err.message });
-  }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── GET /security/users — grouped by worker ──
+// ── 1. User list (grouped by worker) ──
 router.get('/security/users', async (req, res) => {
   try {
     const pool = getPool();
     const { search, page = 1, limit = 20 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
-
-    let where = 'WHERE vt.worker_id IS NOT NULL';
     const params = [];
 
+    let searchWhere = '';
     if (search) {
-      where += ` AND (u.name LIKE ? OR u.email LIKE ? OR vt.ip_address LIKE ?)`;
+      searchWhere = ` AND (u.name LIKE ? OR u.email LIKE ? OR vt.ip_address LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    const [countRows] = await pool.execute(
+    // Count
+    const [cnt] = await pool.execute(
       `SELECT COUNT(DISTINCT vt.worker_id) as total
-       FROM vuot_link_tasks vt LEFT JOIN users u ON u.id = vt.worker_id ${where}`, params
+       FROM vuot_link_tasks vt
+       LEFT JOIN users u ON u.id = vt.worker_id
+       WHERE vt.worker_id IS NOT NULL${searchWhere}`, params
     );
-    const total = countRows[0].total;
 
+    // Main query — simple GROUP BY
     const [rows] = await pool.execute(
       `SELECT
          vt.worker_id,
-         MAX(u.name) as worker_name,
-         MAX(u.email) as worker_email,
-         COUNT(*) as total_tasks,
-         SUM(CASE WHEN vt.status = 'completed' THEN 1 ELSE 0 END) as completed,
-         SUM(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END) as blocked,
-         SUM(CASE WHEN vt.status = 'expired' THEN 1 ELSE 0 END) as expired,
-         COALESCE(SUM(vt.earning), 0) as total_earning,
-         MAX(vt.created_at) as last_activity,
+         MAX(u.name) as name,
+         MAX(u.email) as email,
+         COUNT(*) as total,
+         SUM(vt.status = 'completed') as ok,
+         SUM(vt.bot_detected = 1) as blocked,
+         SUM(vt.status = 'expired') as expired,
+         SUM(vt.status IN ('pending','step1','step2','step3')) as pending,
+         COALESCE(SUM(vt.earning), 0) as earned,
+         MAX(vt.created_at) as last_at,
          GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips
        FROM vuot_link_tasks vt
        LEFT JOIN users u ON u.id = vt.worker_id
-       ${where}
+       WHERE vt.worker_id IS NOT NULL${searchWhere}
        GROUP BY vt.worker_id
-       ORDER BY blocked DESC, last_activity DESC
+       ORDER BY blocked DESC, last_at DESC
        LIMIT ? OFFSET ?`,
       [...params, Number(limit), offset]
     );
 
-    // Count security events per worker separately (avoid correlated subquery)
-    const workerIds = rows.map(r => r.worker_id).filter(Boolean);
-    let secMap = {};
-    if (workerIds.length > 0) {
+    // Security events count per worker (separate simple query)
+    const ids = rows.map(r => r.worker_id).filter(Boolean);
+    const secMap = {};
+    if (ids.length > 0) {
+      const ph = ids.map(() => '?').join(',');
       try {
-        const ph = workerIds.map(() => '?').join(',');
-        const [secRows] = await pool.execute(
+        const [se] = await pool.execute(
           `SELECT vt.worker_id, COUNT(DISTINCT sl.id) as cnt
            FROM security_logs sl
-           JOIN vuot_link_tasks vt ON vt.ip_address = sl.ip_address AND vt.worker_id IN (${ph})
-           WHERE sl.reason NOT IN ('completed','probe_warning')
-           GROUP BY vt.worker_id`,
-          workerIds
+           INNER JOIN vuot_link_tasks vt ON vt.ip_address = sl.ip_address
+           WHERE vt.worker_id IN (${ph}) AND sl.reason != 'completed'
+           GROUP BY vt.worker_id`, ids
         );
-        secRows.forEach(r => { secMap[r.worker_id] = r.cnt; });
-      } catch (e) { console.error('Sec count error:', e.message); }
+        se.forEach(r => { secMap[r.worker_id] = Number(r.cnt); });
+      } catch {}
     }
 
     res.json({
       users: rows.map(r => ({
-        worker_id: r.worker_id,
-        worker_name: r.worker_name,
-        worker_email: r.worker_email,
-        total_tasks: Number(r.total_tasks),
-        completed: Number(r.completed),
+        id: r.worker_id,
+        name: r.name,
+        email: r.email,
+        total: Number(r.total),
+        ok: Number(r.ok),
         blocked: Number(r.blocked),
         expired: Number(r.expired),
-        total_earning: Number(r.total_earning),
-        last_activity: r.last_activity,
+        pending: Number(r.pending),
+        earned: Number(r.earned),
+        last_at: r.last_at,
         ips: (r.ips || '').split(',').filter(Boolean).slice(0, 5),
-        security_events: secMap[r.worker_id] || 0,
+        events: secMap[r.worker_id] || 0,
       })),
-      total,
+      total: cnt[0].total,
       page: Number(page),
       limit: Number(limit),
     });
   } catch (err) {
-    console.error('Security users API error:', err);
+    console.error('[AntiCheat] users error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── GET /security/user/:id/tasks — individual tasks for a user ──
-router.get('/security/user/:id/tasks', async (req, res) => {
+// ── 2. Tasks for a specific user ──
+router.get('/security/user/:uid/tasks', async (req, res) => {
   try {
     const pool = getPool();
-    const userId = req.params.id;
-    const { page = 1, limit = 30 } = req.query;
+    const uid = req.params.uid;
+    const { page = 1, limit = 50 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
-    const where = userId === '0'
-      ? 'WHERE vt.worker_id IS NULL'
-      : 'WHERE vt.worker_id = ?';
-    const whereParams = userId === '0' ? [] : [userId];
-
-    const [countRows] = await pool.execute(
-      `SELECT COUNT(*) as total FROM vuot_link_tasks vt ${where}`,
-      whereParams
+    const [cnt] = await pool.execute(
+      `SELECT COUNT(*) as total FROM vuot_link_tasks WHERE worker_id = ?`, [uid]
     );
 
     const [rows] = await pool.execute(
-      `SELECT vt.id, vt.campaign_id, vt.status, vt.ip_address, vt.user_agent, vt.visitor_id,
-              vt.bot_detected, vt.earning, vt.time_on_site, vt.security_detail,
-              vt.created_at, vt.completed_at, vt.code_given, vt.keyword, vt.target_url,
-              vt.worker_link_id,
+      `SELECT vt.id, vt.campaign_id, vt.status, vt.ip_address, vt.user_agent,
+              vt.visitor_id, vt.bot_detected, vt.earning, vt.time_on_site,
+              vt.security_detail, vt.created_at, vt.completed_at,
+              vt.keyword, vt.target_url, vt.worker_link_id,
               c.name as campaign_name,
               wl.slug as gateway_slug
        FROM vuot_link_tasks vt
        LEFT JOIN campaigns c ON c.id = vt.campaign_id
        LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
-       ${where}
+       WHERE vt.worker_id = ?
        ORDER BY vt.created_at DESC
        LIMIT ? OFFSET ?`,
-      [...whereParams, Number(limit), offset]
+      [uid, Number(limit), offset]
     );
 
     res.json({
       tasks: rows.map(r => {
-        let secDetail = {};
-        try { secDetail = JSON.parse(r.security_detail || '{}'); } catch {}
-        return { ...r, security_detail: secDetail };
+        let sd = {};
+        try { sd = JSON.parse(r.security_detail || '{}'); } catch {}
+        return { ...r, security_detail: sd };
       }),
-      total: countRows[0].total,
+      total: cnt[0].total,
       page: Number(page),
       limit: Number(limit),
     });
   } catch (err) {
-    console.error('Security user tasks API error:', err);
+    console.error('[AntiCheat] user tasks error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── GET /security/user/:id/events — security_logs for a user's IPs ──
-router.get('/security/user/:id/events', async (req, res) => {
+// ── 3. Security events for a user ──
+router.get('/security/user/:uid/events', async (req, res) => {
   try {
     const pool = getPool();
-    const userId = req.params.id;
-
-    // Get user's IPs
     const [ipRows] = await pool.execute(
-      `SELECT DISTINCT ip_address FROM vuot_link_tasks WHERE worker_id = ?`,
-      [userId]
+      `SELECT DISTINCT ip_address FROM vuot_link_tasks WHERE worker_id = ?`, [req.params.uid]
     );
     const ips = ipRows.map(r => r.ip_address).filter(Boolean);
-    if (ips.length === 0) return res.json({ events: [] });
+    if (!ips.length) return res.json({ events: [] });
 
-    const placeholders = ips.map(() => '?').join(',');
+    const ph = ips.map(() => '?').join(',');
     const [rows] = await pool.execute(
-      `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at 
-       FROM security_logs 
-       WHERE ip_address IN (${placeholders})
-         AND reason NOT IN ('completed')
-       ORDER BY created_at DESC LIMIT 100`,
-      ips
+      `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at
+       FROM security_logs
+       WHERE ip_address IN (${ph}) AND reason != 'completed'
+       ORDER BY created_at DESC LIMIT 200`, ips
     );
-
     res.json({ events: rows });
   } catch (err) {
-    console.error('Security user events API error:', err);
+    console.error('[AntiCheat] user events error:', err);
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 // Keep existing detail endpoint for backward compat
 router.get('/security/:id', async (req, res) => {
