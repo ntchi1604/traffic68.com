@@ -77,6 +77,36 @@ router.get('/transactions', async (req, res) => {
 
   sql += ' ORDER BY created_at DESC LIMIT 100';
   const [transactions] = await pool.execute(sql, params);
+
+  // For worker scope, enrich earning transactions with keyword + campaign name
+  if (scope === 'worker' && transactions.length > 0) {
+    // Extract task IDs from notes like "xxx #123" or "task #123"
+    const taskMap = {};
+    transactions.forEach(t => {
+      const match = (t.note || '').match(/#(\d+)\s*$/);
+      if (match) taskMap[match[1]] = true;
+    });
+    const taskIds = Object.keys(taskMap);
+    if (taskIds.length > 0) {
+      const placeholders = taskIds.map(() => '?').join(',');
+      const [tasks] = await pool.execute(
+        `SELECT t.id, t.keyword, c.name as campaign_name
+         FROM vuot_link_tasks t LEFT JOIN campaigns c ON t.campaign_id = c.id
+         WHERE t.id IN (${placeholders})`,
+        taskIds
+      );
+      const taskInfo = {};
+      tasks.forEach(tk => { taskInfo[tk.id] = { keyword: tk.keyword, campaign_name: tk.campaign_name }; });
+      transactions.forEach(t => {
+        const match = (t.note || '').match(/#(\d+)\s*$/);
+        if (match && taskInfo[match[1]]) {
+          t.keyword = taskInfo[match[1]].keyword;
+          t.campaign_name = taskInfo[match[1]].campaign_name;
+        }
+      });
+    }
+  }
+
   res.json({ transactions });
 });
 

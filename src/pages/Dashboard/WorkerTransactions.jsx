@@ -82,7 +82,8 @@ export default function WorkerTransactions() {
                   return cleaned.trim() || note;
                 };
                 const rawDesc = t.note || (t.type === 'withdraw' ? `Rút tiền (${t.ref_code})` : t.type === 'deposit' ? `Nạp tiền (${t.ref_code})` : t.ref_code);
-                const desc = formatNote(rawDesc);
+                // Use enriched keyword/campaign if available
+                const desc = t.keyword ? `${t.keyword} - ${t.campaign_name || ''}` : formatNote(rawDesc);
                 const isPositive = t.type === 'deposit' || t.type === 'earning' || t.type === 'bonus' || t.type === 'commission';
                 return (
                   <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
@@ -91,7 +92,9 @@ export default function WorkerTransactions() {
                         {isPositive ? <ArrowDownLeft size={14} className="text-green-600" /> : <ArrowUpRight size={14} className="text-red-500" />}
                       </div>
                     </td>
-                    <td className="py-3 text-xs font-medium text-slate-700 max-w-[200px] truncate">{desc}</td>
+                    <td className="py-3 text-xs font-medium text-slate-700 max-w-[250px]">
+                      <p className="truncate">{desc}</p>
+                    </td>
                     <td className={`py-3 text-right text-xs font-bold ${isPositive ? 'text-green-600' : 'text-red-500'}`}>
                       {isPositive ? '+' : '-'}{fmt(t.amount)} đ
                     </td>
