@@ -560,80 +560,98 @@ export default function VuotLink() {
                 </Link>
               </div>
             ) : (
-              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '14px', padding: '20px' }}>
-                {/* Widget button preview */}
-                <div style={{ background: '#fff', border: '1.5px solid #bbf7d0', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
-                  <p style={{ color: '#16a34a', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#16a34a" strokeWidth="2" /><path d="M12 8v4l3 3" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" /></svg>
-                    Tìm nút này sau khi đợi {waitTime_} giây trên trang đích:
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+                {/* ── Flow steps ── */}
+                {[
+                  {
+                    num: '1', color: '#3b82f6', label: 'Cuộn & tìm nút',
+                    content: (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '12px', color: '#64748b' }}>Nút trông như thế này trên trang đích:</span>
+                        <div style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '6px',
+                          background: widgetConfig?.buttonColor || '#f97316',
+                          color: widgetConfig?.textColor || '#fff',
+                          padding: '8px 18px', borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
+                          fontSize: `${Math.min(widgetConfig?.fontSize || 15, 14)}px`, fontWeight: 700,
+                          boxShadow: `0 3px 12px ${(widgetConfig?.buttonColor || '#f97316')}44`,
+                          userSelect: 'none', flexShrink: 0,
+                        }}>
+                          {widgetConfig?.iconUrl && <img src={widgetConfig.iconUrl} alt="" style={{ width: '16px', height: '16px', borderRadius: '50%' }} onError={e => e.target.style.display = 'none'} />}
+                          {widgetConfig?.buttonText || 'Lấy Mã'}
+                        </div>
+                      </div>
+                    ),
+                  },
+                  {
+                    num: '2', color: '#f97316', label: `Chờ đủ ${waitTime_} giây`,
+                    content: (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: `${widgetConfig?.buttonColor || '#f97316'}22`, border: `1px solid ${widgetConfig?.buttonColor || '#f97316'}44`, borderRadius: '8px', padding: '6px 14px' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={widgetConfig?.buttonColor || '#f97316'} strokeWidth="2" /><path d="M12 7v5l3 3" stroke={widgetConfig?.buttonColor || '#f97316'} strokeWidth="2" strokeLinecap="round" /></svg>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: widgetConfig?.buttonColor || '#f97316' }}>Vui lòng chờ {waitTime_} giây...</span>
+                        </div>
+                        <span style={{ fontSize: '13px', color: '#64748b' }}>→ nút sẽ kích hoạt, bấm vào</span>
+                      </div>
+                    ),
+                  },
+                  {
+                    num: '3', color: '#7c3aed', label: 'Popup xuất hiện — copy mã',
+                    content: (
+                      <div style={{ background: '#fff', border: '1.5px solid #e9d5ff', borderRadius: '12px', padding: '12px 16px', maxWidth: '260px' }}>
+                        <p style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Mã của bạn:</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '20px', fontWeight: 900, letterSpacing: '4px', color: '#1e293b' }}>AB3X9K</span>
+                          <div style={{ background: widgetConfig?.buttonColor || '#f97316', color: '#fff', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: 700 }}>COPY</div>
+                        </div>
+                        <p style={{ fontSize: '10px', color: '#7c3aed', margin: '8px 0 0', fontStyle: 'italic' }}>→ Sao chép và quay lại đây</p>
+                      </div>
+                    ),
+                  },
+                ].map(({ num, color, label, content }) => (
+                  <div key={num} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
+                      <span style={{ color: '#fff', fontSize: '12px', fontWeight: 900 }}>{num}</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: '11px', fontWeight: 800, color, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 6px' }}>{label}</p>
+                      {content}
+                    </div>
+                  </div>
+                ))}
+
+                {/* ── Divider ── */}
+                <div style={{ borderTop: '1.5px dashed #bbf7d0', margin: '0' }} />
+
+                {/* ── Code input ── */}
+                <div>
+                  <p style={{ color: '#16a34a', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#22c55e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#fff', fontWeight: 900, flexShrink: 0 }}>4</span>
+                    Nhập mã xác nhận
                   </p>
-                  {/* Countdown → button preview */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-                    {/* Phase 1: countdown */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', justifyContent: 'center' }}>
-                      <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic' }}>Trước khi đợi xong:</div>
-                      <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '8px',
-                        background: widgetConfig?.buttonColor || '#f97316',
-                        color: widgetConfig?.textColor || '#fff',
-                        padding: '10px 22px',
-                        borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
-                        fontSize: `${widgetConfig?.fontSize || 15}px`,
-                        fontWeight: 700, opacity: 0.5, cursor: 'not-allowed',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                        userSelect: 'none',
-                      }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                        Vui lòng chờ {waitTime_} giây...
-                      </div>
-                    </div>
-                    {/* Arrow */}
-                    <div style={{ color: '#94a3b8', fontSize: '20px', lineHeight: 1 }}>↓</div>
-                    {/* Phase 2: button active */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', justifyContent: 'center' }}>
-                      <div style={{ fontSize: '12px', color: '#16a34a', fontStyle: 'italic', fontWeight: 600 }}>Sau khi đợi xong → bấm:</div>
-                      <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '8px',
-                        background: widgetConfig?.buttonColor || '#f97316',
-                        color: widgetConfig?.textColor || '#fff',
-                        padding: '10px 22px',
-                        borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
-                        fontSize: `${widgetConfig?.fontSize || 15}px`,
-                        fontWeight: 700, cursor: 'pointer',
-                        boxShadow: `0 4px 16px ${(widgetConfig?.buttonColor || '#f97316')}55`,
-                        userSelect: 'none',
-                        animation: 'glow 2s ease-in-out infinite',
-                      }}>
-                        {widgetConfig?.iconUrl && (
-                          <img src={widgetConfig.iconUrl} alt="" style={{ width: '18px', height: '18px', borderRadius: '50%' }} onError={e => e.target.style.display = 'none'} />
-                        )}
-                        {widgetConfig?.buttonText || 'Lấy Mã'}
-                      </div>
-                    </div>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                    <input type="text" maxLength={6} value={inputCode}
+                      onChange={e => setInputCode(e.target.value.toUpperCase())}
+                      disabled={completing} placeholder="Nhập mã..."
+                      style={{ flex: 1, padding: '12px 14px', background: '#fff', border: `1.5px solid ${showError ? '#fca5a5' : '#86efac'}`, borderRadius: '10px', outline: 'none', color: '#1e293b', fontSize: '16px', fontWeight: 700, letterSpacing: '4px', textAlign: 'center', fontFamily: 'monospace' }}
+                    />
+                    <button onClick={handleVerify} disabled={inputCode.length < 4 || completing}
+                      style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', background: inputCode.length >= 4 && !completing ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e2e8f0', color: inputCode.length >= 4 ? '#fff' : '#94a3b8', fontSize: '13px', fontWeight: 700, cursor: inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
+                      {completing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+                      {completing ? 'Đang xử lý...' : 'Xác nhận'}
+                    </button>
                   </div>
+                  {showError && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
+                      <AlertCircle size={14} style={{ color: '#ef4444' }} />
+                      <span style={{ color: '#dc2626', fontSize: '12px', fontWeight: 500 }}>{error || 'Mã xác nhận không đúng.'}</span>
+                    </div>
+                  )}
+                  <OrangeBtn onClick={handleVerify} disabled={inputCode.length < 4 || completing}>
+                    {completing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN VÀ HOÀN TẤT →'}
+                  </OrangeBtn>
                 </div>
-                <p style={{ color: '#16a34a', fontSize: '12px', fontWeight: 700, margin: '0 0 8px' }}>Nhập mã xác nhận</p>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                  <input type="text" maxLength={6} value={inputCode}
-                    onChange={e => setInputCode(e.target.value.toUpperCase())}
-                    disabled={completing} placeholder="Nhập mã..."
-                    style={{ flex: 1, padding: '12px 14px', background: '#fff', border: `1.5px solid ${showError ? '#fca5a5' : '#86efac'}`, borderRadius: '10px', outline: 'none', color: '#1e293b', fontSize: '16px', fontWeight: 700, letterSpacing: '4px', textAlign: 'center', fontFamily: 'monospace' }}
-                  />
-                  <button onClick={handleVerify} disabled={inputCode.length < 4 || completing}
-                    style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', background: inputCode.length >= 4 && !completing ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e2e8f0', color: inputCode.length >= 4 ? '#fff' : '#94a3b8', fontSize: '13px', fontWeight: 700, cursor: inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
-                    {completing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
-                    {completing ? 'Đang xử lý...' : 'Xác nhận'}
-                  </button>
-                </div>
-                {showError && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
-                    <AlertCircle size={14} style={{ color: '#ef4444' }} />
-                    <span style={{ color: '#dc2626', fontSize: '12px', fontWeight: 500 }}>{error || 'Mã xác nhận không đúng.'}</span>
-                  </div>
-                )}
-                <OrangeBtn onClick={handleVerify} disabled={inputCode.length < 4 || completing}>
-                  {completing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN VÀ HOÀN TẤT →'}
-                </OrangeBtn>
               </div>
             )}
           </StepPanel>
