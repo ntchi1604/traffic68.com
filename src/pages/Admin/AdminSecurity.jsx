@@ -225,7 +225,7 @@ function UserTasksView({ user, onBack }) {
         </button>
         <div>
           <h2 className="text-base font-black text-slate-900">{user.worker_name || 'Khách (không đăng nhập)'}</h2>
-          <p className="text-xs text-slate-500">{user.worker_email || user.ips?.[0] || ''} · {total} task trong 7 ngày</p>
+          <p className="text-xs text-slate-500">{user.worker_email || user.ips?.[0] || ''} · {total} task</p>
         </div>
       </div>
 
@@ -265,6 +265,7 @@ function UserTasksView({ user, onBack }) {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Thời gian</th>
+                  <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Nguồn</th>
                   <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Trạng thái</th>
                   <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">IP</th>
                   <th className="text-left px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Keyword</th>
@@ -275,14 +276,20 @@ function UserTasksView({ user, onBack }) {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} className="text-center py-12 text-slate-400">Đang tải...</td></tr>
+                  <tr><td colSpan={8} className="text-center py-12 text-slate-400">Đang tải...</td></tr>
                 ) : tasks.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-12 text-slate-400">Chưa có task nào</td></tr>
+                  <tr><td colSpan={8} className="text-center py-12 text-slate-400">Chưa có task nào</td></tr>
                 ) : tasks.map(t => {
                   const st = STATUS_MAP[t.status] || { label: t.status, cls: 'bg-slate-100 text-slate-600' };
                   return (
                     <tr key={t.id} className={`border-b border-slate-100 hover:bg-slate-50/50 transition ${t.bot_detected ? 'bg-red-50/30' : ''}`}>
                       <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{fmtDate(t.created_at)}</td>
+                      <td className="px-4 py-3">
+                        {t.worker_link_id
+                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-50 text-orange-700">Gateway{t.gateway_slug ? ` /${t.gateway_slug}` : ''}</span>
+                          : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">Vượt link</span>
+                        }
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${st.cls}`}>{st.label}</span>
                       </td>
@@ -417,7 +424,7 @@ export default function AdminSecurity() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-xl font-black text-slate-900">Anti Cheat</h1>
-          <p className="text-xs text-slate-500">{total} user hoạt động (7 ngày gần nhất)</p>
+          <p className="text-xs text-slate-500">{total} user</p>
         </div>
         <button onClick={fetchData} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition disabled:opacity-50">
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Làm mới
