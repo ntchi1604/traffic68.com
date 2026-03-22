@@ -200,7 +200,11 @@ export default function CampaignList() {
   const filteredCampaigns = useMemo(() => {
     let list = campaigns;
     if (filter !== 'all') {
-      list = list.filter(c => c.status === filter);
+      list = list.filter(c => {
+        const isDone = Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0;
+        const effectiveStatus = isDone ? 'completed' : c.status;
+        return effectiveStatus === filter;
+      });
     }
     if (search) {
       const q = search.toLowerCase();
@@ -257,6 +261,7 @@ export default function CampaignList() {
             { key: 'all', label: 'Tất cả', color: 'blue' },
             { key: 'running', label: 'Đang chạy', color: 'green' },
             { key: 'paused', label: 'Tạm dừng', color: 'amber' },
+            { key: 'completed', label: 'Hoàn thành', color: 'slate' },
           ].map(({ key, label, color }) => (
             <button
               key={key}
@@ -316,16 +321,25 @@ export default function CampaignList() {
                       <div className="text-sm text-slate-900">{fmt(c.views_done)}/{fmt(c.total_views)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        c.status === 'running' ? 'bg-green-100 text-green-800' :
-                        c.status === 'paused' ? 'bg-amber-100 text-amber-800' :
-                        'bg-slate-100 text-slate-600'
-                      }`}>
-                        {c.status === 'running' ? 'Đang chạy' : c.status === 'paused' ? 'Tạm dừng' : 'Hoàn tất'}
-                      </span>
+                      {(() => {
+                        const isDone = Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0;
+                        const status = isDone ? 'completed' : c.status;
+                        return (
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full ${
+                            status === 'running'   ? 'bg-green-100 text-green-800' :
+                            status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                            status === 'paused'    ? 'bg-amber-100 text-amber-800' :
+                                                    'bg-slate-100 text-slate-600'
+                          }`}>
+                            {status === 'running'   ? 'Đang chạy' :
+                             status === 'completed' ? <><CheckCircle2 size={10} /> Hoàn thành</> :
+                             status === 'paused'    ? 'Tạm dừng' : 'Hoàn tất'}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {c.status === 'completed' ? (
+                      {(c.status === 'completed' || (Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0)) ? (
                         <span className="text-slate-400 text-xs">—</span>
                       ) : (
                       <div className="relative" ref={actionMenuId === c.id ? menuRef : null}>
