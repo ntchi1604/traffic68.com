@@ -35,6 +35,10 @@ const options = {
 for (const f of files) {
   const srcPath = path.join(__dirname, '..', f.src);
   const outPath = path.join(__dirname, '..', f.out);
+  if (!fs.existsSync(srcPath)) {
+    console.warn(`⚠ Skipping ${f.src} (file not found)`);
+    continue;
+  }
   const code = fs.readFileSync(srcPath, 'utf8');
   console.log(`Obfuscating ${f.src} (${(code.length / 1024).toFixed(1)}KB)...`);
   const result = JavaScriptObfuscator.obfuscate(code, options);
