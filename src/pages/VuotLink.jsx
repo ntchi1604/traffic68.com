@@ -440,6 +440,19 @@ export default function VuotLink() {
         </Wrapper>
     );
 
+    /* ─── Incognito (check FIRST — incognito may also trigger adblock) ── */
+    if (isIncognito) return (
+        <Wrapper>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px', textAlign: 'center', padding: '0 24px' }}>
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#fff7ed', border: '2px solid #fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <ShieldCheck size={32} style={{ color: '#f97316' }} />
+                </div>
+                <h2 style={{ color: '#1e3a6e', fontWeight: 800, margin: 0 }}>Không hỗ trợ trình duyệt ẩn danh</h2>
+                <p style={{ color: '#64748b', margin: 0 }}>Vui lòng mở bằng cửa sổ trình duyệt bình thường.</p>
+            </div>
+        </Wrapper>
+    );
+
     /* ─── Ad Blocker ───────────────────────────────────── */
     if (isAdBlock) return (
         <Wrapper>
@@ -464,19 +477,6 @@ export default function VuotLink() {
                     ))}
                 </div>
                 <Btn onClick={() => window.location.reload()}>Tải lại trang</Btn>
-            </div>
-        </Wrapper>
-    );
-
-    /* ─── Incognito ────────────────────────────────────── */
-    if (isIncognito) return (
-        <Wrapper>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: '16px', textAlign: 'center', padding: '0 24px' }}>
-                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#fff7ed', border: '2px solid #fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <ShieldCheck size={32} style={{ color: '#f97316' }} />
-                </div>
-                <h2 style={{ color: '#1e3a6e', fontWeight: 800, margin: 0 }}>Không hỗ trợ trình duyệt ẩn danh</h2>
-                <p style={{ color: '#64748b', margin: 0 }}>Vui lòng mở bằng cửa sổ trình duyệt bình thường.</p>
             </div>
         </Wrapper>
     );
