@@ -434,28 +434,28 @@ export default function VuotLink() {
 
       {/* Two-column layout — responsive: hide timeline on mobile */}
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 16px 48px' }}>
-        <div className="vl-grid" style={{ display: 'grid', gridTemplateColumns: 'min(80px, 12vw) 1fr', gap: '0 12px', alignItems: 'start' }}>
+        <div className="vl-grid" style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: '0 8px', alignItems: 'start' }}>
 
-          {/* LEFT: Sticky timeline — hidden on small screens via width collapse */}
-          <div className="vl-timeline" style={{ position: 'sticky', top: '80px', paddingTop: '8px', overflow: 'hidden' }}>
+          {/* LEFT: Sticky timeline */}
+          <div className="vl-timeline" style={{ position: 'sticky', top: '80px', paddingTop: '8px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               {[1, 2, 3, 4].map((n, i) => (
                 <div key={n} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <div style={{
-                    width: '40px', height: '40px', borderRadius: '50%',
+                    width: '36px', height: '36px', borderRadius: '50%',
                     background: verified ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'linear-gradient(135deg,#3b82f6,#2563eb)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: verified ? '0 0 0 4px rgba(34,197,94,0.18)' : '0 0 0 4px rgba(59,130,246,0.15)',
-                    transition: 'all 0.4s ease', fontSize: '16px', fontWeight: 900, color: '#fff',
+                    boxShadow: verified ? '0 0 0 3px rgba(34,197,94,0.18)' : '0 0 0 3px rgba(59,130,246,0.15)',
+                    transition: 'all 0.4s ease', fontSize: '15px', fontWeight: 900, color: '#fff',
                     flexShrink: 0,
                   }}>
                     {verified
-                      ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       : n
                     }
                   </div>
                   {i < 3 && (
-                    <div style={{ width: '3px', height: '180px', background: verified ? 'linear-gradient(180deg,#22c55e,#16a34a)' : 'linear-gradient(180deg,#3b82f6,#93c5fd)', margin: '4px 0', borderRadius: '2px', transition: 'all 0.5s ease' }} />
+                    <div style={{ width: '3px', height: '200px', background: verified ? 'linear-gradient(180deg,#22c55e,#16a34a)' : 'linear-gradient(180deg,#3b82f6,#93c5fd)', margin: '4px 0', borderRadius: '2px', transition: 'all 0.5s ease' }} />
                   )}
                 </div>
               ))}
@@ -666,8 +666,8 @@ export default function VuotLink() {
       <style>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes glow { 0%,100%{box-shadow:0 6px 24px rgba(249,115,22,0.4)} 50%{box-shadow:0 8px 36px rgba(249,115,22,0.6)} }
-        @media(max-width:480px) {
-          .vl-grid { grid-template-columns: 0px 1fr !important; gap: 0 !important; }
+        @media(max-width:540px) {
+          .vl-grid { grid-template-columns: 1fr !important; gap: 0 !important; }
           .vl-timeline { display: none !important; }
         }
       `}</style>
