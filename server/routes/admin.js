@@ -212,27 +212,90 @@ router.get('/transactions', async (req, res) => {
 
 // ── PUT /api/admin/transactions/:id/approve ──
 router.put('/transactions/:id/approve', async (req, res) => {
+  const pool = getPool();
+  const conn = await pool.getConnection();
   try {
-    const pool = getPool();
-    const [txs] = await pool.execute('SELECT * FROM transactions WHERE id = ?', [req.params.id]);
-    if (txs.length === 0) return res.status(404).json({ error: 'Không tìm thấy giao dịch' });
-    const tx = txs[0];
-    if (tx.status !== 'pending') return res.status(400).json({ error: 'Giao dịch này đã được xử lý' });
+    await conn.beginTransaction();
 
-    await pool.execute("UPDATE transactions SET status = 'completed' WHERE id = ?", [req.params.id]);
-    await pool.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [tx.amount, tx.user_id, tx.wallet_type || 'main']);
+    const [txs] = await conn.execute('SELECT * FROM transactions WHERE id = ? FOR UPDATE', [req.params.id]);
+    if (txs.length === 0) {
+      await conn.rollback(); conn.release();
+      return res.status(404).json({ error: 'Không tìm thấy giao dịch' });
+    }
+    const tx = txs[0];
+    if (tx.status !== 'pending') {
+      await conn.rollback(); conn.release();
+      return res.status(400).json({ error: 'Giao dịch này đã được xử lý' });
+    }
+
+    // 1. Mark transaction completed + credit depositor
+    await conn.execute("UPDATE transactions SET status = 'completed' WHERE id = ?", [req.params.id]);
+    await conn.execute(
+      'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
+      [tx.amount, tx.user_id, tx.wallet_type || 'main']
+    );
 
     const fmt = new Intl.NumberFormat('vi-VN').format(tx.amount);
-    await pool.execute(
+    await conn.execute(
       `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
       [tx.user_id, 'Nạp tiền thành công ✓', `Đơn nạp ${fmt} VND (Mã: ${tx.ref_code}) đã được admin duyệt. Tiền đã vào ví!`, 'success']
     );
+
+    // 2. Referral commission: if this is a deposit to 'main' wallet (buyer top-up)
+    if ((tx.wallet_type || 'main') === 'main' && tx.type === 'deposit') {
+      // Find who referred this user
+      const [depositorRows] = await conn.execute(
+        'SELECT referred_by FROM users WHERE id = ?',
+        [tx.user_id]
+      );
+      const referrerId = depositorRows[0]?.referred_by;
+
+      if (referrerId) {
+        // Get commission % from site_settings
+        const [settingRows] = await conn.execute(
+          "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_buyer'",
+          []
+        );
+        const commPct = Number(settingRows[0]?.setting_value || 0);
+
+        if (commPct > 0) {
+          const commAmount = Math.floor(tx.amount * commPct / 100);
+
+          if (commAmount > 0) {
+            // Credit referrer's commission wallet
+            await conn.execute(
+              "UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'commission'",
+              [commAmount, referrerId]
+            );
+
+            const refCode = `COMM-BUYER-${Date.now()}`;
+            await conn.execute(
+              `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+               VALUES (?, 'commission', 'commission', 'referral', ?, 'completed', ?, ?)`,
+              [referrerId, commAmount, refCode, `Hoa hồng ${commPct}% từ buyer nạp ${fmt} VND`]
+            );
+
+            const fmtComm = new Intl.NumberFormat('vi-VN').format(commAmount);
+            await conn.execute(
+              `INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`,
+              [referrerId, 'Hoa hồng giới thiệu 🎉', `Bạn nhận được ${fmtComm} VND hoa hồng (${commPct}%) từ người bạn giới thiệu vừa nạp tiền.`, 'success']
+            );
+          }
+        }
+      }
+    }
+
+    await conn.commit();
+    conn.release();
     res.json({ message: `Đã duyệt đơn nạp ${fmt} VND` });
   } catch (err) {
+    await conn.rollback();
+    conn.release();
     console.error('Approve error:', err);
     res.status(500).json({ error: 'Lỗi duyệt giao dịch: ' + err.message });
   }
 });
+
 
 // ── PUT /api/admin/transactions/:id/reject ──
 router.put('/transactions/:id/reject', async (req, res) => {
