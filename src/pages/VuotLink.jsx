@@ -569,37 +569,45 @@ export default function VuotLink() {
                     content: (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '12px', color: '#64748b' }}>Nút trông như thế này trên trang đích:</span>
-                        {/* Button preview — fit-content to prevent stretching */}
+                        {/* Button preview — fit-content, iconSize independent from button */}
                         <div style={{ display: 'flex' }}>
-                          <div style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '6px',
-                            width: 'fit-content',
-                            background: widgetConfig?.buttonColor || '#f97316',
-                            color: widgetConfig?.textColor || '#fff',
-                            padding: '8px 16px 8px 8px',
-                            borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
-                            fontSize: `${widgetConfig?.fontSize || 13}px`,
-                            fontWeight: 700,
-                            boxShadow: `0 4px 14px ${(widgetConfig?.buttonColor || '#f97316')}55`,
-                            userSelect: 'none', whiteSpace: 'nowrap',
-                          }}>
-                            {/* Icon badge — 1.4em auto-scales with fontSize */}
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              width: '1.4em', height: '1.4em',
-                              borderRadius: '50%',
-                              background: widgetConfig?.iconBg || '#ffffff',
-                              flexShrink: 0, overflow: 'hidden',
-                            }}>
-                              <img
-                                src={widgetConfig?.iconUrl || '/lg.png'}
-                                alt=""
-                                style={{ width: '80%', height: '80%', objectFit: 'contain' }}
-                                onError={e => { e.target.src = '/lg.png'; }}
-                              />
-                            </span>
-                            {widgetConfig?.buttonText || 'Lấy Mã'}
-                          </div>
+                          {(() => {
+                            const fs = widgetConfig?.fontSize || 13;
+                            const rawIcon = widgetConfig?.iconSize ?? 22;
+                            // clamp icon: max = fontSize + 8, so it doesn't overflow button height
+                            const iconPx = Math.min(rawIcon, fs + 8);
+                            const vPad = Math.max(4, Math.round((iconPx - fs) / 2)); // auto vertical padding
+                            return (
+                              <div style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                width: 'fit-content',
+                                background: widgetConfig?.buttonColor || '#f97316',
+                                color: widgetConfig?.textColor || '#fff',
+                                padding: `${vPad}px 14px ${vPad}px ${vPad}px`,
+                                borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
+                                fontSize: `${fs}px`,
+                                fontWeight: 700,
+                                boxShadow: `0 4px 14px ${(widgetConfig?.buttonColor || '#f97316')}55`,
+                                userSelect: 'none', whiteSpace: 'nowrap',
+                              }}>
+                                <span style={{
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  width: `${iconPx}px`, height: `${iconPx}px`,
+                                  borderRadius: '50%',
+                                  background: widgetConfig?.iconBg || '#ffffff',
+                                  flexShrink: 0, overflow: 'hidden',
+                                }}>
+                                  <img
+                                    src={widgetConfig?.iconUrl || '/lg.png'}
+                                    alt=""
+                                    style={{ width: '80%', height: '80%', objectFit: 'contain' }}
+                                    onError={e => { e.target.src = '/lg.png'; }}
+                                  />
+                                </span>
+                                {widgetConfig?.buttonText || 'Lấy Mã'}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     ),
