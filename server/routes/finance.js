@@ -133,16 +133,29 @@ router.post('/transfer', async (req, res) => {
   }
 });
 
-// ── POST /api/finance/withdraw ── (Worker earning → bank/momo)
+// ── POST /api/finance/withdraw ── (Worker earning → bank/crypto)
 router.post('/withdraw', async (req, res) => {
   const pool = getPool();
-  const { amount, method, bankName, accountNumber, accountName } = req.body;
+  const { amount, method, bankName, accountNumber, accountName, cryptoNetwork, cryptoAddress, trafficSource } = req.body;
   const num = Number(amount);
 
   if (!num || num < 50000) return res.status(400).json({ error: 'Số tiền rút tối thiểu 50.000 đ' });
-  if (!['bank', 'momo'].includes(method)) return res.status(400).json({ error: 'Phương thức không hợp lệ' });
+  if (!['bank', 'crypto'].includes(method)) return res.status(400).json({ error: 'Phương thức không hợp lệ' });
+  if (!trafficSource || !trafficSource.trim()) return res.status(400).json({ error: 'Vui lòng nhập nguồn lưu lượng truy cập' });
+
+  // Check admin toggle
+  try {
+    const [settings] = await pool.execute(
+      "SELECT setting_value FROM site_settings WHERE setting_key = ?",
+      [method === 'bank' ? 'withdraw_bank_enabled' : 'withdraw_crypto_enabled']
+    );
+    if (settings.length && settings[0].setting_value === 'false') {
+      return res.status(400).json({ error: 'Phương thức rút tiền này đã bị tạm khóa' });
+    }
+  } catch (e) {}
+
   if (method === 'bank' && (!bankName || !accountNumber || !accountName)) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin ngân hàng' });
-  if (method === 'momo' && !accountNumber) return res.status(400).json({ error: 'Vui lòng nhập số Momo' });
+  if (method === 'crypto' && (!cryptoNetwork || !cryptoAddress)) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin ví crypto' });
 
   const conn = await pool.getConnection();
   try {
@@ -159,8 +172,8 @@ router.post('/withdraw', async (req, res) => {
 
     const refCode = `WD-${Date.now()}-${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`;
     const note = method === 'bank'
-      ? `${bankName} - ${accountNumber} - ${accountName}`
-      : `Momo - ${accountNumber}`;
+      ? `🏦 ${bankName} - ${accountNumber} - ${accountName} | Nguồn: ${trafficSource.trim()}`
+      : `🪙 ${cryptoNetwork} - ${cryptoAddress} | Nguồn: ${trafficSource.trim()}`;
 
     await conn.execute(
       `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

@@ -44,6 +44,20 @@ const SETTINGS_FIELDS = [
     type: 'toggle',
     defaultValue: 'true',
   },
+  {
+    key: 'withdraw_bank_enabled',
+    label: 'Cho phép rút qua Ngân hàng',
+    description: 'Bật/tắt phương thức rút tiền qua chuyển khoản ngân hàng',
+    type: 'toggle',
+    defaultValue: 'true',
+  },
+  {
+    key: 'withdraw_crypto_enabled',
+    label: 'Cho phép rút qua Crypto',
+    description: 'Bật/tắt phương thức rút tiền qua ví tiền mã hóa (USDT, BTC...)',
+    type: 'toggle',
+    defaultValue: 'true',
+  },
 ];
 
 export default function AdminConfig() {

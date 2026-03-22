@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
-import { Wallet, Building2, CreditCard, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { Wallet, Building2, Bitcoin, AlertCircle, CheckCircle2, Clock, Globe } from 'lucide-react';
 import api from '../../lib/api';
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
@@ -11,29 +11,56 @@ export default function Withdraw() {
   usePageTitle('Rút tiền');
   const toast = useToast();
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState('bank');
+  const [method, setMethod] = useState('');
   const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [accountName, setAccountName] = useState('');
+  const [cryptoNetwork, setCryptoNetwork] = useState('');
+  const [cryptoAddress, setCryptoAddress] = useState('');
+  const [trafficSource, setTrafficSource] = useState('');
   const [balance, setBalance] = useState(0);
   const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [bankEnabled, setBankEnabled] = useState(true);
+  const [cryptoEnabled, setCryptoEnabled] = useState(true);
+  const [configLoaded, setConfigLoaded] = useState(false);
 
   const minWithdraw = 50000;
 
   useEffect(() => {
     api.get('/vuot-link/worker/balance').then(d => setBalance(d.balance || 0)).catch(() => {});
     api.get('/finance/withdrawals').then(d => setWithdrawals(d.withdrawals || [])).catch(() => {});
+    // Fetch withdraw method settings
+    api.get('/admin/settings/site').then(d => {
+      const c = d.config || {};
+      const bank = c.withdraw_bank_enabled !== 'false';
+      const crypto = c.withdraw_crypto_enabled !== 'false';
+      setBankEnabled(bank);
+      setCryptoEnabled(crypto);
+      // Auto-select first available method
+      if (bank) setMethod('bank');
+      else if (crypto) setMethod('crypto');
+      setConfigLoaded(true);
+    }).catch(() => setConfigLoaded(true));
   }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!trafficSource.trim()) {
+      toast.error('Vui lòng nhập nguồn lưu lượng truy cập');
+      return;
+    }
     setLoading(true);
     try {
-      const d = await api.post('/finance/withdraw', { amount, method, bankName, accountNumber, accountName });
+      const payload = {
+        amount, method, trafficSource,
+        bankName, accountNumber, accountName,
+        cryptoNetwork, cryptoAddress,
+      };
+      const d = await api.post('/finance/withdraw', payload);
       toast.success(d.message, 'Rút tiền');
       setAmount('');
-      // Refresh data
+      setTrafficSource('');
       api.get('/vuot-link/worker/balance').then(d => setBalance(d.balance || 0)).catch(() => {});
       api.get('/finance/withdrawals').then(d => setWithdrawals(d.withdrawals || [])).catch(() => {});
     } catch (err) {
@@ -42,12 +69,14 @@ export default function Withdraw() {
     setLoading(false);
   };
 
+  const CRYPTO_NETWORKS = ['USDT (TRC20)', 'USDT (BEP20)', 'USDT (ERC20)', 'BTC', 'ETH', 'BUSD'];
+
   return (
     <div className="space-y-6 w-full min-w-0">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Rút tiền' }]} />
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Rút tiền</h1>
-        <p className="text-slate-500 text-sm mt-1">Rút thu nhập về tài khoản ngân hàng</p>
+        <p className="text-slate-500 text-sm mt-1">Rút thu nhập về tài khoản ngân hàng hoặc ví crypto</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -58,9 +87,10 @@ export default function Withdraw() {
             <p className="text-xs text-blue-200 mt-1">Tối thiểu rút: {fmt(minWithdraw)} đ</p>
           </div>
 
-
           <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200/80 p-5 space-y-4">
             <h2 className="text-lg font-bold text-slate-900">Thông tin rút tiền</h2>
+
+            {/* Amount */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Số tiền rút (VNĐ) *</label>
               <input type="number" value={amount} onChange={e => setAmount(e.target.value)} min={minWithdraw} max={balance} placeholder={`Tối thiểu ${fmt(minWithdraw)} đ`} required
@@ -71,40 +101,86 @@ export default function Withdraw() {
                 ))}
               </div>
             </div>
+
+            {/* Traffic Source */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
+                <Globe size={13} className="text-blue-500" /> Nguồn lưu lượng truy cập *
+              </label>
+              <input type="text" value={trafficSource} onChange={e => setTrafficSource(e.target.value)}
+                placeholder="VD: Website cá nhân, Blog, Fanpage Facebook, Telegram..."
+                required
+                className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+              <p className="text-[10px] text-slate-400 mt-1">Cho biết bạn chia sẻ link kiếm tiền ở đâu để chúng tôi xác minh</p>
+            </div>
+
+            {/* Method selection */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Phương thức *</label>
               <div className="grid grid-cols-2 gap-3">
-                <button type="button" onClick={() => setMethod('bank')} className={`flex items-center gap-2 p-3 rounded-lg border-2 transition ${method === 'bank' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}>
-                  <Building2 size={18} className={method === 'bank' ? 'text-blue-600' : 'text-slate-400'} /><span className="text-sm font-semibold">Ngân hàng</span>
-                </button>
-                <button type="button" onClick={() => setMethod('momo')} className={`flex items-center gap-2 p-3 rounded-lg border-2 transition ${method === 'momo' ? 'border-pink-500 bg-pink-50' : 'border-slate-200'}`}>
-                  <CreditCard size={18} className={method === 'momo' ? 'text-pink-600' : 'text-slate-400'} /><span className="text-sm font-semibold">Momo</span>
-                </button>
+                {bankEnabled && (
+                  <button type="button" onClick={() => setMethod('bank')}
+                    className={`flex items-center gap-2 p-3 rounded-lg border-2 transition ${method === 'bank' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                    <Building2 size={18} className={method === 'bank' ? 'text-blue-600' : 'text-slate-400'} />
+                    <span className="text-sm font-semibold">Ngân hàng</span>
+                  </button>
+                )}
+                {cryptoEnabled && (
+                  <button type="button" onClick={() => setMethod('crypto')}
+                    className={`flex items-center gap-2 p-3 rounded-lg border-2 transition ${method === 'crypto' ? 'border-orange-500 bg-orange-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                    <Bitcoin size={18} className={method === 'crypto' ? 'text-orange-600' : 'text-slate-400'} />
+                    <span className="text-sm font-semibold">Crypto</span>
+                  </button>
+                )}
+                {!bankEnabled && !cryptoEnabled && (
+                  <p className="col-span-2 text-sm text-red-500 font-semibold py-3 text-center">Tạm thời không có phương thức rút tiền nào khả dụng</p>
+                )}
               </div>
             </div>
+
+            {/* Bank fields */}
             {method === 'bank' && (
               <>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tên ngân hàng *</label>
-                  <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="VD: Vietcombank, MB Bank..." required className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                  <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="VD: Vietcombank, MB Bank..." required
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Số tài khoản *</label>
-                  <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="Nhập số tài khoản" required className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                  <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="Nhập số tài khoản" required
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tên chủ tài khoản *</label>
-                  <input type="text" value={accountName} onChange={e => setAccountName(e.target.value)} placeholder="NGUYEN VAN A" required className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                  <input type="text" value={accountName} onChange={e => setAccountName(e.target.value)} placeholder="NGUYEN VAN A" required
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
                 </div>
               </>
             )}
-            {method === 'momo' && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Số điện thoại Momo *</label>
-                <input type="tel" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="0912345678" required className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
-              </div>
+
+            {/* Crypto fields */}
+            {method === 'crypto' && (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Mạng / Loại coin *</label>
+                  <select value={cryptoNetwork} onChange={e => setCryptoNetwork(e.target.value)} required
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white">
+                    <option value="">Chọn mạng...</option>
+                    {CRYPTO_NETWORKS.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Địa chỉ ví *</label>
+                  <input type="text" value={cryptoAddress} onChange={e => setCryptoAddress(e.target.value)} placeholder="Nhập địa chỉ ví nhận" required
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 font-mono text-xs" />
+                  <p className="text-[10px] text-red-500 mt-1 font-semibold">⚠️ Vui lòng kiểm tra kỹ địa chỉ ví. Giao dịch crypto không thể hoàn lại.</p>
+                </div>
+              </>
             )}
-            <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm disabled:opacity-50">
+
+            <button type="submit" disabled={loading || !method || (!bankEnabled && !cryptoEnabled)}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm disabled:opacity-50">
               {loading ? 'Đang xử lý...' : 'Gửi yêu cầu rút tiền'}
             </button>
           </form>
@@ -118,7 +194,9 @@ export default function Withdraw() {
                 <p className="font-bold">Lưu ý</p>
                 <p>• Rút tối thiểu {fmt(minWithdraw)} đ</p>
                 <p>• Xử lý trong 1-3 ngày làm việc</p>
-                <p>• Số tài khoản phải trùng tên đăng ký</p>
+                <p>• Bắt buộc điền nguồn lưu lượng truy cập</p>
+                {bankEnabled && <p>• Ngân hàng: Tên phải trùng với đăng ký</p>}
+                {cryptoEnabled && <p>• Crypto: Kiểm tra kỹ địa chỉ ví và mạng</p>}
               </div>
             </div>
           </div>
@@ -132,7 +210,9 @@ export default function Withdraw() {
                 <div key={w.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
                   <div>
                     <p className="text-xs font-semibold text-slate-700">{fmt(w.amount)} đ</p>
-                    <p className="text-[10px] text-slate-400">{w.note} • {new Date(w.created_at).toLocaleDateString('vi-VN')}</p>
+                    <p className="text-[10px] text-slate-400">
+                      {w.method === 'crypto' ? '🪙 Crypto' : '🏦 Bank'} • {w.note} • {new Date(w.created_at).toLocaleDateString('vi-VN')}
+                    </p>
                   </div>
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${w.status === 'completed' ? 'bg-green-50 text-green-600' : w.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}>
                     {w.status === 'completed' ? <><CheckCircle2 size={10} /> Thành công</> : w.status === 'pending' ? <><Clock size={10} /> Đang xử lý</> : 'Từ chối'}

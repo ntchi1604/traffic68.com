@@ -143,28 +143,9 @@ export default function AdminTickets({ defaultRole = 'all' }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-slate-900">Hỗ trợ khách hàng</h1>
-      </div>
-
-      {/* Role filter tabs */}
-      <div className="flex flex-wrap gap-2 mb-2">
-        {[
-          { key: 'all', label: 'Tất cả', count: tickets.length },
-          { key: 'buyer', label: '🛒 Buyer', count: tickets.filter(t => (t.role || 'worker') === 'buyer').length },
-          { key: 'worker', label: '👷 Worker', count: tickets.filter(t => (t.role || 'worker') === 'worker').length },
-        ].map(f => (
-          <button key={f.key} onClick={() => setRoleFilter(f.key)}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 ${
-              roleFilter === f.key
-                ? 'bg-blue-600 text-white'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-            }`}>
-            {f.label}
-            <span className={`px-1.5 py-0.5 text-[10px] font-black rounded-full ${
-              roleFilter === f.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
-            }`}>{f.count}</span>
-          </button>
-        ))}
+        <h1 className="text-2xl font-black text-slate-900">
+          {defaultRole === 'buyer' ? '🛒 Hỗ trợ Buyer' : defaultRole === 'worker' ? '👷 Hỗ trợ Worker' : 'Hỗ trợ khách hàng'}
+        </h1>
       </div>
 
       {/* Status filter tabs */}
