@@ -532,7 +532,7 @@ export default function VuotLink() {
                           Bạn có thể truy cập <strong>1 trong 2 trang web</strong> bất kỳ dưới đây để hoàn thành nhiệm vụ.
                         </p>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         {[{ img: campaignImage, label: 'Trang web 1' }, { img: campaignImage2, label: 'Trang web 2' }].map(({ img, label }, idx) => img ? (
                           <div key={idx}>
                             <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 6px' }}>
