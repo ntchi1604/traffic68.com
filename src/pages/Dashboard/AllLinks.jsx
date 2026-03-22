@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
-import { Link2, Copy, Trash2, ExternalLink, MousePointer, Wallet, CheckCircle, Globe, Plus, X } from 'lucide-react';
+import { Link2, Copy, EyeOff, ExternalLink, MousePointer, Wallet, CheckCircle, Globe, Plus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import { formatMoney as fmt } from '../../lib/format';
@@ -55,9 +55,9 @@ export default function AllLinks() {
     finally { setCreating(false); }
   };
 
-  const deleteLink = async (id) => {
-    if (!confirm('Xóa link này?')) return;
-    try { await api.delete(`/shortlink/links/${id}`); setLinks(prev => prev.filter(l => l.id !== id)); showToast('Đã xóa'); }
+  const hideLink = async (id) => {
+    if (!confirm('Ẩn link này?')) return;
+    try { await api.put(`/shortlink/links/${id}/hide`); setLinks(prev => prev.filter(l => l.id !== id)); showToast('Đã ẩn link'); }
     catch (e) { showToast(e.message, 'error'); }
   };
 
@@ -199,8 +199,8 @@ export default function AllLinks() {
                     <td className="py-3 px-4 text-center font-semibold text-emerald-600 text-xs">{fmt(l.completed_count)}</td>
                     <td className="py-3 px-4 text-right font-bold text-orange-500 text-xs">+{fmt(l.earning)} đ</td>
                     <td className="py-3 px-4">
-                      <button onClick={() => deleteLink(l.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-red-500 bg-red-50 border border-red-100 hover:bg-red-100 transition-colors">
-                        <Trash2 size={11} /> Xóa
+                      <button onClick={() => hideLink(l.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-100 hover:bg-amber-100 transition-colors">
+                        <EyeOff size={11} /> Ẩn
                       </button>
                     </td>
                   </tr>

@@ -63,12 +63,28 @@ router.post('/create', authMiddleware, async (req, res) => {
 });
 
 // ── GET /api/shortlink/links — worker's own links ──
+// ── GET /api/shortlink/links — worker's visible links ──
 router.get('/links', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
     const [links] = await pool.execute(
       `SELECT id, slug, title, destination_url, click_count, completed_count, earning, created_at
-       FROM worker_links WHERE worker_id = ? ORDER BY created_at DESC`,
+       FROM worker_links WHERE worker_id = ? AND hidden = 0 ORDER BY created_at DESC`,
+      [req.userId]
+    );
+    res.json({ links });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/shortlink/links/hidden — worker's hidden links ──
+router.get('/links/hidden', authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    const [links] = await pool.execute(
+      `SELECT id, slug, title, destination_url, click_count, completed_count, earning, created_at
+       FROM worker_links WHERE worker_id = ? AND hidden = 1 ORDER BY created_at DESC`,
       [req.userId]
     );
     res.json({ links });
@@ -86,7 +102,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
               COALESCE(SUM(click_count),0) as total_clicks,
               COALESCE(SUM(completed_count),0) as total_completed,
               COALESCE(SUM(earning),0) as total_earning
-       FROM worker_links WHERE worker_id = ?`,
+       FROM worker_links WHERE worker_id = ? AND hidden = 0`,
       [req.userId]
     );
     const [today] = await pool.execute(
@@ -101,12 +117,23 @@ router.get('/stats', authMiddleware, async (req, res) => {
   }
 });
 
-// ── DELETE /api/shortlink/links/:id ──
-router.delete('/links/:id', authMiddleware, async (req, res) => {
+// ── PUT /api/shortlink/links/:id/hide ──
+router.put('/links/:id/hide', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
-    await pool.execute('DELETE FROM worker_links WHERE id = ? AND worker_id = ?', [req.params.id, req.userId]);
-    res.json({ message: 'Đã xóa link' });
+    await pool.execute('UPDATE worker_links SET hidden = 1 WHERE id = ? AND worker_id = ?', [req.params.id, req.userId]);
+    res.json({ message: 'Đã ẩn link' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PUT /api/shortlink/links/:id/unhide ──
+router.put('/links/:id/unhide', authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    await pool.execute('UPDATE worker_links SET hidden = 0 WHERE id = ? AND worker_id = ?', [req.params.id, req.userId]);
+    res.json({ message: 'Đã hiện link' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

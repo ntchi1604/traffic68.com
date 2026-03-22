@@ -1,33 +1,66 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
-import { EyeOff, Search } from 'lucide-react';
+import { EyeOff, Eye, Search, Copy, ExternalLink } from 'lucide-react';
 import api from '../../lib/api';
+import { formatMoney as fmt } from '../../lib/format';
 
-const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
+const BASE = window.location.origin;
 
 export default function HiddenLinks() {
   usePageTitle('Liên kết ẩn');
-  const [tasks, setTasks] = useState([]);
+  const [links, setLinks] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(null);
+  const [toast, setToast] = useState(null);
 
-  useEffect(() => {
-    api.get('/vuot-link/worker/tasks?status=expired')
-      .then(d => { setTasks(d.tasks || []); setLoading(false); })
-      .catch(() => setLoading(false));
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type }); setTimeout(() => setToast(null), 2500);
+  };
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.get('/shortlink/links/hidden');
+      setLinks(data.links || []);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   }, []);
 
-  const filtered = tasks.filter(t =>
-    (t.campaign_name || '').toLowerCase().includes(search.toLowerCase()) ||
-    (t.keyword || '').toLowerCase().includes(search.toLowerCase())
+  useEffect(() => { load(); }, [load]);
+
+  const unhideLink = async (id) => {
+    try {
+      await api.put(`/shortlink/links/${id}/unhide`);
+      setLinks(prev => prev.filter(l => l.id !== id));
+      showToast('Đã hiện lại link');
+    } catch (e) { showToast(e.message, 'error'); }
+  };
+
+  const copyLink = (slug) => {
+    navigator.clipboard.writeText(`${BASE}/vuot-link/${slug}`);
+    setCopied(slug); setTimeout(() => setCopied(null), 1500);
+  };
+
+  const filtered = links.filter(l =>
+    (l.title || '').toLowerCase().includes(search.toLowerCase()) ||
+    (l.destination_url || '').toLowerCase().includes(search.toLowerCase()) ||
+    (l.slug || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div className="space-y-6 w-full min-w-0">
+      {toast && (
+        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, padding: '10px 18px', borderRadius: 12, fontSize: 14, fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', background: toast.type === 'error' ? '#FEF2F2' : '#F0FDF4', border: `1px solid ${toast.type === 'error' ? '#FECACA' : '#BBF7D0'}`, color: toast.type === 'error' ? '#DC2626' : '#16A34A' }}>
+          {toast.msg}
+        </div>
+      )}
+
       <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Liên kết ẩn' }]} />
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Liên kết ẩn</h1>
+        <p className="text-sm text-slate-500 mt-1">Các link đã ẩn — bạn có thể hiện lại bất cứ lúc nào</p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-5">
@@ -49,26 +82,38 @@ export default function HiddenLinks() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-slate-400 border-b border-slate-100">
-                  <th className="py-3 font-medium text-xs uppercase tracking-wider">Chiến dịch</th>
-                  <th className="py-3 font-medium text-xs uppercase tracking-wider">Từ khóa</th>
-                  <th className="py-3 font-medium text-xs uppercase tracking-wider text-center">Trạng thái</th>
-                  <th className="py-3 font-medium text-xs uppercase tracking-wider text-right">Thu nhập</th>
-                  <th className="py-3 font-medium text-xs uppercase tracking-wider text-right">Ngày tạo</th>
+                  <th className="py-3 px-4 font-medium text-xs uppercase tracking-wider">Tiêu đề / URL đích</th>
+                  <th className="py-3 px-4 font-medium text-xs uppercase tracking-wider">Link chia sẻ</th>
+                  <th className="py-3 px-4 font-medium text-xs uppercase tracking-wider text-center">Lượt vào</th>
+                  <th className="py-3 px-4 font-medium text-xs uppercase tracking-wider text-center">Hoàn thành</th>
+                  <th className="py-3 px-4 font-medium text-xs uppercase tracking-wider text-right">Thu nhập</th>
+                  <th className="py-3 px-4"></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(t => (
-                  <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3 pr-4 max-w-[200px]">
-                      <span className="text-slate-500 truncate text-xs block">{t.campaign_name}</span>
+                {filtered.map(l => (
+                  <tr key={l.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3 px-4 max-w-[200px]">
+                      <p className="font-semibold text-slate-700 text-xs truncate">{l.title || '—'}</p>
+                      <p className="text-[10px] text-slate-400 truncate">{l.destination_url}</p>
                     </td>
-                    <td className="py-3 text-xs text-slate-400">{t.keyword || '—'}</td>
-                    <td className="py-3 text-center">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">Hết hạn</span>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-slate-400 font-bold text-xs">/vuot-link/{l.slug}</span>
+                        <button onClick={() => copyLink(l.slug)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${copied === l.slug ? 'bg-green-50 border-green-200 text-green-600' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
+                          {copied === l.slug ? '✔' : 'Copy'}
+                        </button>
+                      </div>
                     </td>
-                    <td className="py-3 text-right font-bold text-slate-400 text-xs">{fmt(t.earning)} đ</td>
-                    <td className="py-3 text-right text-slate-400 text-xs">
-                      {new Date(t.created_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    <td className="py-3 px-4 text-center font-semibold text-slate-400 text-xs">{fmt(l.click_count)}</td>
+                    <td className="py-3 px-4 text-center font-semibold text-slate-400 text-xs">{fmt(l.completed_count)}</td>
+                    <td className="py-3 px-4 text-right font-bold text-slate-400 text-xs">{fmt(l.earning)} đ</td>
+                    <td className="py-3 px-4">
+                      <button onClick={() => unhideLink(l.id)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-colors">
+                        <Eye size={11} /> Hiện
+                      </button>
                     </td>
                   </tr>
                 ))}

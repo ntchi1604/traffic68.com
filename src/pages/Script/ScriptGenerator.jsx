@@ -398,7 +398,6 @@ export default function ScriptGenerator() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black text-gray-900">Script Nút Lấy Mã</h1>
-          <p className="text-sm text-gray-500 mt-1">Tuỳ chỉnh nút và lưu để lấy mã nhúng cho website</p>
         </div>
       </div>
 

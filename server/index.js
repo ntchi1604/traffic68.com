@@ -128,6 +128,11 @@ app.use((err, req, res, next) => {
       await pool.execute(`ALTER TABLE vuot_link_tasks ADD COLUMN worker_link_id INT DEFAULT NULL`);
     } catch (e) { }
 
+    // Add hidden column to worker_links
+    try {
+      await pool.execute(`ALTER TABLE worker_links ADD COLUMN hidden TINYINT(1) NOT NULL DEFAULT 0`);
+    } catch (e) { }
+
     // worker_pricing_tiers: separate pricing for worker earnings (mirrors pricing_tiers structure)
     try {
       await pool.execute(`CREATE TABLE IF NOT EXISTS worker_pricing_tiers (

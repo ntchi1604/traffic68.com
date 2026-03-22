@@ -33,7 +33,6 @@ export default function UserReferral() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-black text-slate-900">Giới thiệu bạn bè</h1>
-        <p className="text-sm text-slate-500 mt-1">Chia sẻ link và nhận thưởng khi bạn bè đăng ký</p>
       </div>
 
       {/* Promo Banner */}
