@@ -77,6 +77,8 @@ export default function WorkerTransactions() {
                   let cleaned = note.replace(/Gateway link \/v\/\w+\s*/g, '');
                   // Clean old "Vượt link task" → "task"
                   cleaned = cleaned.replace(/Vượt link\s*/g, '');
+                  // Strip emojis
+                  cleaned = cleaned.replace(/[\u{1F300}-\u{1FAF8}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '');
                   return cleaned.trim() || note;
                 };
                 const rawDesc = t.note || (t.type === 'withdraw' ? `Rút tiền (${t.ref_code})` : t.type === 'deposit' ? `Nạp tiền (${t.ref_code})` : t.ref_code);

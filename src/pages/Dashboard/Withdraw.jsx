@@ -29,8 +29,8 @@ export default function Withdraw() {
   const minWithdraw = 50000;
 
   useEffect(() => {
-    api.get('/vuot-link/worker/balance').then(d => setBalance(d.balance || 0)).catch(() => {});
-    api.get('/finance/withdrawals').then(d => setWithdrawals(d.withdrawals || [])).catch(() => {});
+    api.get('/vuot-link/worker/balance').then(d => setBalance(d.balance || 0)).catch(() => { });
+    api.get('/finance/withdrawals').then(d => setWithdrawals(d.withdrawals || [])).catch(() => { });
     // Fetch withdraw method settings
     api.get('/admin/settings/site').then(d => {
       const c = d.config || {};
@@ -74,8 +74,8 @@ export default function Withdraw() {
       toast.success(d.message, 'Rút tiền');
       setAmount('');
       setTrafficSource('');
-      api.get('/vuot-link/worker/balance').then(d => setBalance(d.balance || 0)).catch(() => {});
-      api.get('/finance/withdrawals').then(d => setWithdrawals(d.withdrawals || [])).catch(() => {});
+      api.get('/vuot-link/worker/balance').then(d => setBalance(d.balance || 0)).catch(() => { });
+      api.get('/finance/withdrawals').then(d => setWithdrawals(d.withdrawals || [])).catch(() => { });
     } catch (err) {
       toast.error(err.response?.data?.error || err.message || 'Có lỗi xảy ra');
     }

@@ -772,6 +772,78 @@ router.get('/security/:id', async (req, res) => {
   }
 });
 
+// ── GET /api/admin/security/ips — System-wide IP analysis ──
+router.get('/security/ips', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { sort = 'tasks', days = 7, page = 1, limit = 30 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const orderMap = {
+      tasks: 'total_tasks DESC',
+      blocked: 'blocked DESC',
+      workers: 'unique_workers DESC',
+      incomplete: 'incomplete_rate DESC',
+    };
+    const orderBy = orderMap[sort] || orderMap.tasks;
+
+    const [ips] = await pool.execute(
+      `SELECT
+        t.ip_address,
+        COUNT(*) as total_tasks,
+        SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN t.status = 'expired' THEN 1 ELSE 0 END) as expired,
+        SUM(CASE WHEN t.bot_detected = 1 THEN 1 ELSE 0 END) as bot_detected,
+        COUNT(DISTINCT t.worker_id) as unique_workers,
+        COUNT(DISTINCT t.visitor_id) as unique_devices,
+        COUNT(DISTINCT DATE(t.created_at)) as active_days,
+        MIN(t.created_at) as first_seen,
+        MAX(t.created_at) as last_seen,
+        COALESCE(SUM(t.earning), 0) as total_earning,
+        ROUND((1 - SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 1) as incomplete_rate,
+        COALESCE((SELECT COUNT(*) FROM security_logs s WHERE s.ip_address = t.ip_address
+          AND s.reason IN ('creep_detected','automation_probes','mouse_bot','bot_ua','ip_rate_limit','bot_behavior')
+          AND s.created_at > DATE_SUB(NOW(), INTERVAL ? DAY)), 0) as blocked
+       FROM vuot_link_tasks t
+       WHERE t.created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
+         AND t.ip_address IS NOT NULL AND t.ip_address != ''
+       GROUP BY t.ip_address
+       HAVING total_tasks >= 2
+       ORDER BY ${orderBy}
+       LIMIT ${Number(limit)} OFFSET ${offset}`,
+      [Number(days), Number(days)]
+    );
+
+    const [countR] = await pool.execute(
+      `SELECT COUNT(DISTINCT ip_address) as c FROM vuot_link_tasks
+       WHERE created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
+         AND ip_address IS NOT NULL AND ip_address != ''`,
+      [Number(days)]
+    );
+
+    const [summary] = await pool.execute(
+      `SELECT
+        COUNT(DISTINCT ip_address) as total_ips,
+        COUNT(*) as total_tasks,
+        SUM(CASE WHEN bot_detected = 1 THEN 1 ELSE 0 END) as total_bots,
+        COUNT(DISTINCT worker_id) as total_workers
+       FROM vuot_link_tasks
+       WHERE created_at > DATE_SUB(NOW(), INTERVAL ? DAY)`,
+      [Number(days)]
+    );
+
+    res.json({
+      ips,
+      total: countR[0].c,
+      page: Number(page),
+      limit: Number(limit),
+      summary: summary[0],
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /api/admin/security/ip/:ip — IP Evaluation ──
 router.get('/security/ip/:ip', async (req, res) => {
   try {
@@ -938,81 +1010,6 @@ router.get('/security/ip/:ip', async (req, res) => {
   }
 });
 
-
-// ── GET /api/admin/security/ips — System-wide IP analysis ──
-router.get('/security/ips', async (req, res) => {
-  try {
-    const pool = getPool();
-    const { sort = 'tasks', days = 7, page = 1, limit = 30 } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
-
-    const orderMap = {
-      tasks: 'total_tasks DESC',
-      blocked: 'blocked DESC',
-      workers: 'unique_workers DESC',
-      incomplete: 'incomplete_rate DESC',
-    };
-    const orderBy = orderMap[sort] || orderMap.tasks;
-
-    // IP stats from tasks
-    const [ips] = await pool.execute(
-      `SELECT
-        t.ip_address,
-        COUNT(*) as total_tasks,
-        SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN t.status = 'expired' THEN 1 ELSE 0 END) as expired,
-        SUM(CASE WHEN t.bot_detected = 1 THEN 1 ELSE 0 END) as bot_detected,
-        COUNT(DISTINCT t.worker_id) as unique_workers,
-        COUNT(DISTINCT t.visitor_id) as unique_devices,
-        COUNT(DISTINCT DATE(t.created_at)) as active_days,
-        MIN(t.created_at) as first_seen,
-        MAX(t.created_at) as last_seen,
-        COALESCE(SUM(t.earning), 0) as total_earning,
-        ROUND((1 - SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 1) as incomplete_rate,
-        COALESCE((SELECT COUNT(*) FROM security_logs s WHERE s.ip_address = t.ip_address
-          AND s.reason IN ('creep_detected','automation_probes','mouse_bot','bot_ua','ip_rate_limit','bot_behavior')
-          AND s.created_at > DATE_SUB(NOW(), INTERVAL ? DAY)), 0) as blocked
-       FROM vuot_link_tasks t
-       WHERE t.created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
-         AND t.ip_address IS NOT NULL AND t.ip_address != ''
-       GROUP BY t.ip_address
-       HAVING total_tasks >= 2
-       ORDER BY ${orderBy}
-       LIMIT ${Number(limit)} OFFSET ${offset}`,
-      [Number(days), Number(days)]
-    );
-
-    // Total unique IPs
-    const [countR] = await pool.execute(
-      `SELECT COUNT(DISTINCT ip_address) as c FROM vuot_link_tasks
-       WHERE created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
-         AND ip_address IS NOT NULL AND ip_address != ''`,
-      [Number(days)]
-    );
-
-    // Summary stats
-    const [summary] = await pool.execute(
-      `SELECT
-        COUNT(DISTINCT ip_address) as total_ips,
-        COUNT(*) as total_tasks,
-        SUM(CASE WHEN bot_detected = 1 THEN 1 ELSE 0 END) as total_bots,
-        COUNT(DISTINCT worker_id) as total_workers
-       FROM vuot_link_tasks
-       WHERE created_at > DATE_SUB(NOW(), INTERVAL ? DAY)`,
-      [Number(days)]
-    );
-
-    res.json({
-      ips,
-      total: countR[0].c,
-      page: Number(page),
-      limit: Number(limit),
-      summary: summary[0],
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ── GET /api/admin/worker-tasks ──
 router.get('/worker-tasks', async (req, res) => {
