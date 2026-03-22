@@ -938,6 +938,13 @@ router.get('/security/ip/:ip', async (req, res) => {
 router.get('/worker-tasks', async (req, res) => {
   try {
     const pool = getPool();
+
+    // Auto-expire stale tasks before listing
+    await pool.execute(
+      `UPDATE vuot_link_tasks SET status = 'expired'
+       WHERE status IN ('pending','step1','step2','step3')
+       AND expires_at IS NOT NULL AND expires_at < NOW()`
+    );
     const { page = 1, limit = 30, search, status } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 

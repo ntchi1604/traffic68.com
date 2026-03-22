@@ -668,22 +668,8 @@ export default function ScriptGenerator() {
                   </div>
                 </div>
 
-                {/* Info about current widget */}
-                {activeWidget && (
-                  <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                    <h3 className="font-bold text-gray-800 text-sm mb-2">Widget hiện tại</h3>
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <span className="text-gray-400">Token:</span>
-                        <span className="ml-2 font-mono text-blue-600 font-bold">{token}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-400">Insert target:</span>
-                        <span className="ml-2 font-mono text-orange-600 font-bold">{cfg.insertTarget}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+
+
               </div>
             )}
           </div>

@@ -257,4 +257,126 @@ router.get('/v1/stats', apiKeyAuth, async (req, res) => {
   }
 });
 
+/* ════════════════════════════════════════════════
+   DEVELOPER API — GET /api/quicklink/api
+   Simple GET-based API (like 4mmo.net)
+   Usage: /api/quicklink/api?api=YOUR_KEY&url=DEST_URL&alias=CUSTOM_ALIAS&format=text
+   ════════════════════════════════════════════════ */
+router.get('/api', async (req, res) => {
+  try {
+    const { api, url, alias, format } = req.query;
+
+    // Validate params
+    if (!api) {
+      if (format === 'text') return res.send('');
+      return res.status(400).json({ status: 'error', message: 'Thiếu API key. Sử dụng: ?api=YOUR_API_KEY&url=YOUR_URL' });
+    }
+    if (!url) {
+      if (format === 'text') return res.send('');
+      return res.status(400).json({ status: 'error', message: 'Thiếu URL đích. Sử dụng: ?api=YOUR_API_KEY&url=YOUR_URL' });
+    }
+
+    // Validate URL
+    let destUrl = url;
+    if (!/^https?:\/\//i.test(destUrl)) destUrl = 'https://' + destUrl;
+    try { new URL(destUrl); } catch {
+      if (format === 'text') return res.send('');
+      return res.status(400).json({ status: 'error', message: 'URL không hợp lệ' });
+    }
+
+    // Validate API key
+    const pool = getPool();
+    const [keyRows] = await pool.execute(
+      "SELECT ak.id, ak.user_id FROM api_keys ak JOIN users u ON u.id = ak.user_id WHERE ak.api_key = ? AND ak.active = 1 AND u.status = 'active'",
+      [api]
+    );
+    if (!keyRows.length) {
+      if (format === 'text') return res.send('');
+      return res.status(401).json({ status: 'error', message: 'API key không hợp lệ hoặc tài khoản đã bị khóa' });
+    }
+
+    const userId = keyRows[0].user_id;
+    const apiKeyId = keyRows[0].id;
+
+    // Update usage stats
+    pool.execute('UPDATE api_keys SET last_used_at = NOW(), request_count = request_count + 1 WHERE id = ?', [apiKeyId]);
+
+    // Check custom alias
+    let slug;
+    if (alias && alias.trim()) {
+      const customSlug = alias.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      if (customSlug.length < 2 || customSlug.length > 20) {
+        if (format === 'text') return res.send('');
+        return res.status(400).json({ status: 'error', message: 'Alias phải từ 2-20 ký tự (chỉ a-z, 0-9, -, _)' });
+      }
+      // Check if alias already taken
+      const [dupAlias] = await pool.execute('SELECT id, worker_id FROM worker_links WHERE slug = ?', [customSlug]);
+      if (dupAlias.length) {
+        if (dupAlias[0].worker_id === userId) {
+          // Same user, reuse
+          slug = customSlug;
+        } else {
+          if (format === 'text') return res.send('');
+          return res.status(409).json({ status: 'error', message: 'Alias này đã được sử dụng, vui lòng chọn alias khác' });
+        }
+      } else {
+        slug = customSlug;
+      }
+    }
+
+    // Check if user already has a link for this URL (and no custom alias)
+    if (!slug) {
+      const [existing] = await pool.execute(
+        'SELECT slug FROM worker_links WHERE worker_id = ? AND destination_url = ? AND hidden = 0 LIMIT 1',
+        [userId, destUrl]
+      );
+      if (existing.length) {
+        slug = existing[0].slug;
+      }
+    }
+
+    // Create new link if needed
+    if (!slug) {
+      for (let i = 0; i < 10; i++) {
+        const s = genSlug(7);
+        const [dup] = await pool.execute('SELECT id FROM worker_links WHERE slug = ?', [s]);
+        if (!dup.length) { slug = s; break; }
+      }
+      if (!slug) {
+        if (format === 'text') return res.send('');
+        return res.status(500).json({ status: 'error', message: 'Không thể tạo link' });
+      }
+    }
+
+    // Check if link already exists in DB (to avoid duplicate insert)
+    const [existCheck] = await pool.execute('SELECT id FROM worker_links WHERE slug = ? AND worker_id = ?', [slug, userId]);
+    if (!existCheck.length) {
+      await pool.execute(
+        'INSERT INTO worker_links (worker_id, slug, destination_url, title) VALUES (?, ?, ?, ?)',
+        [userId, slug, destUrl, alias || null]
+      );
+    }
+
+    // Build shortened URL
+    const host = req.headers['x-forwarded-host'] || req.headers['host'] || 'traffic68.com';
+    const proto = req.headers['x-forwarded-proto'] || req.protocol;
+    const shortenedUrl = `${proto}://${host}/vuot-link/${slug}`;
+
+    if (format === 'text') {
+      return res.type('text/plain').send(shortenedUrl);
+    }
+
+    res.json({
+      status: 'success',
+      shortenedUrl: shortenedUrl,
+      slug: slug,
+      destination: destUrl,
+    });
+  } catch (err) {
+    console.error('Developer API error:', err.message);
+    if (req.query.format === 'text') return res.send('');
+    res.status(500).json({ status: 'error', message: 'Lỗi máy chủ' });
+  }
+});
+
 module.exports = router;

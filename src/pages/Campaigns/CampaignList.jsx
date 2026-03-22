@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
-import { Pause, Play, Pencil, X, Upload, Plus, Zap, Trash2 } from 'lucide-react';
+import { Pause, Play, Pencil, X, Upload, Plus, Zap, Trash2, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
@@ -13,6 +13,80 @@ const parseJsonArray = (val) => {
   try { const a = JSON.parse(val); if (Array.isArray(a)) return a.length ? a : ['']; } catch {}
   return [val];
 };
+
+/* ── Keyword Stats Panel ── */
+function KeywordStats({ campaignId }) {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get(`/campaigns/${campaignId}/keyword-stats`)
+      .then(d => setStats(d.keywords || []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [campaignId]);
+
+  if (loading) return <div className="text-center py-4 text-xs text-slate-400">Đang tải...</div>;
+  if (!stats || stats.length === 0) return <div className="text-center py-4 text-xs text-slate-400">Chưa có dữ liệu</div>;
+
+  const totalAll = stats.reduce((s, k) => s + Number(k.total), 0);
+  const totalCompleted = stats.reduce((s, k) => s + Number(k.completed), 0);
+  const totalPending = stats.reduce((s, k) => s + Number(k.pending), 0);
+  const totalExpired = stats.reduce((s, k) => s + Number(k.expired), 0);
+  const totalBlocked = stats.reduce((s, k) => s + Number(k.blocked), 0);
+  const totalCost = stats.reduce((s, k) => s + Number(k.cost), 0);
+
+  const exportCSV = () => {
+    const BOM = '\uFEFF';
+    let csv = BOM + 'Từ khóa,Tổng,Hoàn thành,Đang chờ,Hết hạn,Blocked,Chi phí (đ)\n';
+    stats.forEach(kw => {
+      csv += `"${kw.keyword || '(trống)'}",${kw.total},${kw.completed},${kw.pending},${kw.expired},${kw.blocked},${kw.cost}\n`;
+    });
+    csv += `\n"TỔNG CỘNG",${totalAll},${totalCompleted},${totalPending},${totalExpired},${totalBlocked},${totalCost}\n`;
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bao-cao-tu-khoa-${campaignId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs font-bold text-slate-500">Tổng: {totalAll} tasks · {totalCompleted} hoàn thành</p>
+        <button onClick={exportCSV}
+          className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition">
+          📥 Xuất CSV
+        </button>
+      </div>
+      {stats.map((kw, i) => {
+        const pct = totalAll > 0 ? Math.round(Number(kw.completed) / totalAll * 100) : 0;
+        return (
+          <div key={i} className="bg-slate-50 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-sm font-bold text-slate-800 truncate flex-1">{kw.keyword || '(trống)'}</p>
+              <span className="text-xs font-bold text-emerald-600 ml-2">{Number(kw.completed)} view</span>
+            </div>
+            <div className="w-full bg-slate-200 rounded-full h-1.5 mb-2">
+              <div className="h-1.5 rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
+              <span className="text-slate-500">Tổng: <b className="text-slate-700">{Number(kw.total)}</b></span>
+              <span className="text-emerald-600">Hoàn thành: <b>{Number(kw.completed)}</b></span>
+              <span className="text-amber-600">Đang chờ: <b>{Number(kw.pending)}</b></span>
+              <span className="text-slate-500">Hết hạn: <b>{Number(kw.expired)}</b></span>
+              {Number(kw.blocked) > 0 && <span className="text-red-600">Blocked: <b>{Number(kw.blocked)}</b></span>}
+              <span className="text-blue-600">Chi phí: <b>{fmt(Number(kw.cost))} đ</b></span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /* ── Edit Modal ── */
 function EditCampaignModal({ campaign, onClose, onSaved }) {
@@ -191,8 +265,6 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
 
 /* ── Main component ── */
-
-/* ── Main component ── */
 export default function CampaignList() {
   usePageTitle('Quản lý chiến dịch');
   const navigate = useNavigate();
@@ -202,6 +274,7 @@ export default function CampaignList() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [editingCampaign, setEditingCampaign] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
 
   const fetchCampaigns = () => {
     setLoading(true);
@@ -311,6 +384,7 @@ export default function CampaignList() {
               completed: { label: 'Hoàn thành', cls: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
             }[effStatus] || { label: effStatus, cls: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' };
             const barColor = effStatus === 'completed' ? '#10b981' : effStatus === 'running' ? '#3b82f6' : '#f59e0b';
+            const isExpanded = expandedId === c.id;
 
             return (
               <div key={c.id} className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-shadow flex flex-col gap-4">
@@ -328,7 +402,7 @@ export default function CampaignList() {
                 </div>
 
                 {/* Config grid */}
-                <div className="grid grid-cols-4 gap-2 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                   <div className="bg-slate-50 rounded-xl p-3">
                     <p className="text-slate-400 font-medium mb-0.5">Nguồn traffic</p>
                     <p className="text-slate-800 font-semibold">{SOURCE_LABEL[c.traffic_type] || c.traffic_type || '—'}</p>
@@ -361,6 +435,17 @@ export default function CampaignList() {
                     <span>Tạo: {c.created_at ? new Date(c.created_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}</span>
                   </div>
                 </div>
+
+                {/* Keyword stats toggle */}
+                <button
+                  onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                  className="flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition"
+                >
+                  <BarChart3 size={13} />
+                  Chi tiết từ khóa
+                  {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                </button>
+                {isExpanded && <KeywordStats campaignId={c.id} />}
 
                 {/* Actions */}
                 {effStatus !== 'completed' && (

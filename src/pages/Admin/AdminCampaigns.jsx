@@ -243,91 +243,162 @@ export default function AdminCampaigns() {
           <div className="flex justify-center py-12">
             <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
           </div>
+        ) : campaigns.length === 0 ? (
+          <div className="px-5 py-12 text-center text-slate-400">Không có chiến dịch nào</div>
         ) : (
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-5 py-3 text-left font-semibold text-slate-500">Chiến dịch</th>
-                <th className="px-5 py-3 text-left font-semibold text-slate-500">Chủ sở hữu</th>
-                <th className="px-5 py-3 text-left font-semibold text-slate-500">Ngân sách</th>
-                <th className="px-5 py-3 text-left font-semibold text-slate-500">Views</th>
-                <th className="px-5 py-3 text-left font-semibold text-slate-500">Trạng thái</th>
-                <th className="px-5 py-3 text-left font-semibold text-slate-500">Ngày tạo</th>
-                <th className="px-5 py-3 text-center font-semibold text-slate-500">Hành động</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {campaigns.length === 0 ? (
-                <tr><td colSpan={7} className="px-5 py-12 text-center text-slate-400">Không có chiến dịch nào</td></tr>
-              ) : campaigns.map(c => {
+          <>
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Chiến dịch</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Chủ sở hữu</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Ngân sách</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Views</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Trạng thái</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Ngày tạo</th>
+                    <th className="px-5 py-3 text-center font-semibold text-slate-500">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {campaigns.map(c => {
+                    const st = STATUS_MAP[c.status] || { label: c.status, cls: 'bg-gray-100 text-gray-700' };
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-50/70">
+                        <td className="px-5 py-3">
+                          <p className="font-semibold text-slate-800">{c.name}</p>
+                          <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                            {c.url?.slice(0, 40)} <ExternalLink size={10} />
+                          </a>
+                        </td>
+                        <td className="px-5 py-3">
+                          <p className="text-slate-700 font-medium">{c.user_name || '—'}</p>
+                          <p className="text-xs text-slate-400">{c.user_email}</p>
+                        </td>
+                        <td className="px-5 py-3 font-semibold text-slate-700">{fmt(c.budget)} đ</td>
+                        <td className="px-5 py-3 text-slate-600">{fmt(c.views_done)}/{fmt(c.total_views)}</td>
+                        <td className="px-5 py-3">
+                          <span className={`px-2 py-1 text-xs font-bold rounded-full ${st.cls}`}>{st.label}</span>
+                        </td>
+                        <td className="px-5 py-3 text-xs text-slate-500">{new Date(c.created_at).toLocaleString('vi-VN')}</td>
+                        <td className="px-5 py-3">
+                          <div className="relative flex justify-center" ref={openMenuId === c.id ? menuRef : null}>
+                            <button
+                              onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+                            >
+                              <MoreVertical size={16} />
+                            </button>
+                            {openMenuId === c.id && (
+                              <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[180px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                                <button
+                                  onClick={() => { setOpenMenuId(null); setEditingCampaign(c); }}
+                                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition text-left"
+                                >
+                                  <Pencil size={14} className="text-blue-500" /> Sửa chiến dịch
+                                </button>
+                                {c.status !== 'running' && (
+                                  <button
+                                    onClick={() => updateStatus(c.id, 'running')}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-green-50 hover:text-green-700 transition text-left"
+                                  >
+                                    <Play size={14} className="text-green-500" /> Chạy chiến dịch
+                                  </button>
+                                )}
+                                {c.status === 'running' && (
+                                  <button
+                                    onClick={() => updateStatus(c.id, 'paused')}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition text-left"
+                                  >
+                                    <Pause size={14} className="text-amber-500" /> Tạm dừng
+                                  </button>
+                                )}
+                                {c.status !== 'completed' && (
+                                  <button
+                                    onClick={() => updateStatus(c.id, 'completed')}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition text-left"
+                                  >
+                                    <CheckCircle size={14} className="text-blue-500" /> Hoàn thành
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {campaigns.map(c => {
                 const st = STATUS_MAP[c.status] || { label: c.status, cls: 'bg-gray-100 text-gray-700' };
                 return (
-                  <tr key={c.id} className="hover:bg-slate-50/70">
-                    <td className="px-5 py-3">
-                      <p className="font-semibold text-slate-800">{c.name}</p>
-                      <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
-                        {c.url?.slice(0, 40)} <ExternalLink size={10} />
-                      </a>
-                    </td>
-                    <td className="px-5 py-3">
-                      <p className="text-slate-700 font-medium">{c.user_name || '—'}</p>
-                      <p className="text-xs text-slate-400">{c.user_email}</p>
-                    </td>
-                    <td className="px-5 py-3 font-semibold text-slate-700">{fmt(c.budget)} đ</td>
-                    <td className="px-5 py-3 text-slate-600">{fmt(c.views_done)}/{fmt(c.total_views)}</td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2 py-1 text-xs font-bold rounded-full ${st.cls}`}>{st.label}</span>
-                    </td>
-                    <td className="px-5 py-3 text-xs text-slate-500">{new Date(c.created_at).toLocaleString('vi-VN')}</td>
-                    <td className="px-5 py-3">
-                      <div className="relative flex justify-center" ref={openMenuId === c.id ? menuRef : null}>
+                  <div key={c.id} className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-slate-800 truncate">{c.name}</p>
+                        <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1 truncate">
+                          {c.url?.slice(0, 35)} <ExternalLink size={10} className="shrink-0" />
+                        </a>
+                      </div>
+                      <span className={`px-2 py-1 text-[10px] font-bold rounded-full shrink-0 ${st.cls}`}>{st.label}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                      <span className="font-medium text-slate-700">{c.user_name || '—'}</span>
+                      <span>·</span>
+                      <span className="text-slate-400">{c.user_email}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 text-xs">
+                        <span className="font-bold text-emerald-600">{fmt(c.budget)} đ</span>
+                        <span className="text-slate-500">{fmt(c.views_done)}/{fmt(c.total_views)} views</span>
+                        <span className="text-slate-400">{new Date(c.created_at).toLocaleDateString('vi-VN')}</span>
+                      </div>
+                      <div className="relative" ref={openMenuId === c.id ? menuRef : null}>
                         <button
                           onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
-                          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+                          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
                         >
                           <MoreVertical size={16} />
                         </button>
                         {openMenuId === c.id && (
                           <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[180px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
-                            <button
-                              onClick={() => { setOpenMenuId(null); setEditingCampaign(c); }}
-                              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition text-left"
-                            >
-                              <Pencil size={14} className="text-blue-500" /> Sửa chiến dịch
+                            <button onClick={() => { setOpenMenuId(null); setEditingCampaign(c); }}
+                              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 text-left">
+                              <Pencil size={14} className="text-blue-500" /> Sửa
                             </button>
                             {c.status !== 'running' && (
-                              <button
-                                onClick={() => updateStatus(c.id, 'running')}
-                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-green-50 hover:text-green-700 transition text-left"
-                              >
-                                <Play size={14} className="text-green-500" /> Chạy chiến dịch
+                              <button onClick={() => updateStatus(c.id, 'running')}
+                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-green-50 text-left">
+                                <Play size={14} className="text-green-500" /> Chạy
                               </button>
                             )}
                             {c.status === 'running' && (
-                              <button
-                                onClick={() => updateStatus(c.id, 'paused')}
-                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition text-left"
-                              >
-                                <Pause size={14} className="text-amber-500" /> Tạm dừng
+                              <button onClick={() => updateStatus(c.id, 'paused')}
+                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-amber-50 text-left">
+                                <Pause size={14} className="text-amber-500" /> Dừng
                               </button>
                             )}
                             {c.status !== 'completed' && (
-                              <button
-                                onClick={() => updateStatus(c.id, 'completed')}
-                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition text-left"
-                              >
-                                <CheckCircle size={14} className="text-blue-500" /> Hoàn thành
+                              <button onClick={() => updateStatus(c.id, 'completed')}
+                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 text-left">
+                                <CheckCircle size={14} className="text-blue-500" /> Xong
                               </button>
                             )}
                           </div>
                         )}
                       </div>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
       </div>
 

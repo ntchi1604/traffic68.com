@@ -136,6 +136,34 @@ router.get('/:id', async (req, res) => {
   res.json({ campaign: campaigns[0] });
 });
 
+// ── GET /api/campaigns/:id/keyword-stats ──
+router.get('/:id/keyword-stats', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [camp] = await pool.execute('SELECT id FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
+    if (!camp.length) return res.status(404).json({ error: 'Không tìm thấy' });
+
+    const [rows] = await pool.execute(
+      `SELECT
+         keyword,
+         COUNT(*) as total,
+         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+         SUM(CASE WHEN status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) as pending,
+         SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) as expired,
+         SUM(CASE WHEN bot_detected = 1 THEN 1 ELSE 0 END) as blocked,
+         COALESCE(SUM(earning), 0) as cost
+       FROM vuot_link_tasks
+       WHERE campaign_id = ?
+       GROUP BY keyword
+       ORDER BY completed DESC`,
+      [req.params.id]
+    );
+    res.json({ keywords: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── PUT /api/campaigns/:id ──
 router.put('/:id', async (req, res) => {
   try {

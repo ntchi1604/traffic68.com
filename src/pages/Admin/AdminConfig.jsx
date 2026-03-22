@@ -37,6 +37,13 @@ const SETTINGS_FIELDS = [
     defaultValue: '0',
     min: 0, max: 9999,
   },
+  {
+    key: 'captcha_enabled',
+    label: 'Bật Captcha khi lấy code',
+    description: 'Yêu cầu xác minh hCaptcha trước khi hiển thị mã code cho worker',
+    type: 'toggle',
+    defaultValue: 'true',
+  },
 ];
 
 export default function AdminConfig() {
@@ -119,15 +126,24 @@ export default function AdminConfig() {
                 <p className="font-semibold text-sm text-slate-700">{field.label}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{field.description}</p>
               </div>
-              <div className="shrink-0 w-32">
-                <input
-                  type={field.type}
-                  min={field.min}
-                  max={field.max}
-                  value={config[field.key] || ''}
-                  onChange={e => updateField(field.key, e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 text-right focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+              <div className="shrink-0">
+                {field.type === 'toggle' ? (
+                  <button
+                    onClick={() => updateField(field.key, config[field.key] === 'true' ? 'false' : 'true')}
+                    className={`relative w-14 h-7 rounded-full transition-colors ${config[field.key] === 'true' ? 'bg-green-500' : 'bg-slate-300'}`}
+                  >
+                    <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${config[field.key] === 'true' ? 'translate-x-7' : 'translate-x-0.5'}`} />
+                  </button>
+                ) : (
+                  <input
+                    type={field.type}
+                    min={field.min}
+                    max={field.max}
+                    value={config[field.key] || ''}
+                    onChange={e => updateField(field.key, e.target.value)}
+                    className="w-32 px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 text-right focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                )}
               </div>
             </div>
           ))}

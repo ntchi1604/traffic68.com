@@ -146,7 +146,14 @@ router.get('/public/:token', async (req, res) => {
     overrides.waitTime = campaignInfo.waitTime;
   }
 
-  const resp = { campaignFound: !!campaignInfo };
+  // Check captcha setting
+  let captchaEnabled = true;
+  try {
+    const [settings] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'captcha_enabled'");
+    if (settings.length > 0 && settings[0].setting_value === 'false') captchaEnabled = false;
+  } catch (e) {}
+
+  const resp = { campaignFound: !!campaignInfo, captchaEnabled };
   if (Object.keys(overrides).length > 0) resp.config = overrides;
   resp._t = generateSessionToken(ip, ua);
   res.json(resp);
