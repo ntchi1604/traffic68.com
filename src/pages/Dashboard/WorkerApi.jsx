@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
-import { Code2, Copy, Check, Key, Trash2, Plus, RefreshCw, ExternalLink, Zap } from 'lucide-react';
+import { Code2, Copy, Check, Key, RefreshCw, Zap, Eye, EyeOff } from 'lucide-react';
 import api from '../../lib/api';
 import { useToast } from '../../components/Toast';
 
@@ -9,16 +9,16 @@ export default function WorkerApi() {
   usePageTitle('QuickLink API');
   const toast = useToast();
 
-  const [keys, setKeys] = useState([]);
+  const [keyData, setKeyData] = useState(null); // single key object or null
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [label, setLabel] = useState('');
+  const [regenerating, setRegenerating] = useState(false);
   const [copied, setCopied] = useState(null);
+  const [showKey, setShowKey] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const data = await api.get('/quicklink/keys');
-      setKeys(data.keys || []);
+      const data = await api.get('/quicklink/key');
+      setKeyData(data.key || null);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
@@ -26,23 +26,26 @@ export default function WorkerApi() {
   useEffect(() => { load(); }, [load]);
 
   const createKey = async () => {
-    setCreating(true);
+    setRegenerating(true);
     try {
-      const data = await api.post('/quicklink/keys', { label: label.trim() || 'Default' });
+      const data = await api.post('/quicklink/key');
+      setKeyData(data.key);
+      setShowKey(true);
       toast.success('Tạo API key thành công!');
-      setLabel('');
-      await load();
     } catch (e) { toast.error(e.message); }
-    finally { setCreating(false); }
+    finally { setRegenerating(false); }
   };
 
-  const deleteKey = async (id) => {
-    if (!await toast.confirm('Xóa API key này?')) return;
+  const regenerateKey = async () => {
+    if (!await toast.confirm('Đổi API key? Key cũ sẽ ngừng hoạt động ngay lập tức.')) return;
+    setRegenerating(true);
     try {
-      await api.delete(`/quicklink/keys/${id}`);
-      toast.success('Đã xóa key');
-      await load();
+      const data = await api.put('/quicklink/key');
+      setKeyData(data.key);
+      setShowKey(true);
+      toast.success('Đã đổi API key!');
     } catch (e) { toast.error(e.message); }
+    finally { setRegenerating(false); }
   };
 
   const handleCopy = (text, id) => {
@@ -51,17 +54,19 @@ export default function WorkerApi() {
     setTimeout(() => setCopied(null), 2000);
   };
 
+  const maskKey = (key) => {
+    if (!key) return '';
+    return key.slice(0, 8) + '•'.repeat(key.length - 12) + key.slice(-4);
+  };
+
   const BASE = window.location.origin;
+  const apiKey = keyData?.api_key || 'YOUR_API_KEY';
 
   const endpoints = [
-    { method: 'POST', path: '/api/quicklink/v1/shorten', desc: 'Tạo link rút gọn', body: '{ "url": "https://...", "title": "optional" }', response: '{ "short_url", "slug", "id" }' },
-    { method: 'GET', path: '/api/quicklink/v1/links', desc: 'Danh sách link', body: null, response: '{ "links": [...], "pagination" }' },
-    { method: 'GET', path: '/api/quicklink/v1/links/:id', desc: 'Chi tiết link', body: null, response: '{ "id", "short_url", "click_count", ... }' },
-    { method: 'DELETE', path: '/api/quicklink/v1/links/:id', desc: 'Xóa link', body: null, response: '{ "message" }' },
-    { method: 'GET', path: '/api/quicklink/v1/stats', desc: 'Thống kê tổng', body: null, response: '{ "total_links", "total_clicks", ... }' },
+    { method: 'GET', path: '/api/quicklink/v1/links', desc: 'Danh sách link (phân trang)', body: '?page=1&limit=20' },
+    { method: 'GET', path: '/api/quicklink/v1/links/:id', desc: 'Chi tiết 1 link', body: null },
+    { method: 'GET', path: '/api/quicklink/v1/stats', desc: 'Thống kê tổng', body: null },
   ];
-
-  const firstKey = keys[0]?.api_key || 'YOUR_API_KEY';
 
   return (
     <div className="space-y-6 w-full min-w-0">
@@ -75,7 +80,7 @@ export default function WorkerApi() {
           <Zap size={24} className="text-orange-500" /> QuickLink API
         </h1>
         <p className="text-slate-500 text-sm mt-1">
-          Rút gọn link bằng API → tự redirect sang vượt link → kiếm tiền mỗi lượt hoàn thành
+          Rút gọn link bằng API → redirect sang vượt link → kiếm tiền mỗi lượt hoàn thành
         </p>
       </div>
 
@@ -84,9 +89,9 @@ export default function WorkerApi() {
         <h3 className="text-sm font-black text-blue-900 mb-2">⚡ Cách hoạt động</h3>
         <div className="grid grid-cols-4 gap-3 text-center text-xs">
           {[
-            { step: '1', title: 'Gọi API', desc: 'POST /shorten + URL đích' },
-            { step: '2', title: 'Nhận short URL', desc: '/vuot-link/abc1234' },
-            { step: '3', title: 'Chia sẻ', desc: 'Người dùng click link' },
+            { step: '1', title: 'Tạo link', desc: 'Tạo link rút gọn từ web' },
+            { step: '2', title: 'Chia sẻ', desc: 'Gửi short URL cho người dùng' },
+            { step: '3', title: 'Theo dõi', desc: 'Dùng API xem stats' },
             { step: '4', title: 'Kiếm tiền', desc: 'Vượt link xong → CPC' },
           ].map(s => (
             <div key={s.step} className="bg-white/80 rounded-xl p-3 border border-blue-100">
@@ -98,68 +103,55 @@ export default function WorkerApi() {
         </div>
       </div>
 
-      {/* API Keys Management */}
+      {/* API Key — single key */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
         <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
           <Key size={18} className="text-orange-500" />
-          API Keys
-          <span className="ml-auto text-xs text-slate-400 font-normal">Tối đa 5 key</span>
+          API Key
         </h2>
 
-        {/* Create new key */}
-        <div className="flex items-center gap-2 mb-4">
-          <input
-            value={label} onChange={e => setLabel(e.target.value)}
-            placeholder="Nhãn (VD: Production, Tester...)"
-            className="flex-1 px-3 py-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/30 transition"
-          />
-          <button onClick={createKey} disabled={creating}
-            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition disabled:opacity-50 flex-shrink-0">
-            <Plus size={15} /> {creating ? 'Đang tạo...' : 'Tạo key'}
-          </button>
-        </div>
-
-        {/* Keys list */}
         {loading ? (
           <p className="text-sm text-slate-400 text-center py-6">Đang tải...</p>
-        ) : keys.length === 0 ? (
+        ) : !keyData ? (
+          /* No key yet */
           <div className="text-center py-8">
-            <Key size={32} className="text-slate-200 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">Chưa có API key. Tạo key để bắt đầu sử dụng API.</p>
+            <Key size={36} className="text-slate-200 mx-auto mb-3" />
+            <p className="text-sm text-slate-500 mb-4">Chưa có API key. Tạo key để bắt đầu sử dụng QuickLink API.</p>
+            <button onClick={createKey} disabled={regenerating}
+              className="px-5 py-2.5 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition disabled:opacity-50 inline-flex items-center gap-2">
+              <Key size={15} /> {regenerating ? 'Đang tạo...' : 'Tạo API key'}
+            </button>
           </div>
         ) : (
-          <div className="space-y-2">
-            {keys.map(k => (
-              <div key={k.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 group">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-bold text-slate-700">{k.label}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${k.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                      {k.active ? 'Active' : 'Revoked'}
-                    </span>
-                  </div>
-                  <code className="text-[11px] font-mono text-slate-500 break-all">{k.api_key}</code>
-                  <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400">
-                    <span>{k.request_count} requests</span>
-                    <span>•</span>
-                    <span>{k.last_used_at ? `Dùng lần cuối: ${new Date(k.last_used_at).toLocaleDateString('vi')}` : 'Chưa sử dụng'}</span>
-                  </div>
-                </div>
-                <button onClick={() => handleCopy(k.api_key, k.id)} title="Copy key"
-                  className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition flex-shrink-0">
-                  {copied === k.id ? <Check size={15} className="text-green-500" /> : <Copy size={15} />}
-                </button>
-                <button onClick={() => deleteKey(k.id)} title="Xóa key"
-                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition flex-shrink-0">
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            ))}
+          /* Has key */
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <code className="flex-1 bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-xs font-mono text-slate-700 overflow-x-auto select-all">
+                {showKey ? keyData.api_key : maskKey(keyData.api_key)}
+              </code>
+              <button onClick={() => setShowKey(!showKey)} title={showKey ? 'Ẩn' : 'Hiện'}
+                className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition flex-shrink-0">
+                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+              <button onClick={() => handleCopy(keyData.api_key, 'key')} title="Copy key"
+                className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition flex-shrink-0">
+                {copied === 'key' ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+              </button>
+              <button onClick={regenerateKey} disabled={regenerating} title="Đổi key mới"
+                className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition flex-shrink-0 disabled:opacity-50">
+                <RefreshCw size={14} className={regenerating ? 'animate-spin' : ''} /> Đổi key
+              </button>
+            </div>
+            <div className="flex items-center gap-4 text-[11px] text-slate-400">
+              <span>📊 {keyData.request_count || 0} requests</span>
+              <span>•</span>
+              <span>{keyData.last_used_at ? `Dùng lần cuối: ${new Date(keyData.last_used_at).toLocaleString('vi')}` : 'Chưa sử dụng'}</span>
+            </div>
           </div>
         )}
 
-        <p className="text-[10px] text-slate-400 mt-3">
-          Thêm header: <code className="bg-slate-100 px-1 py-0.5 rounded">Authorization: Bearer YOUR_API_KEY</code>
+        <p className="text-[10px] text-slate-400 mt-4 border-t border-slate-100 pt-3">
+          Thêm header vào mỗi request: <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">Authorization: Bearer YOUR_API_KEY</code>
         </p>
       </div>
 
@@ -176,7 +168,7 @@ export default function WorkerApi() {
                 <th className="py-3 font-medium text-[10px] uppercase tracking-wider w-16">Method</th>
                 <th className="py-3 font-medium text-[10px] uppercase tracking-wider">Endpoint</th>
                 <th className="py-3 font-medium text-[10px] uppercase tracking-wider">Mô tả</th>
-                <th className="py-3 font-medium text-[10px] uppercase tracking-wider">Body</th>
+                <th className="py-3 font-medium text-[10px] uppercase tracking-wider">Params / Body</th>
               </tr>
             </thead>
             <tbody>
@@ -187,9 +179,7 @@ export default function WorkerApi() {
                       ep.method === 'GET' ? 'bg-green-100 text-green-700' :
                       ep.method === 'POST' ? 'bg-blue-100 text-blue-700' :
                       'bg-red-100 text-red-700'
-                    }`}>
-                      {ep.method}
-                    </span>
+                    }`}>{ep.method}</span>
                   </td>
                   <td className="py-3 font-mono text-[11px] text-slate-700">{ep.path}</td>
                   <td className="py-3 text-xs text-slate-500">{ep.desc}</td>
@@ -201,48 +191,19 @@ export default function WorkerApi() {
         </div>
       </div>
 
-      {/* Quick Examples */}
+      {/* Curl Examples */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Create link */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-slate-900">📝 Tạo link rút gọn</h3>
-            <button onClick={() => handleCopy(`curl -X POST ${BASE}/api/quicklink/v1/shorten \\\n  -H "Authorization: Bearer ${firstKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"url": "https://example.com/my-page"}'`, 'curl-create')}
-              className="text-[10px] text-slate-400 hover:text-blue-500 flex items-center gap-1">
-              {copied === 'curl-create' ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
-            </button>
-          </div>
-          <pre className="bg-slate-900 text-green-400 rounded-xl p-4 text-[11px] overflow-x-auto whitespace-pre-wrap">
-{`curl -X POST ${BASE}/api/quicklink/v1/shorten \\
-  -H "Authorization: Bearer ${firstKey}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"url": "https://example.com/my-page"}'`}
-          </pre>
-          <div className="mt-3">
-            <p className="text-[10px] font-bold text-slate-500 mb-1">Response:</p>
-            <pre className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-600 overflow-x-auto">
-{`{
-  "id": 42,
-  "slug": "abc1234",
-  "short_url": "${BASE}/vuot-link/abc1234",
-  "destination_url": "https://example.com/my-page"
-}`}
-            </pre>
-          </div>
-        </div>
-
-        {/* List links */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-slate-900">📋 Xem danh sách link</h3>
-            <button onClick={() => handleCopy(`curl ${BASE}/api/quicklink/v1/links?page=1&limit=10 \\\n  -H "Authorization: Bearer ${firstKey}"`, 'curl-list')}
+            <h3 className="text-sm font-bold text-slate-900">📋 Danh sách link</h3>
+            <button onClick={() => handleCopy(`curl ${BASE}/api/quicklink/v1/links?page=1&limit=20 \\\n  -H "Authorization: Bearer ${apiKey}"`, 'curl-list')}
               className="text-[10px] text-slate-400 hover:text-blue-500 flex items-center gap-1">
               {copied === 'curl-list' ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
             </button>
           </div>
           <pre className="bg-slate-900 text-green-400 rounded-xl p-4 text-[11px] overflow-x-auto whitespace-pre-wrap">
-{`curl ${BASE}/api/quicklink/v1/links?page=1&limit=10 \\
-  -H "Authorization: Bearer ${firstKey}"`}
+{`curl ${BASE}/api/quicklink/v1/links?page=1&limit=20 \\
+  -H "Authorization: Bearer ${apiKey}"`}
           </pre>
           <div className="mt-3">
             <p className="text-[10px] font-bold text-slate-500 mb-1">Response:</p>
@@ -251,27 +212,55 @@ export default function WorkerApi() {
   "links": [
     {
       "id": 42,
+      "slug": "abc1234",
       "short_url": "${BASE}/vuot-link/abc1234",
+      "destination_url": "https://example.com",
       "click_count": 150,
-      "completed_count": 48,
-      "earning": 24000
+      "completed_count": 45,
+      "earning": 22500
     }
   ],
-  "pagination": { "page": 1, "total": 15 }
+  "pagination": { "page": 1, "limit": 20, "total": 1, "pages": 1 }
+}`}
+            </pre>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-slate-900">📋 Xem stats</h3>
+            <button onClick={() => handleCopy(`curl ${BASE}/api/quicklink/v1/stats \\\n  -H "Authorization: Bearer ${apiKey}"`, 'curl-stats')}
+              className="text-[10px] text-slate-400 hover:text-blue-500 flex items-center gap-1">
+              {copied === 'curl-stats' ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
+            </button>
+          </div>
+          <pre className="bg-slate-900 text-green-400 rounded-xl p-4 text-[11px] overflow-x-auto whitespace-pre-wrap">
+{`curl ${BASE}/api/quicklink/v1/stats \\
+  -H "Authorization: Bearer ${apiKey}"`}
+          </pre>
+          <div className="mt-3">
+            <p className="text-[10px] font-bold text-slate-500 mb-1">Response:</p>
+            <pre className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-600 overflow-x-auto">
+{`{
+  "total_links": 15,
+  "total_clicks": 1250,
+  "total_completed": 410,
+  "total_earning": 205000
 }`}
             </pre>
           </div>
         </div>
       </div>
 
-      {/* Rate Limits */}
+      {/* Notes */}
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-orange-200 p-5">
         <h3 className="text-sm font-black text-orange-900 mb-2">⚠️ Lưu ý</h3>
         <ul className="text-xs text-orange-800 space-y-1.5 list-disc pl-4">
-          <li>Mỗi link rút gọn qua API sẽ redirect sang <strong>/vuot-link/slug</strong> — người dùng phải vượt link trước khi đến URL đích</li>
-          <li>Bạn nhận <strong>CPC</strong> cho mỗi lượt vượt link hoàn thành (giống tạo link trong dashboard)</li>
-          <li>API key bị lộ → <strong>xóa ngay</strong> và tạo key mới</li>
-          <li>Tối đa <strong>5 API key</strong> mỗi tài khoản</li>
+          <li>Tạo link rút gọn trên web → dùng API để <strong>theo dõi thống kê</strong></li>
+          <li>Link rút gọn redirect sang <strong>/vuot-link/slug</strong> — người dùng phải vượt link trước khi đến URL đích</li>
+          <li>Bạn nhận <strong>CPC</strong> cho mỗi lượt vượt link hoàn thành</li>
+          <li>API key bị lộ → nhấn <strong>Đổi key</strong> ngay, key cũ sẽ mất hiệu lực</li>
+          <li>Mỗi tài khoản chỉ có <strong>1 API key</strong></li>
         </ul>
       </div>
     </div>

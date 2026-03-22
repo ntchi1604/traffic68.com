@@ -105,11 +105,13 @@ if (typeof window !== 'undefined') {
 const _bhv = {
     startTime: Date.now(),
     mouseTrail: [], clickPositions: [],
+    touchTrail: [], touchTaps: [], _touchStartMap: {},
     keyDwellTimes: [], keyFlightTimes: [], _keyDownMap: {},
     backspaceCount: 0, totalKeys: 0,
     scrollEvents: [], scrollPauses: 0, _lastScrollT: 0,
     totalBlur: 0, rafStable: true, _lastKeyUp: 0,
     screen: typeof window !== 'undefined' ? { w: screen.width, h: screen.height, dpr: window.devicePixelRatio || 1 } : null,
+    isMobile: typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent),
 };
 let _bhvBound = false;
 function bindBehavior() {
@@ -126,6 +128,39 @@ function bindBehavior() {
         if (r) { entry.elCenterX = Math.round(r.left + r.width / 2); entry.elCenterY = Math.round(r.top + r.height / 2); }
         _bhv.clickPositions.push(entry);
         if (_bhv.clickPositions.length > 20) _bhv.clickPositions.shift();
+    }, { passive: true });
+    // ── Touch events (mobile) ──
+    document.addEventListener('touchstart', (e) => {
+        const touch = e.touches[0];
+        if (!touch) return;
+        const now = Date.now();
+        _bhv._touchStartMap[touch.identifier] = { x: touch.clientX, y: touch.clientY, t: now };
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+        const touch = e.touches[0];
+        if (!touch) return;
+        const entry = { x: Math.round(touch.clientX), y: Math.round(touch.clientY), t: Date.now() - st };
+        if (touch.radiusX) { entry.rx = Math.round(touch.radiusX); entry.ry = Math.round(touch.radiusY); }
+        if (touch.force) entry.force = Math.round(touch.force * 100) / 100;
+        _bhv.touchTrail.push(entry);
+        if (_bhv.touchTrail.length > 80) _bhv.touchTrail.shift();
+    }, { passive: true });
+    document.addEventListener('touchend', (e) => {
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+        const now = Date.now();
+        const start = _bhv._touchStartMap[touch.identifier];
+        const entry = { x: Math.round(touch.clientX), y: Math.round(touch.clientY), t: now - st };
+        if (start) {
+            entry.duration = now - start.t;
+            entry.dx = Math.round(touch.clientX - start.x);
+            entry.dy = Math.round(touch.clientY - start.y);
+            delete _bhv._touchStartMap[touch.identifier];
+        }
+        const r = e.target ? e.target.getBoundingClientRect() : null;
+        if (r) { entry.elCenterX = Math.round(r.left + r.width / 2); entry.elCenterY = Math.round(r.top + r.height / 2); }
+        _bhv.touchTaps.push(entry);
+        if (_bhv.touchTaps.length > 20) _bhv.touchTaps.shift();
     }, { passive: true });
     document.addEventListener('keydown', (e) => {
         _bhv.totalKeys++;
@@ -168,6 +203,8 @@ function getBehavioralData() {
     return {
         mouseTrail: _bhv.mouseTrail,
         clickPositions: _bhv.clickPositions,
+        touchTrail: _bhv.touchTrail,
+        touchTaps: _bhv.touchTaps,
         keyDwellTimes: _bhv.keyDwellTimes,
         keyFlightTimes: _bhv.keyFlightTimes,
         backspaceCount: _bhv.backspaceCount,
@@ -177,6 +214,7 @@ function getBehavioralData() {
         totalBlur: _bhv.totalBlur,
         rafStable: _bhv.rafStable,
         screen: _bhv.screen,
+        isMobile: _bhv.isMobile,
         probes: probeData,
     };
 }

@@ -45,52 +45,61 @@ async function apiKeyAuth(req, res, next) {
 }
 
 /* ════════════════════════════════════════════════
-   API KEY MANAGEMENT (session-auth: worker dashboard)
+   API KEY MANAGEMENT — 1 key per user, can regenerate
    ════════════════════════════════════════════════ */
 
-// ── GET /api/quicklink/keys — list my API keys ──
-router.get('/keys', authMiddleware, async (req, res) => {
+// ── GET /api/quicklink/key — get my API key (single) ──
+router.get('/key', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
-    const [keys] = await pool.execute(
-      `SELECT id, api_key, label, active, request_count, last_used_at, created_at
-       FROM api_keys WHERE user_id = ? ORDER BY created_at DESC`,
+    const [rows] = await pool.execute(
+      `SELECT id, api_key, request_count, last_used_at, created_at
+       FROM api_keys WHERE user_id = ? AND active = 1 LIMIT 1`,
       [req.userId]
     );
-    res.json({ keys });
+    res.json({ key: rows[0] || null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── POST /api/quicklink/keys — create new API key ──
-router.post('/keys', authMiddleware, async (req, res) => {
+// ── POST /api/quicklink/key — create key (if none exists) ──
+router.post('/key', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
-    const { label } = req.body;
-
-    // Max 5 keys per user
-    const [count] = await pool.execute('SELECT COUNT(*) as c FROM api_keys WHERE user_id = ?', [req.userId]);
-    if (count[0].c >= 5) return res.status(400).json({ error: 'Tối đa 5 API key' });
+    // Check if already has one
+    const [existing] = await pool.execute(
+      'SELECT id FROM api_keys WHERE user_id = ? AND active = 1',
+      [req.userId]
+    );
+    if (existing.length) return res.status(400).json({ error: 'Bạn đã có API key. Dùng nút Đổi key để tạo mới.' });
 
     const apiKey = genApiKey();
     const [result] = await pool.execute(
-      'INSERT INTO api_keys (user_id, api_key, label) VALUES (?, ?, ?)',
-      [req.userId, apiKey, label || 'Default']
+      'INSERT INTO api_keys (user_id, api_key) VALUES (?, ?)',
+      [req.userId, apiKey]
     );
 
-    res.json({ id: result.insertId, api_key: apiKey, label: label || 'Default' });
+    res.json({ key: { id: result.insertId, api_key: apiKey, request_count: 0, last_used_at: null, created_at: new Date() } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── DELETE /api/quicklink/keys/:id — revoke key ──
-router.delete('/keys/:id', authMiddleware, async (req, res) => {
+// ── PUT /api/quicklink/key — regenerate key ──
+router.put('/key', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
-    await pool.execute('DELETE FROM api_keys WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
-    res.json({ message: 'Đã xóa API key' });
+    // Delete old key(s)
+    await pool.execute('DELETE FROM api_keys WHERE user_id = ?', [req.userId]);
+    // Create new
+    const apiKey = genApiKey();
+    const [result] = await pool.execute(
+      'INSERT INTO api_keys (user_id, api_key) VALUES (?, ?)',
+      [req.userId, apiKey]
+    );
+
+    res.json({ key: { id: result.insertId, api_key: apiKey, request_count: 0, last_used_at: null, created_at: new Date() } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -98,50 +107,8 @@ router.delete('/keys/:id', authMiddleware, async (req, res) => {
 
 
 /* ════════════════════════════════════════════════
-   QUICKLINK PUBLIC API (API-key auth)
+   QUICKLINK PUBLIC API (API-key auth) — READ ONLY
    ════════════════════════════════════════════════ */
-
-// ── POST /api/quicklink/v1/shorten — create short link ──
-// Body: { url: "https://...", title: "optional" }
-// Returns: { short_url, slug, destination_url }
-router.post('/v1/shorten', apiKeyAuth, async (req, res) => {
-  try {
-    const pool = getPool();
-    const { url, title } = req.body;
-    if (!url) return res.status(400).json({ error: 'Missing "url" field' });
-
-    // Validate URL
-    try { new URL(url); } catch { return res.status(400).json({ error: 'Invalid URL' }); }
-
-    // Generate unique slug
-    let slug;
-    for (let i = 0; i < 10; i++) {
-      const s = genSlug(7);
-      const [dup] = await pool.execute('SELECT id FROM worker_links WHERE slug = ?', [s]);
-      if (!dup.length) { slug = s; break; }
-    }
-    if (!slug) return res.status(500).json({ error: 'Could not generate slug' });
-
-    const [result] = await pool.execute(
-      'INSERT INTO worker_links (worker_id, slug, title, destination_url) VALUES (?, ?, ?, ?)',
-      [req.userId, slug, title || null, url]
-    );
-
-    const host = req.headers['x-forwarded-host'] || req.headers['host'] || 'traffic68.com';
-    const proto = req.headers['x-forwarded-proto'] || req.protocol;
-    const baseUrl = `${proto}://${host}`;
-
-    res.json({
-      id: result.insertId,
-      slug,
-      short_url: `${baseUrl}/vuot-link/${slug}`,
-      destination_url: url,
-      title: title || null,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ── GET /api/quicklink/v1/links — list my links ──
 router.get('/v1/links', apiKeyAuth, async (req, res) => {
@@ -204,20 +171,6 @@ router.get('/v1/links/:id', apiKeyAuth, async (req, res) => {
   }
 });
 
-// ── DELETE /api/quicklink/v1/links/:id — delete link ──
-router.delete('/v1/links/:id', apiKeyAuth, async (req, res) => {
-  try {
-    const pool = getPool();
-    const [result] = await pool.execute(
-      'DELETE FROM worker_links WHERE id = ? AND worker_id = ?',
-      [req.params.id, req.userId]
-    );
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Link not found' });
-    res.json({ message: 'Link deleted' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ── GET /api/quicklink/v1/stats — overall stats ──
 router.get('/v1/stats', apiKeyAuth, async (req, res) => {
