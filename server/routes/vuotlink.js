@@ -171,13 +171,29 @@ async function _handleTaskPost(req, res) {
 
   ch.used = true;
 
-  // ── 2. CreepJS check — any lie = block ──
-  if (botDetection && (botDetection.bot === true || botDetection.totalLied > 0)) {
-    console.log(`[VuotLink] 🚫 CreepJS BLOCKED: IP=${ip}, totalLied=${botDetection.totalLied}, sections=${JSON.stringify(botDetection.liedSections)}`);
+  // ── 2. CreepJS check — with mobile tolerance ──
+  const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+  if (botDetection && botDetection.bot === true) {
+    console.log(`[VuotLink] 🚫 CreepJS BOT: IP=${ip}`);
     logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
     botDetected = true;
     detectionLog.push('creep_detected');
     return res.status(403).json(ERR);
+  }
+  if (botDetection && botDetection.totalLied > 0) {
+    // On mobile: clientRects, maths, css often differ due to DPI/font rendering — not reliable
+    const mobileSafe = ['clientRects', 'maths', 'css'];
+    const lied = botDetection.liedSections || [];
+    const realLies = isMobileDevice ? lied.filter(s => !mobileSafe.includes(s)) : lied;
+    if (realLies.length > 0 || (!isMobileDevice && botDetection.totalLied > 0)) {
+      console.log(`[VuotLink] 🚫 CreepJS BLOCKED: IP=${ip}, totalLied=${botDetection.totalLied}, realLies=${realLies.join(',')}, mobile=${isMobileDevice}`);
+      logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
+      botDetected = true;
+      detectionLog.push('creep_detected');
+      return res.status(403).json(ERR);
+    } else {
+      console.log(`[VuotLink] ⚠️ CreepJS mobile tolerance: IP=${ip}, ignored: ${lied.join(',')}`);
+    }
   }
 
   const probes = clientProbes || {};

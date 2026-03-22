@@ -281,12 +281,27 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   ch.used = true;
 
-  if (botDetection && (botDetection.bot === true || botDetection.totalLied > 0)) {
-    console.log(`[Widget] 🚫 BLOCKED: IP=${ip}, totalLied=${botDetection.totalLied}`);
+  const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+  if (botDetection && botDetection.bot === true) {
+    console.log(`[Widget] 🚫 CreepJS BOT: IP=${ip}`);
     logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
     botDetected = true;
     detectionLog.push('creep_detected');
     return res.status(403).json(ERR);
+  }
+  if (botDetection && botDetection.totalLied > 0) {
+    const mobileSafe = ['clientRects', 'maths', 'css'];
+    const lied = botDetection.liedSections || [];
+    const realLies = isMobileDevice ? lied.filter(s => !mobileSafe.includes(s)) : lied;
+    if (realLies.length > 0 || (!isMobileDevice && botDetection.totalLied > 0)) {
+      console.log(`[Widget] 🚫 CreepJS BLOCKED: IP=${ip}, totalLied=${botDetection.totalLied}, realLies=${realLies.join(',')}, mobile=${isMobileDevice}`);
+      logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
+      botDetected = true;
+      detectionLog.push('creep_detected');
+      return res.status(403).json(ERR);
+    } else {
+      console.log(`[Widget] ⚠️ CreepJS mobile tolerance: IP=${ip}, ignored: ${lied.join(',')}`);
+    }
   }
 
   const probes = behavioral?.probes || {};

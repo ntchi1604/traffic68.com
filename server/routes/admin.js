@@ -520,28 +520,30 @@ router.get('/security', async (req, res) => {
 
     let countSql = `SELECT COUNT(*) as total FROM security_logs WHERE 1=1`;
     let listSql = `SELECT sl.id, sl.source, sl.reason, sl.ip_address, sl.visitor_id, sl.details, sl.created_at,
-       vt.worker_id, u.name as worker_name, u.email as worker_email
+       (SELECT vt2.worker_id FROM vuot_link_tasks vt2
+        WHERE vt2.ip_address = sl.ip_address AND ABS(TIMESTAMPDIFF(SECOND, vt2.created_at, sl.created_at)) < 120
+        ORDER BY ABS(TIMESTAMPDIFF(SECOND, vt2.created_at, sl.created_at)) LIMIT 1) as worker_id,
+       (SELECT u2.name FROM vuot_link_tasks vt3 JOIN users u2 ON u2.id = vt3.worker_id
+        WHERE vt3.ip_address = sl.ip_address AND ABS(TIMESTAMPDIFF(SECOND, vt3.created_at, sl.created_at)) < 120
+        ORDER BY ABS(TIMESTAMPDIFF(SECOND, vt3.created_at, sl.created_at)) LIMIT 1) as worker_name,
+       (SELECT u3.email FROM vuot_link_tasks vt4 JOIN users u3 ON u3.id = vt4.worker_id
+        WHERE vt4.ip_address = sl.ip_address AND ABS(TIMESTAMPDIFF(SECOND, vt4.created_at, sl.created_at)) < 120
+        ORDER BY ABS(TIMESTAMPDIFF(SECOND, vt4.created_at, sl.created_at)) LIMIT 1) as worker_email
        FROM security_logs sl
-       LEFT JOIN vuot_link_tasks vt ON vt.ip_address = sl.ip_address
-         AND ABS(TIMESTAMPDIFF(SECOND, vt.created_at, sl.created_at)) < 120
-       LEFT JOIN users u ON u.id = vt.worker_id
        WHERE 1=1`;
     const params = [];
 
     if (search) {
-      const searchClause = ` AND (sl.ip_address LIKE ? OR sl.visitor_id LIKE ? OR sl.reason LIKE ? OR u.name LIKE ? OR u.email LIKE ?)`;
       countSql += ` AND (ip_address LIKE ? OR visitor_id LIKE ? OR reason LIKE ?)`;
-      listSql += searchClause;
+      listSql += ` AND (sl.ip_address LIKE ? OR sl.visitor_id LIKE ? OR sl.reason LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     const [countResult] = await pool.execute(countSql, params);
     const total = countResult[0].total;
 
-    listSql += ` GROUP BY sl.id ORDER BY sl.created_at DESC LIMIT ? OFFSET ?`;
-    const listParams = search
-      ? [...params, `%${search}%`, `%${search}%`, Number(limit), offset]
-      : [...params, Number(limit), offset];
+    listSql += ` ORDER BY sl.created_at DESC LIMIT ? OFFSET ?`;
+    const listParams = [...params, Number(limit), offset];
     const [rows] = await pool.execute(listSql, listParams);
 
     // Compute is_bot for each row based on details assessments
