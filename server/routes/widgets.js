@@ -235,7 +235,27 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Blocked' });
   }
 
-  const { challengeId, _ck, domWidth, glRenderer, glPixel, visitorId, botDetection, behavioral } = req.body || {};
+  const { challengeId, _ck, domWidth, glRenderer, glPixel, visitorId, botDetection, behavioral, hcaptchaToken } = req.body || {};
+
+  // ── Verify hCaptcha ──
+  const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
+  if (hcaptchaToken && !['skip', 'error', 'render-error'].includes(hcaptchaToken)) {
+    try {
+      const hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `response=${encodeURIComponent(hcaptchaToken)}&secret=${encodeURIComponent(HCAPTCHA_SECRET)}`,
+      });
+      const hcData = await hcRes.json();
+      if (!hcData.success) {
+        console.log(`[Widget] hCaptcha failed — IP: ${ip}, errors: ${(hcData['error-codes'] || []).join(',')}`);
+        return res.status(403).json({ error: 'Captcha verification failed' });
+      }
+    } catch (e) {
+      console.error(`[Widget] hCaptcha verify error:`, e.message);
+      // Allow on error (don't block if hCaptcha service is down)
+    }
+  }
 
   let botDetected = false;
   let mouseScore = 0;
