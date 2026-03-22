@@ -263,6 +263,8 @@ async function _handleTaskPost(req, res) {
     id: result.insertId,
     keyword: campaign.keyword,
     image1_url: campaign.image1_url || '',
+    image2_url: campaign.image2_url || '',
+    url2: campaign.url2 || '',
     waitTime,
     startedAt: now,
     widgetConfig,

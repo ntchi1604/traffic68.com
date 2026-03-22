@@ -376,6 +376,8 @@ export default function VuotLink() {
   /* ─── Derived ──────────────────────────────────── */
   const keyword = task?.keyword || '';
   const campaignImage = task?.image1_url || '';
+  const campaignImage2 = task?.image2_url || '';
+  const hasMultiSite = !!(campaignImage2);
   const waitTime_ = task?.waitTime || waitTime || 60;
   const widgetConfig = task?.widgetConfig || null;
 
@@ -520,18 +522,43 @@ export default function VuotLink() {
 
             {/* ── CARD 3: Tìm trang đích ── */}
             <StepPanel n={3} title="TÌM TRANG ĐÍCH" desc="Tìm trang đích trong kết quả tìm kiếm Google và click vào." verified={verified}>
-              {campaignImage && (
+              {(campaignImage || campaignImage2) && (
                 <div style={{ marginBottom: '16px' }}>
-                  <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px' }}>
-                    🎯 Trang đích cần tìm — giao diện trông giống như hình bên dưới:
-                  </p>
-                  <div style={{ borderRadius: '14px', overflow: 'hidden', border: '2px solid #e0e7ff', boxShadow: '0 4px 20px rgba(99,102,241,0.12)' }}>
-                    <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block', maxHeight: '340px', objectFit: 'cover', objectPosition: 'top' }} onError={e => e.target.style.display = 'none'} />
-                  </div>
+                  {hasMultiSite ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px' }}>
+                        <span style={{ fontSize: '16px' }}>&#x1F4A1;</span>
+                        <p style={{ margin: 0, color: '#1d4ed8', fontSize: '13px', fontWeight: 700 }}>
+                          Bạn có thể truy cập <strong>1 trong 2 trang web</strong> bất kỳ dưới đây để hoàn thành nhiệm vụ.
+                        </p>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        {[{ img: campaignImage, label: 'Trang web 1' }, { img: campaignImage2, label: 'Trang web 2' }].map(({ img, label }, idx) => img ? (
+                          <div key={idx}>
+                            <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 6px' }}>
+                              🎯 {label}
+                            </p>
+                            <div style={{ borderRadius: '12px', overflow: 'hidden', border: '2px solid #e0e7ff', boxShadow: '0 4px 16px rgba(99,102,241,0.1)' }}>
+                              <img src={img} alt={label} style={{ width: '100%', display: 'block', maxHeight: '200px', objectFit: 'cover', objectPosition: 'top' }} onError={e => e.target.style.display = 'none'} />
+                            </div>
+                          </div>
+                        ) : null)}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px' }}>
+                        🎯 Trang đích cần tìm — giao diện trông giống như hình bên dưới:
+                      </p>
+                      <div style={{ borderRadius: '14px', overflow: 'hidden', border: '2px solid #e0e7ff', boxShadow: '0 4px 20px rgba(99,102,241,0.12)' }}>
+                        <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block', maxHeight: '340px', objectFit: 'cover', objectPosition: 'top' }} onError={e => e.target.style.display = 'none'} />
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '14px', padding: '14px' }}>
-                {['Cuộn tìm trong kết quả Google', 'Tìm trang có giao diện giống hình trên', 'Click vào kết quả để truy cập trang'].map((t, i) => (
+                {['Cuộn tìm trong kết quả Google', hasMultiSite ? 'Tìm trang có giao diện giống 1 trong 2 hình trên' : 'Tìm trang có giao diện giống hình trên', 'Click vào kết quả để truy cập trang'].map((t, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', borderRadius: '8px', padding: '8px 12px', marginBottom: i < 2 ? '8px' : 0 }}>
                     <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>{i + 1}</span>
