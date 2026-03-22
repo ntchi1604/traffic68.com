@@ -233,7 +233,7 @@ async function _handleTaskPost(req, res) {
         [campaign.id, todayView, campaign.traffic_type || 'google_search']
       );
     }
-  } catch (_) {}
+  } catch (_) { }
 
   // Fetch widget config from advertiser (for button preview in Step 4)
   let widgetConfig = null;
@@ -348,7 +348,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     const cleanIp = ip.replace(/^::ffff:/, ''); // strip IPv6 prefix
     const geo = geoip.lookup(cleanIp);
     if (geo && geo.country) ipCountry = geo.country;
-  } catch (_) {}
+  } catch (_) { }
 
   await pool.execute(
     `UPDATE vuot_link_tasks SET status = 'completed', completed_at = ?, time_on_site = ?, earning = ?, ip_country = ? WHERE id = ?`,

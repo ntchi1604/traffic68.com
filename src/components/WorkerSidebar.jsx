@@ -17,6 +17,7 @@ import {
   HelpCircle,
   DollarSign,
   Gift,
+  Scissors,
 } from 'lucide-react';
 
 const linkBase =
@@ -86,6 +87,11 @@ export default function WorkerSidebar({ isOpen, onClose }) {
                   className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
                   <EyeOff className="w-4 h-4" />
                   Liên kết ẩn
+                </NavLink>
+                <NavLink to="/worker/dashboard/short-links"
+                  className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
+                  <Scissors className="w-4 h-4" />
+                  Link rút gọn
                 </NavLink>
               </div>
             )}

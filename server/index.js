@@ -58,16 +58,84 @@ app.get('/api/pricing', async (req, res) => {
 });
 
 // ── Routes ──
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/campaigns', require('./routes/campaigns'));
-app.use('/api/finance', require('./routes/finance'));
-app.use('/api/widgets', require('./routes/widgets'));
+app.use('/api/auth',       require('./routes/auth'));
+app.use('/api/campaigns',  require('./routes/campaigns'));
+app.use('/api/finance',    require('./routes/finance'));
+app.use('/api/widgets',    require('./routes/widgets'));
 app.use('/api/notifications', require('./routes/notifications'));
-app.use('/api/support', require('./routes/support'));
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/users', require('./routes/users'));
-app.use('/api/vuot-link', require('./routes/vuotlink'));
-app.use('/api/admin', require('./routes/admin'));
+app.use('/api/support',    require('./routes/support'));
+app.use('/api/reports',    require('./routes/reports'));
+app.use('/api/users',      require('./routes/users'));
+app.use('/api/vuot-link',  require('./routes/vuotlink'));
+app.use('/api/admin',      require('./routes/admin'));
+app.use('/api/shortlink',  require('./routes/shortlink'));
+
+// ── Short link redirect: GET /v/:slug ──
+app.get('/v/:slug', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { slug } = req.params;
+
+    const [rows] = await pool.execute(
+      `SELECT wl.*, c.url, c.cpc, c.status, c.views_done, c.total_views, c.user_id as buyer_id
+       FROM worker_links wl JOIN campaigns c ON c.id = wl.campaign_id
+       WHERE wl.slug = ?`,
+      [slug]
+    );
+    if (!rows.length) return res.status(404).send('Link không tồn tại');
+    const link = rows[0];
+
+    // Redirect immediately
+    res.redirect(302, link.url);
+
+    // Process payment async (after redirect)
+    if (link.status === 'running' && link.views_done < link.total_views) {
+      try {
+        const cpc = Number(link.cpc) || 0;
+        // Deduct from buyer's wallet
+        await pool.execute(
+          "UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main' AND balance >= ?",
+          [cpc, link.buyer_id, cpc]
+        );
+        // Credit worker
+        await pool.execute(
+          "UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'earning'",
+          [cpc, link.worker_id]
+        );
+        // Update link stats
+        await pool.execute(
+          'UPDATE worker_links SET click_count = click_count + 1, earning = earning + ? WHERE id = ?',
+          [cpc, link.id]
+        );
+        // Update campaign
+        await pool.execute('UPDATE campaigns SET views_done = views_done + 1 WHERE id = ?', [link.campaign_id]);
+        await pool.execute(
+          `UPDATE campaigns SET status = 'completed' WHERE id = ? AND views_done >= total_views AND status != 'completed'`,
+          [link.campaign_id]
+        );
+        // Record transaction
+        const refCode = 'SL-' + Date.now();
+        await pool.execute(
+          `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+           VALUES (?, 'earning', 'earning', 'shortlink', ?, 'completed', ?, ?)`,
+          [link.worker_id, cpc, refCode, `Click link /v/${slug}`]
+        );
+        // Record spend for buyer
+        const refCode2 = 'SLC-' + Date.now();
+        await pool.execute(
+          `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+           VALUES (?, 'main', 'campaign', 'shortlink', ?, 'completed', ?, ?)`,
+          [link.buyer_id, cpc, refCode2, `Chi phí click link campaign #${link.campaign_id}`]
+        );
+      } catch (payErr) {
+        console.error('[ShortLink] Payment error:', payErr.message);
+      }
+    }
+  } catch (err) {
+    console.error('[ShortLink] Redirect error:', err.message);
+    res.status(500).send('Lỗi server');
+  }
+});
 
 // ── 404 handler ──
 app.use('/api', (req, res) => {
@@ -90,6 +158,21 @@ app.use((err, req, res, next) => {
       await pool.execute(`ALTER TABLE vuot_link_tasks ADD COLUMN security_detail TEXT DEFAULT NULL`);
       console.log('  ✅ Added security_detail column');
     } catch (e) { }
+
+    try {
+      await pool.execute(`CREATE TABLE IF NOT EXISTS worker_links (
+        id            INT PRIMARY KEY AUTO_INCREMENT,
+        worker_id     INT NOT NULL,
+        campaign_id   INT NOT NULL,
+        slug          VARCHAR(20) NOT NULL UNIQUE,
+        click_count   INT NOT NULL DEFAULT 0,
+        earning       DECIMAL(15,2) NOT NULL DEFAULT 0,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (worker_id)   REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+      console.log('  ✅ worker_links table ready');
+    } catch (e) { console.error('  ⚠ worker_links:', e.message); }
 
     app.listen(PORT, () => {
       console.log(`

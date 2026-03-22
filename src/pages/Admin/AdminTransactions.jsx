@@ -179,8 +179,8 @@ export default function AdminTransactions() {
             {PRESETS.map(p => (
               <button key={p.label} onClick={() => applyPreset(p)}
                 className={`px-3 py-2 text-xs font-bold rounded-lg transition ${fromDate === p.from && toDate === p.to
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
                 {p.label}
               </button>
             ))}

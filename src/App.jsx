@@ -49,6 +49,7 @@ import WorkerPricing from './pages/Dashboard/WorkerPricing';
 import WorkerProfile from './pages/Dashboard/WorkerProfile';
 import WorkerSupport from './pages/Dashboard/WorkerSupport';
 import WorkerApi from './pages/Dashboard/WorkerApi';
+import WorkerShortLinks from './pages/Dashboard/WorkerShortLinks';
 
 /* ── Admin ── */
 import AdminLayout from './pages/Admin/AdminLayout';
@@ -145,6 +146,7 @@ function Layout() {
           <Route path="support" element={<WorkerSupport />} />
           <Route path="referral" element={<UserReferral />} />
           <Route path="api" element={<WorkerApi />} />
+          <Route path="short-links" element={<WorkerShortLinks />} />
         </Route>
 
         {/* ═══ Admin ═══ */}
