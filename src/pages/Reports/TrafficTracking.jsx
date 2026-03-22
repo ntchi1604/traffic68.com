@@ -55,32 +55,69 @@ function isWithin24h(dateStr) {
 
 const SOURCE_LABEL_MAP = { google_search: 'Google Search', social: 'Social', direct: 'Direct' };
 
-function CampaignDetailModal({ campaign: c, detail, onClose }) {
+function CampaignDetailModal({ campaign: c, onClose }) {
+  const [mRange, setMRange] = useState('7d');
+  const [detail, setDetail] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [fetchingTasks, setFetchingTasks] = useState(false);
+
+  useEffect(() => {
+    if (!c) return;
+    setDetail(null);
+    setTasks([]);
+    setFetchingTasks(true);
+    Promise.all([
+      api.get(`/reports/traffic?campaignId=${c.id}&period=${mRange}`),
+      api.get(`/reports/tasks?campaignId=${c.id}&period=${mRange}`),
+    ]).then(([tr, tk]) => {
+      const rows = tr.traffic || [];
+      const bd   = tr.byDevice || [];
+      const totalClicks = rows.reduce((s, t) => s + Number(t.clicks || 0), 0);
+      const totalViews  = rows.reduce((s, t) => s + Number(t.views  || 0), 0);
+      const uniqueIps   = rows.reduce((s, t) => s + Number(t.unique_ips || 0), 0);
+      const mobile  = bd.find(x => x.name === 'Mobile')?.value  || 0;
+      const desktop = bd.find(x => x.name === 'Desktop')?.value || 0;
+      const tablet  = bd.find(x => x.name === 'Tablet')?.value  || 0;
+      setDetail({ totalClicks, totalViews, uniqueIps, mobile, desktop, tablet, rows });
+      setTasks(tk.tasks || []);
+    }).catch(console.error).finally(() => setFetchingTasks(false));
+  }, [c, mRange]);
+
   if (!c) return null;
-  const done = Number(c.views_done || 0);
+  const done  = Number(c.views_done || 0);
   const total = Number(c.total_views || 1);
-  const pct = Math.min(Math.round((done / total) * 100), 100);
+  const pct   = Math.min(Math.round((done / total) * 100), 100);
   const spent = done * Number(c.cpc || 0);
-  const eff = detail?.totalViews > 0 ? Math.round((detail.totalClicks / detail.totalViews) * 100) : 0;
+  const eff   = detail?.totalViews > 0 ? Math.round((detail.totalClicks / detail.totalViews) * 100) : 0;
 
   const deviceData = [
     { name: 'Desktop', value: detail?.desktop || 0, color: '#3B82F6' },
-    { name: 'Mobile', value: detail?.mobile || 0, color: '#8B5CF6' },
-    { name: 'Tablet', value: detail?.tablet || 0, color: '#F59E0B' },
+    { name: 'Mobile',  value: detail?.mobile  || 0, color: '#8B5CF6' },
+    { name: 'Tablet',  value: detail?.tablet  || 0, color: '#F59E0B' },
   ].filter(d => d.value > 0);
 
   const dailyData = (detail?.rows || []).map(r => ({
     date: fmtDay(r.date),
     'Hoàn thành': Number(r.clicks || 0),
-    'Nhận task': Number(r.views || 0),
+    'Nhận task':  Number(r.views  || 0),
   }));
 
   const kpis = [
     { label: 'Hoàn thành', value: fmt(detail?.totalClicks || 0), sub: `/ ${fmt(detail?.totalViews || 0)} nhận task`, color: '#10B981', bg: '#ECFDF5' },
-    { label: 'Chi phí', value: `${fmt(spent)} đ`, sub: `CPC: ${fmt(c.cpc)} đ`, color: '#F97316', bg: '#FFF7ED' },
-    { label: 'Hiệu suất', value: `${eff}%`, sub: 'hoàn thành / nhận task', color: '#3B82F6', bg: '#EFF6FF' },
-    { label: 'Unique IPs', value: fmt(detail?.uniqueIps || 0), sub: 'IP khác nhau', color: '#8B5CF6', bg: '#F5F3FF' },
+    { label: 'Chi phí',    value: `${fmt(spent)} đ`,            sub: `CPC: ${fmt(c.cpc)} đ`,                       color: '#F97316', bg: '#FFF7ED' },
+    { label: 'Hiệu suất',  value: `${eff}%`,                    sub: 'hoàn thành / nhận task',                    color: '#3B82F6', bg: '#EFF6FF' },
+    { label: 'Unique IPs', value: fmt(detail?.uniqueIps || 0),  sub: 'IP khác nhau',                              color: '#8B5CF6', bg: '#F5F3FF' },
   ];
+
+  const uaShort = ua => {
+    if (!ua) return '—';
+    if (/mobile|android/i.test(ua)) return 'Mobile Browser';
+    if (/iphone|ipad/i.test(ua)) return 'iOS Browser';
+    if (/chrome/i.test(ua)) return 'Chrome';
+    if (/firefox/i.test(ua)) return 'Firefox';
+    if (/safari/i.test(ua)) return 'Safari';
+    return ua.slice(0, 40);
+  };
 
   const exportCSV = () => {
     const csvRows = [];
@@ -111,6 +148,18 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
       csvRows.push(['=== CHI TIẾT THEO NGÀY ===']);
       csvRows.push(['Ngày', 'Hoàn thành', 'Nhận task']);
       dailyData.forEach(r => csvRows.push([r.date, r['Hoàn thành'], r['Nhận task']]));
+      csvRows.push([]);
+    }
+    if (tasks.length > 0) {
+      csvRows.push(['=== LỊCH SỬ HOÀN THÀNH ===']);
+      csvRows.push(['Thời gian', 'IP', 'Country', 'User Agent', 'Thời gian xem (s)']);
+      tasks.forEach(t => csvRows.push([
+        t.completed_at ? new Date(t.completed_at).toLocaleString('vi-VN') : '',
+        t.ip_address || '',
+        t.ip_country || '—',
+        t.user_agent || '',
+        t.time_on_site || '',
+      ]));
     }
     const csv = csvRows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -122,36 +171,50 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
     URL.revokeObjectURL(url);
   };
 
+  const PERIODS = [{ key: '7d', label: '7 ngày' }, { key: '30d', label: '30 ngày' }, { key: '90d', label: '90 ngày' }];
+
   return (
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 860, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 32px 80px rgba(0,0,0,0.25)' }}>
+      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 900, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 32px 80px rgba(0,0,0,0.25)' }}>
         {/* Header */}
-        <div style={{ padding: '24px 28px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Chi tiết chiến dịch</p>
-            <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: 0 }}>{c.name}</h2>
-            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{c.url}</p>
+            <h2 style={{ fontSize: 18, fontWeight: 900, color: '#0f172a', margin: 0 }}>{c.name}</h2>
+            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{c.url}</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {/* Period selector */}
+            <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 10, padding: 3, gap: 2 }}>
+              {PERIODS.map(p => (
+                <button key={p.key} onClick={() => setMRange(p.key)}
+                  style={{ padding: '5px 12px', borderRadius: 8, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
+                    background: mRange === p.key ? '#fff' : 'transparent',
+                    color: mRange === p.key ? '#0f172a' : '#94a3b8',
+                    boxShadow: mRange === p.key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                  }}>{p.label}</button>
+              ))}
+            </div>
             {detail && (
-              <button onClick={exportCSV} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#475569', transition: 'all .15s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; }}>
+              <button onClick={exportCSV}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#475569' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
+                onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}>
                 ⬇ Xuất CSV
               </button>
             )}
-            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#f1f5f9', cursor: 'pointer', fontSize: 18, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#f1f5f9', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
           </div>
         </div>
 
-        <div style={{ padding: '20px 28px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Progress bar */}
+        <div style={{ padding: '20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Progress */}
           <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
-              <span style={{ fontWeight: 600, color: '#64748b' }}>Tiến độ</span>
+              <span style={{ fontWeight: 600, color: '#64748b' }}>Tiến độ tổng</span>
               <span style={{ fontWeight: 800, color: '#0f172a' }}>{fmt(done)} / {fmt(total)} views ({pct}%)</span>
             </div>
             <div style={{ height: 8, background: '#e2e8f0', borderRadius: 99 }}>
@@ -160,13 +223,13 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
           </div>
 
           {/* KPI Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-            {!detail ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
+            {fetchingTasks && !detail ? (
               <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: 13 }}>Đang tải dữ liệu...</div>
             ) : kpis.map(k => (
-              <div key={k.label} style={{ background: k.bg, borderRadius: 12, padding: '14px 16px' }}>
+              <div key={k.label} style={{ background: k.bg, borderRadius: 12, padding: '12px 14px' }}>
                 <p style={{ fontSize: 10, fontWeight: 700, color: k.color, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{k.label}</p>
-                <p style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', margin: 0 }}>{k.value}</p>
+                <p style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: 0 }}>{k.value}</p>
                 <p style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{k.sub}</p>
               </div>
             ))}
@@ -174,16 +237,16 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
 
           {detail && <>
             {/* Charts */}
-            <div style={{ display: 'grid', gridTemplateColumns: dailyData.length > 0 ? '1.6fr 1fr' : '1fr', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: dailyData.length > 0 ? '1.6fr 1fr' : '1fr', gap: 14 }}>
               {dailyData.length > 0 && (
-                <div style={{ background: '#f8fafc', borderRadius: 14, padding: '16px 16px 8px' }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 12 }}>Hoàn thành theo ngày</p>
-                  <div style={{ height: 180 }}>
+                <div style={{ background: '#f8fafc', borderRadius: 14, padding: '14px 14px 6px' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 10 }}>Hoàn thành theo ngày</p>
+                  <div style={{ height: 160 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={dailyData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
                         <defs>
                           <linearGradient id="gDet" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#10B981" stopOpacity={0.3} />
+                            <stop offset="0%"   stopColor="#10B981" stopOpacity={0.3} />
                             <stop offset="100%" stopColor="#10B981" stopOpacity={0.02} />
                           </linearGradient>
                         </defs>
@@ -192,28 +255,28 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
                         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={28} />
                         <Tooltip content={<CustomTooltip />} />
                         <Area type="monotone" dataKey="Hoàn thành" stroke="#10B981" fill="url(#gDet)" strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: '#10B981' }} />
-                        <Area type="monotone" dataKey="Nhận task" stroke="#3B82F6" fill="none" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                        <Area type="monotone" dataKey="Nhận task"  stroke="#3B82F6" fill="none" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
               )}
               {deviceData.length > 0 && (
-                <div style={{ background: '#f8fafc', borderRadius: 14, padding: '16px 16px 8px' }}>
+                <div style={{ background: '#f8fafc', borderRadius: 14, padding: '14px 14px 8px' }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>Thiết bị</p>
-                  <div style={{ height: 140 }}>
+                  <div style={{ height: 120 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={deviceData} cx="50%" cy="50%" innerRadius={40} outerRadius={62} dataKey="value" paddingAngle={3}>
+                        <Pie data={deviceData} cx="50%" cy="50%" innerRadius={35} outerRadius={55} dataKey="value" paddingAngle={3}>
                           {deviceData.map((d, i) => <Cell key={i} fill={d.color} />)}
                         </Pie>
                         <Tooltip formatter={v => [v.toLocaleString('vi-VN'), '']} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', paddingBottom: 8 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', paddingBottom: 4 }}>
                     {deviceData.map(d => (
-                      <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#475569' }}>
+                      <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#475569' }}>
                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, display: 'inline-block' }} />
                         {d.name}: {d.value.toLocaleString('vi-VN')}
                       </div>
@@ -223,11 +286,11 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
               )}
             </div>
 
-            {/* Info */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+            {/* Info row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
               {[
                 { label: 'Nguồn traffic', value: SOURCE_LABEL_MAP[c.traffic_type] || c.traffic_type || '—' },
-                { label: 'Từ khóa', value: c.keyword || '—' },
+                { label: 'Từ khóa',       value: c.keyword || '—' },
                 { label: 'Thời gian xem', value: c.time_on_site ? `${c.time_on_site}s` : '—' },
               ].map(item => (
                 <div key={item.label} style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px' }}>
@@ -236,6 +299,42 @@ function CampaignDetailModal({ campaign: c, detail, onClose }) {
                 </div>
               ))}
             </div>
+
+            {/* Tasks table */}
+            {tasks.length > 0 && (
+              <div style={{ borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', margin: 0 }}>Lịch sử hoàn thành</p>
+                  <span style={{ fontSize: 11, color: '#94a3b8' }}>{tasks.length} lượt</span>
+                </div>
+                <div style={{ overflowX: 'auto', maxHeight: 240, overflowY: 'auto' }}>
+                  <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                    <thead style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+                      <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        {['Thời gian', 'IP', 'Country', 'User Agent', 'TG xem'].map(h => (
+                          <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tasks.map((t, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                          <td style={{ padding: '7px 12px', color: '#475569', whiteSpace: 'nowrap' }}>
+                            {t.completed_at ? new Date(t.completed_at).toLocaleString('vi-VN') : '—'}
+                          </td>
+                          <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: '#334155', whiteSpace: 'nowrap' }}>{t.ip_address || '—'}</td>
+                          <td style={{ padding: '7px 12px', color: '#64748b' }}>{t.ip_country || '—'}</td>
+                          <td style={{ padding: '7px 12px', color: '#64748b', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.user_agent}>
+                            {uaShort(t.user_agent)}
+                          </td>
+                          <td style={{ padding: '7px 12px', color: '#64748b', textAlign: 'center' }}>{t.time_on_site ? `${t.time_on_site}s` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </>}
         </div>
       </div>
@@ -253,9 +352,8 @@ export default function TrafficTracking() {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [expandedId, setExpandedId] = useState(null);   // campId of open modal
-  const [campDetails, setCampDetails] = useState({});    // { [campId]: detail }
-  const [modalCamp, setModalCamp] = useState(null);      // full campaign object for open modal
+  const [expandedId, setExpandedId] = useState(null);
+  const [modalCamp, setModalCamp] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -272,24 +370,7 @@ export default function TrafficTracking() {
     }).catch(console.error).finally(() => setLoading(false));
   }, [range, refreshKey]);
 
-  const openDetail = async (camp) => {
-    setModalCamp(camp);
-    setExpandedId(camp.id);
-    if (campDetails[camp.id]) return;
-    try {
-      const data = await api.get(`/reports/traffic?campaignId=${camp.id}&period=${range}`);
-      const rows = data.traffic || [];
-      const bd = data.byDevice || [];
-      const totalClicks = rows.reduce((s, t) => s + Number(t.clicks || 0), 0);
-      const totalViews = rows.reduce((s, t) => s + Number(t.views || 0), 0);
-      const uniqueIps = rows.reduce((s, t) => s + Number(t.unique_ips || 0), 0);
-      const mobile = bd.find(x => x.name === 'Mobile')?.value || 0;
-      const desktop = bd.find(x => x.name === 'Desktop')?.value || 0;
-      const tablet = bd.find(x => x.name === 'Tablet')?.value || 0;
-      setCampDetails(prev => ({ ...prev, [camp.id]: { totalClicks, totalViews, uniqueIps, mobile, desktop, tablet, rows } }));
-    } catch { }
-  };
-
+  const openDetail = (camp) => { setModalCamp(camp); setExpandedId(camp.id); };
   const closeDetail = () => { setExpandedId(null); setModalCamp(null); };
 
   // "View" = lượt vượt link hoàn thành = cột `clicks` trong traffic_logs
@@ -616,7 +697,6 @@ export default function TrafficTracking() {
       </div>
       <CampaignDetailModal
         campaign={modalCamp}
-        detail={modalCamp ? campDetails[modalCamp.id] : null}
         onClose={closeDetail}
       />
     </div>
