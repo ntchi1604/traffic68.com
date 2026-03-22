@@ -329,8 +329,12 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     [now, timeOnSite, earning, task.id]
   );
 
-  // Count view for campaign
+  // Count view for campaign — auto-complete when target reached
   await pool.execute('UPDATE campaigns SET views_done = views_done + 1 WHERE id = ?', [task.campaign_id]);
+  await pool.execute(
+    `UPDATE campaigns SET status = 'completed' WHERE id = ? AND views_done >= total_views AND status != 'completed'`,
+    [task.campaign_id]
+  );
 
   // Update traffic log
   const today = new Date().toISOString().slice(0, 10);
