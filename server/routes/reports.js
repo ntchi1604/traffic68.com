@@ -73,14 +73,21 @@ router.get('/traffic', async (req, res) => {
     );
   }
 
+  const sourceWhere = campaignId
+    ? `c.user_id = ? AND tl.campaign_id = ? AND tl.date BETWEEN ? AND ?`
+    : `c.user_id = ? AND tl.date BETWEEN ? AND ?`;
+  const sourceParams = campaignId
+    ? [req.userId, campaignId, fromDate, toDate]
+    : [req.userId, fromDate, toDate];
+
   const [bySource] = await pool.execute(
-    `SELECT tl.source, SUM(tl.views) as views, SUM(tl.clicks) as clicks FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ? AND tl.date BETWEEN ? AND ? GROUP BY tl.source`,
-    [req.userId, fromDate, toDate]
+    `SELECT tl.source, SUM(tl.views) as views, SUM(tl.clicks) as clicks FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE ${sourceWhere} GROUP BY tl.source`,
+    sourceParams
   );
 
   const [deviceRows] = await pool.execute(
-    `SELECT SUM(tl.mobile_views) as mobile, SUM(tl.desktop_views) as desktop, SUM(tl.tablet_views) as tablet FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ? AND tl.date BETWEEN ? AND ?`,
-    [req.userId, fromDate, toDate]
+    `SELECT SUM(tl.mobile_views) as mobile, SUM(tl.desktop_views) as desktop, SUM(tl.tablet_views) as tablet FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE ${sourceWhere}`,
+    sourceParams
   );
   const d = deviceRows[0] || {};
   const byDevice = [
