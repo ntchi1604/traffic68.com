@@ -81,6 +81,7 @@ app.use('/api/users',      require('./routes/users'));
 app.use('/api/vuot-link',  require('./routes/vuotlink'));
 app.use('/api/admin',      require('./routes/admin'));
 app.use('/api/shortlink',  require('./routes/shortlink'));
+app.use('/api/quicklink',  require('./routes/quicklink'));
 
 
 // ── 404 handler ──
@@ -132,6 +133,22 @@ app.use((err, req, res, next) => {
     try {
       await pool.execute(`ALTER TABLE worker_links ADD COLUMN hidden TINYINT(1) NOT NULL DEFAULT 0`);
     } catch (e) { }
+
+    // api_keys: API key auth for quicklink API
+    try {
+      await pool.execute(`CREATE TABLE IF NOT EXISTS api_keys (
+        id             INT PRIMARY KEY AUTO_INCREMENT,
+        user_id        INT NOT NULL,
+        api_key        VARCHAR(100) NOT NULL UNIQUE,
+        label          VARCHAR(100) DEFAULT 'Default',
+        active         TINYINT(1) NOT NULL DEFAULT 1,
+        request_count  INT NOT NULL DEFAULT 0,
+        last_used_at   DATETIME DEFAULT NULL,
+        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+      console.log('  ✅ api_keys table ready');
+    } catch (e) { console.error('  ⚠ api_keys:', e.message); }
 
     // worker_pricing_tiers: separate pricing for worker earnings (mirrors pricing_tiers structure)
     try {
