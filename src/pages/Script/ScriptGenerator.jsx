@@ -284,7 +284,6 @@ export default function ScriptGenerator() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(null);
-  const [websiteUrl, setWebsiteUrl] = useState('');     // website URL for current widget
 
   const set = (k, v) => setCfg(c => ({ ...c, [k]: v }));
 
@@ -318,7 +317,6 @@ export default function ScriptGenerator() {
         if (list.length > 0) {
           setActiveWidgetId(list[0].id);
           setCfg(c => ({ ...c, ...list[0].config }));
-          setWebsiteUrl(list[0].website_url || '');
         }
       } catch { /* not logged in */ }
       setLoading(false);
@@ -331,56 +329,24 @@ export default function ScriptGenerator() {
     if (w) {
       setActiveWidgetId(id);
       setCfg(c => ({ ...DEFAULT_CFG, ...w.config }));
-      setWebsiteUrl(w.website_url || '');
     }
   };
 
-  // Save — upsert by domain: same domain = update, new domain = create
+  // Save — always creates a new widget with a fresh token
   const saveWidget = async () => {
-    if (!websiteUrl.trim()) {
-      toast.error('Vui lòng nhập URL website.');
-      return;
-    }
     setSaving(true);
     try {
       const api = (await import('../../lib/api')).default;
-      let inputDomain = websiteUrl.trim();
-      try { inputDomain = new URL(inputDomain.startsWith('http') ? inputDomain : 'https://' + inputDomain).hostname.replace(/^www\./, ''); } catch { }
-
-      // Find existing widget with same domain
-      const existing = widgets.find(w => {
-        try {
-          const d = new URL(w.website_url.startsWith('http') ? w.website_url : 'https://' + w.website_url).hostname.replace(/^www\./, '');
-          return d === inputDomain;
-        } catch { return false; }
+      const data = await api.post('/widgets', {
+        name: cfg.buttonText || 'Nút mặc định',
+        website_url: '',  // auto-filled when embed script runs on website
+        config: cfg,
       });
-
-      if (existing) {
-        // Update existing widget
-        const data = await api.put(`/widgets/${existing.id}`, {
-          name: inputDomain,
-          website_url: websiteUrl.trim(),
-          config: cfg,
-        });
-        const updated = data.widget;
-        setWidgets(prev => prev.map(w => w.id === existing.id
-          ? { ...w, name: updated.name, website_url: websiteUrl.trim(), config: { ...DEFAULT_CFG, ...updated.config }, token: updated.token }
-          : w));
-        setActiveWidgetId(existing.id);
-        toast.success('Đã cập nhật script!');
-      } else {
-        // Create new widget
-        const data = await api.post('/widgets', {
-          name: inputDomain,
-          website_url: websiteUrl.trim(),
-          config: cfg,
-        });
-        const newW = data.widget;
-        const entry = { id: newW.id, token: newW.token, name: newW.name, website_url: newW.website_url || websiteUrl.trim(), config: { ...DEFAULT_CFG, ...newW.config }, is_active: newW.is_active };
-        setWidgets(prev => [...prev, entry]);
-        setActiveWidgetId(newW.id);
-        toast.success('Đã tạo script mới!');
-      }
+      const newW = data.widget;
+      const entry = { id: newW.id, token: newW.token, name: newW.name, website_url: '', config: { ...DEFAULT_CFG, ...newW.config }, is_active: newW.is_active };
+      setWidgets(prev => [...prev, entry]);
+      setActiveWidgetId(newW.id);
+      toast.success('Tạo script thành công! Copy mã nhúng bên dưới.');
     } catch (err) {
       toast.error(err.message || 'Lỗi lưu');
     } finally {
@@ -404,7 +370,6 @@ export default function ScriptGenerator() {
         } else {
           setActiveWidgetId(null);
           setCfg(DEFAULT_CFG);
-          setWebsiteUrl('');
         }
       }
       toast.success('Đã xoá widget');
@@ -437,44 +402,6 @@ export default function ScriptGenerator() {
         </div>
       </div>
 
-      {/* ══ Widget selector bar (only if multiple widgets) ══════ */}
-      {widgets.length > 1 && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
-          <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2 mb-3">
-            <Globe size={15} className="text-blue-500" />
-            Website của bạn ({widgets.length})
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {widgets.map(w => {
-              const isActive = w.id === activeWidgetId;
-              return (
-                <div key={w.id}
-                  onClick={() => selectWidget(w.id)}
-                  className={`relative flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all
-                    ${isActive
-                      ? 'border-blue-500 bg-blue-50 shadow-sm ring-2 ring-blue-200'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
-                  <div className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ background: w.config?.buttonColor || '#f97316' }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-gray-800 truncate">{w.website_url || w.name || 'Nút mặc định'}</p>
-                    <p className="text-[10px] text-gray-400 font-mono truncate">{w.config?.insertTarget || '.footer'}</p>
-                  </div>
-                  {isActive && <span className="text-blue-500 text-sm font-bold flex-shrink-0">✓</span>}
-                  <button
-                    onClick={e => { e.stopPropagation(); deleteWidget(w.id); }}
-                    disabled={deleting === w.id}
-                    className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition flex-shrink-0"
-                    title="Xoá widget">
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Config panel — always visible */}
       {!loading && (
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
@@ -482,29 +409,7 @@ export default function ScriptGenerator() {
           {/* ══ Config panel (3/5) ══════════════════════════════ */}
           <div className="xl:col-span-3 space-y-4">
 
-            {/* Website URL field */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <Globe size={14} className="text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-800">URL Website</h3>
-                  <p className="text-[11px] text-gray-400">Website sẽ nhúng nút Lấy Mã</p>
-                </div>
-              </div>
-              <input
-                type="url"
-                value={websiteUrl}
-                onChange={e => setWebsiteUrl(e.target.value)}
-                placeholder="https://example.com"
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white
-                           shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2
-                           focus:ring-blue-500 focus:border-transparent transition"
-              />
-            </div>
-
-            {/* Tab bar — 4 tabs only */}
+            {/* Tab bar */}
             <div className="flex bg-gray-100 dark:bg-slate-800 rounded-xl p-1 gap-1">
               {TABS.map(({ key, label, Icon }) => (
                 <button key={key} onClick={() => setTab(key)}

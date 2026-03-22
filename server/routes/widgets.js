@@ -96,6 +96,14 @@ router.get('/public/:token', async (req, res) => {
   try { config = JSON.parse(widgets[0].config || '{}'); } catch { }
 
   const pageUrl = req.query.pageUrl || '';
+
+  // Auto-save website_url from the page where embed script runs
+  if (pageUrl && !widgets[0].website_url) {
+    try {
+      const origin = new URL(decodeURIComponent(pageUrl)).origin;
+      pool.execute('UPDATE widgets SET website_url = ? WHERE id = ? AND (website_url IS NULL OR website_url = "")', [origin, widgets[0].id]).catch(() => {});
+    } catch { }
+  }
   let campaignInfo = null;
 
   if (pageUrl) {
@@ -420,10 +428,6 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const pool = getPool();
   const { name, config, website_url } = req.body;
-
-  if (!website_url || !website_url.trim()) {
-    return res.status(400).json({ error: 'Vui lòng nhập URL website.' });
-  }
 
   // Check limit
   const [existing] = await pool.execute('SELECT COUNT(*) as cnt FROM widgets WHERE user_id = ?', [req.userId]);
