@@ -79,13 +79,13 @@ export default function TrafficTracking() {
     }).catch(console.error).finally(() => setLoading(false));
   }, [range, refreshKey]);
 
-  const totalViews = traffic.reduce((s, t) => s + Number(t.views || 0), 0);
-  const totalCompleted = Number(overview.totalClicks || 0); // verified/completed views
+  // "View" = lượt vượt link hoàn thành = cột `clicks` trong traffic_logs
+  const totalCompleted = traffic.reduce((s, t) => s + Number(t.clicks || 0), 0);
   const avgPerDay  = traffic.length > 0 ? Math.round(totalCompleted / traffic.length) : 0;
-  const peakDay    = traffic.reduce((best, t) => Number(t.views || 0) > Number(best?.views || 0) ? t : best, null);
+  const peakDay    = traffic.reduce((best, t) => Number(t.clicks || 0) > Number(best?.clicks || 0) ? t : best, null);
   const trend      = getTrend(traffic);
   const deviceTotal = byDevice.reduce((s, x) => s + x.value, 0);
-  const chartData  = traffic.map(t => ({ date: fmtDay(t.date), 'Lượt xem': Number(t.views || 0) }));
+  const chartData  = traffic.map(t => ({ date: fmtDay(t.date), 'Lượt xem': Number(t.clicks || 0) }));
 
   // Campaigns to show in progress: exclude completed > 24h
   const visibleCampaigns = campaigns.filter(c => {
@@ -365,9 +365,9 @@ export default function TrafficTracking() {
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Ngày</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Lượt xem</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Mã thành công</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Tỷ lệ</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Hoàn thành</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Lượt vào trang</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Tỷ lệ HT</th>
                 <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Unique IPs</th>
               </tr>
             </thead>
@@ -385,8 +385,8 @@ export default function TrafficTracking() {
                         {isPeak && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">PEAK</span>}
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-right font-semibold text-slate-700">{fmt(t.views)}</td>
-                    <td className="px-6 py-3 text-right text-emerald-600 font-semibold">{fmt(t.clicks)}</td>
+                    <td className="px-6 py-3 text-right font-semibold text-emerald-600">{fmt(t.clicks)}</td>
+                    <td className="px-6 py-3 text-right text-slate-600">{fmt(t.views)}</td>
                     <td className="px-6 py-3 text-right">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${rate >= 80 ? 'bg-green-100 text-green-700' : rate >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{rate}%</span>
                     </td>
