@@ -348,7 +348,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) AND status = 'completed'`,
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')) AND status = 'completed'`,
       [visitorId]
     );
     if (vCount[0].cnt >= 5) {

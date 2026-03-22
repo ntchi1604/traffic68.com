@@ -1,5 +1,5 @@
 const express = require('express');
-const crypto  = require('crypto');
+const crypto = require('crypto');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
@@ -88,7 +88,7 @@ router.get('/st', async (req, res) => {
 /* ── API-key auth middleware ───────────────────── */
 async function apiKeyAuth(req, res, next) {
   const header = req.headers['authorization'] || '';
-  const token  = header.startsWith('Bearer ') ? header.slice(7) : header;
+  const token = header.startsWith('Bearer ') ? header.slice(7) : header;
   if (!token) return res.status(401).json({ error: 'API key required. Add header: Authorization: Bearer YOUR_API_KEY' });
 
   try {
@@ -102,7 +102,7 @@ async function apiKeyAuth(req, res, next) {
     // Update last_used
     pool.execute('UPDATE api_keys SET last_used_at = NOW(), request_count = request_count + 1 WHERE id = ?', [rows[0].id]);
 
-    req.userId   = rows[0].user_id;
+    req.userId = rows[0].user_id;
     req.username = rows[0].username;
     req.apiKeyId = rows[0].id;
     next();
@@ -181,7 +181,7 @@ router.put('/key', authMiddleware, async (req, res) => {
 router.get('/v1/links', apiKeyAuth, async (req, res) => {
   try {
     const pool = getPool();
-    const page  = Math.max(1, parseInt(req.query.page) || 1);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
     const offset = (page - 1) * limit;
 

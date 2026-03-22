@@ -146,7 +146,8 @@ export default function AdminUsers({ type }) {
   const fetchUsers = useCallback((q = '') => {
     setLoading(true);
     const serviceType = isWorker ? 'shortlink' : 'traffic';
-    api.get(`/admin/users?search=${q}&limit=50&service_type=${serviceType}`)
+    const roleParam = isWorker ? '&include_admin=1' : '';
+    api.get(`/admin/users?search=${q}&limit=50&service_type=${serviceType}${roleParam}`)
       .then(data => setUsers(data.users || []))
       .catch(console.error)
       .finally(() => setLoading(false));

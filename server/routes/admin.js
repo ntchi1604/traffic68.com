@@ -100,8 +100,13 @@ router.get('/users', async (req, res) => {
     params.push(role); countParams.push(role);
   }
   if (service_type && service_type !== 'all') {
-    sql += ' AND u.service_type = ?'; countSql += ' AND u.service_type = ?';
-    params.push(service_type); countParams.push(service_type);
+    if (req.query.include_admin === '1') {
+      sql += ' AND (u.service_type = ? OR u.role = ?)'; countSql += ' AND (u.service_type = ? OR u.role = ?)';
+      params.push(service_type, 'admin'); countParams.push(service_type, 'admin');
+    } else {
+      sql += ' AND u.service_type = ?'; countSql += ' AND u.service_type = ?';
+      params.push(service_type); countParams.push(service_type);
+    }
   }
 
   const [totalRows] = await pool.execute(countSql, countParams);

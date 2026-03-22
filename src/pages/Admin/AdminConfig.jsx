@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Save, Check, Settings2 } from 'lucide-react';
+import { Save, Check, Settings2, Wallet } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 
-const SETTINGS_FIELDS = [
+const VUOTLINK_FIELDS = [
   {
     key: 'views_per_ip',
     label: 'Giới hạn lượt xem / IP',
@@ -44,6 +44,9 @@ const SETTINGS_FIELDS = [
     type: 'toggle',
     defaultValue: 'true',
   },
+];
+
+const WITHDRAW_FIELDS = [
   {
     key: 'withdraw_bank_enabled',
     label: 'Cho phép rút qua Ngân hàng',
@@ -60,6 +63,8 @@ const SETTINGS_FIELDS = [
   },
 ];
 
+const ALL_FIELDS = [...VUOTLINK_FIELDS, ...WITHDRAW_FIELDS];
+
 export default function AdminConfig() {
   usePageTitle('Admin - Cấu hình');
   const toast = useToast();
@@ -72,8 +77,7 @@ export default function AdminConfig() {
     api.get('/admin/settings/site')
       .then(d => {
         const c = d.config || {};
-        // Fill defaults
-        SETTINGS_FIELDS.forEach(f => {
+        ALL_FIELDS.forEach(f => {
           if (c[f.key] === undefined) c[f.key] = f.defaultValue;
         });
         setConfig(c);
@@ -90,7 +94,7 @@ export default function AdminConfig() {
     setSaving(true);
     try {
       const settings = {};
-      SETTINGS_FIELDS.forEach(f => {
+      ALL_FIELDS.forEach(f => {
         settings[f.key] = config[f.key] ?? f.defaultValue;
       });
       await api.put('/admin/settings/site', { settings });
@@ -103,6 +107,35 @@ export default function AdminConfig() {
       setSaving(false);
     }
   };
+
+  const renderField = (field) => (
+    <div key={field.key} className="px-6 py-4 flex items-center justify-between gap-6">
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm text-slate-700">{field.label}</p>
+        <p className="text-xs text-slate-400 mt-0.5">{field.description}</p>
+      </div>
+      <div className="shrink-0">
+        {field.type === 'toggle' ? (
+          <button
+            type="button"
+            onClick={() => updateField(field.key, config[field.key] === 'true' ? 'false' : 'true')}
+            className={`relative inline-flex w-14 h-7 rounded-full transition-colors duration-200 ${config[field.key] === 'true' ? 'bg-green-500' : 'bg-slate-300'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-200 ${config[field.key] === 'true' ? 'translate-x-7' : 'translate-x-0'}`} />
+          </button>
+        ) : (
+          <input
+            type={field.type}
+            min={field.min}
+            max={field.max}
+            value={config[field.key] || ''}
+            onChange={e => updateField(field.key, e.target.value)}
+            className="w-32 px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 text-right focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        )}
+      </div>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -117,7 +150,7 @@ export default function AdminConfig() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-900">Cấu hình hệ thống</h1>
-          <p className="text-sm text-slate-500 mt-1">Cài đặt Vượt Link và các thông số hệ thống</p>
+          <p className="text-sm text-slate-500 mt-1">Cài đặt Vượt Link, rút tiền và các thông số hệ thống</p>
         </div>
         <button onClick={handleSave} disabled={saving}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${saved
@@ -134,38 +167,20 @@ export default function AdminConfig() {
           <h2 className="font-bold text-slate-800">Cài đặt Vượt Link</h2>
         </div>
         <div className="divide-y divide-slate-100">
-          {SETTINGS_FIELDS.map(field => (
-            <div key={field.key} className="px-6 py-4 flex items-center justify-between gap-6">
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm text-slate-700">{field.label}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{field.description}</p>
-              </div>
-              <div className="shrink-0">
-                {field.type === 'toggle' ? (
-                  <button
-                    type="button"
-                    onClick={() => updateField(field.key, config[field.key] === 'true' ? 'false' : 'true')}
-                    className={`relative inline-flex w-14 h-7 rounded-full transition-colors duration-200 ${config[field.key] === 'true' ? 'bg-green-500' : 'bg-slate-300'}`}
-                  >
-                    <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-200 ${config[field.key] === 'true' ? 'translate-x-7' : 'translate-x-0'}`} />
-                  </button>
-                ) : (
-                  <input
-                    type={field.type}
-                    min={field.min}
-                    max={field.max}
-                    value={config[field.key] || ''}
-                    onChange={e => updateField(field.key, e.target.value)}
-                    className="w-32 px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 text-right focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                )}
-              </div>
-            </div>
-          ))}
+          {VUOTLINK_FIELDS.map(renderField)}
         </div>
       </div>
 
-
+      {/* Withdraw Settings */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+          <Wallet size={16} className="text-green-500" />
+          <h2 className="font-bold text-slate-800">Cài đặt Rút tiền</h2>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {WITHDRAW_FIELDS.map(renderField)}
+        </div>
+      </div>
     </div>
   );
 }

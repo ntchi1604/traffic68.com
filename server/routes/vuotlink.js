@@ -210,7 +210,7 @@ async function _handleTaskPost(req, res) {
 
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) AND status = 'completed'`,
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')) AND status = 'completed'`,
       [visitorId]
     );
     if (vCount[0].cnt >= maxViewsPerIp) {
@@ -222,7 +222,7 @@ async function _handleTaskPost(req, res) {
   console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0, 8) || '?'}`);
 
   const [ipCount] = await pool.execute(
-    `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
+    `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')) AND status = 'completed'`,
     [ip]
   );
   if (ipCount[0].cnt >= maxViewsPerIp) {

@@ -71,7 +71,17 @@ export default function AdminWorkerWithdrawals() {
                     <p className="text-[10px] text-slate-400">{r.user_email || ''}</p>
                   </td>
                   <td className="px-4 py-3 text-right font-bold text-slate-800 text-xs">{fmt(r.amount)} đ</td>
-                  <td className="px-4 py-3 text-xs text-slate-600 max-w-[200px] truncate">{r.note || '—'}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600 max-w-[220px]">
+                    {(() => {
+                      const parts = (r.note || '').split(' | Nguồn: ');
+                      return (
+                        <>
+                          <p className="truncate font-medium">{parts[0] || '—'}</p>
+                          {parts[1] && <p className="text-[10px] text-blue-600 mt-0.5 truncate">🌐 {parts[1]}</p>}
+                        </>
+                      );
+                    })()}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold
                       ${r.status === 'completed' ? 'bg-green-50 text-green-600' : r.status === 'rejected' ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-600'}`}>
