@@ -68,7 +68,10 @@ router.get('/challenge', async (req, res) => {
   if (slug) {
     try {
       const pool = getPool();
-      const [rows] = await pool.execute('SELECT id FROM worker_links WHERE slug = ? AND hidden = 0', [slug]);
+      const [rows] = await pool.execute(
+        `SELECT wl.id FROM worker_links wl
+         JOIN users u ON u.id = wl.worker_id
+         WHERE wl.slug = ? AND wl.hidden = 0 AND u.status = 'active'`, [slug]);
       if (rows.length > 0) {
         workerLinkId = rows[0].id;
       } else {

@@ -20,7 +20,8 @@ router.get('/info/:slug', async (req, res) => {
     const [rows] = await pool.execute(
       `SELECT wl.id, wl.slug, wl.title
        FROM worker_links wl
-       WHERE wl.slug = ? AND wl.hidden = 0`,
+       JOIN users u ON u.id = wl.worker_id
+       WHERE wl.slug = ? AND wl.hidden = 0 AND u.status = 'active'`,
       [req.params.slug]
     );
     if (!rows.length) return res.status(404).json({ error: 'Link không tồn tại' });
