@@ -585,28 +585,11 @@ export default function VuotLink() {
                     ),
                   },
                   {
-                    num: '2', color: '#f97316', label: `Chờ đủ ${waitTime_} giây`,
+                    num: '2', color: '#f97316', label: 'Chờ đủ thời gian → bấm nút → sao chép mã',
                     content: (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: `${widgetConfig?.buttonColor || '#f97316'}22`, border: `1px solid ${widgetConfig?.buttonColor || '#f97316'}44`, borderRadius: '8px', padding: '6px 14px' }}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={widgetConfig?.buttonColor || '#f97316'} strokeWidth="2" /><path d="M12 7v5l3 3" stroke={widgetConfig?.buttonColor || '#f97316'} strokeWidth="2" strokeLinecap="round" /></svg>
-                          <span style={{ fontSize: '13px', fontWeight: 700, color: widgetConfig?.buttonColor || '#f97316' }}>Vui lòng chờ {waitTime_} giây...</span>
-                        </div>
-                        <span style={{ fontSize: '13px', color: '#64748b' }}>→ nút sẽ kích hoạt, bấm vào</span>
-                      </div>
-                    ),
-                  },
-                  {
-                    num: '3', color: '#7c3aed', label: 'Popup xuất hiện — copy mã',
-                    content: (
-                      <div style={{ background: '#fff', border: '1.5px solid #e9d5ff', borderRadius: '12px', padding: '12px 16px', maxWidth: '260px' }}>
-                        <p style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Mã của bạn:</p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '20px', fontWeight: 900, letterSpacing: '4px', color: '#1e293b' }}>AB3X9K</span>
-                          <div style={{ background: widgetConfig?.buttonColor || '#f97316', color: '#fff', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: 700 }}>COPY</div>
-                        </div>
-                        <p style={{ fontSize: '10px', color: '#7c3aed', margin: '8px 0 0', fontStyle: 'italic' }}>→ Sao chép và quay lại đây</p>
-                      </div>
+                      <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+                        Khi nút kích hoạt, bấm vào — popup sẽ hiện mã. Sao chép mã rồi quay lại đây.
+                      </p>
                     ),
                   },
                 ].map(({ num, color, label, content }) => (
