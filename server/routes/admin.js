@@ -592,14 +592,14 @@ router.get('/security/users', async (req, res) => {
     }
 
     const [countRows] = await pool.execute(
-      `SELECT COUNT(DISTINCT COALESCE(vt.worker_id, vt.ip_address)) as total
-       FROM vuot_link_tasks vt LEFT JOIN users u ON u.id = vt.worker_id ${where}`, params
+      `SELECT COUNT(DISTINCT vt.worker_id) as total
+       FROM vuot_link_tasks vt LEFT JOIN users u ON u.id = vt.worker_id ${where} AND vt.worker_id IS NOT NULL`, params
     );
     const total = countRows[0].total;
 
     const [rows] = await pool.execute(
       `SELECT
-         COALESCE(vt.worker_id, 0) as worker_id,
+         vt.worker_id,
          MAX(u.name) as worker_name,
          MAX(u.email) as worker_email,
          COUNT(*) as total_tasks,
@@ -609,15 +609,15 @@ router.get('/security/users', async (req, res) => {
          SUM(CASE WHEN vt.status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) as pending,
          COALESCE(SUM(vt.earning), 0) as total_earning,
          MAX(vt.created_at) as last_activity,
-         GROUP_CONCAT(DISTINCT vt.ip_address ORDER BY vt.created_at DESC SEPARATOR ',') as ips,
+         GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips,
          (SELECT COUNT(*) FROM security_logs sl 
           WHERE sl.ip_address IN (SELECT DISTINCT vt2.ip_address FROM vuot_link_tasks vt2 WHERE vt2.worker_id = vt.worker_id)
           AND sl.reason NOT IN ('completed','probe_warning')
           AND sl.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)) as security_events
        FROM vuot_link_tasks vt
        LEFT JOIN users u ON u.id = vt.worker_id
-       ${where}
-       GROUP BY COALESCE(vt.worker_id, vt.ip_address)
+       ${where} AND vt.worker_id IS NOT NULL
+       GROUP BY vt.worker_id
        ORDER BY blocked DESC, security_events DESC, last_activity DESC
        LIMIT ? OFFSET ?`,
       [...params, Number(limit), offset]
