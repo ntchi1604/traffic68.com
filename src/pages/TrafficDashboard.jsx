@@ -55,24 +55,24 @@ export default function TrafficDashboard() {
       <Breadcrumb items={[{ label: 'Dashboard', to: '/buyer/dashboard' }, { label: 'Tổng quan' }]} />
 
       {/* Welcome + Balance Hero */}
-      <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-2xl p-6 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-br from-emerald-600 via-green-600 to-teal-700 rounded-2xl p-6 text-white relative overflow-hidden">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, #fff 0%, transparent 50%)' }} />
         <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <p className="text-blue-200 text-sm font-medium mb-1">Số dư khả dụng</p>
-            <p className="text-4xl font-black tracking-tight">{fmt(ov.mainBalance || 0)} <span className="text-blue-300 text-2xl">đ</span></p>
-            <p className="text-blue-200 text-xs mt-2">Tổng chi tiêu: <span className="text-white font-bold">{fmt(ov.totalSpent || 0)} đ</span></p>
+            <p className="text-green-200 text-sm font-medium mb-1">Số dư khả dụng</p>
+            <p className="text-4xl font-black tracking-tight">{fmt(ov.mainBalance || 0)} <span className="text-green-300 text-2xl">đ</span></p>
+            <p className="text-green-200 text-xs mt-2">Tổng chi tiêu: <span className="text-white font-bold">{fmt(ov.totalSpent || 0)} đ</span></p>
           </div>
           <div className="flex gap-3">
             <button
               onClick={() => navigate('/buyer/dashboard/finance/deposit')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white text-blue-700 font-bold text-sm rounded-xl hover:bg-blue-50 transition"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white text-green-700 font-bold text-sm rounded-xl hover:bg-green-50 transition"
             >
               <CreditCard size={16} /> Nạp tiền
             </button>
             <button
               onClick={() => navigate('/buyer/dashboard/campaigns/create')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/40 border border-blue-400/50 text-white font-bold text-sm rounded-xl hover:bg-blue-500/60 transition"
+              className="flex items-center gap-2 px-4 py-2.5 bg-green-500/40 border border-green-400/50 text-white font-bold text-sm rounded-xl hover:bg-green-500/60 transition"
             >
               <Plus size={16} /> Tạo chiến dịch
             </button>

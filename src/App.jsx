@@ -22,6 +22,7 @@ import Blog from './pages/Blog';
 import BlogPost from './pages/BlogPost';
 import LienHe from './pages/LienHe';
 import VuotLink from './pages/VuotLink';
+import LinkGateway from './pages/LinkGateway';
 
 /* ── Buyer (traffic) pages ── */
 import DashboardLayout from './components/DashboardLayout';
@@ -113,6 +114,7 @@ function Layout() {
         <Route path="/blog/:slug" element={<BlogPost />} />
         <Route path="/lien-he" element={<LienHe />} />
         <Route path="/vuot-link" element={<><VuotLink /><Footer /></>} />
+        <Route path="/vuot-link/:slug" element={<><LinkGateway /><Footer /></>} />
         <Route path="/dang-nhap" element={<DangNhap />} />
         <Route path="/dang-ky" element={<DangKy />} />
 
