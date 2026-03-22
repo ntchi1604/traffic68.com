@@ -123,7 +123,6 @@ export default function AllLinks() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Tất cả liên kết</h1>
-          <p className="text-slate-500 text-sm mt-1">Danh sách các link kiếm tiền bạn đã tạo</p>
         </div>
         <button onClick={openPanel} className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white flex-shrink-0" style={{ background: 'linear-gradient(135deg,#3B82F6,#2563EB)', boxShadow: '0 4px 14px rgba(59,130,246,0.3)' }}>
           <Plus size={15} /> Tạo link mới

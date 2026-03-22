@@ -94,9 +94,9 @@ app.use((err, req, res, next) => {
     } catch (e) { }
 
     // worker_links: link locker where visitors complete a vượt link task to reach destination
+    // Use IF NOT EXISTS to preserve data on restart
     try {
-      await pool.execute(`DROP TABLE IF EXISTS worker_links`);
-      await pool.execute(`CREATE TABLE worker_links (
+      await pool.execute(`CREATE TABLE IF NOT EXISTS worker_links (
         id              INT PRIMARY KEY AUTO_INCREMENT,
         worker_id       INT NOT NULL,
         slug            VARCHAR(20) NOT NULL UNIQUE,

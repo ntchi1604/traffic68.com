@@ -28,7 +28,6 @@ export default function HiddenLinks() {
       <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Nhiệm vụ hết hạn' }]} />
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Nhiệm vụ hết hạn</h1>
-        <p className="text-slate-500 text-sm mt-1">Các nhiệm vụ đã hết hạn hoặc không hoàn thành</p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-5">

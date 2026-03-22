@@ -21,7 +21,6 @@ import FaqPage from './pages/FaqPage';
 import Blog from './pages/Blog';
 import BlogPost from './pages/BlogPost';
 import LienHe from './pages/LienHe';
-import VuotLink from './pages/VuotLink';
 import LinkGateway from './pages/LinkGateway';
 
 /* ── Buyer (traffic) pages ── */
@@ -113,7 +112,6 @@ function Layout() {
         <Route path="/blog" element={<Blog />} />
         <Route path="/blog/:slug" element={<BlogPost />} />
         <Route path="/lien-he" element={<LienHe />} />
-        <Route path="/vuot-link" element={<><VuotLink /><Footer /></>} />
         <Route path="/vuot-link/:slug" element={<><LinkGateway /><Footer /></>} />
         <Route path="/dang-nhap" element={<DangNhap />} />
         <Route path="/dang-ky" element={<DangKy />} />
