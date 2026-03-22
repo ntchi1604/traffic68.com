@@ -19,8 +19,8 @@ export default function AdminReferrals({ type = 'buyers' }) {
 
   useEffect(() => {
     api.get('/admin/settings/site').then(d => {
-      const settings = d.settings || {};
-      setCommission(settings[settingKey] || '10');
+      const config = d.config || {};
+      setCommission(config[settingKey] || '5');
     }).catch(() => { });
   }, [settingKey]);
 
@@ -75,6 +75,9 @@ export default function AdminReferrals({ type = 'buyers' }) {
               {commSaved ? <><Check size={14} /> Đã lưu</> : <><Save size={14} /> Lưu</>}
             </button>
           </div>
+          <p className="text-[11px] text-slate-400 mt-1.5">
+            Ví dụ: {commission || 5}% → nạp 1.000.000đ = <strong className="text-amber-600">{Math.floor(1000000 * Number(commission || 5) / 100).toLocaleString('vi-VN')}đ</strong> hoa hồng
+          </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 font-semibold uppercase">Người giới thiệu</p>
