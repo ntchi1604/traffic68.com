@@ -83,6 +83,31 @@ function analyzeBehavior(b, userAgent) {
   }
 
   // ═══════════════════════════════════════════════════════════
+  // 0b. MÂU THUẪN UA MOBILE + MOUSE EVENTS
+  //     UA nói mobile nhưng có mousemove = giả mạo mobile
+  //     (Chrome DevTools, Selenium/Puppeteer giả UA, emulator)
+  // ═══════════════════════════════════════════════════════════
+  if (serverDetectMobile && mouseTrail.length > 5 && touchTrail.length === 0 && touchTaps.length === 0) {
+    // UA mobile nhưng chỉ có mouse, không có touch = giả mạo
+    score += 40;
+    reasons.push('fake_mobile');
+    assessments.push({
+      cat: 'device', check: 'mobile_mouse_conflict',
+      value: `UA=mobile, mouse=${mouseTrail.length}, touch=${touchTrail.length}, taps=${touchTaps.length}`,
+      flagged: true,
+      note: 'UA báo mobile nhưng chỉ có mouse events, không có touch — nghi giả mạo thiết bị (emulator/DevTools)'
+    });
+  } else if (serverDetectMobile && mouseTrail.length > 0 && touchTrail.length > 0) {
+    // Có cả mouse và touch — một số thiết bị hybrid (tablet + bút), chỉ cảnh báo nhẹ
+    assessments.push({
+      cat: 'device', check: 'mobile_mouse_conflict',
+      value: `mouse=${mouseTrail.length}, touch=${touchTrail.length}`,
+      flagged: false,
+      note: 'Mobile có cả mouse và touch — có thể tablet/hybrid, không đáng ngờ'
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════
   // 1. DI CHUYỂN (Mouse / Touch Dynamics)
   //    Áp dụng chung cho cả mouseTrail và touchTrail
   // ═══════════════════════════════════════════════════════════
