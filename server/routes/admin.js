@@ -715,51 +715,6 @@ router.get('/security/ip/:ip', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/referrals/:type (buyers or workers) ──
-router.get('/referrals/:type', async (req, res) => {
-  try {
-    const pool = getPool();
-    const type = req.params.type; // 'buyers' or 'workers'
-    const serviceFilter = type === 'workers' ? "AND u.service_type = 'worker'" : "AND (u.service_type = 'buyer' OR u.service_type IS NULL)";
-    const search = req.query.search || '';
-
-    let sql = `
-      SELECT u.id, u.name, u.email, u.referral_code, u.service_type,
-        (SELECT COUNT(*) FROM users r WHERE r.referred_by = u.id) as ref_count
-      FROM users u
-      WHERE (SELECT COUNT(*) FROM users r WHERE r.referred_by = u.id) > 0
-      ${serviceFilter}
-    `;
-    const params = [];
-
-    if (search) {
-      sql += ` AND (u.name LIKE ? OR u.email LIKE ? OR u.referral_code LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-    }
-
-    sql += ' ORDER BY ref_count DESC LIMIT 100';
-
-    const [referrers] = await pool.execute(sql, params);
-
-    // Get referred users for each referrer
-    for (const ref of referrers) {
-      const [referred] = await pool.execute(
-        `SELECT id, name, email, service_type, status, created_at FROM users WHERE referred_by = ? ORDER BY created_at DESC LIMIT 50`,
-        [ref.id]
-      );
-      ref.referred = referred;
-    }
-
-    // Stats
-    const serviceWhere = type === 'workers' ? "AND service_type = 'worker'" : "AND (service_type = 'buyer' OR service_type IS NULL)";
-    const [totalRefs] = await pool.execute(`SELECT COUNT(*) as c FROM users WHERE referred_by IS NOT NULL ${serviceWhere}`);
-    const [totalReferrers] = await pool.execute(`SELECT COUNT(DISTINCT referred_by) as c FROM users WHERE referred_by IS NOT NULL`);
-
-    res.json({ referrers, totalReferred: totalRefs[0].c, totalReferrers: totalReferrers[0].c });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ── GET /api/admin/worker-tasks ──
 router.get('/worker-tasks', async (req, res) => {
@@ -874,24 +829,17 @@ router.get('/referrals/:type', async (req, res) => {
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    // Get referrers who have at least 1 referral
+    // Get ALL users with their ref count (including 0)
     const [referrers] = await pool.execute(
-      `SELECT r.id, r.name, r.email, r.referral_code, r.service_type,
-       (SELECT COUNT(*) FROM users WHERE referred_by = r.id) as ref_count
+      `SELECT r.id, r.name, r.email, r.referral_code, r.service_type, r.referred_by,
+       (SELECT COUNT(*) FROM users WHERE referred_by = r.id) as ref_count,
+       (SELECT name FROM users WHERE id = r.referred_by) as referred_by_name,
+       (SELECT email FROM users WHERE id = r.referred_by) as referred_by_email
        FROM users r
-       WHERE ${where} AND (SELECT COUNT(*) FROM users WHERE referred_by = r.id) > 0
-       ORDER BY ref_count DESC LIMIT 100`,
+       WHERE ${where}
+       ORDER BY ref_count DESC, r.created_at DESC LIMIT 200`,
       params
     );
-
-    // For each referrer, get their referred users
-    for (const ref of referrers) {
-      const [referred] = await pool.execute(
-        'SELECT id, name, email, service_type, status, created_at FROM users WHERE referred_by = ? ORDER BY created_at DESC',
-        [ref.id]
-      );
-      ref.referred = referred;
-    }
 
     const [totalReferrers] = await pool.execute(
       `SELECT COUNT(*) as c FROM users r WHERE r.service_type = ? AND (SELECT COUNT(*) FROM users WHERE referred_by = r.id) > 0`,
@@ -907,6 +855,20 @@ router.get('/referrals/:type', async (req, res) => {
       totalReferrers: totalReferrers[0].c,
       totalReferred: totalReferred[0].c,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/admin/referrals/:type/:userId ── get referred users for a specific user
+router.get('/referrals/:type/:userId', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [referred] = await pool.execute(
+      'SELECT id, name, email, service_type, status, created_at FROM users WHERE referred_by = ? ORDER BY created_at DESC',
+      [req.params.userId]
+    );
+    res.json({ referred });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

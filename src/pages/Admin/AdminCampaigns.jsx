@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Search, Play, Pause, CheckCircle, ExternalLink } from 'lucide-react';
+import { Search, Play, Pause, CheckCircle, ExternalLink, MoreVertical } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
-
-
 
 const STATUS_MAP = {
   running: { label: 'Đang chạy', cls: 'bg-green-100 text-green-700' },
@@ -20,6 +18,14 @@ export default function AdminCampaigns() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenuId(null); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const fetchCampaigns = () => {
     setLoading(true);
@@ -34,6 +40,8 @@ export default function AdminCampaigns() {
   const updateStatus = async (id, status) => {
     try {
       await api.put(`/admin/campaigns/${id}`, { status });
+      toast.success(`Đã cập nhật trạng thái: ${STATUS_MAP[status]?.label || status}`);
+      setOpenMenuId(null);
       fetchCampaigns();
     } catch (err) { toast.error(err.message); }
   };
@@ -65,7 +73,7 @@ export default function AdminCampaigns() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-visible">
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
@@ -107,23 +115,41 @@ export default function AdminCampaigns() {
                     </td>
                     <td className="px-5 py-3 text-xs text-slate-500">{new Date(c.created_at).toLocaleString('vi-VN')}</td>
                     <td className="px-5 py-3">
-                      <div className="flex items-center justify-center gap-1">
-                        {c.status !== 'running' && (
-                          <button onClick={() => updateStatus(c.id, 'running')} title="Chạy"
-                            className="p-1.5 rounded-lg hover:bg-green-50 text-slate-400 hover:text-green-600 transition">
-                            <Play size={15} />
-                          </button>
-                        )}
-                        {c.status === 'running' && (
-                          <button onClick={() => updateStatus(c.id, 'paused')} title="Tạm dừng"
-                            className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition">
-                            <Pause size={15} />
-                          </button>
-                        )}
-                        <button onClick={() => updateStatus(c.id, 'completed')} title="Hoàn thành"
-                          className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition">
-                          <CheckCircle size={15} />
+                      <div className="relative flex justify-center" ref={openMenuId === c.id ? menuRef : null}>
+                        <button
+                          onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
+                          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+                        >
+                          <MoreVertical size={16} />
                         </button>
+                        {openMenuId === c.id && (
+                          <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[160px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                            {c.status !== 'running' && (
+                              <button
+                                onClick={() => updateStatus(c.id, 'running')}
+                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-green-50 hover:text-green-700 transition text-left"
+                              >
+                                <Play size={14} className="text-green-500" /> Chạy chiến dịch
+                              </button>
+                            )}
+                            {c.status === 'running' && (
+                              <button
+                                onClick={() => updateStatus(c.id, 'paused')}
+                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition text-left"
+                              >
+                                <Pause size={14} className="text-amber-500" /> Tạm dừng
+                              </button>
+                            )}
+                            {c.status !== 'completed' && (
+                              <button
+                                onClick={() => updateStatus(c.id, 'completed')}
+                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition text-left"
+                              >
+                                <CheckCircle size={14} className="text-blue-500" /> Hoàn thành
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
