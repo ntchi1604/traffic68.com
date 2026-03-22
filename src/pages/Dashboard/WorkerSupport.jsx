@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
+import { useToast } from '../../components/Toast';
 import { HelpCircle, MessageCircle, Send, Clock, CheckCircle2 } from 'lucide-react';
 import api from '../../lib/api';
 
 export default function WorkerSupport() {
   usePageTitle('Hỗ trợ');
+  const toast = useToast();
   const [tickets, setTickets] = useState([]);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [msg, setMsg] = useState(null);
 
   const fetchTickets = () => {
     api.get('/support/tickets')
@@ -25,15 +26,14 @@ export default function WorkerSupport() {
     e.preventDefault();
     if (!subject.trim() || !message.trim()) return;
     setSending(true);
-    setMsg(null);
     try {
       await api.post('/support/tickets', { subject, description: message, priority: 'medium' });
-      setMsg({ type: 'success', text: 'Gửi yêu cầu thành công!' });
+      toast.success('Gửi yêu cầu thành công!', 'Hỗ trợ');
       setSubject('');
       setMessage('');
       fetchTickets();
     } catch (err) {
-      setMsg({ type: 'error', text: err.response?.data?.error || 'Có lỗi xảy ra' });
+      toast.error(err.response?.data?.error || 'Có lỗi xảy ra');
     }
     setSending(false);
   };
@@ -51,9 +51,6 @@ export default function WorkerSupport() {
           <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
             <MessageCircle size={18} className="text-blue-500" /> Tạo yêu cầu mới
           </h2>
-          {msg && (
-            <div className={`mb-4 p-3 rounded-lg text-sm font-semibold ${msg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.text}</div>
-          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tiêu đề *</label>

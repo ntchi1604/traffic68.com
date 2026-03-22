@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../../components/Toast';
 import {
   Wallet, Gift, CreditCard, Banknote, Smartphone,
-  ArrowRight, ArrowLeftRight, CheckCircle2, AlertCircle,
-  Info, ChevronRight, LogOut, X,
+  ArrowRight, ArrowLeftRight,
+  Info, LogOut, X,
 } from 'lucide-react';
 import api from '../../lib/api';
 import Breadcrumb from '../../components/Breadcrumb';
@@ -20,19 +21,7 @@ const METHODS = [
 
 const QUICK = [50000, 100000, 200000, 500000, 1000000, 2000000];
 
-/* ── Toast ────────────────────────────────────────── */
-function Toast({ type, msg, onClose }) {
-  if (!msg) return null;
-  const ok = type === 'success';
-  return (
-    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold border
-                     ${ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
-      {ok ? <CheckCircle2 size={16} className="flex-shrink-0 text-green-500" /> : <AlertCircle size={16} className="flex-shrink-0 text-red-500" />}
-      <span className="flex-1">{msg}</span>
-      <button onClick={onClose}><X size={14} /></button>
-    </div>
-  );
-}
+
 
 /* ── Commission action modal ──────────────────────── */
 function CommissionModal({ mode, balance, onConfirm, onClose }) {
@@ -159,6 +148,7 @@ function CommissionModal({ mode, balance, onConfirm, onClose }) {
 export default function Deposit() {
   usePageTitle('Quản lý ví');
   const navigate = useNavigate();
+  const toast = useToast();
   const [wallets, setWallets] = useState({ main: { balance: 0 }, commission: { balance: 0 } });
 
   const [method, setMethod] = useState('momo');
@@ -166,7 +156,6 @@ export default function Deposit() {
   const [note, setNote] = useState('');
   const [processing, setProcessing] = useState(false);
   const [modal, setModal] = useState(null);
-  const [toast, setToast] = useState({ type: '', msg: '' });
 
   // Fetch wallets from API
   const fetchWallets = () => {
@@ -180,10 +169,7 @@ export default function Deposit() {
 
   useEffect(() => { fetchWallets(); }, []);
 
-  const showToast = (type, msg) => {
-    setToast({ type, msg });
-    setTimeout(() => setToast({ type: '', msg: '' }), 4000);
-  };
+
 
   /* Deposit to main wallet via API */
   const handleDeposit = async (e) => {
@@ -196,10 +182,10 @@ export default function Deposit() {
       const data = await api.post('/finance/deposits', { amount: num, method: methodMap[method] || method });
       setAmount('');
       setNote('');
-      showToast('success', `Đơn nạp ${fmt(num)} đ đã gửi thành công! Mã: ${data.refCode}. Vui lòng chờ admin xác minh.`);
+      toast.success(`Đơn nạp ${fmt(num)} đ đã gửi thành công! Mã: ${data.refCode}. Vui lòng chờ admin xác minh.`, 'Nạp tiền');
       fetchWallets();
     } catch (err) {
-      showToast('error', err.message);
+      toast.error(err.message);
     } finally {
       setProcessing(false);
     }
@@ -212,14 +198,14 @@ export default function Deposit() {
       // Transfer commission → main wallet
       try {
         const data = await api.post('/finance/transfer', { amount: num });
-        showToast('success', data.message || `Đã chuyển ${fmt(num)} đ sang Ví Traffic`);
+        toast.success(data.message || `Đã chuyển ${fmt(num)} đ sang Ví Traffic`, 'Chuyển ví');
         fetchWallets();
       } catch (err) {
-        showToast('error', err.message);
+        toast.error(err.message);
       }
     } else {
       // Withdraw (placeholder for now)
-      showToast('success', `Yêu cầu rút ${fmt(num)} đ đã được gửi!`);
+      toast.success(`Yêu cầu rút ${fmt(num)} đ đã được gửi!`, 'Rút tiền');
     }
   };
 
@@ -238,7 +224,7 @@ export default function Deposit() {
         <p className="text-sm text-gray-500 mt-1">Nạp tiền vào Ví Traffic, chuyển hoặc rút Ví Hoa Hồng</p>
       </div>
 
-      <Toast type={toast.type} msg={toast.msg} onClose={() => setToast({ type: '', msg: '' })} />
+
 
       {/* ── Wallet cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

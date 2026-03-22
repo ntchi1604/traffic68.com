@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
+import { useToast } from '../../components/Toast';
 import { Wallet, Building2, CreditCard, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -8,6 +9,7 @@ const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
 
 export default function Withdraw() {
   usePageTitle('Rút tiền');
+  const toast = useToast();
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('bank');
   const [bankName, setBankName] = useState('');
@@ -16,7 +18,6 @@ export default function Withdraw() {
   const [balance, setBalance] = useState(0);
   const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState(null);
 
   const minWithdraw = 50000;
 
@@ -28,16 +29,15 @@ export default function Withdraw() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setMsg(null);
     try {
       const d = await api.post('/finance/withdraw', { amount, method, bankName, accountNumber, accountName });
-      setMsg({ type: 'success', text: d.message });
+      toast.success(d.message, 'Rút tiền');
       setAmount('');
       // Refresh data
       api.get('/vuot-link/worker/balance').then(d => setBalance(d.balance || 0)).catch(() => {});
       api.get('/finance/withdrawals').then(d => setWithdrawals(d.withdrawals || [])).catch(() => {});
     } catch (err) {
-      setMsg({ type: 'error', text: err.response?.data?.error || err.message || 'Có lỗi xảy ra' });
+      toast.error(err.response?.data?.error || err.message || 'Có lỗi xảy ra');
     }
     setLoading(false);
   };
