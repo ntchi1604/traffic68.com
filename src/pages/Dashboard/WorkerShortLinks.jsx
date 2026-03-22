@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Link2, Plus, Copy, EyeOff, ExternalLink, MousePointer, Wallet, CheckCircle, Globe, X, Globe2 } from 'lucide-react';
+import { Link2, Plus, Copy, EyeOff, ExternalLink, MousePointer, Wallet, CheckCircle, Globe, X, Globe2, Trash2 } from 'lucide-react';
 import { formatMoney as fmt } from '../../lib/format';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
@@ -57,6 +57,16 @@ export default function WorkerShortLinks() {
       await api.put(`/shortlink/links/${id}/hide`);
       setLinks(prev => prev.filter(l => l.id !== id));
       toast.success('Đã ẩn link');
+    } catch (e) { toast.error(e.message); }
+  };
+
+  const deleteLink = async (id) => {
+    if (!await toast.confirm('Xóa vĩnh viễn link này?')) return;
+    try {
+      await api.delete(`/shortlink/links/${id}`);
+      setLinks(prev => prev.filter(l => l.id !== id));
+      toast.success('Đã xóa link');
+      load();
     } catch (e) { toast.error(e.message); }
   };
 

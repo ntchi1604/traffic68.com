@@ -139,4 +139,16 @@ router.put('/links/:id/unhide', authMiddleware, async (req, res) => {
   }
 });
 
+// ── DELETE /api/shortlink/links/:id ──
+router.delete('/links/:id', authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    const [result] = await pool.execute('DELETE FROM worker_links WHERE id = ? AND worker_id = ?', [req.params.id, req.userId]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Không tìm thấy link' });
+    res.json({ message: 'Đã xóa link' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

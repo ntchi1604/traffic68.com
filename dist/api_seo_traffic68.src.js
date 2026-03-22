@@ -468,27 +468,44 @@
       });
     };
 
-    /* ── Insert button into auto-created container ── */
-    if (!cfg.insertTarget) {
-      console.warn('[LayNut] insertTarget is required. Button will not be shown.');
+    /* ── Insert button ── */
+    // Priority: 1) User-placed div with id=insertId, 2) insertTarget CSS selector
+    var containerId = cfg.insertId || 'API_SEO_TRAFFIC68';
+    var userDiv = document.getElementById(containerId);
+
+    if (userDiv) {
+      // User placed <div id="API_SEO_TRAFFIC68"></div> manually
+      _placeButton(btn, userDiv);
       return;
     }
 
-    var autoContainer = _autoInsertContainer();
-    if (autoContainer) {
-      _placeButton(btn, autoContainer);
-      return;
-    }
-
-    _waitForTarget(cfg.insertTarget, function () {
-      var container = _autoInsertContainer();
-      if (container) {
-        _placeButton(btn, container);
-      } else {
-        console.warn('[LayNut] Could not create container for:', cfg.insertTarget);
+    if (cfg.insertTarget) {
+      // Legacy mode: auto-create container at insertTarget
+      var autoContainer = _autoInsertContainer();
+      if (autoContainer) {
+        _placeButton(btn, autoContainer);
+        return;
       }
+
+      _waitForTarget(cfg.insertTarget, function () {
+        var container = _autoInsertContainer();
+        if (container) {
+          _placeButton(btn, container);
+        } else {
+          console.warn('[LayNut] Could not create container for:', cfg.insertTarget);
+        }
+      }, function () {
+        console.warn('[LayNut] insertTarget not found:', cfg.insertTarget);
+      });
+      return;
+    }
+
+    // Fallback: wait for user div to appear (SPA)
+    _waitForTarget('#' + containerId, function () {
+      var div = document.getElementById(containerId);
+      if (div) _placeButton(btn, div);
     }, function () {
-      console.warn('[LayNut] insertTarget never appeared:', cfg.insertTarget);
+      console.warn('[LayNut] Không tìm thấy <div id="' + containerId + '">. Hãy thêm div vào trang.');
     });
   }
 
