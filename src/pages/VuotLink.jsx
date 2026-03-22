@@ -637,8 +637,8 @@ export default function VuotLink() {
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                       <input type="text" maxLength={6} value={inputCode}
                         onChange={e => setInputCode(e.target.value.toUpperCase())}
-                        disabled={completing} placeholder="Nhập mã..."
-                        style={{ flex: 1, padding: '12px 14px', background: '#fff', border: `1.5px solid ${showError ? '#fca5a5' : '#86efac'}`, borderRadius: '10px', outline: 'none', color: '#1e293b', fontSize: '16px', fontWeight: 700, letterSpacing: '4px', textAlign: 'center', fontFamily: 'monospace' }}
+                        disabled={completing} placeholder="Nhập mã tại đây"
+                        style={{ flex: 1, padding: '12px 14px', background: '#fff', border: `1.5px solid ${showError ? '#fca5a5' : '#86efac'}`, borderRadius: '10px', outline: 'none', color: '#1e293b', fontSize: '15px', fontWeight: 600, letterSpacing: '2px', textAlign: 'center' }}
                       />
                       <button onClick={handleVerify} disabled={inputCode.length < 4 || completing}
                         style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', background: inputCode.length >= 4 && !completing ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e2e8f0', color: inputCode.length >= 4 ? '#fff' : '#94a3b8', fontSize: '13px', fontWeight: 700, cursor: inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
