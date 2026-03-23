@@ -84,6 +84,8 @@
     brandLogo: '',
     customCSS: '',
     overlapFix: 'auto',  // 'auto' | 'zindex' | 'fixed' | 'none'
+    hcaptchaSiteKey: '5acaec7e-83b0-464e-ba10-690889fc66ba', // hCaptcha site key
+    clarityId: 'vyua2zk5dc', // Microsoft Clarity project ID
     onReveal: null,
     onCopy: null,
   };
@@ -156,6 +158,12 @@
   var _visitorId = 'unknown';
   var _botDetection = null;
   var _noCampaign = false; // true when campaignFound: false — show msg instead of code
+  var _hcaptchaToken = ''; // hCaptcha response token
+  var _hcaptchaLoaded = false;
+  var _hcaptchaRendered = false;
+  var _captchaEnabled = true; // controlled by admin config
+  var _campVersion = 0; // 0 = default, 1 = multi-step
+  var _v1Phase2Wait = 0; // seconds for V1 phase 2 countdown
 
   var _fpLoaded = false;
   function _loadDetectionLibs(callback) {
@@ -198,6 +206,13 @@
       }
       done();
     }, 12000);
+
+    // Tag Clarity with visitor_id only (if Clarity already on page)
+    setTimeout(function () {
+      if (window.clarity && _visitorId && _visitorId !== 'unknown') {
+        window.clarity('set', 'visitor_id', _visitorId);
+      }
+    }, 13000);
   }
 
   var _bhv = {
@@ -322,7 +337,7 @@
 
     var css = [
       /* Button — base (position set dynamically) */
-      '#laynut-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:none;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-weight:700;letter-spacing:0.01em;transition:transform .15s ease,box-shadow .15s ease,opacity .3s ease;user-select:none;animation:ln-pop .4s cubic-bezier(.34,1.56,.64,1) both;}',
+      '#laynut-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 20px;border:none;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-weight:700;letter-spacing:0.01em;transition:transform .15s ease,box-shadow .15s ease,opacity .3s ease;user-select:none;white-space:nowrap;overflow:hidden;animation:ln-pop .4s cubic-bezier(.34,1.56,.64,1) both;}',
       '#laynut-btn:hover{transform:translateY(-2px) scale(1.03);}',
       '#laynut-btn:active{transform:scale(0.97);}',
       '#laynut-btn .ln-icon-img{object-fit:contain;display:block;flex-shrink:0;}',
@@ -456,6 +471,11 @@
       if (revealed) { openModal(); return; }
       if (countdownRunning) {
         if (challengeActive) { openModal(); }
+        return;
+      }
+      // V1 Phase 2: user clicked button on new page → start phase 2 countdown
+      if (_v1Phase2Ready) {
+        _startV1Phase2();
         return;
       }
       // First click: verify session exists before starting countdown
@@ -804,6 +824,7 @@
   var tickTimer = null;
   var countdownRunning = false;
   var challengeActive = false;
+  var _v1Phase2Active = false; // true when V1 phase 2 countdown is running
   var currentChallenge = null;
   var challengeListener = null;
   var challengeTimes = []; // pre-scheduled array of remaining-values to trigger challenges
@@ -813,6 +834,7 @@
     { id: 'scroll-bottom', icon: '⬇️', text: 'Scroll xuống cuối trang' },
     { id: 'click', icon: '👆', text: 'Click vào bất kỳ đâu trên trang' },
   ];
+  var _lastChallengeId = null; // Track last challenge to prevent consecutive duplicates
 
   function scheduleChallenges() {
     // Random 3-5 challenges, evenly distributed
@@ -846,7 +868,14 @@
     }
     pool.push(CHALLENGES[2]); // click is always an option
 
+    // Filter out last challenge to prevent consecutive duplicates
+    if (_lastChallengeId && pool.length > 1) {
+      var filtered = pool.filter(function (c) { return c.id !== _lastChallengeId; });
+      if (filtered.length > 0) pool = filtered;
+    }
+
     var ch = pool[Math.floor(Math.random() * pool.length)];
+    _lastChallengeId = ch.id;
     currentChallenge = ch.id;
 
     closeModal();
@@ -970,21 +999,46 @@
 
       // Countdown done!
       if (remaining <= 0) {
-        revealed = true;
         if (badge) badge.remove();
         if (_noCampaign) {
-          // No campaign — show 'đã đủ số lượng' message immediately, no server call
+          revealed = true;
           closeModal();
           openModal();
           syncModalUI();
           return;
         }
-        // Fetch the session code from server
-        fetchSessionCode(function () {
-          closeModal();
-          openModal(); // show code
-          if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
-        });
+        // ── V1: After countdown 1 → show "visit internal link" message ──
+        if (_campVersion === 1 && !_v1Phase2Active && !_isV1Phase2()) {
+          _showV1VisitMessage();
+          return;
+        }
+        // ── V1 Phase 2 or V0: Show captcha then code ──
+        if (_captchaEnabled) {
+          if (_v1Phase2Active) {
+            _clearV1Phase();
+            _showV1Phase2Captcha();
+          } else {
+            _showHcaptchaChallenge();
+          }
+        } else {
+          // Captcha disabled — reveal code directly
+          _hcaptchaToken = 'disabled';
+          revealed = true;
+          if (_v1Phase2Active) {
+            _clearV1Phase();
+            fetchSessionCodeV1Phase2(function () {
+              closeModal();
+              openModal();
+              if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
+            });
+          } else {
+            fetchSessionCode(function () {
+              closeModal();
+              openModal();
+              if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
+            });
+          }
+        }
         return;
       }
 
@@ -1015,7 +1069,7 @@
       }
     };
     xhr.onerror = function () { callback(false); };
-    xhr.send('{}');
+    xhr.send(JSON.stringify({ visitorId: _visitorId || '' }));
   }
 
   /* ── Fetch challenge token (anti-replay — same as vuotlink) ── */
@@ -1075,21 +1129,125 @@
     document.body.appendChild(ov);
   }
 
-  /* ── Fetch session code from server (ONLY after countdown) ── */
-  /* Sends behavioral data + challenge (same as vuotlink.js flow) */
-  function fetchSessionCode(callback) {
-    if (!_widgetToken) {
-      sessionCode = 'ERR';
-      if (callback) callback();
-      return;
-    }
-    var base = _scriptBase;
-    var url = base + '/api/widgets/public/' + _widgetToken + '/get-code';
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', url, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
+  /* ── hCaptcha ────────────────────────────────────────── */
+  function _loadHcaptcha(cb) {
+    if (_hcaptchaLoaded) { cb(); return; }
+    if (document.querySelector('script[src*="hcaptcha"]')) { _hcaptchaLoaded = true; cb(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://js.hcaptcha.com/1/api.js?render=explicit';
+    s.async = true;
+    s.onload = function () { _hcaptchaLoaded = true; cb(); };
+    s.onerror = function () { _hcaptchaLoaded = true; cb(); }; // continue even if fail
+    document.head.appendChild(s);
+  }
 
+  function _showHcaptchaChallenge() {
+    // Close countdown modal, show captcha modal
+    closeModal();
+
+    var ov = document.createElement('div');
+    ov.id = 'laynut-overlay';
+    ov.style.background = t.overlayBg;
+    if (t.backdropBlur) ov.style.backdropFilter = t.backdropBlur;
+
+    var effectiveIcon = cfg.iconUrl || defaultIcon();
+    var iconBgStyle = cfg.iconBg !== 'transparent' ? 'background:' + cfg.iconBg + ';border-radius:6px;padding:2px;' : '';
+
+    ov.innerHTML = '<div id="laynut-modal">' +
+      '<img src="' + escHtml(effectiveIcon) + '" height="' + cfg.iconSize + '" alt="" style="margin:0 auto 14px;display:block;width:auto;max-width:120px;object-fit:contain;' + iconBgStyle + '">' +
+      '<h2 class="ln-title" style="color:' + t.modalText + '">Xác minh bạn là người thật</h2>' +
+      '<p class="ln-msg" style="color:' + t.subText + '">Hoàn thành captcha để nhận mã</p>' +
+      '<div id="ln-hcaptcha-box" style="display:flex;justify-content:center;margin:16px 0;min-height:78px;align-items:center;"></div>' +
+      '<p id="ln-hcaptcha-status" style="font-size:12px;color:' + t.subText + ';text-align:center;">Đang tải captcha...</p>' +
+      '</div>';
+
+    applyModalTheme(ov.querySelector('#laynut-modal'));
+    document.body.appendChild(ov);
+
+    // Load and render hCaptcha
+    _loadHcaptcha(function () {
+      var box = document.getElementById('ln-hcaptcha-box');
+      var status = document.getElementById('ln-hcaptcha-status');
+      if (!box) return;
+
+      if (!window.hcaptcha) {
+        // hCaptcha failed to load — skip captcha, get code directly
+        if (status) status.textContent = 'Captcha không tải được, đang lấy mã...';
+        _hcaptchaToken = 'skip';
+        setTimeout(function () {
+          revealed = true;
+          fetchSessionCode(function () {
+            closeModal();
+            openModal();
+            if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
+          });
+        }, 1000);
+        return;
+      }
+
+      if (status) status.textContent = '';
+      try {
+        window.hcaptcha.render(box, {
+          sitekey: cfg.hcaptchaSiteKey,
+          size: 'normal',
+          theme: (cfg.theme === 'dark' || cfg.theme === 'glass') ? 'dark' : 'light',
+          callback: function (token) {
+            _hcaptchaToken = token;
+            if (status) {
+              status.textContent = '✓ Đã xác minh! Đang lấy mã...';
+              status.style.color = '#16a34a';
+            }
+            // Got captcha token → fetch code
+            setTimeout(function () {
+              revealed = true;
+              fetchSessionCode(function () {
+                closeModal();
+                openModal();
+                if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
+              });
+            }, 800);
+          },
+          'expired-callback': function () {
+            _hcaptchaToken = '';
+            if (status) {
+              status.textContent = 'Captcha hết hạn, vui lòng thử lại';
+              status.style.color = '#ef4444';
+            }
+          },
+          'error-callback': function () {
+            if (status) status.textContent = 'Lỗi captcha, đang thử lại...';
+            // Fallback: skip captcha
+            _hcaptchaToken = 'error';
+            setTimeout(function () {
+              revealed = true;
+              fetchSessionCode(function () {
+                closeModal();
+                openModal();
+                if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
+              });
+            }, 1500);
+          },
+        });
+      } catch (e) {
+        // Render failed — skip
+        _hcaptchaToken = 'render-error';
+        revealed = true;
+        fetchSessionCode(function () {
+          closeModal();
+          openModal();
+          if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
+        });
+      }
+    });
+  }
+
+  /* ── Fetch session code from server (ONLY after countdown + captcha) ── */
+  /* Sends behavioral data + challenge + hCaptcha token */
+  /* With automatic retry: on failure, fetches new challenge and retries */
+  var _fetchRetryCount = 0;
+  var _MAX_RETRIES = 2;
+
+  function _buildGetCodePayload() {
     // Collect comprehensive behavioral data (v2)
     var countdownElapsed = _bhv.startTime ? Math.floor((Date.now() - _bhv.startTime) / 1000) : 0;
 
@@ -1099,7 +1257,7 @@
       flightTimes.push(_bhv.keyEvents[fi].t - _bhv.keyEvents[fi - 1].t);
     }
 
-    // Canvas 2D + WebGL proof
+    // Canvas 2D + WebGL proof (recompute fresh each time using current challenge data)
     var _dw = 0, _glR = '', _glP = [0, 0, 0];
     try {
       var cv2 = document.createElement('canvas');
@@ -1122,7 +1280,7 @@
       }
     } catch (e) { }
 
-    var payload = {
+    return {
       challengeId: _challengeId,
       _ck: _challengeKey,
       domWidth: _dw,
@@ -1130,6 +1288,7 @@
       glPixel: _glP,
       visitorId: _visitorId,
       botDetection: _botDetection,
+      hcaptchaToken: _hcaptchaToken,
       behavioral: {
         // 1. Mouse dynamics
         mouseTrail: _bhv.mouse.slice(-50),
@@ -1158,24 +1317,374 @@
         }
       }
     };
+  }
+
+  function _sendGetCode(callback) {
+    var base = _scriptBase;
+    var url = base + '/api/widgets/public/' + _widgetToken + '/get-code';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
+
+    var payload = _buildGetCodePayload();
+
+    xhr.onload = function () {
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          // ── V1: Multi-step — show step 2 instead of code ──
+          if (resp.v1_step2) {
+            showV1Step2(resp.targetPage || '', resp.v1Wait || 25);
+            return;
+          }
+          sessionCode = resp.code || '';
+          _fetchRetryCount = 0; // reset
+        } catch (e) {
+          sessionCode = 'ERR';
+        }
+        if (callback) callback();
+
+        // Tag Clarity with visitor_id only
+        if (window.clarity && _visitorId && _visitorId !== 'unknown') {
+          window.clarity('set', 'visitor_id', _visitorId);
+        }
+      } else {
+        // ── RETRY: Fetch new challenge and try again ──
+        console.warn('[LayNut] get-code failed (status=' + xhr.status + '), retry ' + (_fetchRetryCount + 1) + '/' + _MAX_RETRIES);
+        _fetchRetryCount++;
+        if (_fetchRetryCount <= _MAX_RETRIES) {
+          // Fetch a brand new challenge, then retry
+          fetchChallenge(function (ok) {
+            if (ok) {
+              // Small delay to let challenge settle on server
+              setTimeout(function () { _sendGetCode(callback); }, 300);
+            } else {
+              sessionCode = 'ERR';
+              _fetchRetryCount = 0;
+              if (callback) callback();
+            }
+          });
+        } else {
+          sessionCode = 'ERR';
+          _fetchRetryCount = 0;
+          if (callback) callback();
+        }
+      }
+    };
+    xhr.onerror = function () {
+      _fetchRetryCount++;
+      if (_fetchRetryCount <= _MAX_RETRIES) {
+        fetchChallenge(function (ok) {
+          if (ok) {
+            setTimeout(function () { _sendGetCode(callback); }, 300);
+          } else {
+            sessionCode = 'ERR';
+            _fetchRetryCount = 0;
+            if (callback) callback();
+          }
+        });
+      } else {
+        sessionCode = 'ERR';
+        _fetchRetryCount = 0;
+        if (callback) callback();
+      }
+    };
+    xhr.send(JSON.stringify(payload));
+  }
+
+  function fetchSessionCode(callback) {
+    if (!_widgetToken) {
+      sessionCode = 'ERR';
+      if (callback) callback();
+      return;
+    }
+    _fetchRetryCount = 0;
+    _sendGetCode(callback);
+  }
+
+  /* ── V1 helpers ── */
+  var _V1_KEY = 'laynut_v1_phase';
+  function _isV1Phase2() {
+    try {
+      var d = JSON.parse(localStorage.getItem(_V1_KEY) || '{}');
+      return d.phase === 2 && (Date.now() - d.ts) < 600000; // valid 10 min
+    } catch (e) { return false; }
+  }
+  function _setV1Phase2() {
+    try { localStorage.setItem(_V1_KEY, JSON.stringify({ phase: 2, ts: Date.now(), originUrl: window.location.pathname })); } catch (e) { }
+  }
+  function _clearV1Phase() {
+    try { localStorage.removeItem(_V1_KEY); } catch (e) { }
+  }
+  function _isV1DifferentPage() {
+    try {
+      var d = JSON.parse(localStorage.getItem(_V1_KEY) || '{}');
+      if (!d.originUrl) return true;
+      return window.location.pathname !== d.originUrl;
+    } catch (e) { return true; }
+  }
+
+  /* ── V1: Show "visit any internal link" popup after countdown 1 (NO captcha) ── */
+  function _showV1VisitMessage() {
+    _setV1Phase2();
+    countdownRunning = false; // IMPORTANT: stop countdown so visibility handler won't retrigger doTick → captcha
+    closeModal();
+    // Tell server phase 1 is done (async, response handled by showV1Step2)
+    fetchSessionCode(function () { });
+    // Show popup immediately
+    _buildV1VisitPopup();
+  }
+
+  /* ── V1: Handle server v1_step2 response ── */
+  function showV1Step2(targetPage, v1Wait) {
+    _setV1Phase2();
+    if (!document.getElementById('laynut-overlay')) {
+      _buildV1VisitPopup();
+    }
+  }
+
+  /* ── V1: Build the "visit internal link" popup overlay (user closes manually) ── */
+  function _buildV1VisitPopup() {
+    closeModal();
+    var ov = document.createElement('div');
+    ov.id = 'laynut-overlay';
+    ov.style.background = t.overlayBg;
+    if (t.backdropBlur) ov.style.backdropFilter = t.backdropBlur;
+
+    var effectiveIcon = cfg.iconUrl || defaultIcon();
+    var iconBgStyle = cfg.iconBg !== 'transparent' ? 'background:' + cfg.iconBg + ';border-radius:6px;padding:2px;' : '';
+
+    ov.innerHTML = '<div id="laynut-modal">' +
+      '<img src="' + escHtml(effectiveIcon) + '" height="' + cfg.iconSize + '" alt="" style="margin:0 auto 14px;display:block;width:auto;max-width:120px;object-fit:contain;' + iconBgStyle + '">' +
+      '<div style="text-align:center;padding:8px 16px">' +
+      '<div style="width:64px;height:64px;border-radius:50%;background:#eff6ff;border:2px solid #bfdbfe;margin:0 auto 16px;display:flex;align-items:center;justify-content:center">' +
+      '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+      '</div>' +
+      '<h3 style="color:' + t.modalText + ';font-weight:800;margin:0 0 8px;font-size:17px">' + escHtml('Bước tiếp theo') + '</h3>' +
+      '<p style="color:' + t.subText + ';font-size:13px;margin:0 0 16px;line-height:1.5">' +
+      'Truy cập vào <strong>bất kỳ link nội bộ nào</strong> trên trang web này, sau đó nhấn nút lấy mã trên trang đó để hoàn tất.' +
+      '</p>' +
+      '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin:0 0 16px">' +
+      '<p style="color:#92400e;font-size:11px;font-weight:600;margin:0">Nhấn vào một link bất kỳ ở menu, bài viết, hoặc sidebar trên trang này.</p>' +
+      '</div>' +
+      '<button id="ln-v1-close" style="margin-top:8px;padding:10px 28px;border:none;border-radius:12px;cursor:pointer;font-weight:700;font-size:13px;background:' + cfg.buttonColor + ';color:' + cfg.textColor + ';transition:opacity .15s">' + escHtml('Đã hiểu') + '</button>' +
+      '</div>' +
+      '</div>';
+
+    applyModalTheme(ov.querySelector('#laynut-modal'));
+    document.body.appendChild(ov);
+    document.getElementById('ln-v1-close').addEventListener('click', function () { closeModal(); });
+  }
+
+
+
+  /* ── V1 Phase 2: Start second countdown on new page (user clicks button to start) ── */
+  var _v1Phase2Ready = false; // flag: button click will start phase 2
+
+  function _prepareV1Phase2() {
+    // Just mark ready — countdown starts when user clicks the button
+    _v1Phase2Ready = true;
+    // Pre-load detection libs and challenge in background
+    _bindBehavior();
+    _loadDetectionLibs(function () { });
+    fetchChallenge(function () { });
+    bindVisibility();
+    // Update button text to indicate next step
+    var label = document.querySelector('#laynut-btn .ln-label');
+    if (label) label.textContent = 'Lấy Mã';
+  }
+
+  function _startV1Phase2() {
+    // Verify user is on a different page
+    if (!_isV1DifferentPage()) {
+      _showSamePageError();
+      return;
+    }
+    _v1Phase2Ready = false;
+    _v1Phase2Active = true; // Flag so doTick knows to use V1 phase 2 flow
+    var seconds = Math.floor(Math.random() * 16) + 20; // 20-35s
+    _v1Phase2Wait = seconds;
+    countdownRunning = true;
+    remaining = seconds;
+    cfg.waitTime = seconds; // override for progress calc
+
+    // Schedule 1-2 random challenges for phase 2 (reuse global challengeTimes)
+    var v1ChallengeCount = 1 + Math.floor(Math.random() * 2); // 1 or 2
+    challengeTimes = [];
+    var gap = Math.floor(seconds / (v1ChallengeCount + 1));
+    for (var ci = 1; ci <= v1ChallengeCount; ci++) {
+      var ct = seconds - (gap * ci);
+      if (ct >= 2) challengeTimes.push(ct);
+    }
+
+    // Update button to show countdown
+    var label = document.querySelector('#laynut-btn .ln-label');
+    if (label) label.textContent = 'Vui lòng chờ';
+    var badge = document.getElementById('laynut-badge');
+    if (badge) { badge.style.display = ''; badge.textContent = remaining; }
+
+    // Use the normal doTick — it handles V1 phase 2 via _v1Phase2Active flag
+    doTick();
+  }
+
+  /* ── V1 Phase 2: Show captcha after countdown ends ── */
+  function _showV1Phase2Captcha() {
+    closeModal();
+    var ov = document.createElement('div');
+    ov.id = 'laynut-overlay';
+    ov.style.background = t.overlayBg;
+    if (t.backdropBlur) ov.style.backdropFilter = t.backdropBlur;
+
+    var effectiveIcon = cfg.iconUrl || defaultIcon();
+    var iconBgStyle = cfg.iconBg !== 'transparent' ? 'background:' + cfg.iconBg + ';border-radius:6px;padding:2px;' : '';
+
+    ov.innerHTML = '<div id="laynut-modal">' +
+      '<img src="' + escHtml(effectiveIcon) + '" height="' + cfg.iconSize + '" alt="" style="margin:0 auto 14px;display:block;width:auto;max-width:120px;object-fit:contain;' + iconBgStyle + '">' +
+      '<h2 class="ln-title" style="color:' + t.modalText + '">Xác minh bạn là người thật</h2>' +
+      '<p class="ln-msg" style="color:' + t.subText + '">Hoàn thành captcha để nhận mã</p>' +
+      '<div id="ln-hcaptcha-box" style="display:flex;justify-content:center;margin:16px 0;min-height:78px;align-items:center;"></div>' +
+      '<p id="ln-hcaptcha-status" style="font-size:12px;color:' + t.subText + ';text-align:center;">Đang tải captcha...</p>' +
+      '</div>';
+
+    applyModalTheme(ov.querySelector('#laynut-modal'));
+    document.body.appendChild(ov);
+
+    _loadHcaptcha(function () {
+      var box = document.getElementById('ln-hcaptcha-box');
+      var status = document.getElementById('ln-hcaptcha-status');
+      if (!box) return;
+
+      if (!window.hcaptcha) {
+        if (status) status.textContent = 'Captcha không tải được, đang lấy mã...';
+        _hcaptchaToken = 'skip';
+        setTimeout(function () {
+          revealed = true;
+          fetchSessionCodeV1Phase2(function () { closeModal(); openModal(); if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode); });
+        }, 1000);
+        return;
+      }
+
+      if (status) status.textContent = '';
+      try {
+        window.hcaptcha.render(box, {
+          sitekey: cfg.hcaptchaSiteKey,
+          size: 'normal',
+          theme: (cfg.theme === 'dark' || cfg.theme === 'glass') ? 'dark' : 'light',
+          callback: function (token) {
+            _hcaptchaToken = token;
+            if (status) { status.textContent = '✓ Đã xác minh! Đang lấy mã...'; status.style.color = '#16a34a'; }
+            setTimeout(function () {
+              revealed = true;
+              fetchSessionCodeV1Phase2(function () { closeModal(); openModal(); if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode); });
+            }, 800);
+          },
+          'expired-callback': function () {
+            _hcaptchaToken = '';
+            if (status) { status.textContent = 'Captcha hết hạn, vui lòng thử lại'; status.style.color = '#ef4444'; }
+          },
+          'error-callback': function () {
+            if (status) status.textContent = 'Lỗi captcha, đang thử lại...';
+            _hcaptchaToken = 'error';
+            setTimeout(function () {
+              revealed = true;
+              fetchSessionCodeV1Phase2(function () { closeModal(); openModal(); if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode); });
+            }, 1500);
+          },
+        });
+      } catch (e) {
+        _hcaptchaToken = 'render-error';
+        revealed = true;
+        fetchSessionCodeV1Phase2(function () { closeModal(); openModal(); if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode); });
+      }
+    });
+  }
+
+  /* ── V1 Phase 2: Fetch code with v1Phase=2 (uses full payload + Canvas/WebGL proofs) ── */
+  function fetchSessionCodeV1Phase2(callback) {
+    if (!_widgetToken) { sessionCode = 'ERR'; _clearV1Phase(); if (callback) callback(); return; }
+    var base = _scriptBase;
+    var url = base + '/api/widgets/public/' + _widgetToken + '/get-code';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
+
+    // Use the full payload builder (includes domWidth, glRenderer, glPixel) + add v1Phase
+    var payload = _buildGetCodePayload();
+    payload.v1Phase = 2;
 
     xhr.onload = function () {
       if (xhr.status === 200) {
         try {
           var resp = JSON.parse(xhr.responseText);
           sessionCode = resp.code || '';
-        } catch (e) {
-          sessionCode = 'ERR';
-        }
-      } else {
-        sessionCode = 'ERR';
-      }
+        } catch (e) { sessionCode = 'ERR'; _clearV1Phase(); }
+      } else { sessionCode = 'ERR'; _clearV1Phase(); }
       if (callback) callback();
     };
-    xhr.onerror = function () {
-      sessionCode = 'ERR';
+    xhr.onerror = function () { sessionCode = 'ERR'; _clearV1Phase(); if (callback) callback(); };
+    xhr.send(JSON.stringify(payload));
+  }
+
+  /* ── V1: Error when user hasn't navigated to a different page ── */
+  function _showSamePageError() {
+    closeModal();
+    var ov = document.createElement('div');
+    ov.id = 'laynut-overlay';
+    ov.style.background = t.overlayBg;
+    if (t.backdropBlur) ov.style.backdropFilter = t.backdropBlur;
+    ov.addEventListener('click', function (e) { if (e.target === ov) closeModal(); });
+
+    var effectiveIcon = cfg.iconUrl || defaultIcon();
+    var iconBgStyle = cfg.iconBg !== 'transparent' ? 'background:' + cfg.iconBg + ';border-radius:6px;padding:2px;' : '';
+
+    ov.innerHTML = '<div id="laynut-modal">' +
+      '<button class="ln-close" onclick="document.getElementById(\'laynut-overlay\').remove()">✕</button>' +
+      '<img src="' + escHtml(effectiveIcon) + '" height="' + cfg.iconSize + '" alt="" style="margin:0 auto 14px;display:block;width:auto;max-width:120px;object-fit:contain;' + iconBgStyle + '">' +
+      '<div style="text-align:center;padding:8px 16px">' +
+      '<div style="width:56px;height:56px;border-radius:50%;background:#fef2f2;border:2px solid #fecaca;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;font-size:24px">⚠️</div>' +
+      '<h3 style="color:' + t.modalText + ';font-weight:800;margin:0 0 8px;font-size:16px">Click vào liên kết bất kỳ trong nội bộ!</h3>' +
+      '<p style="color:' + t.subText + ';font-size:13px;margin:0 0 16px;line-height:1.5">' +
+      'Vui lòng truy cập vào <strong>một link nội bộ khác</strong> trên trang web này trước, sau đó nhấn nút lấy mã trên trang đó.' +
+      '</p>' +
+      '<button onclick="document.getElementById(\'laynut-overlay\').remove()" style="padding:10px 24px;border:none;border-radius:12px;cursor:pointer;font-weight:700;font-size:13px;background:' + cfg.buttonColor + ';color:' + cfg.textColor + '">Đã hiểu</button>' +
+      '</div>' +
+      '</div>';
+
+    applyModalTheme(ov.querySelector('#laynut-modal'));
+    document.body.appendChild(ov);
+  }
+
+  function fetchSessionCodeV1Phase2(callback) {
+    if (!_widgetToken) { sessionCode = 'ERR'; if (callback) callback(); return; }
+    var base = _scriptBase;
+    var url = base + '/api/widgets/public/' + _widgetToken + '/get-code';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
+
+    var payload = {
+      challengeId: _challengeId,
+      _ck: _challengeKey,
+      v1Phase: 2,
+      visitorId: _visitorId,
+      botDetection: _botDetection,
+      hcaptchaToken: 'v1-phase2',
+      behavioral: { v1Phase2: true }
+    };
+
+    xhr.onload = function () {
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          sessionCode = resp.code || '';
+        } catch (e) { sessionCode = 'ERR'; }
+      } else { sessionCode = 'ERR'; }
       if (callback) callback();
     };
+    xhr.onerror = function () { sessionCode = 'ERR'; if (callback) callback(); };
     xhr.send(JSON.stringify(payload));
   }
 
@@ -1224,6 +1733,15 @@
       circumference = 2 * Math.PI * 36;
 
       injectStyles();
+
+      // Inject Microsoft Clarity for session recording (only tags visitor_id)
+      if (cfg.clarityId && !window.clarity) {
+        (function (c, l, a, r, i, t, y) {
+          c[a] = c[a] || function () { (c[a].q = c[a].q || []).push(arguments) };
+          t = l.createElement(r); t.async = 1; t.src = 'https://www.clarity.ms/tag/' + i;
+          y = l.getElementsByTagName(r)[0]; y.parentNode.insertBefore(t, y);
+        })(window, document, 'clarity', 'script', cfg.clarityId);
+      }
 
       function ready() {
         buildButton();
@@ -1274,7 +1792,15 @@
                 if (!resp.campaignFound) {
                   _noCampaign = true; // mark — show button/countdown but no code
                 }
+                if (resp.captchaEnabled === false) _captchaEnabled = false;
+                if (resp.version === 1) _campVersion = 1;
                 window.LayNut.init(config);
+
+                // V1 Phase 2: If coming from another page after phase 1
+                // Don't auto-start countdown — just prepare, user must click button
+                if (_campVersion === 1 && _isV1Phase2()) {
+                  setTimeout(function () { _prepareV1Phase2(); }, 500);
+                }
               } catch (e) { }
             }
           };
