@@ -762,7 +762,7 @@ export default function LinkGateway() {
                     onMouseEnter={e => { if (inputCode.length >= 4 && !completing) e.currentTarget.style.transform = 'translateY(-2px)'; }}
                     onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
                   >
-                    {completing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN VÀ MỞ KHÓA LINK →'}
+                    {completing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN VÀ MỞ KHÓA LINK'}
                   </button>
                 </div>
               </div>
