@@ -682,7 +682,8 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
     const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
 
     const [todayTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))`,
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))`,
+
       wlParams
     );
     const [totalTasks] = await pool.execute(
