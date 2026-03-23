@@ -699,7 +699,12 @@ async function _secretLookup(req, res) {
     const pool = getPool();
     // Support cả GET (query) và POST (body)
     const keyword = req.query.keyword || (req.body || {}).keyword || '';
-    const image_url = req.query.image_url || (req.body || {}).image_url || '';
+    let image_url = req.query.image_url || (req.body || {}).image_url || '';
+
+    // Strip domain from image_url — chỉ giữ từ /uploads trở đi
+    if (image_url && image_url.includes('/uploads')) {
+      image_url = image_url.substring(image_url.indexOf('/uploads'));
+    }
 
     if (!keyword && !image_url) {
       return res.status(400).json({ error: 'Cần truyền ít nhất keyword hoặc image_url' });
