@@ -48,12 +48,16 @@ CREATE TABLE IF NOT EXISTS campaigns (
   time_on_site VARCHAR(50)  DEFAULT '60-120',
   image1_url   TEXT DEFAULT NULL,
   image2_url   TEXT DEFAULT NULL,
+  discount_applied TINYINT NOT NULL DEFAULT 0,
   status       VARCHAR(20)  NOT NULL DEFAULT 'running',
   views_done   INT NOT NULL DEFAULT 0,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migration for existing databases:
+-- ALTER TABLE campaigns ADD COLUMN discount_applied TINYINT NOT NULL DEFAULT 0;
 
 -- Migration for existing databases (run once if columns don't exist):
 -- ALTER TABLE campaigns ADD COLUMN url2 TEXT DEFAULT NULL AFTER url;
