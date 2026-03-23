@@ -166,8 +166,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Version</label>
             <select value={version} onChange={e => setVersion(Number(e.target.value))} className={inputCls}>
-              <option value={0}>Version 1 — 2 Step</option>
-              <option value={1}>Version 2 — 1 Step</option>
+              <option value={0}>Version 2 — 1 Step</option>
+              <option value={1}>Version 1 — 2 Step</option>
             </select>
           </div>
         </div>
