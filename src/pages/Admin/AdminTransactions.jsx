@@ -121,7 +121,7 @@ export default function AdminTransactions() {
   };
 
   const pendingCount = transactions.filter(t => t.status === 'pending').length;
-  const totalDeposit = transactions.filter(t => t.type === 'deposit' && t.status === 'completed')
+  const totalDeposit = transactions.filter(t => ['deposit', 'earning', 'commission', 'refund'].includes(t.type) && t.status === 'completed')
     .reduce((s, t) => s + Number(t.amount), 0);
   const totalWithdraw = transactions.filter(t => ['withdraw', 'campaign'].includes(t.type) && t.status === 'completed')
     .reduce((s, t) => s + Number(t.amount), 0);
