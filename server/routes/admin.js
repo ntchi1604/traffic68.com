@@ -268,14 +268,27 @@ router.get('/transactions', async (req, res) => {
   const offset = (page - 1) * limit;
   let sql = `SELECT t.*, u.name as user_name, u.email as user_email FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE 1=1`;
   const params = [];
-  if (type && type !== 'all') { sql += ' AND t.type = ?'; params.push(type); }
-  if (status && status !== 'all') { sql += ' AND t.status = ?'; params.push(status); }
-  if (fromDate) { sql += ' AND DATE(t.created_at) >= ?'; params.push(fromDate); }
-  if (toDate) { sql += ' AND DATE(t.created_at) <= ?'; params.push(toDate); }
+  let filterCondition = '';
+  const filterParams = [];
+  if (type && type !== 'all') { sql += ' AND t.type = ?'; params.push(type); filterCondition += ' AND t.type = ?'; filterParams.push(type); }
+  if (status && status !== 'all') { sql += ' AND t.status = ?'; params.push(status); filterCondition += ' AND t.status = ?'; filterParams.push(status); }
+  if (fromDate) { sql += ' AND DATE(t.created_at) >= ?'; params.push(fromDate); filterCondition += ' AND DATE(t.created_at) >= ?'; filterParams.push(fromDate); }
+  if (toDate) { sql += ' AND DATE(t.created_at) <= ?'; params.push(toDate); filterCondition += ' AND DATE(t.created_at) <= ?'; filterParams.push(toDate); }
   sql += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
   params.push(Number(limit), Number(offset));
   const [transactions] = await pool.execute(sql, params);
-  res.json({ transactions });
+
+  // Summary totals (uses same filters but no LIMIT — always count completed transactions)
+  const [depRows] = await pool.execute(
+    `SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t WHERE t.status = 'completed' AND t.type IN ('deposit','earning','commission','refund')${filterCondition}`,
+    filterParams
+  );
+  const [wdRows] = await pool.execute(
+    `SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t WHERE t.status = 'completed' AND t.type IN ('withdraw','campaign')${filterCondition}`,
+    filterParams
+  );
+
+  res.json({ transactions, totalDeposit: Number(depRows[0].total), totalWithdraw: Number(wdRows[0].total) });
 });
 
 // ── PUT /api/admin/transactions/:id/approve ──
@@ -729,26 +742,34 @@ router.get('/security/user/:uid/tasks', async (req, res) => {
   }
 });
 
-// ── 3. Security events for a user ──
+// ── 3. Security events for a user (paginated) ──
 router.get('/security/user/:uid/events', async (req, res) => {
   try {
     const pool = getPool();
+    const { page = 1, limit = 50 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
     const [ipRows] = await pool.execute(
       `SELECT DISTINCT ip_address FROM vuot_link_tasks
        WHERE worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?)`,
       [req.params.uid, req.params.uid]
     );
     const ips = ipRows.map(r => r.ip_address).filter(Boolean);
-    if (!ips.length) return res.json({ events: [] });
+    if (!ips.length) return res.json({ events: [], total: 0, page: Number(page), limit: Number(limit) });
 
     const ph = ips.map(() => '?').join(',');
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) as total FROM security_logs WHERE ip_address IN (${ph}) AND reason != 'completed'`, ips
+    );
+    const total = countRows[0].total;
+
     const [rows] = await pool.execute(
       `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at
        FROM security_logs
        WHERE ip_address IN (${ph}) AND reason != 'completed'
-       ORDER BY created_at DESC LIMIT 200`, ips
+       ORDER BY created_at DESC LIMIT ? OFFSET ?`, [...ips, Number(limit), offset]
     );
-    res.json({ events: rows });
+    res.json({ events: rows, total, page: Number(page), limit: Number(limit) });
   } catch (err) {
     console.error('[AntiCheat] user events error:', err);
     res.status(500).json({ error: err.message });

@@ -91,6 +91,8 @@ export default function AdminTransactions() {
   const [toDate, setToDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [rejectTx, setRejectTx] = useState(null);
+  const [totalDeposit, setTotalDeposit] = useState(0);
+  const [totalWithdraw, setTotalWithdraw] = useState(0);
 
   const fetchData = () => {
     setLoading(true);
@@ -99,7 +101,11 @@ export default function AdminTransactions() {
     if (toDate) params.set('toDate', toDate);
 
     api.get(`/admin/transactions?${params}`)
-      .then(data => setTransactions(data.transactions || []))
+      .then(data => {
+        setTransactions(data.transactions || []);
+        setTotalDeposit(data.totalDeposit || 0);
+        setTotalWithdraw(data.totalWithdraw || 0);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -121,10 +127,6 @@ export default function AdminTransactions() {
   };
 
   const pendingCount = transactions.filter(t => t.status === 'pending').length;
-  const totalDeposit = transactions.filter(t => ['deposit', 'earning', 'commission', 'refund'].includes(t.type) && t.status === 'completed')
-    .reduce((s, t) => s + Number(t.amount), 0);
-  const totalWithdraw = transactions.filter(t => ['withdraw', 'campaign'].includes(t.type) && t.status === 'completed')
-    .reduce((s, t) => s + Number(t.amount), 0);
 
   return (
     <div className="space-y-5">

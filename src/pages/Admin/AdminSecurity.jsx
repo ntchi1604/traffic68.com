@@ -167,6 +167,193 @@ function TaskModal({ task: t, onClose }) {
   );
 }
 
+/* ─── Event Detail Modal ─── */
+function EventModal({ event: ev, onClose }) {
+  if (!ev) return null;
+  let det = {};
+  try { det = typeof ev.details === 'string' ? JSON.parse(ev.details || '{}') : (ev.details || {}); } catch {}
+  const blocked = ['creep_detected','automation_probes','mouse_bot','bot_ua','bot_behavior','ip_rate_limit'].includes(ev.reason);
+  const mobile = isMobileUA(ev.user_agent);
+
+  // Build check cards from details
+  const checks = [];
+  if (det.bot !== undefined) checks.push({ k: 'CreepJS Bot', v: det.bot ? 'Có' : 'Không', bad: !!det.bot });
+  if (det.totalLied !== undefined) checks.push({ k: 'Tổng giả mạo', v: det.totalLied, bad: det.totalLied > 0 });
+  if (det.liedSections?.length) checks.push({ k: 'Mục giả mạo', v: det.liedSections.join(', '), bad: true });
+  if (det.webdriver) checks.push({ k: 'Webdriver', v: 'Phát hiện', bad: true });
+  if (det.selenium) checks.push({ k: 'Selenium', v: 'Phát hiện', bad: true });
+  if (det.cdc) checks.push({ k: 'CDP', v: 'Phát hiện', bad: true });
+  if (det.pluginCount !== undefined) checks.push({ k: 'Plugins', v: det.pluginCount, bad: det.pluginCount === 0 && !mobile });
+  if (det.count !== undefined) checks.push({ k: 'Request count', v: det.count, bad: det.count > 30 });
+  if (det.mobileToleranceApplied) checks.push({ k: 'Mobile tolerance', v: 'Áp dụng', bad: false });
+
+  // Task info if available
+  const taskInfo = [];
+  if (det.taskId) taskInfo.push(['Task ID', `#${det.taskId}`]);
+  if (det.campaignId) taskInfo.push(['Campaign', `#${det.campaignId}`]);
+  if (det.workerId) taskInfo.push(['Worker', `#${det.workerId}`]);
+  if (det.earning) taskInfo.push(['Earning', money(det.earning)]);
+  if (det.timeOnSite) taskInfo.push(['Time on site', `${det.timeOnSite}s`]);
+  if (det.ipCountry) taskInfo.push(['Quốc gia', det.ipCountry]);
+
+  // Behavioral assessments
+  const assessments = det.assessments || det.behavioral?.assessments || [];
+  const grouped = {};
+  assessments.forEach(a => { if (!grouped[a.cat]) grouped[a.cat] = []; grouped[a.cat].push(a); });
+  const catNames = { interaction: 'Tương tác', mouse: 'Chuột', touch: 'Touch', scroll: 'Cuộn trang', click: 'Click', tap: 'Tap', device: 'Thiết bị' };
+
+  // Detection log
+  const dl = det.detectionLog || [];
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className={`px-5 py-4 rounded-t-2xl flex items-center justify-between ${blocked ? 'bg-red-50' : 'bg-amber-50'}`}>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-black text-slate-800">Cảnh báo #{ev.id}</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${blocked ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                {REASON_VI[ev.reason] || ev.reason}
+              </span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+                {ev.source === 'widget' ? 'Script' : ev.source === 'vuotlink' ? 'Vượt link' : ev.source}
+              </span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${mobile ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-600'}`}>
+                {mobile ? 'Mobile' : 'Desktop'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">{fmt(ev.created_at)} · {ev.ip_address}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/60"><X size={16} className="text-slate-500" /></button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-4 text-xs">
+          {/* Basic info */}
+          <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
+            {[
+              ['IP', ev.ip_address || '—', true],
+              ['Visitor ID', ev.visitor_id || '—', true],
+              ['Source', ev.source],
+              ['Reason', REASON_VI[ev.reason] || ev.reason],
+            ].map(([k, v, copyable]) => (
+              <div key={k} className="flex justify-between gap-2 items-center">
+                <span className="text-slate-400 shrink-0">{k}</span>
+                <div className="flex items-center gap-1 min-w-0 max-w-[65%]">
+                  <span className="font-semibold text-slate-700 text-right truncate">{v || '—'}</span>
+                  {copyable && v && v !== '—' && (
+                    <button onClick={() => navigator.clipboard.writeText(v)}
+                      className="p-0.5 rounded hover:bg-slate-200 transition shrink-0" title="Sao chép">
+                      <Copy size={11} className="text-slate-400" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* User Agent */}
+          {ev.user_agent && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">User Agent</p>
+              <div className="bg-slate-50 rounded-xl p-2.5 font-mono text-[10px] text-slate-600 break-all leading-relaxed">
+                {ev.user_agent}
+              </div>
+            </div>
+          )}
+
+          {/* Task info (if linked) */}
+          {taskInfo.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Task liên quan</p>
+              <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
+                {taskInfo.map(([k, v]) => (
+                  <div key={k} className="flex justify-between gap-2">
+                    <span className="text-slate-400">{k}</span>
+                    <span className="font-semibold text-slate-700">{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Detection log */}
+          {dl.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Detection Log</p>
+              <div className="flex flex-wrap gap-1">
+                {dl.map((d, i) => <span key={i} className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700">{d}</span>)}
+              </div>
+            </div>
+          )}
+
+          {/* Browser checks */}
+          {checks.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Kiểm tra trình duyệt</p>
+              <div className="space-y-1">
+                {checks.map((c, i) => (
+                  <div key={i} className={`flex justify-between px-3 py-1.5 rounded-lg ${c.bad ? 'bg-red-50' : 'bg-slate-50'}`}>
+                    <span className={c.bad ? 'text-red-700 font-medium' : 'text-slate-600'}>{c.k}</span>
+                    <span className={`font-bold ${c.bad ? 'text-red-800' : 'text-slate-800'}`}>{String(c.v)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Behavior assessments */}
+          {Object.keys(grouped).length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Phân tích hành vi</p>
+              {Object.entries(grouped).map(([cat, items]) => (
+                <div key={cat} className="mb-2">
+                  <p className="text-[11px] font-bold text-slate-600 mb-0.5">{catNames[cat] || cat}</p>
+                  {items.map((a, i) => (
+                    <div key={i} className={`px-3 py-1 rounded-lg text-[10px] mb-0.5 ${a.flagged ? 'bg-red-50 text-red-700' : 'bg-emerald-50/50 text-emerald-700'}`}>
+                      <span className="font-semibold">{a.note}</span>
+                      <span className="text-slate-400 ml-1">({String(a.value)})</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Lied sections detail */}
+          {(det.liedSections || []).length > 0 && !checks.some(c => c.k === 'Mục giả mạo') && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Mục giả mạo</p>
+              <div className="flex flex-wrap gap-1">
+                {det.liedSections.map((s, i) => <span key={i} className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-600">{s}</span>)}
+              </div>
+            </div>
+          )}
+
+          {/* Probe warnings */}
+          {(det.probeWarnings || []).length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Probe Warnings</p>
+              <div className="flex flex-wrap gap-1">
+                {det.probeWarnings.map((w, i) => <span key={i} className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600">{w}</span>)}
+              </div>
+            </div>
+          )}
+
+          {!checks.length && !Object.keys(grouped).length && !dl.length && taskInfo.length === 0 && (
+            <p className="text-center text-slate-400 py-6">Chưa có dữ liệu chi tiết</p>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t">
+          <button onClick={onClose} className="w-full py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg">Đóng</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Pagination ─── */
 function Pager({ page, total, limit, onChange }) {
   const pages = Math.ceil(total / limit) || 1;
@@ -185,10 +372,13 @@ function Pager({ page, total, limit, onChange }) {
 function UserDetail({ user: u, onBack }) {
   const [tab, setTab] = useState('tasks');
   const [tasks, setTasks] = useState([]); const [taskTotal, setTaskTotal] = useState(0);
-  const [events, setEvents] = useState([]); const [eventsLoaded, setEventsLoaded] = useState(false);
+  const [events, setEvents] = useState([]); const [eventTotal, setEventTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [eventsLoading, setEventsLoading] = useState(false);
   const [taskPage, setTaskPage] = useState(1);
+  const [eventPage, setEventPage] = useState(1);
   const [modal, setModal] = useState(null);
+  const [eventModal, setEventModal] = useState(null);
   const LIMIT = 50;
 
   // Load tasks
@@ -200,14 +390,16 @@ function UserDetail({ user: u, onBack }) {
       .finally(() => setLoading(false));
   }, [u.id, taskPage]);
 
-  // Load events on tab switch
+  // Load events on tab switch or page change
   useEffect(() => {
-    if (tab === 'events' && !eventsLoaded) {
-      api.get(`/admin/security/user/${u.id}/events`)
-        .then(d => { setEvents(d.events || []); setEventsLoaded(true); })
-        .catch(console.error);
+    if (tab === 'events') {
+      setEventsLoading(true);
+      api.get(`/admin/security/user/${u.id}/events?page=${eventPage}&limit=${LIMIT}`)
+        .then(d => { setEvents(d.events || []); setEventTotal(d.total || 0); })
+        .catch(console.error)
+        .finally(() => setEventsLoading(false));
     }
-  }, [tab, u.id, eventsLoaded]);
+  }, [tab, u.id, eventPage]);
 
   const [banned, setBanned] = useState(u.status === 'banned');
 
@@ -276,7 +468,7 @@ function UserDetail({ user: u, onBack }) {
 
       {/* Tabs */}
       <div className="flex gap-2">
-        {[['tasks', `Tasks (${taskTotal})`], ['events', `Cảnh báo (${u.events})`]].map(([k, l]) => (
+        {[['tasks', `Tasks (${taskTotal})`], ['events', `Cảnh báo (${eventTotal || u.events})`]].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition ${tab === k ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
           >{l}</button>
@@ -341,48 +533,71 @@ function UserDetail({ user: u, onBack }) {
       {/* Events Tab */}
       {tab === 'events' && (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          {!eventsLoaded ? (
-            <p className="text-center py-10 text-slate-400 text-xs">Đang tải...</p>
-          ) : events.length === 0 ? (
-            <p className="text-center py-10 text-slate-400 text-xs">Không có cảnh báo</p>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {events.map(ev => {
-                let det = {};
-                try { det = JSON.parse(ev.details || '{}'); } catch {}
-                const blocked = ['creep_detected','automation_probes','mouse_bot','bot_ua','bot_behavior'].includes(ev.reason);
-                const mob = isMobileUA(ev.user_agent);
-                return (
-                  <div key={ev.id} className={`px-4 py-3 ${blocked ? 'bg-red-50/30' : ''}`}>
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${blocked ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {['Thời gian','Loại','Nguồn','Thiết bị','IP','Visitor ID','Chi tiết',''].map(h => (
+                    <th key={h} className="text-left px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px]">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {eventsLoading ? (
+                  <tr><td colSpan={8} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
+                ) : events.length === 0 ? (
+                  <tr><td colSpan={8} className="text-center py-10 text-slate-400">Không có cảnh báo</td></tr>
+                ) : events.map(ev => {
+                  let det = {};
+                  try { det = JSON.parse(ev.details || '{}'); } catch {}
+                  const isBlocked = ['creep_detected','automation_probes','mouse_bot','bot_ua','bot_behavior','ip_rate_limit'].includes(ev.reason);
+                  const mob = isMobileUA(ev.user_agent);
+                  const hasDetail = det.totalLied > 0 || det.liedSections?.length || det.probeWarnings?.length || det.taskId || det.assessments?.length;
+                  return (
+                    <tr key={ev.id} className={`border-b border-slate-100 hover:bg-slate-50/50 ${isBlocked ? 'bg-red-50/20' : ''}`}>
+                      <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{fmt(ev.created_at)}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isBlocked ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                           {REASON_VI[ev.reason] || ev.reason}
                         </span>
+                      </td>
+                      <td className="px-3 py-2.5">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                          {ev.source === 'widget' ? 'Script' : ev.source === 'vuotlink' ? 'Vượt link' : ev.source}
+                          {ev.source === 'widget' ? 'Script' : ev.source === 'vuotlink' ? 'VL' : ev.source}
                         </span>
-                        <span className="text-[10px]">{mob ? 'Mobile' : 'Desktop'}</span>
-                        <span className="font-mono text-[10px] text-slate-400">{ev.ip_address}</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400">{fmt(ev.created_at)}</span>
-                    </div>
-                    {(det.totalLied > 0 || det.liedSections?.length || det.probeWarnings?.length) && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {det.totalLied > 0 && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600">Lied: {det.totalLied}</span>}
-                        {(det.liedSections || []).map((s, i) => <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600">{s}</span>)}
-                        {(det.probeWarnings || []).map((w, i) => <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-600">{w}</span>)}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${mob ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-600'}`}>
+                          {mob ? 'Mobile' : 'Desktop'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 font-mono text-slate-600 text-[10px]">{ev.ip_address}</td>
+                      <td className="px-3 py-2.5 font-mono text-slate-500 text-[10px] max-w-[80px] truncate">{ev.visitor_id ? ev.visitor_id.substring(0, 12) + '...' : '—'}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-wrap gap-0.5">
+                          {det.totalLied > 0 && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600">Lied:{det.totalLied}</span>}
+                          {(det.liedSections || []).slice(0, 2).map((s, i) => <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600">{s}</span>)}
+                          {det.count > 0 && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-600">x{det.count}</span>}
+                          {!hasDetail && <span className="text-slate-300">—</span>}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <button onClick={() => setEventModal(ev)} className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-[10px] font-bold">
+                          <Eye size={11} className="inline mr-0.5" />Xem
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <Pager page={eventPage} total={eventTotal} limit={LIMIT} onChange={setEventPage} />
         </div>
       )}
 
       {modal && <TaskModal task={modal} onClose={() => setModal(null)} />}
+      {eventModal && <EventModal event={eventModal} onClose={() => setEventModal(null)} />}
     </div>
   );
 }
