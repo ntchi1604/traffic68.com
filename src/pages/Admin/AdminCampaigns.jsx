@@ -13,7 +13,7 @@ const STATUS_MAP = {
 
 const parseJsonArray = (val) => {
   if (!val) return [''];
-  try { const a = JSON.parse(val); if (Array.isArray(a)) return a.length ? a : ['']; } catch {}
+  try { const a = JSON.parse(val); if (Array.isArray(a)) return a.length ? a : ['']; } catch { }
   return [val];
 };
 
@@ -113,7 +113,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <div className="space-y-2">
               {keywords.map((kw, i) => (
                 <div key={i} className="flex gap-2">
-                  <input type="text" value={kw} onChange={e => updateItem(setKeywords, i, e.target.value)} placeholder={`Từ khóa ${i+1}`} className={inputCls} />
+                  <input type="text" value={kw} onChange={e => updateItem(setKeywords, i, e.target.value)} placeholder={`Từ khóa ${i + 1}`} className={inputCls} />
                   {keywords.length > 1 && <button onClick={() => removeItem(setKeywords, i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"><Trash2 size={16} /></button>}
                 </div>
               ))}
@@ -127,7 +127,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <div className="space-y-2">
               {urls.map((u, i) => (
                 <div key={i} className="flex gap-2">
-                  <input type="url" value={u} onChange={e => updateItem(setUrls, i, e.target.value)} placeholder={i === 0 ? 'URL chính' : `URL ${i+1}`} className={inputCls} />
+                  <input type="url" value={u} onChange={e => updateItem(setUrls, i, e.target.value)} placeholder={i === 0 ? 'URL chính' : `URL ${i + 1}`} className={inputCls} />
                   {urls.length > 1 && <button onClick={() => removeItem(setUrls, i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"><Trash2 size={16} /></button>}
                 </div>
               ))}
@@ -141,7 +141,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <div className="space-y-3">
               {imageUrls.map((img, i) => (
                 <div key={i}>
-                  {img && <img src={img} alt="" className="w-full h-28 object-cover rounded-xl border border-slate-200 mb-1.5" onError={e => e.target.style.display='none'} />}
+                  {img && <img src={img} alt="" className="w-full h-28 object-cover rounded-xl border border-slate-200 mb-1.5" onError={e => e.target.style.display = 'none'} />}
                   <div className="flex gap-2">
                     <label className="flex-1 flex items-center gap-2 border border-dashed border-slate-300 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition group">
                       <Upload size={14} className={`text-slate-400 group-hover:text-blue-500 ${uploadingIdx === i ? 'animate-spin' : ''}`} />
@@ -166,12 +166,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Version</label>
             <select value={version} onChange={e => setVersion(Number(e.target.value))} className={inputCls}>
-              <option value={0}>V0 — Mac dinh (1 buoc countdown)</option>
-              <option value={1}>V1 — Multi-step (thêm buoc truy cap link noi bo)</option>
+              <option value={0}>Version 1 — 2 Step</option>
+              <option value={1}>Version 2 — 1 Step</option>
             </select>
-            {version === 1 && (
-              <p className="text-xs text-amber-600 mt-1">V1: Sau countdown lan 1 → worker truy cap link noi bo → click nut → cho 20-35s → lay code</p>
-            )}
           </div>
         </div>
 
