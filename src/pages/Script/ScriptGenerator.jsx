@@ -124,12 +124,29 @@ function LivePreview({ cfg, countdown, revealed }) {
   );
 
   const btn = (
-    <div className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:scale-105 transition-transform" style={btnStyle}>
+    <div className="cursor-pointer hover:scale-105 transition-transform" style={{
+      ...btnStyle,
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 7,
+      padding: '8px 16px',
+      border: 'none',
+      whiteSpace: 'nowrap',
+      width: 'fit-content',
+      letterSpacing: '0.01em',
+    }}>
       {iconEl}
-      <span>{cfg.buttonText}</span>
+      <span style={{ flexShrink: 0 }}>{cfg.buttonText}</span>
       {!revealed && (
-        <span className="text-xs font-black px-1.5 py-0.5 rounded-full"
-          style={{ background: 'rgba(255,255,255,0.28)', minWidth: 24, textAlign: 'center' }}>
+        <span style={{
+          background: 'rgba(255,255,255,0.28)',
+          borderRadius: 20,
+          padding: '1px 7px',
+          fontSize: 10,
+          fontWeight: 800,
+          textAlign: 'center',
+          flexShrink: 0,
+        }}>
           {countdown}
         </span>
       )}

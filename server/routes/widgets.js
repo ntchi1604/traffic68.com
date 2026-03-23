@@ -63,7 +63,7 @@ const JS_DEFAULTS = {
   insertTarget: '', insertMode: 'after', insertId: 'API_SEO_TRAFFIC68',
   insertStyle: '', align: 'center', padX: 0, padY: 12,
   buttonText: 'Lấy Mã', buttonColor: '#f97316', textColor: '#ffffff',
-  borderRadius: 50, fontSize: 15, shadow: true,
+  borderRadius: 20, fontSize: 13, shadow: true,
   iconUrl: '', iconBg: 'rgba(255,255,255,0.92)', iconSize: 22,
   theme: 'default', waitTime: 30,
   title: 'Mã của bạn! 🎉', message: 'Sao chép mã bên dưới để sử dụng.',
@@ -153,7 +153,6 @@ router.get('/public/:token', async (req, res) => {
     if (settings.length > 0 && settings[0].setting_value === 'false') captchaEnabled = false;
   } catch (e) { }
 
-  // Admin workers: auto-disable captcha for their widgets
   if (captchaEnabled) {
     try {
       const [ownerRows] = await pool.execute('SELECT role FROM users WHERE id = ?', [widgets[0].user_id]);
@@ -242,6 +241,14 @@ router.post('/public/:token/check-session', async (req, res) => {
       return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.', requireGoogle: true });
     }
   }
+
+  // ── Reload = reset phiên làm việc (giữ task, tính lại thời gian) ──
+  try {
+    await pool.execute(
+      `UPDATE vuot_link_tasks SET created_at = NOW(), expires_at = DATE_ADD(NOW(), INTERVAL 600 SECOND) WHERE id = ?`,
+      [task.id]
+    );
+  } catch (e) { }
 
   res.json({ hasSession: true });
 });
