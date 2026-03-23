@@ -337,12 +337,13 @@
 
     var css = [
       /* Button — base (position set dynamically) */
-      '#laynut-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 20px;border:none;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-weight:700;letter-spacing:0.01em;transition:transform .15s ease,box-shadow .15s ease,opacity .3s ease;user-select:none;white-space:nowrap;overflow:hidden;animation:ln-pop .4s cubic-bezier(.34,1.56,.64,1) both;}',
+      '#laynut-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 20px;border:none;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-weight:700;letter-spacing:0.01em;transition:transform .15s ease,box-shadow .15s ease,opacity .3s ease;user-select:none;white-space:nowrap;animation:ln-pop .4s cubic-bezier(.34,1.56,.64,1) both;}',
       '#laynut-btn:hover{transform:translateY(-2px) scale(1.03);}',
       '#laynut-btn:active{transform:scale(0.97);}',
       '#laynut-btn .ln-icon-img{object-fit:contain;display:block;flex-shrink:0;}',
       '#laynut-btn .ln-icon-em{font-style:normal;line-height:1;}',
-      '#laynut-btn .ln-badge{background:rgba(255,255,255,0.28);border-radius:20px;padding:1px 8px;font-size:12px;font-weight:800;min-width:26px;text-align:center;}',
+      '#laynut-btn .ln-label{flex-shrink:0;}',
+      '#laynut-btn .ln-badge{background:rgba(255,255,255,0.28);border-radius:20px;padding:1px 8px;font-size:12px;font-weight:800;min-width:26px;text-align:center;flex-shrink:0;}',
       /* Inline wrapper (used when target is set) */
       '#laynut-wrap{position:absolute;z-index:9999;pointer-events:none;}',
       '#laynut-wrap #laynut-btn{pointer-events:all;}',
@@ -997,7 +998,6 @@
         return;
       }
 
-      // Countdown done!
       if (remaining <= 0) {
         if (badge) badge.remove();
         challengeTimes = [];
