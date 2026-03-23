@@ -603,136 +603,136 @@ export default function VuotLink() {
                     {/* RIGHT: Cards */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-                        {isDirect ? (
-                            <>
-                                {/* ── DIRECT: CARD 1: Truy cập URL ── */}
-                                <StepPanel n={1} title="TRUY CẬP TRANG WEB" desc="Mở link bên dưới và ở lại trang ít nhất vài phút." verified={verified}>
-                                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', border: '1.5px dashed #3b82f6', borderRadius: '10px', padding: '12px 16px', width: '100%', maxWidth: '400px' }}>
-                                            <Globe size={16} style={{ color: '#3b82f6', flexShrink: 0 }} />
-                                            <span style={{ flex: 1, color: '#1d4ed8', fontSize: 'clamp(12px,2.5vw,14px)', fontWeight: 700, wordBreak: 'break-all' }}>{targetUrl}</span>
-                                            <CopyBtn keyword={targetUrl} />
-                                        </div>
-                                        <a href={targetUrl} target="_blank" rel="noopener noreferrer"
-                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', textDecoration: 'none', padding: '11px 28px', borderRadius: '10px', fontSize: '14px', fontWeight: 700, boxShadow: '0 4px 16px rgba(59,130,246,0.35)' }}>
-                                            <ExternalLink size={15} /> Mở trang web
-                                        </a>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                                            {['Copy hoặc nhấn nút mở trang web', 'Ở lại trang và tương tác tự nhiên', 'Tìm nút lấy mã trên trang → lấy mã', 'Quay lại đây nhập mã xác nhận'].map((t, i) => (
-                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(59,130,246,0.06)', borderRadius: '8px', padding: '8px 12px' }}>
-                                                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>{i + 1}</span>
-                                                    </div>
-                                                    <span style={{ color: '#374151', fontSize: '13px' }}>{t}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </StepPanel>
-                            </>
-                        ) : (
-                            <>
-                                {/* ── CARD 1: Mở Google ── */}
-                                <StepPanel n={1} title="MỞ GOOGLE" desc="Mở trình duyệt và truy cập trang chủ Google." verified={verified}>
-                                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-                                        {/* Browser mock */}
-                                        <div style={{ width: '100%', maxWidth: '360px', background: '#fff', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0' }}>
-                                            <div style={{ background: '#f1f5f9', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #e2e8f0' }}>
-                                                <div style={{ display: 'flex', gap: '5px' }}>
-                                                    {['#ef4444', '#f59e0b', '#22c55e'].map(c => <div key={c} style={{ width: '10px', height: '10px', borderRadius: '50%', background: c }} />)}
-                                                </div>
-                                                <div style={{ flex: 1, background: '#fff', borderRadius: '6px', padding: '4px 10px', fontSize: '12px', color: '#3b82f6', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                    <Globe size={12} style={{ color: '#3b82f6' }} /> google.com
-                                                </div>
+                        {/* ── Google Search cards (only when NOT direct) ── */}
+                        {!isDirect && (
+                            <StepPanel n={1} title="MỞ GOOGLE" desc="Mở trình duyệt và truy cập trang chủ Google." verified={verified}>
+                                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                                    <div style={{ width: '100%', maxWidth: '360px', background: '#fff', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0' }}>
+                                        <div style={{ background: '#f1f5f9', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #e2e8f0' }}>
+                                            <div style={{ display: 'flex', gap: '5px' }}>
+                                                {['#ef4444', '#f59e0b', '#22c55e'].map(c => <div key={c} style={{ width: '10px', height: '10px', borderRadius: '50%', background: c }} />)}
                                             </div>
-                                            <div style={{ padding: '32px 16px', textAlign: 'center' }}>
-                                                <div style={{ fontSize: '32px', fontWeight: 900, letterSpacing: '-1px' }}>
-                                                    <span style={{ color: '#4285f4' }}>G</span><span style={{ color: '#ea4335' }}>o</span><span style={{ color: '#fbbc04' }}>o</span><span style={{ color: '#4285f4' }}>g</span><span style={{ color: '#34a853' }}>l</span><span style={{ color: '#ea4335' }}>e</span>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', margin: '16px auto 0', maxWidth: '300px', background: '#fff', border: '1px solid #ddd', borderRadius: '24px', padding: '8px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-                                                    <Search size={16} style={{ color: '#94a3b8', marginRight: '8px' }} />
-                                                    <span style={{ color: '#94a3b8', fontSize: '14px' }}>Tìm kiếm...</span>
-                                                </div>
+                                            <div style={{ flex: 1, background: '#fff', borderRadius: '6px', padding: '4px 10px', fontSize: '12px', color: '#3b82f6', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <Globe size={12} style={{ color: '#3b82f6' }} /> google.com
                                             </div>
                                         </div>
-                                        <a href="https://www.google.com" target="_blank" rel="noopener noreferrer"
-                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', textDecoration: 'none', padding: '11px 28px', borderRadius: '10px', fontSize: '14px', fontWeight: 700, boxShadow: '0 4px 16px rgba(59,130,246,0.35)' }}>
-                                            <ExternalLink size={15} /> Mở Google
-                                        </a>
-                                    </div>
-                                </StepPanel>
-
-                                {/* ── CARD 2: Nhập từ khóa ── */}
-                                <StepPanel n={2} title="NHẬP TỪ KHÓA" desc="Tìm kiếm từ khóa bên dưới trên Google." verified={verified}>
-                                    <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '14px', padding: '20px' }}>
-                                        <p style={{ color: '#92400e', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', margin: '0 0 10px' }}>Từ khóa tìm kiếm</p>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', border: '1.5px dashed #fb923c', borderRadius: '10px', padding: '12px 16px', marginBottom: '14px' }}>
-                                            <Search size={16} style={{ color: '#f97316', flexShrink: 0 }} />
-                                            <span style={{ flex: 1, color: '#ea580c', fontSize: 'clamp(13px,2.5vw,16px)', fontWeight: 700 }}>{keyword || 'traffic user giá rẻ traffic68'}</span>
-                                            <CopyBtn keyword={keyword} />
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            {['Copy từ khóa bên trên', 'Dán vào ô tìm kiếm Google', 'Nhấn Enter để tìm kiếm'].map((t, i) => (
-                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(249,115,22,0.06)', borderRadius: '8px', padding: '8px 12px' }}>
-                                                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>{i + 1}</span>
-                                                    </div>
-                                                    <span style={{ color: '#374151', fontSize: '13px' }}>{t}</span>
-                                                </div>
-                                            ))}
+                                        <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+                                            <div style={{ fontSize: '32px', fontWeight: 900, letterSpacing: '-1px' }}>
+                                                <span style={{ color: '#4285f4' }}>G</span><span style={{ color: '#ea4335' }}>o</span><span style={{ color: '#fbbc04' }}>o</span><span style={{ color: '#4285f4' }}>g</span><span style={{ color: '#34a853' }}>l</span><span style={{ color: '#ea4335' }}>e</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', margin: '16px auto 0', maxWidth: '300px', background: '#fff', border: '1px solid #ddd', borderRadius: '24px', padding: '8px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                                                <Search size={16} style={{ color: '#94a3b8', marginRight: '8px' }} />
+                                                <span style={{ color: '#94a3b8', fontSize: '14px' }}>Tìm kiếm...</span>
+                                            </div>
                                         </div>
                                     </div>
-                                </StepPanel>
+                                    <a href="https://www.google.com" target="_blank" rel="noopener noreferrer"
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', textDecoration: 'none', padding: '11px 28px', borderRadius: '10px', fontSize: '14px', fontWeight: 700, boxShadow: '0 4px 16px rgba(59,130,246,0.35)' }}>
+                                        <ExternalLink size={15} /> Mở Google
+                                    </a>
+                                </div>
+                            </StepPanel>
+                        )}
 
-                                {/* ── CARD 3: Tìm trang đích ── */}
-                                <StepPanel n={3} title="TÌM TRANG ĐÍCH" desc="Tìm trang đích trong kết quả tìm kiếm Google và click vào." verified={verified}>
-                                    {(campaignImage || campaignImage2) && (
-                                        <div style={{ marginBottom: '16px' }}>
-                                            {hasMultiSite ? (
-                                                <>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px' }}>
-                                                        <span style={{ fontSize: '16px' }}>&#x1F4A1;</span>
-                                                        <p style={{ margin: 0, color: '#1d4ed8', fontSize: '13px', fontWeight: 700 }}>
-                                                            Bạn có thể truy cập <strong>1 trong 2 trang web</strong> bất kỳ dưới đây để hoàn thành nhiệm vụ.
-                                                        </p>
-                                                    </div>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                                        {[{ img: campaignImage, label: 'Trang web 1' }, { img: campaignImage2, label: 'Trang web 2' }].map(({ img, label }, idx) => img ? (
-                                                            <div key={idx}>
-                                                                <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 6px' }}>
-                                                                    🎯 {label}
-                                                                </p>
-                                                                <div style={{ borderRadius: '12px', overflow: 'hidden', border: '2px solid #e0e7ff', boxShadow: '0 4px 16px rgba(99,102,241,0.1)' }}>
-                                                                    <img src={img} alt={label} style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
-                                                                </div>
-                                                            </div>
-                                                        ) : null)}
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px' }}>
-                                                        🎯 Trang đích cần tìm — giao diện trông giống như hình bên dưới:
-                                                    </p>
-                                                    <div style={{ borderRadius: '14px', overflow: 'hidden', border: '2px solid #e0e7ff', boxShadow: '0 4px 20px rgba(99,102,241,0.12)' }}>
-                                                        <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
-                                    <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '14px', padding: '14px' }}>
-                                        {['Cuộn tìm trong kết quả Google', hasMultiSite ? 'Tìm trang có giao diện giống 1 trong 2 hình trên' : 'Tìm trang có giao diện giống hình trên', 'Click vào kết quả để truy cập trang'].map((t, i) => (
-                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(139,92,246,0.06)', borderRadius: '8px', padding: '8px 12px', marginBottom: i < 2 ? '6px' : 0 }}>
-                                                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {!isDirect && (
+                            <StepPanel n={2} title="NHẬP TỪ KHÓA" desc="Tìm kiếm từ khóa bên dưới trên Google." verified={verified}>
+                                <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '14px', padding: '20px' }}>
+                                    <p style={{ color: '#92400e', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', margin: '0 0 10px' }}>Từ khóa tìm kiếm</p>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', border: '1.5px dashed #fb923c', borderRadius: '10px', padding: '12px 16px', marginBottom: '14px' }}>
+                                        <Search size={16} style={{ color: '#f97316', flexShrink: 0 }} />
+                                        <span style={{ flex: 1, color: '#ea580c', fontSize: 'clamp(13px,2.5vw,16px)', fontWeight: 700 }}>{keyword || 'traffic user giá rẻ traffic68'}</span>
+                                        <CopyBtn keyword={keyword} />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {['Copy từ khóa bên trên', 'Dán vào ô tìm kiếm Google', 'Nhấn Enter để tìm kiếm'].map((t, i) => (
+                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(249,115,22,0.06)', borderRadius: '8px', padding: '8px 12px' }}>
+                                                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                                     <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>{i + 1}</span>
                                                 </div>
                                                 <span style={{ color: '#374151', fontSize: '13px' }}>{t}</span>
                                             </div>
                                         ))}
                                     </div>
-                                </StepPanel>
-                            </>)}
+                                </div>
+                            </StepPanel>
+                        )}
+
+                        {!isDirect && (
+                            <StepPanel n={3} title="TÌM TRANG ĐÍCH" desc="Tìm trang đích trong kết quả tìm kiếm Google và click vào." verified={verified}>
+                                {(campaignImage || campaignImage2) && (
+                                    <div style={{ marginBottom: '16px' }}>
+                                        {hasMultiSite ? (
+                                            <>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px' }}>
+                                                    <span style={{ fontSize: '16px' }}>&#x1F4A1;</span>
+                                                    <p style={{ margin: 0, color: '#1d4ed8', fontSize: '13px', fontWeight: 700 }}>
+                                                        Bạn có thể truy cập <strong>1 trong 2 trang web</strong> bất kỳ dưới đây để hoàn thành nhiệm vụ.
+                                                    </p>
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                    {[{ img: campaignImage, label: 'Trang web 1' }, { img: campaignImage2, label: 'Trang web 2' }].map(({ img, label }, idx) => img ? (
+                                                        <div key={idx}>
+                                                            <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 6px' }}>
+                                                                🎯 {label}
+                                                            </p>
+                                                            <div style={{ borderRadius: '12px', overflow: 'hidden', border: '2px solid #e0e7ff', boxShadow: '0 4px 16px rgba(99,102,241,0.1)' }}>
+                                                                <img src={img} alt={label} style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
+                                                            </div>
+                                                        </div>
+                                                    ) : null)}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px' }}>
+                                                    🎯 Trang đích cần tìm — giao diện trông giống như hình bên dưới:
+                                                </p>
+                                                <div style={{ borderRadius: '14px', overflow: 'hidden', border: '2px solid #e0e7ff', boxShadow: '0 4px 20px rgba(99,102,241,0.12)' }}>
+                                                    <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                                <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '14px', padding: '14px' }}>
+                                    {['Cuộn tìm trong kết quả Google', hasMultiSite ? 'Tìm trang có giao diện giống 1 trong 2 hình trên' : 'Tìm trang có giao diện giống hình trên', 'Click vào kết quả để truy cập trang'].map((t, i) => (
+                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(139,92,246,0.06)', borderRadius: '8px', padding: '8px 12px', marginBottom: i < 2 ? '6px' : 0 }}>
+                                            <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>{i + 1}</span>
+                                            </div>
+                                            <span style={{ color: '#374151', fontSize: '13px' }}>{t}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </StepPanel>
+                        )}
+
+                        {/* ── Direct traffic card (only when direct) ── */}
+                        {isDirect && (
+                            <StepPanel n={1} title="TRUY CẬP TRANG WEB" desc="Mở link bên dưới và ở lại trang ít nhất vài phút." verified={verified}>
+                                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', border: '1.5px dashed #3b82f6', borderRadius: '10px', padding: '12px 16px', width: '100%', maxWidth: '400px' }}>
+                                        <Globe size={16} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                                        <span style={{ flex: 1, color: '#1d4ed8', fontSize: 'clamp(12px,2.5vw,14px)', fontWeight: 700, wordBreak: 'break-all' }}>{targetUrl}</span>
+                                        <CopyBtn keyword={targetUrl} />
+                                    </div>
+                                    <a href={targetUrl} target="_blank" rel="noopener noreferrer"
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', textDecoration: 'none', padding: '11px 28px', borderRadius: '10px', fontSize: '14px', fontWeight: 700, boxShadow: '0 4px 16px rgba(59,130,246,0.35)' }}>
+                                        <ExternalLink size={15} /> Mở trang web
+                                    </a>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                                        {['Copy hoặc nhấn nút mở trang web', 'Ở lại trang và tương tác tự nhiên', 'Tìm nút lấy mã trên trang → lấy mã', 'Quay lại đây nhập mã xác nhận'].map((t, i) => (
+                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(59,130,246,0.06)', borderRadius: '8px', padding: '8px 12px' }}>
+                                                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                    <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>{i + 1}</span>
+                                                </div>
+                                                <span style={{ color: '#374151', fontSize: '13px' }}>{t}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </StepPanel>
+                        )}
 
                         {/* ── Shared: Xác nhận ── */}
                         <StepPanel n={isDirect ? 2 : 4} title="XÁC NHẬN" desc="Nhập mã xác nhận để hoàn tất nhiệm vụ." verified={verified}>
@@ -756,8 +756,6 @@ export default function VuotLink() {
                                 </div>
                             ) : (
                                 <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-                                    {/* ── Flow steps ── */}
                                     {(campVersion === 1 ? [
                                         {
                                             num: '1', color: '#3b82f6', label: 'Cuộn & tìm nút',
@@ -770,47 +768,20 @@ export default function VuotLink() {
                                                         color: widgetConfig?.textColor || '#fff',
                                                         borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
                                                         fontSize: `${widgetConfig?.fontSize || 15}px`,
-                                                        fontWeight: 700,
-                                                        padding: '8px 16px',
+                                                        fontWeight: 700, padding: '8px 16px',
                                                         boxShadow: `0 4px 16px ${(widgetConfig?.buttonColor || '#f97316')}55`,
                                                         userSelect: 'none', whiteSpace: 'nowrap', cursor: 'default',
                                                     }}>
-                                                        <img
-                                                            src={widgetConfig?.iconUrl || 'https://traffic68.com/lg.png'}
-                                                            width={widgetConfig?.iconSize ?? 22}
-                                                            height={widgetConfig?.iconSize ?? 22}
-                                                            alt=""
-                                                            style={{
-                                                                background: widgetConfig?.iconBg ?? 'rgba(255,255,255,0.92)',
-                                                                borderRadius: 6,
-                                                                padding: 2,
-                                                                objectFit: 'contain',
-                                                                flexShrink: 0,
-                                                                display: 'block',
-                                                            }}
-                                                            onError={e => { e.target.src = 'https://traffic68.com/lg.png'; }}
-                                                        />
+                                                        <img src={widgetConfig?.iconUrl || 'https://traffic68.com/lg.png'} width={widgetConfig?.iconSize ?? 22} height={widgetConfig?.iconSize ?? 22} alt=""
+                                                            style={{ background: widgetConfig?.iconBg ?? 'rgba(255,255,255,0.92)', borderRadius: 6, padding: 2, objectFit: 'contain', flexShrink: 0, display: 'block' }}
+                                                            onError={e => { e.target.src = 'https://traffic68.com/lg.png'; }} />
                                                         {widgetConfig?.buttonText || 'Lấy Mã'}
                                                     </div>
                                                 </div>
                                             ),
                                         },
-                                        {
-                                            num: '2', color: '#f97316', label: 'Chờ đếm ngược lần 1 → bấm nút',
-                                            content: (
-                                                <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                                                    Chờ đếm ngược hoàn tất. Popup sẽ hiện ra yêu cầu truy cập 1 trang nội bộ.
-                                                </p>
-                                            ),
-                                        },
-                                        {
-                                            num: '3', color: '#7c3aed', label: 'Truy cập link nội bộ → chờ lần 2 → lấy mã',
-                                            content: (
-                                                <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                                                    Popup sẽ yêu cầu truy cập bất kỳ link nội bộ nào trên trang web (menu, bài viết, sidebar...). Chuyển sang trang đó, nhấn nút lấy mã, chờ thêm 20-35 giây → mã sẽ hiện. Sao chép mã rồi quay lại đây.
-                                                </p>
-                                            ),
-                                        },
+                                        { num: '2', color: '#f97316', label: 'Chờ đếm ngược lần 1 → bấm nút', content: (<p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Chờ đếm ngược hoàn tất. Popup sẽ hiện ra yêu cầu truy cập 1 trang nội bộ.</p>) },
+                                        { num: '3', color: '#7c3aed', label: 'Truy cập link nội bộ → chờ lần 2 → lấy mã', content: (<p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Popup sẽ yêu cầu truy cập bất kỳ link nội bộ nào trên trang web (menu, bài viết, sidebar...). Chuyển sang trang đó, nhấn nút lấy mã, chờ thêm 20-35 giây → mã sẽ hiện. Sao chép mã rồi quay lại đây.</p>) },
                                     ] : [
                                         {
                                             num: '1', color: '#3b82f6', label: 'Cuộn & tìm nút',
@@ -823,39 +794,19 @@ export default function VuotLink() {
                                                         color: widgetConfig?.textColor || '#fff',
                                                         borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
                                                         fontSize: `${widgetConfig?.fontSize || 15}px`,
-                                                        fontWeight: 700,
-                                                        padding: '8px 16px',
+                                                        fontWeight: 700, padding: '8px 16px',
                                                         boxShadow: `0 4px 16px ${(widgetConfig?.buttonColor || '#f97316')}55`,
                                                         userSelect: 'none', whiteSpace: 'nowrap', cursor: 'default',
                                                     }}>
-                                                        <img
-                                                            src={widgetConfig?.iconUrl || 'https://traffic68.com/lg.png'}
-                                                            width={widgetConfig?.iconSize ?? 22}
-                                                            height={widgetConfig?.iconSize ?? 22}
-                                                            alt=""
-                                                            style={{
-                                                                background: widgetConfig?.iconBg ?? 'rgba(255,255,255,0.92)',
-                                                                borderRadius: 6,
-                                                                padding: 2,
-                                                                objectFit: 'contain',
-                                                                flexShrink: 0,
-                                                                display: 'block',
-                                                            }}
-                                                            onError={e => { e.target.src = 'https://traffic68.com/lg.png'; }}
-                                                        />
+                                                        <img src={widgetConfig?.iconUrl || 'https://traffic68.com/lg.png'} width={widgetConfig?.iconSize ?? 22} height={widgetConfig?.iconSize ?? 22} alt=""
+                                                            style={{ background: widgetConfig?.iconBg ?? 'rgba(255,255,255,0.92)', borderRadius: 6, padding: 2, objectFit: 'contain', flexShrink: 0, display: 'block' }}
+                                                            onError={e => { e.target.src = 'https://traffic68.com/lg.png'; }} />
                                                         {widgetConfig?.buttonText || 'Lấy Mã'}
                                                     </div>
                                                 </div>
                                             ),
                                         },
-                                        {
-                                            num: '2', color: '#f97316', label: 'Chờ đủ thời gian → bấm nút → sao chép mã',
-                                            content: (
-                                                <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                                                    Khi nút kích hoạt, bấm vào — popup sẽ hiện mã. Sao chép mã rồi quay lại đây.
-                                                </p>
-                                            ),
-                                        },
+                                        { num: '2', color: '#f97316', label: 'Chờ đủ thời gian → bấm nút → sao chép mã', content: (<p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Khi nút kích hoạt, bấm vào — popup sẽ hiện mã. Sao chép mã rồi quay lại đây.</p>) },
                                     ]).map(({ num, color, label, content }) => (
                                         <div key={num} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                                             <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
@@ -867,11 +818,7 @@ export default function VuotLink() {
                                             </div>
                                         </div>
                                     ))}
-
-                                    {/* ── Divider ── */}
                                     <div style={{ borderTop: '1.5px dashed #bbf7d0', margin: '0' }} />
-
-                                    {/* ── Code input ── */}
                                     <div>
                                         <p style={{ color: '#16a34a', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#22c55e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#fff', fontWeight: 900, flexShrink: 0 }}>3</span>
