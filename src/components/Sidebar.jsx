@@ -62,15 +62,6 @@ export default function Sidebar({ isOpen, onClose }) {
             Tổng quan
           </NavLink>
 
-          <NavLink
-            to="/buyer/dashboard/finance/transactions"
-            className={({ isActive }) =>
-              `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`
-            }
-          >
-            <History className="w-5 h-5" />
-            Lịch sử giao dịch
-          </NavLink>
 
           {/* ── Chiến dịch ── */}
           <div className="mt-2">
@@ -140,6 +131,11 @@ export default function Sidebar({ isOpen, onClose }) {
             </button>
             {isFinanceOpen && (
               <div className="ml-2 space-y-1">
+              <NavLink to="/buyer/dashboard/finance/transactions"
+                  className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
+                  <History className="w-4 h-4" />
+                  Lịch sử giao dịch
+                </NavLink>
                 <NavLink to="/buyer/dashboard/finance/deposit"
                   className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
                   <CreditCard className="w-4 h-4" />
