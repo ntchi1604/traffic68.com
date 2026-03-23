@@ -240,13 +240,13 @@ async function _handleTaskPost(req, res) {
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
       FROM vuot_link_tasks
-      WHERE status = 'completed' AND DATE(completed_at) = CURDATE()
+      WHERE status = 'completed' AND DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))
       GROUP BY campaign_id
     ) td ON td.campaign_id = c.id
     LEFT JOIN (
       SELECT campaign_id, COUNT(*) as hour_done
       FROM vuot_link_tasks
-      WHERE status = 'completed' AND completed_at >= DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
+      WHERE status = 'completed' AND completed_at >= DATE_FORMAT(CONVERT_TZ(NOW(), '+00:00', '+07:00'), '%Y-%m-%d %H:00:00')
       GROUP BY campaign_id
     ) th ON th.campaign_id = c.id`;
 
@@ -725,16 +725,25 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
       wlParams
     );
 
-    // Total daily views across all running campaigns
+    // Remaining daily views = SUM(daily_views) - today's completed tasks
     const [remRows] = await pool.execute(
-      `SELECT COALESCE(SUM(daily_views), 0) as total_daily FROM campaigns WHERE status = 'running'`
+      `SELECT
+        COALESCE(SUM(c.daily_views), 0) as total_daily,
+        COALESCE(SUM(LEAST(COALESCE(td.done, 0), c.daily_views)), 0) as today_done
+       FROM campaigns c
+       LEFT JOIN (
+         SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks
+         WHERE status = 'completed' AND DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))
+         GROUP BY campaign_id
+       ) td ON td.campaign_id = c.id
+       WHERE c.status = 'running' AND c.daily_views > 0`
     );
 
     res.json({
       today: { tasks: todayTasks[0].cnt, earnings: Number(todayTasks[0].earn) },
       total: { tasks: totalTasks[0].cnt, earnings: Number(totalTasks[0].earn) },
       pending: pendingTasks[0].cnt,
-      totalDailyViews: Number(remRows[0].total_daily),
+      remainingDailyViews: Math.max(0, Number(remRows[0].total_daily) - Number(remRows[0].today_done)),
       balance: walletMap.earning || 0,
       chart,
       recent,
