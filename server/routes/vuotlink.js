@@ -448,12 +448,15 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   }
 
   // Code correct! → Complete task, count as 1 view
-  const [campaigns] = await pool.execute('SELECT cpc, user_id, traffic_type, time_on_site, version, name FROM campaigns WHERE id = ?', [task.campaign_id]);
+  const [campaigns] = await pool.execute('SELECT cpc, budget, total_views, user_id, traffic_type, time_on_site, version, name FROM campaigns WHERE id = ?', [task.campaign_id]);
   if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
   const campaign = campaigns[0];
 
-  // ── Buyer CPC: use campaign.cpc (already includes discount if any, calculated at campaign creation) ──
-  let buyerCpc = campaign.cpc || 0;
+  // ── Buyer CPC: derive from budget/total_views (budget already includes discount from creation) ──
+  let buyerCpc = campaign.total_views > 0
+    ? Math.round(campaign.budget / campaign.total_views)
+    : (campaign.cpc || 0);
+  console.log(`[VuotLink] buyerCpc=${buyerCpc} (budget=${campaign.budget}, total=${campaign.total_views}, cpc_col=${campaign.cpc})`);
 
   // ── Check buyer balance ──
   const [buyerWallets] = await pool.execute(
