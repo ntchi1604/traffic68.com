@@ -281,7 +281,7 @@ export default function LinkGateway() {
   });
 
   // Fetch challenge + task (reusable)
-  const fetchTask = useCallback(async (force = false) => {
+  const fetchTask = useCallback(async (force = false, excludeList = null) => {
     if (!linkInfo) return;
     const sessionKey = `gw_task_${slug}`;
 
@@ -383,7 +383,7 @@ export default function LinkGateway() {
           botDetection: botDetectionResult,
           probes: probeData,
           behavioral: getBehavioralData(),
-          excludeCampaigns: skippedCampaigns,
+          excludeCampaigns: excludeList || skippedCampaigns,
         }),
       });
 
@@ -418,23 +418,22 @@ export default function LinkGateway() {
   const [changingTask, setChangingTask] = useState(false);
   const handleChangeTask = useCallback(async () => {
     setChangingTask(true);
-    // Add current campaign to skip list
-    if (task?.campaign_id) {
-      setSkippedCampaigns(prev => {
-        const next = [...new Set([...prev, task.campaign_id])];
-        try { sessionStorage.setItem(`gw_skip_${slug}`, JSON.stringify(next)); } catch { }
-        return next;
-      });
-    }
+    // Build new skip list with current campaign
+    const newSkipList = task?.campaign_id
+      ? [...new Set([...skippedCampaigns, task.campaign_id])]
+      : skippedCampaigns;
+    setSkippedCampaigns(newSkipList);
+    try { sessionStorage.setItem(`gw_skip_${slug}`, JSON.stringify(newSkipList)); } catch { }
     setTask(null);
     setInputCode('');
     setVerified(false);
     setCompletionResult(null);
     setShowError(false);
     try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
-    await fetchTask(true);
+    // Pass exclude list directly (don't rely on state update)
+    await fetchTask(true, newSkipList);
     setChangingTask(false);
-  }, [fetchTask, slug, task]);
+  }, [fetchTask, slug, task, skippedCampaigns]);
 
   // Verify code
   const handleVerify = useCallback(async () => {
