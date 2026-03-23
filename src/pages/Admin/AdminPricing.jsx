@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Save, Edit3, X, DollarSign, Tag, Percent, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Save, DollarSign, Tag, Percent, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
@@ -15,9 +15,8 @@ export default function AdminPricing() {
   usePageTitle('Admin - Bảng giá');
   const toast = useToast();
   const [tiers, setTiers] = useState([]);
+  const [editedTiers, setEditedTiers] = useState({}); // { [id]: { v1_price, v2_price } }
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
 
   // Discount settings
@@ -34,6 +33,7 @@ export default function AdminPricing() {
       api.get('/admin/settings/site'),
     ]).then(([pricingData, settingsData]) => {
       setTiers(pricingData.tiers || []);
+      setEditedTiers({}); // reset edits on fetch
       if (settingsData.config) setConfig(c => ({ ...c, ...settingsData.config }));
     }).catch(console.error)
       .finally(() => setLoading(false));
@@ -45,44 +45,61 @@ export default function AdminPricing() {
   const discountPct = Number(config.discount_percent) || 0;
   const calcDiscount = (price) => Math.round(price * (1 - discountPct / 100));
 
-  // ── Pricing tier editing (only v1_price, v2_price) ──
-  const startEdit = (tier) => {
-    setEditingId(tier.id);
-    setEditForm({ v1_price: tier.v1_price, v2_price: tier.v2_price });
+  // Get current value (edited or original)
+  const getVal = (tier, field) => {
+    if (editedTiers[tier.id] && editedTiers[tier.id][field] !== undefined) {
+      return editedTiers[tier.id][field];
+    }
+    return tier[field];
   };
 
-  const cancelEdit = () => { setEditingId(null); setEditForm({}); };
+  // Update a single tier field
+  const updateTier = (id, field, value) => {
+    setEditedTiers(prev => ({
+      ...prev,
+      [id]: { ...prev[id], [field]: Number(value) || 0 },
+    }));
+  };
 
-  const saveEdit = async (id) => {
+  // Check if there are unsaved changes
+  const hasChanges = Object.keys(editedTiers).length > 0;
+
+  // Save all changed tiers at once
+  const saveAll = async () => {
+    const changedIds = Object.keys(editedTiers);
+    if (changedIds.length === 0) return toast.info('Không có thay đổi');
+
     setSaving(true);
     try {
-      const v1d = calcDiscount(editForm.v1_price);
-      const v2d = calcDiscount(editForm.v2_price);
-      await api.put(`/admin/pricing/${id}`, {
-        v1_price: editForm.v1_price, v1_discount: v1d,
-        v2_price: editForm.v2_price, v2_discount: v2d,
-      });
-      toast.success('Đã cập nhật giá');
-      setEditingId(null);
+      for (const id of changedIds) {
+        const tier = tiers.find(t => t.id === Number(id));
+        const v1 = editedTiers[id].v1_price ?? tier.v1_price;
+        const v2 = editedTiers[id].v2_price ?? tier.v2_price;
+        await api.put(`/admin/pricing/${id}`, {
+          v1_price: v1, v1_discount: calcDiscount(v1),
+          v2_price: v2, v2_discount: calcDiscount(v2),
+        });
+      }
+      toast.success(`Đã lưu ${changedIds.length} mục`);
       fetchData();
     } catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   };
 
-  // ── Recalc all tiers when discount % changes ──
+  // Recalc all tiers when discount % changes
   const recalcAll = async () => {
     setConfigSaving(true);
     try {
-      // Save settings first
       await api.put('/admin/settings/site', { settings: config });
-      // Recalc all tiers
       const pct = Number(config.discount_percent) || 0;
       for (const tier of tiers) {
-        const v1d = Math.round(tier.v1_price * (1 - pct / 100));
-        const v2d = Math.round(tier.v2_price * (1 - pct / 100));
+        const v1 = getVal(tier, 'v1_price');
+        const v2 = getVal(tier, 'v2_price');
+        const v1d = Math.round(v1 * (1 - pct / 100));
+        const v2d = Math.round(v2 * (1 - pct / 100));
         await api.put(`/admin/pricing/${tier.id}`, {
-          v1_price: tier.v1_price, v1_discount: v1d,
-          v2_price: tier.v2_price, v2_discount: v2d,
+          v1_price: v1, v1_discount: v1d,
+          v2_price: v2, v2_discount: v2d,
         });
       }
       toast.success('Đã cập nhật cài đặt và tính lại giá giảm');
@@ -102,10 +119,18 @@ export default function AdminPricing() {
     grouped[t.traffic_type].push(t);
   });
 
+  const inputCls = "w-28 px-2.5 py-2 text-sm font-semibold border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-center";
+
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-black text-slate-900">Quản lý bảng giá</h1>
+        {hasChanges && (
+          <button onClick={saveAll} disabled={saving}
+            className="flex items-center gap-2 px-5 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-bold rounded-xl transition disabled:opacity-50 animate-pulse">
+            <Save size={16} /> {saving ? 'Đang lưu...' : `Lưu tất cả (${Object.keys(editedTiers).length})`}
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -123,8 +148,6 @@ export default function AdminPricing() {
                 </div>
                 <h2 className="font-bold text-slate-800">Cài đặt giảm giá</h2>
               </div>
-
-              {/* Toggle on/off */}
               <button onClick={toggleDiscount}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${discountEnabled
                     ? 'bg-green-100 text-green-700 hover:bg-green-200'
@@ -181,7 +204,7 @@ export default function AdminPricing() {
             </div>
           </div>
 
-          {/* ── Pricing Tables ── */}
+          {/* ── Pricing Tables (all editable inline) ── */}
           {Object.entries(grouped).map(([type, items]) => {
             const typeInfo = TYPE_LABELS[type] || { label: type, color: 'bg-gray-100 text-gray-700' };
             return (
@@ -198,73 +221,38 @@ export default function AdminPricing() {
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-5 py-3 text-left font-semibold text-slate-500">Thời gian</th>
-                        <th className="px-5 py-3 text-left font-semibold text-slate-500">V1 Giá gốc</th>
-                        <th className="px-5 py-3 text-left font-semibold text-slate-500">V2 Giá gốc</th>
+                        <th className="px-5 py-3 text-center font-semibold text-slate-500">V1 Giá gốc</th>
+                        <th className="px-5 py-3 text-center font-semibold text-slate-500">V2 Giá gốc</th>
                         {discountEnabled && (
                           <>
-                            <th className="px-5 py-3 text-left font-semibold text-green-600">V1 Sau giảm</th>
-                            <th className="px-5 py-3 text-left font-semibold text-green-600">V2 Sau giảm</th>
+                            <th className="px-5 py-3 text-center font-semibold text-green-600">V1 Sau giảm</th>
+                            <th className="px-5 py-3 text-center font-semibold text-green-600">V2 Sau giảm</th>
                           </>
                         )}
-                        <th className="px-5 py-3 text-center font-semibold text-slate-500">Sửa</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {items.map(tier => {
-                        const isEditing = editingId === tier.id;
+                        const v1 = getVal(tier, 'v1_price');
+                        const v2 = getVal(tier, 'v2_price');
+                        const isChanged = editedTiers[tier.id] !== undefined;
                         return (
-                          <tr key={tier.id} className={isEditing ? 'bg-orange-50/50' : 'hover:bg-slate-50/70'}>
+                          <tr key={tier.id} className={isChanged ? 'bg-orange-50/50' : 'hover:bg-slate-50/70'}>
                             <td className="px-5 py-3 font-bold text-slate-700">{tier.duration}</td>
-
-                            {isEditing ? (
+                            <td className="px-5 py-2 text-center">
+                              <input type="number" value={v1}
+                                onChange={e => updateTier(tier.id, 'v1_price', e.target.value)}
+                                className={`${inputCls} ${isChanged ? 'border-orange-300 bg-orange-50' : ''}`} />
+                            </td>
+                            <td className="px-5 py-2 text-center">
+                              <input type="number" value={v2}
+                                onChange={e => updateTier(tier.id, 'v2_price', e.target.value)}
+                                className={`${inputCls} ${isChanged ? 'border-orange-300 bg-orange-50' : ''}`} />
+                            </td>
+                            {discountEnabled && (
                               <>
-                                <td className="px-5 py-2">
-                                  <input type="number" value={editForm.v1_price}
-                                    onChange={e => setEditForm(f => ({ ...f, v1_price: Number(e.target.value) || 0 }))}
-                                    className="w-24 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
-                                </td>
-                                <td className="px-5 py-2">
-                                  <input type="number" value={editForm.v2_price}
-                                    onChange={e => setEditForm(f => ({ ...f, v2_price: Number(e.target.value) || 0 }))}
-                                    className="w-24 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
-                                </td>
-                                {discountEnabled && (
-                                  <>
-                                    <td className="px-5 py-3 font-bold text-green-600">{fmt(calcDiscount(editForm.v1_price))} đ</td>
-                                    <td className="px-5 py-3 font-bold text-green-600">{fmt(calcDiscount(editForm.v2_price))} đ</td>
-                                  </>
-                                )}
-                                <td className="px-5 py-2">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button onClick={() => saveEdit(tier.id)} disabled={saving}
-                                      className="p-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition" title="Lưu">
-                                      <Save size={15} />
-                                    </button>
-                                    <button onClick={cancelEdit}
-                                      className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-400 transition" title="Hủy">
-                                      <X size={15} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </>
-                            ) : (
-                              <>
-                                <td className="px-5 py-3 text-slate-700 font-semibold">{fmt(tier.v1_price)} đ</td>
-                                <td className="px-5 py-3 text-slate-700 font-semibold">{fmt(tier.v2_price)} đ</td>
-                                {discountEnabled && (
-                                  <>
-                                    <td className="px-5 py-3 font-bold text-green-600">{fmt(calcDiscount(tier.v1_price))} đ</td>
-                                    <td className="px-5 py-3 font-bold text-green-600">{fmt(calcDiscount(tier.v2_price))} đ</td>
-                                  </>
-                                )}
-                                <td className="px-5 py-3">
-                                  <div className="flex items-center justify-center">
-                                    <button onClick={() => startEdit(tier)}
-                                      className="p-1.5 rounded-lg hover:bg-orange-50 text-slate-400 hover:text-orange-600 transition" title="Sửa">
-                                      <Edit3 size={15} />
-                                    </button>
-                                  </div>
-                                </td>
+                                <td className="px-5 py-3 text-center font-bold text-green-600">{fmt(calcDiscount(v1))} đ</td>
+                                <td className="px-5 py-3 text-center font-bold text-green-600">{fmt(calcDiscount(v2))} đ</td>
                               </>
                             )}
                           </tr>
@@ -276,6 +264,16 @@ export default function AdminPricing() {
               </div>
             );
           })}
+
+          {/* Floating save button */}
+          {hasChanges && (
+            <div className="sticky bottom-4 flex justify-center">
+              <button onClick={saveAll} disabled={saving}
+                className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-2xl shadow-2xl shadow-green-500/30 transition disabled:opacity-50 text-base">
+                <Save size={18} /> {saving ? 'Đang lưu...' : `Lưu ${Object.keys(editedTiers).length} thay đổi`}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
