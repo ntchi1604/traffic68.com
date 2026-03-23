@@ -159,6 +159,30 @@ router.get('/public/:token', async (req, res) => {
     resp.version = 1;
     resp.targetPage = campaignInfo.targetPage || '';
   }
+
+  // V1: Even if no campaign matched this URL, check if there's an active V1 task
+  // (user navigated to internal link during V1 flow)
+  if (!resp.version) {
+    try {
+      const [v1Tasks] = await pool.execute(
+        `SELECT c.version FROM vuot_link_tasks vt
+         JOIN campaigns c ON c.id = vt.campaign_id
+         WHERE (vt.ip_address = ? OR (vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id IN (
+           SELECT vt2.visitor_id FROM vuot_link_tasks vt2 WHERE vt2.ip_address = ? AND vt2.visitor_id IS NOT NULL AND vt2.visitor_id != '' ORDER BY vt2.created_at DESC LIMIT 1
+         )))
+           AND c.version = 1
+           AND vt.status IN ('pending', 'step1', 'step2', 'step3')
+           AND vt.expires_at > NOW()
+         ORDER BY vt.created_at DESC LIMIT 1`,
+        [ip, ip]
+      );
+      if (v1Tasks.length > 0) {
+        resp.version = 1;
+        resp.campaignFound = true;
+      }
+    } catch (e) { }
+  }
+
   resp._t = generateSessionToken(ip, ua);
   res.json(resp);
 });
