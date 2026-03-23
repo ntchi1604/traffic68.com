@@ -234,14 +234,26 @@ async function _handleTaskPost(req, res) {
 
   // Fast random campaign: avoid ORDER BY RAND() full-table-scan
   // Include both google_search (with keyword) and direct (no keyword needed) campaigns
+  // Also enforce daily_views limit: skip campaigns that already reached today's quota
+  const campaignWhere = `c.status = 'running'
+    AND ((c.traffic_type = 'google_search' AND c.keyword != '') OR c.traffic_type = 'direct')
+    AND c.views_done < c.total_views
+    AND (c.daily_views <= 0 OR COALESCE(td.today_done, 0) < c.daily_views)`;
+  const todaySubquery = `LEFT JOIN (
+      SELECT campaign_id, COUNT(*) as today_done
+      FROM vuot_link_tasks
+      WHERE status = 'completed' AND DATE(completed_at) = CURDATE()
+      GROUP BY campaign_id
+    ) td ON td.campaign_id = c.id`;
+
   const [countRows] = await pool.execute(
-    `SELECT COUNT(*) as cnt FROM campaigns WHERE status = 'running' AND ((traffic_type = 'google_search' AND keyword != '') OR traffic_type = 'direct') AND views_done < total_views`
+    `SELECT COUNT(*) as cnt FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}`
   );
   const totalCampaigns = countRows[0].cnt;
   if (totalCampaigns === 0) return res.status(404).json(ERR);
   const randomOffset = Math.floor(Math.random() * totalCampaigns);
   const [campaigns] = await pool.execute(
-    `SELECT * FROM campaigns WHERE status = 'running' AND ((traffic_type = 'google_search' AND keyword != '') OR traffic_type = 'direct') AND views_done < total_views LIMIT 1 OFFSET ?`,
+    `SELECT c.* FROM campaigns c ${todaySubquery} WHERE ${campaignWhere} LIMIT 1 OFFSET ?`,
     [randomOffset]
   );
   if (campaigns.length === 0) return res.status(404).json(ERR);
