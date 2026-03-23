@@ -316,25 +316,26 @@ router.post('/public/:token/get-code', async (req, res) => {
 
     if (isMobileDevice) {
       if (botDetection.bot === true || realLies.length > 0) {
-        console.log(`[Widget] ⚠️ CreepJS mobile warning (NOT blocking): IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
+        console.log(`[Widget] CreepJS mobile warning (NOT blocking): IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
         logSecurityEvent('creep_detected', ip, ua, visitorId, { ...botDetection, mobileToleranceApplied: true });
+        detectionLog.push('creep_warning_mobile');
       }
     } else {
       if (botDetection.bot === true || realLies.length > 0) {
-        console.log(`[Widget] 🚫 CreepJS BLOCKED: IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
+        console.log(`[Widget] CreepJS desktop warning (NOT blocking): IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
         logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
         botDetected = true;
-        detectionLog.push('creep_detected');
-        return res.status(403).json(ERR);
+        detectionLog.push('creep_warning_desktop');
       }
     }
   }
 
   const probes = behavioral?.probes || {};
   if (probes.webdriver === true || probes.cdc === true || probes.selenium === true) {
-    console.log(`[Widget] 🤖 Automation probe hit: IP=${ip}`);
+    console.log(`[Widget] Automation probe warning (NOT blocking): IP=${ip}`);
     logSecurityEvent('automation_probes', ip, ua, visitorId, probes);
-    return res.status(403).json(ERR);
+    botDetected = true;
+    detectionLog.push('automation_probes');
   }
   const isMobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
   const probeWarnings = [];
@@ -373,8 +374,10 @@ router.post('/public/:token/get-code', async (req, res) => {
     };
 
     if (result.score >= 70) {
-      console.log(`[Widget] 🤖 Behavior bot: score=${result.score}, reasons=${mouseReasons}, IP=${ip}`);
-      return res.status(403).json(ERR);
+      console.log(`[Widget] Behavior bot warning (NOT blocking): score=${result.score}, reasons=${mouseReasons}, IP=${ip}`);
+      logSecurityEvent('bot_behavior', ip, ua, visitorId, { score: result.score, reasons: mouseReasons });
+      botDetected = true;
+      detectionLog.push('behavior_warning');
     }
 
     // Store assessment in task — will be logged to security when task completes

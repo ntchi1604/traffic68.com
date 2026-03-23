@@ -183,24 +183,26 @@ async function _handleTaskPost(req, res) {
 
     if (isMobileDevice) {
       if (botDetection.bot === true || realLies.length > 0) {
-        console.log(`[VuotLink] ⚠️ CreepJS mobile warning (NOT blocking): IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
+        console.log(`[VuotLink] CreepJS mobile warning (NOT blocking): IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
         logSecurityEvent('creep_detected', ip, ua, visitorId, { ...botDetection, mobileToleranceApplied: true });
+        detectionLog.push('creep_warning_mobile');
       }
     } else {
       if (botDetection.bot === true || realLies.length > 0) {
-        console.log(`[VuotLink] 🚫 CreepJS BLOCKED: IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
+        console.log(`[VuotLink] CreepJS desktop warning (NOT blocking): IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
         logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
         botDetected = true;
-        detectionLog.push('creep_detected');
-        return res.status(403).json(ERR);
+        detectionLog.push('creep_warning_desktop');
       }
     }
   }
 
   const probes = clientProbes || {};
   if (probes.webdriver === true || probes.cdc === true || probes.selenium === true) {
-    console.log(`[VuotLink] 🤖 Automation probe hit: IP=${ip}`);
-    return res.status(403).json(ERR);
+    console.log(`[VuotLink] Automation probe warning (NOT blocking): IP=${ip}`);
+    logSecurityEvent('automation_probes', ip, ua, visitorId, probes);
+    botDetected = true;
+    detectionLog.push('automation_probes');
   }
 
   // ── Limit check: load setting ONCE ──
