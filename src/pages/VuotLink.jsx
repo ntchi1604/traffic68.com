@@ -309,13 +309,29 @@ export default function VuotLink() {
                 setLoading(true);
                 setError('');
 
-                // Incognito detection via storage quota
-                if (navigator.storage && navigator.storage.estimate) {
+                // Incognito detection — multi-signal (avoid Brave false positive)
+                const isBrave = navigator.brave && typeof navigator.brave.isBrave === 'function';
+                let incognitoSignals = 0;
+
+                // Signal 1: Storage quota (skip on Brave — Shields restricts quota in normal mode too)
+                if (!isBrave && navigator.storage && navigator.storage.estimate) {
                     const { quota } = await navigator.storage.estimate();
-                    if (quota && quota < 10 * 1024 * 1024 * 1024) {
-                        if (!cancelled) setIsIncognito(true);
-                        return;
-                    }
+                    if (quota && quota < 10 * 1024 * 1024 * 1024) incognitoSignals++;
+                }
+
+                // Signal 2: FileSystem API (Chrome/Edge incognito blocks it)
+                if (window.webkitRequestFileSystem) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            window.webkitRequestFileSystem(0, 1, () => resolve(), () => reject());
+                        });
+                    } catch { incognitoSignals++; }
+                }
+
+                // Need at least 1 signal (2 if Brave to be extra safe)
+                if (incognitoSignals >= (isBrave ? 2 : 1)) {
+                    if (!cancelled) setIsIncognito(true);
+                    return;
                 }
 
                 // Step 1: Load CreepJS for bot detection + visitorId
