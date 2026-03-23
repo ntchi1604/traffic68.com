@@ -855,8 +855,9 @@
     var st = window.pageYOffset || document.documentElement.scrollTop;
     var docH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
     var distBottom = docH - st - window.innerHeight;
-    var atTop = st <= 5;
-    var atBottom = distBottom <= 5;
+    var scrollThreshold = Math.max(100, docH * 0.05); // 100px or 5% of page height
+    var atTop = st <= scrollThreshold;
+    var atBottom = distBottom <= scrollThreshold;
 
     var pool = [];
     if (atTop) {
@@ -896,20 +897,20 @@
 
     if (ch.id === 'scroll-top') {
       challengeListener = function () {
-        if ((window.pageYOffset || document.documentElement.scrollTop) <= 5) completeChallenge();
+        if ((window.pageYOffset || document.documentElement.scrollTop) <= 100) completeChallenge();
       };
       window.addEventListener('scroll', challengeListener, { passive: true });
-      if ((window.pageYOffset || document.documentElement.scrollTop) <= 5) completeChallenge();
+      if ((window.pageYOffset || document.documentElement.scrollTop) <= 100) completeChallenge();
     } else if (ch.id === 'scroll-bottom') {
       challengeListener = function () {
         var st = window.pageYOffset || document.documentElement.scrollTop;
         var docH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-        if (docH - st - window.innerHeight <= 5) completeChallenge();
+        if (docH - st - window.innerHeight <= 100) completeChallenge();
       };
       window.addEventListener('scroll', challengeListener, { passive: true });
       var st2 = window.pageYOffset || document.documentElement.scrollTop;
       var docH2 = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-      if (docH2 - st2 - window.innerHeight <= 5) completeChallenge();
+      if (docH2 - st2 - window.innerHeight <= 100) completeChallenge();
     } else if (ch.id === 'click') {
       challengeListener = function (e) {
         var modal = document.getElementById('laynut-modal');
