@@ -36,6 +36,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   });
   const [saving, setSaving] = useState(false);
   const [uploadingIdx, setUploadingIdx] = useState(-1);
+  const [version, setVersion] = useState(campaign.version || 0);
 
   const addItem = (setter) => setter(prev => [...prev, '']);
   const removeItem = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
@@ -78,6 +79,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         dailyViews: Number(dailyViews),
         image1_url: imgs.length ? JSON.stringify(imgs) : null,
         image2_url: null,
+        version: Number(version),
       });
       toast.success('Cập nhật chiến dịch thành công');
       onSaved();
@@ -159,6 +161,17 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Số lượng view/ngày</label>
             <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={inputCls} />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">Version</label>
+            <select value={version} onChange={e => setVersion(Number(e.target.value))} className={inputCls}>
+              <option value={0}>V0 — Mac dinh (1 buoc countdown)</option>
+              <option value={1}>V1 — Multi-step (thêm buoc truy cap link noi bo)</option>
+            </select>
+            {version === 1 && (
+              <p className="text-xs text-amber-600 mt-1">V1: Sau countdown lan 1 → worker truy cap link noi bo → click nut → cho 20-35s → lay code</p>
+            )}
           </div>
         </div>
 

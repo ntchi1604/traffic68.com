@@ -249,9 +249,9 @@ export default function VuotLink() {
 
             await new Promise(r => setTimeout(r, 200));
 
-            const baitBlocked = bait.offsetHeight === 0 || bait.clientHeight === 0 || 
-                                window.getComputedStyle(bait).display === 'none' || 
-                                window.getComputedStyle(bait).visibility === 'hidden';
+            const baitBlocked = bait.offsetHeight === 0 || bait.clientHeight === 0 ||
+                window.getComputedStyle(bait).display === 'none' ||
+                window.getComputedStyle(bait).visibility === 'hidden';
             bait.remove();
 
             // Method 2: Try to fetch a known ad-related URL
@@ -466,6 +466,7 @@ export default function VuotLink() {
     const hasMultiSite = !!(campaignImage2);
     const waitTime_ = task?.waitTime || waitTime || 60;
     const widgetConfig = task?.widgetConfig || null;
+    const campVersion = task?.version || 0;
 
     /* ─── Loading ──────────────────────────────────────── */
     if (loading) return (
@@ -707,7 +708,60 @@ export default function VuotLink() {
                                 <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
                                     {/* ── Flow steps ── */}
-                                    {[
+                                    {(campVersion === 1 ? [
+                                        {
+                                            num: '1', color: '#3b82f6', label: 'Cuộn & tìm nút',
+                                            content: (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                                    <span style={{ fontSize: '12px', color: '#64748b' }}>Nút trông như thế này trên trang đích:</span>
+                                                    <div style={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: '8px',
+                                                        background: widgetConfig?.buttonColor || '#f97316',
+                                                        color: widgetConfig?.textColor || '#fff',
+                                                        borderRadius: `${widgetConfig?.borderRadius ?? 50}px`,
+                                                        fontSize: `${widgetConfig?.fontSize || 15}px`,
+                                                        fontWeight: 700,
+                                                        padding: '8px 16px',
+                                                        boxShadow: `0 4px 16px ${(widgetConfig?.buttonColor || '#f97316')}55`,
+                                                        userSelect: 'none', whiteSpace: 'nowrap', cursor: 'default',
+                                                    }}>
+                                                        <img
+                                                            src={widgetConfig?.iconUrl || 'https://traffic68.com/lg.png'}
+                                                            width={widgetConfig?.iconSize ?? 22}
+                                                            height={widgetConfig?.iconSize ?? 22}
+                                                            alt=""
+                                                            style={{
+                                                                background: widgetConfig?.iconBg ?? 'rgba(255,255,255,0.92)',
+                                                                borderRadius: 6,
+                                                                padding: 2,
+                                                                objectFit: 'contain',
+                                                                flexShrink: 0,
+                                                                display: 'block',
+                                                            }}
+                                                            onError={e => { e.target.src = 'https://traffic68.com/lg.png'; }}
+                                                        />
+                                                        {widgetConfig?.buttonText || 'Lấy Mã'}
+                                                    </div>
+                                                </div>
+                                            ),
+                                        },
+                                        {
+                                            num: '2', color: '#f97316', label: 'Chờ đếm ngược lần 1 → bấm nút',
+                                            content: (
+                                                <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+                                                    Chờ đếm ngược hoàn tất. Popup sẽ hiện ra yêu cầu truy cập 1 trang nội bộ.
+                                                </p>
+                                            ),
+                                        },
+                                        {
+                                            num: '3', color: '#7c3aed', label: 'Truy cập link nội bộ → chờ lần 2 → lấy mã',
+                                            content: (
+                                                <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+                                                    Popup sẽ yêu cầu truy cập bất kỳ link nội bộ nào trên trang web (menu, bài viết, sidebar...). Chuyển sang trang đó, nhấn nút lấy mã, chờ thêm 20-35 giây → mã sẽ hiện. Sao chép mã rồi quay lại đây.
+                                                </p>
+                                            ),
+                                        },
+                                    ] : [
                                         {
                                             num: '1', color: '#3b82f6', label: 'Cuộn & tìm nút',
                                             content: (
@@ -752,7 +806,7 @@ export default function VuotLink() {
                                                 </p>
                                             ),
                                         },
-                                    ].map(({ num, color, label, content }) => (
+                                    ]).map(({ num, color, label, content }) => (
                                         <div key={num} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                                             <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
                                                 <span style={{ color: '#fff', fontSize: '12px', fontWeight: 900 }}>{num}</span>

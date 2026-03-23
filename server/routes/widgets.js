@@ -112,7 +112,7 @@ router.get('/public/:token', async (req, res) => {
       const normalPage = normalize(pageUrl);
 
       const [campaigns] = await pool.execute(
-        `SELECT id, url, url2, time_on_site, keyword FROM campaigns 
+        `SELECT id, url, url2, time_on_site, keyword, version, target_page FROM campaigns 
          WHERE user_id = ? AND status = 'running' AND views_done < total_views 
          ORDER BY created_at DESC`,
         [widgets[0].user_id]
@@ -132,7 +132,7 @@ router.get('/public/:token', async (req, res) => {
           } else {
             waitTime = parseInt(tos) || 30;
           }
-          campaignInfo = { campaignId: camp.id, waitTime };
+          campaignInfo = { campaignId: camp.id, waitTime, version: camp.version || 0, targetPage: camp.target_page || '' };
           break;
         }
       }
@@ -155,6 +155,10 @@ router.get('/public/:token', async (req, res) => {
 
   const resp = { campaignFound: !!campaignInfo, captchaEnabled };
   if (Object.keys(overrides).length > 0) resp.config = overrides;
+  if (campaignInfo && campaignInfo.version === 1) {
+    resp.version = 1;
+    resp.targetPage = campaignInfo.targetPage || '';
+  }
   resp._t = generateSessionToken(ip, ua);
   res.json(resp);
 });
@@ -399,7 +403,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
   const [tasks] = await pool.execute(
-    `SELECT vt.*, c.url as campaign_url, c.time_on_site FROM vuot_link_tasks vt
+    `SELECT vt.*, c.url as campaign_url, c.time_on_site, c.version, c.target_page FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
      WHERE vt.ip_address = ? 
        AND vt.user_agent = ?
@@ -414,6 +418,8 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
 
   const task = tasks[0];
+  const campVersion = task.version || 0;
+  const v1Phase = req.body?.v1Phase || 0;
 
   const tos = task.time_on_site || '60';
   let requiredSeconds = 30;
@@ -432,6 +438,31 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Phát hiện gian lận!', remaining });
   }
 
+  // ── V1: Multi-step flow ──
+  if (campVersion === 1) {
+    if (v1Phase !== 2) {
+      // Phase 1 done → tell widget to show step 2 (visit internal link + wait)
+      if (task.status !== 'step2') {
+        await pool.execute("UPDATE vuot_link_tasks SET status = 'step2' WHERE id = ?", [task.id]);
+      }
+      const v1Wait = Math.floor(Math.random() * 16) + 20; // 20-35s
+      console.log(`[Widget] V1 phase 1 done — IP: ${ip}, task: #${task.id}, next wait: ${v1Wait}s`);
+      return res.json({
+        v1_step2: true,
+        targetPage: task.target_page || '',
+        v1Wait,
+      });
+    }
+
+    // Phase 2: Check extra wait time has passed (at least 20s after step2 was set)
+    const v1ExtraRequired = requiredSeconds + 20; // minimum total elapsed
+    if (elapsedSeconds < v1ExtraRequired) {
+      const remaining = v1ExtraRequired - elapsedSeconds;
+      console.log(`[Widget] V1 phase 2 TOO EARLY — IP: ${ip}, task: #${task.id}, elapsed: ${elapsedSeconds}s < required: ${v1ExtraRequired}s`);
+      return res.status(403).json({ error: 'Vui lòng chờ thêm!', remaining });
+    }
+  }
+
   const referer = req.headers['referer'] || req.headers['origin'] || '';
   if (referer && task.campaign_url) {
     try {
@@ -448,7 +479,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     await pool.execute("UPDATE vuot_link_tasks SET status = 'step3' WHERE id = ?", [task.id]);
   }
 
-  console.log(`[Widget] ✅ Code given — IP: ${ip}, task: #${task.id}, code: ${task.code_given}, elapsed: ${elapsedSeconds}s, behaviorScore=${mouseScore}`);
+  console.log(`[Widget] Code given — IP: ${ip}, task: #${task.id}, code: ${task.code_given}, elapsed: ${elapsedSeconds}s, behaviorScore=${mouseScore}`);
 
   res.json({ success: true, code: task.code_given });
 });

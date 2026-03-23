@@ -364,6 +364,7 @@ async function _handleTaskPost(req, res) {
     waitTime,
     startedAt: now,
     widgetConfig,
+    version: campaign.version || 0,
     _tk,
   });
 }

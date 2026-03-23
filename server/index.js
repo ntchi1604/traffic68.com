@@ -134,6 +134,11 @@ app.use((err, req, res, next) => {
       await pool.execute(`ALTER TABLE worker_links ADD COLUMN hidden TINYINT(1) NOT NULL DEFAULT 0`);
     } catch (e) { }
 
+    // Add version column to campaigns (0 = default, 1 = multi-step with internal link)
+    try {
+      await pool.execute(`ALTER TABLE campaigns ADD COLUMN version TINYINT NOT NULL DEFAULT 0`);
+    } catch (e) { }
+
     // api_keys: API key auth for quicklink API
     try {
       await pool.execute(`CREATE TABLE IF NOT EXISTS api_keys (
