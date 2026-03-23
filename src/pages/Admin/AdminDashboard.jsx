@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Users, Megaphone, TrendingUp, Wallet, Eye, LifeBuoy, UserPlus, Play, Clock, Calendar, Filter } from 'lucide-react';
+import { Users, Megaphone, TrendingUp, Wallet, Eye, LifeBuoy, UserPlus, Play, Clock, Calendar, Filter, ArrowUpRight } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../../lib/api';
 
@@ -19,7 +19,7 @@ function StatCard({ icon: Icon, label, value, color, bg, badge }) {
   );
 }
 
-import { formatMoney as fmt } from '../../lib/format';
+import { formatMoney as fmt, fmtDateTime } from '../../lib/format';
 
 /* Date helpers */
 const today = () => new Date().toISOString().slice(0, 10);
@@ -36,9 +36,15 @@ const PRESETS = [
   { label: 'Tất cả', from: '', to: '' },
 ];
 
+const TX_TYPE_LABEL = {
+  deposit: 'Nạp tiền', withdraw: 'Rút tiền', campaign_charge: 'Chi phí campaign',
+  commission: 'Hoa hồng', referral: 'Giới thiệu', earning: 'Thu nhập',
+};
+
 export default function AdminDashboard() {
   usePageTitle('Admin - Tổng quan');
   const [data, setData] = useState(null);
+  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -49,10 +55,13 @@ export default function AdminDashboard() {
     if (fromDate) params.set('fromDate', fromDate);
     if (toDate) params.set('toDate', toDate);
 
-    api.get(`/admin/overview?${params}`)
-      .then(setData)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get(`/admin/overview?${params}`),
+      api.get('/admin/transactions?limit=10').catch(() => ({ transactions: [] })),
+    ]).then(([ov, tx]) => {
+      setData(ov);
+      setTransactions(tx.transactions || []);
+    }).catch(console.error).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchData(); }, [fromDate, toDate]);
@@ -169,6 +178,65 @@ export default function AdminDashboard() {
                 </ResponsiveContainer>
               )}
             </div>
+          </div>
+
+          {/* Recent Transactions */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800">Giao dịch gần đây</h3>
+              <a href="/admin/transactions" className="text-xs text-orange-600 font-semibold hover:underline flex items-center gap-1">
+                Xem tất cả <ArrowUpRight size={12} />
+              </a>
+            </div>
+            {transactions.length === 0 ? (
+              <div className="px-6 py-10 text-center text-slate-400 text-sm">Chưa có giao dịch nào</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Người dùng</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Loại</th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Số tiền</th>
+                      <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Trạng thái</th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Thời gian</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {transactions.map(t => {
+                      const isIn = ['deposit', 'referral', 'commission', 'earning'].includes(t.type);
+                      const statusCls = t.status === 'completed' ? 'bg-emerald-100 text-emerald-700'
+                        : t.status === 'pending' ? 'bg-amber-100 text-amber-700'
+                        : 'bg-red-100 text-red-600';
+                      const statusLabel = t.status === 'completed' ? 'Thành công' : t.status === 'pending' ? 'Đang xử lý' : 'Từ chối';
+                      return (
+                        <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-3">
+                            <p className="font-semibold text-slate-800 text-xs">{t.user_name || '—'}</p>
+                            <p className="text-[11px] text-slate-400">{t.user_email || ''}</p>
+                          </td>
+                          <td className="px-6 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${isIn ? 'bg-green-100' : 'bg-red-50'}`}>
+                                <ArrowUpRight size={10} className={isIn ? 'text-green-600' : 'text-red-500'} style={{ transform: isIn ? 'rotate(180deg)' : 'none' }} />
+                              </div>
+                              <span className="text-xs font-medium text-slate-700">{TX_TYPE_LABEL[t.type] || t.type}</span>
+                            </div>
+                          </td>
+                          <td className={`px-6 py-3 text-right font-bold text-sm ${isIn ? 'text-green-600' : 'text-red-500'}`}>
+                            {isIn ? '+' : '-'}{fmt(t.amount)} đ
+                          </td>
+                          <td className="px-6 py-3 text-center">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusCls}`}>{statusLabel}</span>
+                          </td>
+                          <td className="px-6 py-3 text-right text-xs text-slate-400">{fmtDateTime(t.created_at)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </>
       )}

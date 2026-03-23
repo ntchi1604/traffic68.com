@@ -339,10 +339,9 @@ export default function VuotLink() {
                 let visitorId = creepData.visitorId || 'unknown';
                 let botDetectionResult = creepData.botDetection;
 
-                // Tag Clarity session with visitor_id
-                if (window.clarity) {
+                // Tag Clarity with visitor_id only
+                if (window.clarity && visitorId) {
                     window.clarity('set', 'visitor_id', visitorId);
-                    window.clarity('identify', visitorId);
                 }
 
                 // Step 2: Get challenge + solve Proof-of-Work
