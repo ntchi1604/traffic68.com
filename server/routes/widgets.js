@@ -299,39 +299,51 @@ router.post('/public/:token/get-code', async (req, res) => {
   let detectionLog = [];
 
   if (!challengeId) {
-    console.log(`[Widget] Missing challengeId — IP: ${ip}`);
+    console.log(`[Widget] REJECT get-code: missing challengeId — IP: ${ip}`);
     return res.status(403).json(ERR);
   }
   const ch = widgetChallenges[challengeId];
   if (!ch) {
-    console.log(`[Widget] Invalid challengeId — IP: ${ip}`);
+    console.log(`[Widget] REJECT get-code: challengeId NOT FOUND in store — IP: ${ip}, challengeId: ${challengeId?.substring(0, 8)}..., storeSize: ${Object.keys(widgetChallenges).length}`);
     return res.status(403).json(ERR);
   }
-  if (ch.used) { delete widgetChallenges[challengeId]; return res.status(403).json(ERR); }
-  if (Date.now() - ch.createdAt > 600000) { delete widgetChallenges[challengeId]; return res.status(403).json(ERR); }
+  if (ch.used) {
+    console.log(`[Widget] REJECT get-code: challenge ALREADY USED — IP: ${ip}, challengeId: ${challengeId?.substring(0, 8)}...`);
+    delete widgetChallenges[challengeId];
+    return res.status(403).json(ERR);
+  }
+  if (Date.now() - ch.createdAt > 600000) {
+    console.log(`[Widget] REJECT get-code: challenge EXPIRED — IP: ${ip}, age: ${Math.round((Date.now() - ch.createdAt) / 1000)}s`);
+    delete widgetChallenges[challengeId];
+    return res.status(403).json(ERR);
+  }
   // Skip strict IP check — IPv6 privacy extensions change IP between requests
   // Challenge is still protected by HMAC signature + timeout + single-use
 
   if (!_ck || _ck !== signWidgetChallenge(challengeId, ch.ip)) {
-    console.log(`[Widget] Invalid challenge signature — IP: ${ip}, challenge IP: ${ch.ip}`);
+    console.log(`[Widget] REJECT get-code: HMAC MISMATCH — IP: ${ip}, challenge IP: ${ch.ip}, hasKey: ${!!_ck}`);
     return res.status(403).json(ERR);
   }
 
   if (!domWidth || typeof domWidth !== 'number' || domWidth <= 0) {
+    console.log(`[Widget] REJECT get-code: domWidth INVALID — IP: ${ip}, domWidth: ${domWidth}, type: ${typeof domWidth}`);
     return res.status(403).json(ERR);
   }
   const expectedWidth = ch.domText.length * ch.domFontSize * 0.6;
   if (domWidth < expectedWidth * 0.3 || domWidth > expectedWidth * 2.0) {
+    console.log(`[Widget] REJECT get-code: domWidth OUT OF RANGE — IP: ${ip}, domWidth: ${domWidth}, expected: ${expectedWidth.toFixed(1)}, range: [${(expectedWidth * 0.3).toFixed(1)}, ${(expectedWidth * 2.0).toFixed(1)}]`);
     return res.status(403).json(ERR);
   }
 
   if (!glRenderer || typeof glRenderer !== 'string' || glRenderer.length < 3) {
+    console.log(`[Widget] REJECT get-code: glRenderer INVALID — IP: ${ip}, glRenderer: "${glRenderer}", type: ${typeof glRenderer}`);
     return res.status(403).json(ERR);
   }
   if (glPixel && Array.isArray(glPixel) && glPixel.length >= 3) {
     const tol = 15;
     const [er, eg, eb] = ch.glColor.map(v => Math.round(v * 255));
     if (Math.abs(glPixel[0] - er) > tol || Math.abs(glPixel[1] - eg) > tol || Math.abs(glPixel[2] - eb) > tol) {
+      console.log(`[Widget] REJECT get-code: glPixel MISMATCH — IP: ${ip}, got: [${glPixel}], expected: [${er},${eg},${eb}], tol: ${tol}`);
       return res.status(403).json(ERR);
     }
   }
