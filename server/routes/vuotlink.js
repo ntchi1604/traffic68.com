@@ -130,7 +130,7 @@ async function _handleTaskPost(req, res) {
     return res.status(429).json({ error: 'Quá nhiều yêu cầu. Thử lại sau.' });
   }
 
-  const { challengeId, powNonce, domWidth, glRenderer, glPixel, visitorId, botDetection, probes: clientProbes, behavioral } = req.body || {};
+  const { challengeId, powNonce, domWidth, glRenderer, glPixel, visitorId, botDetection, probes: clientProbes, behavioral, excludeCampaigns } = req.body || {};
 
   let botDetected = false;
   let detectionLog = [];
@@ -250,14 +250,31 @@ async function _handleTaskPost(req, res) {
       GROUP BY campaign_id
     ) th ON th.campaign_id = c.id`;
 
+  // Build exclude filter for skipped campaigns
+  let excludeFilter = '';
+  if (Array.isArray(excludeCampaigns) && excludeCampaigns.length > 0) {
+    const safeIds = excludeCampaigns.filter(id => Number.isInteger(Number(id))).map(Number);
+    if (safeIds.length > 0) excludeFilter = ` AND c.id NOT IN (${safeIds.join(',')})`;
+  }
+
   const [countRows] = await pool.execute(
-    `SELECT COUNT(*) as cnt FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}`
+    `SELECT COUNT(*) as cnt FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${excludeFilter}`
   );
-  const totalCampaigns = countRows[0].cnt;
+  let totalCampaigns = countRows[0].cnt;
+
+  // If all campaigns excluded, fall back to no exclusion
+  if (totalCampaigns === 0 && excludeFilter) {
+    const [countAll] = await pool.execute(
+      `SELECT COUNT(*) as cnt FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}`
+    );
+    totalCampaigns = countAll[0].cnt;
+    excludeFilter = '';
+  }
+
   if (totalCampaigns === 0) return res.status(404).json(ERR);
   const randomOffset = Math.floor(Math.random() * totalCampaigns);
   const [campaigns] = await pool.execute(
-    `SELECT c.* FROM campaigns c ${todaySubquery} WHERE ${campaignWhere} LIMIT 1 OFFSET ?`,
+    `SELECT c.* FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${excludeFilter} LIMIT 1 OFFSET ?`,
     [randomOffset]
   );
   if (campaigns.length === 0) return res.status(404).json(ERR);

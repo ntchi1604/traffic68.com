@@ -275,6 +275,11 @@ export default function LinkGateway() {
       .catch(() => setLinkError('Không thể tải thông tin link'));
   }, [slug]);
 
+  // Track skipped campaigns
+  const [skippedCampaigns, setSkippedCampaigns] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem(`gw_skip_${slug}`)) || []; } catch { return []; }
+  });
+
   // Fetch challenge + task (reusable)
   const fetchTask = useCallback(async (force = false) => {
     if (!linkInfo) return;
@@ -378,6 +383,7 @@ export default function LinkGateway() {
           botDetection: botDetectionResult,
           probes: probeData,
           behavioral: getBehavioralData(),
+          excludeCampaigns: skippedCampaigns,
         }),
       });
 
@@ -400,7 +406,7 @@ export default function LinkGateway() {
     } finally {
       setLoading(false);
     }
-  }, [linkInfo, slug]);
+  }, [linkInfo, slug, skippedCampaigns]);
 
   // Step 2: After link info loaded, fetch challenge + task
   useEffect(() => {
@@ -412,6 +418,14 @@ export default function LinkGateway() {
   const [changingTask, setChangingTask] = useState(false);
   const handleChangeTask = useCallback(async () => {
     setChangingTask(true);
+    // Add current campaign to skip list
+    if (task?.campaign_id) {
+      setSkippedCampaigns(prev => {
+        const next = [...new Set([...prev, task.campaign_id])];
+        try { sessionStorage.setItem(`gw_skip_${slug}`, JSON.stringify(next)); } catch { }
+        return next;
+      });
+    }
     setTask(null);
     setInputCode('');
     setVerified(false);
@@ -420,7 +434,7 @@ export default function LinkGateway() {
     try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
     await fetchTask(true);
     setChangingTask(false);
-  }, [fetchTask, slug]);
+  }, [fetchTask, slug, task]);
 
   // Verify code
   const handleVerify = useCallback(async () => {
@@ -546,15 +560,6 @@ export default function LinkGateway() {
             HOÀN THÀNH NHIỆM VỤ ĐỂ TRUY CẬP
           </h1>
           <p style={{ color: '#64748B', fontSize: 14, margin: 0 }}>Thực hiện {isDirect ? 2 : 4} bước bên dưới theo thứ tự để mở khóa liên kết</p>
-          {task && !verified && (
-            <button onClick={handleChangeTask} disabled={changingTask}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12, background: 'none', border: '1.5px solid #CBD5E1', color: '#64748B', padding: '8px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
-              onMouseOver={e => { e.currentTarget.style.borderColor = '#F97316'; e.currentTarget.style.color = '#F97316'; }}
-              onMouseOut={e => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.color = '#64748B'; }}>
-              <RefreshCw size={14} style={changingTask ? { animation: 'spin 1s linear infinite' } : {}} />
-              {changingTask ? 'Đang đổi...' : 'Đổi nhiệm vụ'}
-            </button>
-          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -684,6 +689,19 @@ export default function LinkGateway() {
                 </div>
               </div>
             </StepCard>
+          )}
+
+          {/* Change task button */}
+          {task && !verified && (
+            <div style={{ textAlign: 'center' }}>
+              <button onClick={handleChangeTask} disabled={changingTask}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: '1.5px solid #CBD5E1', color: '#64748B', padding: '8px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseOver={e => { e.currentTarget.style.borderColor = '#F97316'; e.currentTarget.style.color = '#F97316'; }}
+                onMouseOut={e => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.color = '#64748B'; }}>
+                <RefreshCw size={14} style={changingTask ? { animation: 'spin 1s linear infinite' } : {}} />
+                {changingTask ? 'Đang đổi...' : 'Không tìm thấy? Đổi nhiệm vụ'}
+              </button>
+            </div>
           )}
 
           {/* Step — Code entry */}
