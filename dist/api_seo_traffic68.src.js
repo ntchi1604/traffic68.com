@@ -84,8 +84,8 @@
     brandLogo: '',
     customCSS: '',
     overlapFix: 'none',  // 'auto' | 'zindex' | 'fixed' | 'none'
-    hcaptchaSiteKey: '5acaec7e-83b0-464e-ba10-690889fc66ba', // hCaptcha site key
-    clarityId: 'vyua2zk5dc', // Microsoft Clarity project ID
+    hcaptchaSiteKey: '5acaec7e-83b0-464e-ba10-690889fc66ba',
+    clarityId: 'vyua2zk5dc',
     onReveal: null,
     onCopy: null,
   };

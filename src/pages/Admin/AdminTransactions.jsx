@@ -11,7 +11,7 @@ const TYPE_MAP = {
   deposit: { label: 'Nạp tiền', cls: 'bg-green-100 text-green-700' },
   withdraw: { label: 'Rút/Chi', cls: 'bg-red-100 text-red-700' },
   campaign: { label: 'Mua Traffic', cls: 'bg-orange-100 text-orange-700' },
-  earning: { label: 'Kiếm Tiền', cls: 'bg-emerald-100 text-emerald-700' },
+  earning: { label: 'Thu nhập', cls: 'bg-emerald-100 text-emerald-700' },
   commission: { label: 'Hoa hồng', cls: 'bg-blue-100 text-blue-700' },
   refund: { label: 'Hoàn tiền', cls: 'bg-purple-100 text-purple-700' },
 };
@@ -253,8 +253,8 @@ export default function AdminTransactions() {
                       <p className="text-xs text-slate-400">{t.user_email}</p>
                     </td>
                     <td className="px-5 py-3"><span className={`px-2 py-1 text-xs font-bold rounded-full ${tp.cls}`}>{tp.label}</span></td>
-                    <td className={`px-5 py-3 font-bold ${t.type === 'deposit' || t.type === 'commission' ? 'text-green-600' : 'text-red-600'}`}>
-                      {t.type === 'deposit' || t.type === 'commission' ? '+' : '-'}{fmt(t.amount)} đ
+                    <td className={`px-5 py-3 font-bold ${t.type === 'deposit' || t.type === 'commission' || t.type === 'earning' ? 'text-green-600' : 'text-red-600'}`}>
+                      {t.type === 'deposit' || t.type === 'commission' || t.type === 'earning' ? '+' : '-'}{fmt(t.amount)} đ
                     </td>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-1 text-xs font-bold rounded-full ${st.cls} ${isPending ? 'animate-pulse' : ''}`}>
