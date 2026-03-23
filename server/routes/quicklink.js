@@ -51,7 +51,7 @@ router.get('/st', async (req, res) => {
     pool.execute('UPDATE api_keys SET last_used_at = NOW(), request_count = request_count + 1 WHERE id = ?', [apiKeyId]);
 
     // 3. Check if this user already has a shortlink for this URL
-    const [existing] = await pool.execute(
+    const [existing] = await pool.query(
       'SELECT slug FROM worker_links WHERE worker_id = ? AND destination_url = ? AND hidden = 0 LIMIT 1',
       [userId, destUrl]
     );
