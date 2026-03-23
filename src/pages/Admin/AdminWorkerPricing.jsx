@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Save, Edit3, X, DollarSign, Percent } from 'lucide-react';
+import { Save, DollarSign, Percent } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
@@ -12,13 +12,12 @@ const TYPE_LABELS = {
 };
 
 export default function AdminWorkerPricing() {
-  usePageTitle('Admin - Bảng giá');
+  usePageTitle('Admin - Bảng giá Worker');
   const toast = useToast();
   const [tiers, setTiers] = useState([]);
   const [buyerTiers, setBuyerTiers] = useState([]);
+  const [editedTiers, setEditedTiers] = useState({});
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [profitPct, setProfitPct] = useState('');
   const [applying, setApplying] = useState(false);
@@ -31,28 +30,42 @@ export default function AdminWorkerPricing() {
     ]).then(([wp, bp]) => {
       setTiers(wp.tiers || []);
       setBuyerTiers(bp.tiers || []);
+      setEditedTiers({});
     }).catch(console.error)
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchData(); }, []);
 
-  const startEdit = (tier) => {
-    setEditingId(tier.id);
-    setEditForm({ v1_price: tier.v1_price, v2_price: tier.v2_price });
+  const getVal = (tier, field) => {
+    if (editedTiers[tier.id] && editedTiers[tier.id][field] !== undefined) {
+      return editedTiers[tier.id][field];
+    }
+    return tier[field];
   };
 
-  const cancelEdit = () => { setEditingId(null); setEditForm({}); };
+  const updateTier = (id, field, value) => {
+    setEditedTiers(prev => ({
+      ...prev,
+      [id]: { ...prev[id], [field]: Number(value) || 0 },
+    }));
+  };
 
-  const saveEdit = async (id) => {
+  const hasChanges = Object.keys(editedTiers).length > 0;
+
+  const saveAll = async () => {
+    const changedIds = Object.keys(editedTiers);
+    if (changedIds.length === 0) return toast.info('Không có thay đổi');
+
     setSaving(true);
     try {
-      await api.put(`/admin/worker-pricing/${id}`, {
-        v1_price: editForm.v1_price,
-        v2_price: editForm.v2_price,
-      });
-      toast.success('Đã cập nhật giá worker');
-      setEditingId(null);
+      for (const id of changedIds) {
+        const tier = tiers.find(t => t.id === Number(id));
+        const v1 = editedTiers[id].v1_price ?? tier.v1_price;
+        const v2 = editedTiers[id].v2_price ?? tier.v2_price;
+        await api.put(`/admin/worker-pricing/${id}`, { v1_price: v1, v2_price: v2 });
+      }
+      toast.success(`Đã lưu ${changedIds.length} mục`);
       fetchData();
     } catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
@@ -71,7 +84,6 @@ export default function AdminWorkerPricing() {
       for (const wt of tiers) {
         const bt = buyerTiers.find(b => b.traffic_type === wt.traffic_type && b.duration === wt.duration);
         if (bt) {
-          // Use discount price (final price) if available, otherwise base price
           const buyerV1 = bt.v1_discount > 0 ? bt.v1_discount : bt.v1_price;
           const buyerV2 = bt.v2_discount > 0 ? bt.v2_discount : bt.v2_price;
           const v1 = Math.round(buyerV1 * workerRate);
@@ -92,22 +104,20 @@ export default function AdminWorkerPricing() {
     grouped[t.traffic_type].push(t);
   });
 
-  // Build buyer price map for comparison
   const buyerMap = {};
   buyerTiers.forEach(b => { buyerMap[`${b.traffic_type}_${b.duration}`] = b; });
+
+  const inputCls = "w-28 px-2.5 py-2 text-sm font-semibold border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-center";
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-slate-900">Bảng giá</h1>
+        <h1 className="text-2xl font-black text-slate-900">Bảng giá Worker</h1>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : tiers.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
         </div>
       ) : (
         <>
@@ -121,7 +131,6 @@ export default function AdminWorkerPricing() {
             </div>
             <p className="text-xs text-slate-500 mb-4">
               Nhập % lãi mong muốn → giá worker = giá buyer (sau giảm giá) × (100 - lãi)%.
-              Ví dụ: lãi 50% → worker nhận 50% giá buyer đã áp dụng.
             </p>
             <div className="flex items-end gap-3">
               <div className="flex-1 max-w-[200px]">
@@ -145,7 +154,7 @@ export default function AdminWorkerPricing() {
             </div>
           </div>
 
-          {/* Pricing Tables */}
+          {/* Pricing Tables (all editable inline) */}
           {Object.entries(grouped).map(([type, items]) => {
             const typeInfo = TYPE_LABELS[type] || { label: type, color: 'bg-gray-100 text-gray-700' };
             return (
@@ -162,63 +171,37 @@ export default function AdminWorkerPricing() {
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-5 py-3 text-left font-semibold text-slate-500">Thời gian</th>
-                        <th className="px-5 py-3 text-left font-semibold text-slate-400">Buyer V1</th>
-                        <th className="px-5 py-3 text-left font-semibold text-emerald-600">Worker V1</th>
-                        <th className="px-5 py-3 text-left font-semibold text-slate-400">Buyer V2</th>
-                        <th className="px-5 py-3 text-left font-semibold text-emerald-600">Worker V2</th>
-                        <th className="px-5 py-3 text-center font-semibold text-slate-500">Sửa</th>
+                        <th className="px-5 py-3 text-center font-semibold text-slate-400">Buyer V1</th>
+                        <th className="px-5 py-3 text-center font-semibold text-emerald-600">Worker V1</th>
+                        <th className="px-5 py-3 text-center font-semibold text-slate-400">Buyer V2</th>
+                        <th className="px-5 py-3 text-center font-semibold text-emerald-600">Worker V2</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {items.map(tier => {
-                        const isEditing = editingId === tier.id;
+                        const v1 = getVal(tier, 'v1_price');
+                        const v2 = getVal(tier, 'v2_price');
+                        const isChanged = editedTiers[tier.id] !== undefined;
                         const buyer = buyerMap[`${tier.traffic_type}_${tier.duration}`];
                         return (
-                          <tr key={tier.id} className={isEditing ? 'bg-emerald-50/50' : 'hover:bg-slate-50/70'}>
+                          <tr key={tier.id} className={isChanged ? 'bg-emerald-50/50' : 'hover:bg-slate-50/70'}>
                             <td className="px-5 py-3 font-bold text-slate-700">{tier.duration}</td>
-                            <td className="px-5 py-3 text-slate-400 text-xs">{buyer ? fmt(buyer.v1_discount > 0 ? buyer.v1_discount : buyer.v1_price) + ' đ' : '—'}</td>
-
-                            {isEditing ? (
-                              <>
-                                <td className="px-5 py-2">
-                                  <input type="number" value={editForm.v1_price}
-                                    onChange={e => setEditForm(f => ({ ...f, v1_price: Number(e.target.value) || 0 }))}
-                                    className="w-20 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
-                                </td>
-                                <td className="px-5 py-3 text-slate-400 text-xs">{buyer ? fmt(buyer.v2_discount > 0 ? buyer.v2_discount : buyer.v2_price) + ' đ' : '—'}</td>
-                                <td className="px-5 py-2">
-                                  <input type="number" value={editForm.v2_price}
-                                    onChange={e => setEditForm(f => ({ ...f, v2_price: Number(e.target.value) || 0 }))}
-                                    className="w-20 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
-                                </td>
-                                <td className="px-5 py-2">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button onClick={() => saveEdit(tier.id)} disabled={saving}
-                                      className="p-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition" title="Lưu">
-                                      <Save size={15} />
-                                    </button>
-                                    <button onClick={cancelEdit}
-                                      className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-400 transition" title="Hủy">
-                                      <X size={15} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </>
-                            ) : (
-                              <>
-                                <td className="px-5 py-3 text-emerald-700 font-bold">{fmt(tier.v1_price)} đ</td>
-                                <td className="px-5 py-3 text-slate-400 text-xs">{buyer ? fmt(buyer.v2_discount > 0 ? buyer.v2_discount : buyer.v2_price) + ' đ' : '—'}</td>
-                                <td className="px-5 py-3 text-emerald-700 font-bold">{fmt(tier.v2_price)} đ</td>
-                                <td className="px-5 py-3">
-                                  <div className="flex items-center justify-center">
-                                    <button onClick={() => startEdit(tier)}
-                                      className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition" title="Sửa">
-                                      <Edit3 size={15} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </>
-                            )}
+                            <td className="px-5 py-3 text-center text-slate-400 text-xs">
+                              {buyer ? fmt(buyer.v1_discount > 0 ? buyer.v1_discount : buyer.v1_price) + ' đ' : '—'}
+                            </td>
+                            <td className="px-5 py-2 text-center">
+                              <input type="number" value={v1}
+                                onChange={e => updateTier(tier.id, 'v1_price', e.target.value)}
+                                className={`${inputCls} ${isChanged ? 'border-emerald-300 bg-emerald-50' : ''}`} />
+                            </td>
+                            <td className="px-5 py-3 text-center text-slate-400 text-xs">
+                              {buyer ? fmt(buyer.v2_discount > 0 ? buyer.v2_discount : buyer.v2_price) + ' đ' : '—'}
+                            </td>
+                            <td className="px-5 py-2 text-center">
+                              <input type="number" value={v2}
+                                onChange={e => updateTier(tier.id, 'v2_price', e.target.value)}
+                                className={`${inputCls} ${isChanged ? 'border-emerald-300 bg-emerald-50' : ''}`} />
+                            </td>
                           </tr>
                         );
                       })}
@@ -228,6 +211,16 @@ export default function AdminWorkerPricing() {
               </div>
             );
           })}
+
+          {/* Floating save button */}
+          {hasChanges && (
+            <div className="sticky bottom-4 flex justify-center">
+              <button onClick={saveAll} disabled={saving}
+                className="flex items-center gap-2 px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-2xl shadow-2xl shadow-emerald-500/30 transition disabled:opacity-50 text-base">
+                <Save size={18} /> {saving ? 'Đang lưu...' : `Lưu ${Object.keys(editedTiers).length} thay đổi`}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
