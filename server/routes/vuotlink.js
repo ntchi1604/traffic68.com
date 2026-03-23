@@ -701,7 +701,6 @@ async function _secretLookup(req, res) {
     const keyword = req.query.keyword || (req.body || {}).keyword || '';
     let image_url = req.query.image_url || (req.body || {}).image_url || '';
 
-    // Strip domain from image_url — chỉ giữ từ /uploads trở đi
     if (image_url && image_url.includes('/uploads')) {
       image_url = image_url.substring(image_url.indexOf('/uploads'));
     }

@@ -144,6 +144,15 @@ router.get('/public/:token', async (req, res) => {
   const overrides = stripDefaults(config);
   if (campaignInfo) {
     overrides.waitTime = campaignInfo.waitTime;
+
+    // Cancel active tasks for DIFFERENT campaigns (đổi campaign → xóa session cũ)
+    try {
+      await pool.execute(
+        `UPDATE vuot_link_tasks SET status = 'expired'
+         WHERE ip_address = ? AND campaign_id != ? AND status IN ('pending', 'step1', 'step2', 'step3') AND expires_at > NOW()`,
+        [ip, campaignInfo.campaignId]
+      );
+    } catch (e) { }
   }
 
   // Check captcha setting
