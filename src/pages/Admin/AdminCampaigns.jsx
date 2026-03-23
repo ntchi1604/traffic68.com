@@ -37,6 +37,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [uploadingIdx, setUploadingIdx] = useState(-1);
   const [version, setVersion] = useState(campaign.version || 0);
+  const [viewByHour, setViewByHour] = useState(campaign.view_by_hour ? true : false);
 
   const addItem = (setter) => setter(prev => [...prev, '']);
   const removeItem = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
@@ -77,6 +78,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         url: u[0] || campaign.url,
         url2: JSON.stringify(u.slice(1)),
         dailyViews: Number(dailyViews),
+        viewByHour: viewByHour ? 1 : 0,
         image1_url: imgs.length ? JSON.stringify(imgs) : null,
         image2_url: null,
         version: Number(version),
@@ -161,6 +163,20 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Số lượng view/ngày</label>
             <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={inputCls} />
+          </div>
+
+          <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-700">Chia view theo giờ</p>
+              <p className="text-xs text-slate-400">Phân bố đều view trong 24h ({Math.ceil(dailyViews / 24)}/giờ)</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setViewByHour(!viewByHour)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${viewByHour ? 'bg-blue-500' : 'bg-slate-300'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${viewByHour ? 'translate-x-5' : ''}`} />
+            </button>
           </div>
 
           <div>
