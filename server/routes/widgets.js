@@ -275,7 +275,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   // ── Verify hCaptcha ──
   const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
-  if (hcaptchaToken && !['skip', 'error', 'render-error'].includes(hcaptchaToken)) {
+  if (hcaptchaToken && !['skip', 'error', 'render-error', 'disabled', 'v1-phase2', 'v1_phase2'].includes(hcaptchaToken)) {
     try {
       const hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
         method: 'POST',
