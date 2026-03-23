@@ -741,7 +741,7 @@ async function _secretLookup(req, res) {
     const allUrls = [];
     const parseUrls = (val) => {
       if (!val) return;
-      try { const a = JSON.parse(val); if (Array.isArray(a)) { allUrls.push(...a.filter(Boolean)); return; } } catch {}
+      try { const a = JSON.parse(val); if (Array.isArray(a)) { allUrls.push(...a.filter(Boolean)); return; } } catch { }
       allUrls.push(val);
     };
     parseUrls(c.url);
@@ -760,68 +760,6 @@ async function _secretLookup(req, res) {
   }
 }
 router.get('/secret/lookup', secretApiAuth, _secretLookup);
-router.post('/secret/lookup', secretApiAuth, _secretLookup);
-
-// GET /api/vuot-link/secret/campaigns — Liệt kê tất cả campaigns đang chạy
-router.get('/secret/campaigns', secretApiAuth, async (req, res) => {
-  try {
-    const pool = getPool();
-    const status = req.query.status || 'running';
-    const limit = Math.min(100, parseInt(req.query.limit) || 50);
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const offset = (page - 1) * limit;
-
-    const [campaigns] = await pool.execute(
-      `SELECT c.id, c.name, c.url, c.url2, c.keyword, c.target_page, c.traffic_type,
-              c.image1_url, c.image2_url, c.status, c.views_done, c.total_views,
-              c.time_on_site, c.version, c.daily_views, c.created_at,
-              u.name as owner_name, u.email as owner_email
-       FROM campaigns c
-       LEFT JOIN users u ON u.id = c.user_id
-       WHERE c.status = ?
-       ORDER BY c.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [status, limit, offset]
-    );
-
-    const [countR] = await pool.execute(
-      `SELECT COUNT(*) as total FROM campaigns WHERE status = ?`, [status]
-    );
-
-    const results = campaigns.map(c => {
-      let keywords = [];
-      try { const a = JSON.parse(c.keyword); if (Array.isArray(a)) keywords = a; } catch { keywords = [c.keyword]; }
-      let images = [];
-      try { const a1 = JSON.parse(c.image1_url); if (Array.isArray(a1)) images.push(...a1); } catch { if (c.image1_url) images.push(c.image1_url); }
-      try { const a2 = JSON.parse(c.image2_url); if (Array.isArray(a2)) images.push(...a2); } catch { if (c.image2_url) images.push(c.image2_url); }
-
-      return {
-        campaign_id: c.id,
-        campaign_name: c.name,
-        owner: c.owner_name,
-        owner_email: c.owner_email,
-        status: c.status,
-        traffic_type: c.traffic_type,
-        version: c.version,
-        target_url: c.url,
-        target_url2: c.url2 || null,
-        target_page: c.target_page || null,
-        keywords,
-        images: images.filter(Boolean),
-        time_on_site: c.time_on_site,
-        daily_views: c.daily_views,
-        views_done: c.views_done,
-        total_views: c.total_views,
-        created_at: c.created_at,
-      };
-    });
-
-    res.json({ total: countR[0].total, page, limit, campaigns: results });
-  } catch (err) {
-    console.error('[SecretAPI] Campaigns error:', err.message);
-    res.status(500).json({ error: 'Lỗi server' });
-  }
-});
 
 /* ═════════════════════════════════════════════════════════
    PROTECTED endpoints
