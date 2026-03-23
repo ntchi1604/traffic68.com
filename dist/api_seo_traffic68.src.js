@@ -1730,8 +1730,10 @@
     scheduleChallenges();
     bindVisibility();
     // Change button text to "Vui lòng chờ" and show badge
+    var btn = document.getElementById('laynut-btn');
     var label = document.querySelector('#laynut-btn .ln-label');
     if (label) label.textContent = 'Vui lòng chờ';
+    if (btn) btn.style.padding = '8px 16px 8px 12px';
     var badge = document.getElementById('laynut-badge');
     if (badge) badge.style.display = '';
     doTick();
