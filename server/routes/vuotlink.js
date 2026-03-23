@@ -662,17 +662,25 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
     const pool = getPool();
     const uid = req.userId;
 
+    // Get worker's link IDs for gateway tasks
+    const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
+    const wlIds = wLinks.map(w => w.id);
+    const wlCondition = wlIds.length > 0
+      ? `(worker_id = ? OR worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
+      : `worker_id = ?`;
+    const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
+
     const [todayTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND DATE(completed_at) = CURDATE()`,
-      [uid]
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND DATE(completed_at) = CURDATE()`,
+      wlParams
     );
     const [totalTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed'`,
-      [uid]
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed'`,
+      wlParams
     );
     const [pendingTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE worker_id = ? AND status = 'pending'`,
-      [uid]
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ${wlCondition} AND status IN ('pending','step1','step2','step3')`,
+      wlParams
     );
     const [wallets] = await pool.execute(
       `SELECT type, balance FROM wallets WHERE user_id = ?`,
@@ -684,17 +692,17 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
     // 7 day chart
     const [chart] = await pool.execute(
       `SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn
-       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND completed_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+       FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND completed_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
        GROUP BY DATE(completed_at) ORDER BY day`,
-      [uid]
+      wlParams
     );
 
     // Recent tasks
     const [recent] = await pool.execute(
       `SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at
        FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id
-       WHERE t.worker_id = ? ORDER BY t.created_at DESC LIMIT 10`,
-      [uid]
+       WHERE ${wlCondition.replace(/worker_id/g, 't.worker_id').replace(/worker_link_id/g, 't.worker_link_id')} ORDER BY t.created_at DESC LIMIT 10`,
+      wlParams
     );
 
     // Total remaining views across all running campaigns
@@ -726,8 +734,16 @@ router.get('/worker/tasks', authMiddleware, async (req, res) => {
     const offset = (page - 1) * limit;
     const status = req.query.status || '';
 
-    let where = 't.worker_id = ?';
-    const params = [uid];
+    // Get worker's link IDs for gateway tasks
+    const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
+    const wlIds = wLinks.map(w => w.id);
+    const wlBase = wlIds.length > 0
+      ? `(t.worker_id = ? OR t.worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
+      : `t.worker_id = ?`;
+    const baseParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
+
+    let where = wlBase;
+    const params = [...baseParams];
     if (status && status !== 'all') { where += ' AND t.status = ?'; params.push(status); }
 
     const [countR] = await pool.execute(`SELECT COUNT(*) as c FROM vuot_link_tasks t WHERE ${where}`, params);
@@ -738,11 +754,14 @@ router.get('/worker/tasks', authMiddleware, async (req, res) => {
       params
     );
 
+    const statsWhere = wlIds.length > 0
+      ? `(worker_id = ? OR worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
+      : `worker_id = ?`;
     const [stats] = await pool.execute(
       `SELECT COUNT(*) as total, COALESCE(SUM(CASE WHEN status='completed' THEN earning ELSE 0 END),0) as totalEarnings,
        SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed
-       FROM vuot_link_tasks WHERE worker_id = ?`,
-      [uid]
+       FROM vuot_link_tasks WHERE ${statsWhere}`,
+      baseParams
     );
 
     res.json({ tasks, total: countR[0].c, page, limit, stats: stats[0] });
