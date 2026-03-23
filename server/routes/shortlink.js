@@ -109,7 +109,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
     const [today] = await pool.execute(
       `SELECT COALESCE(SUM(amount),0) as earn FROM transactions
        WHERE user_id = ? AND type = 'earning' AND method = 'gateway_link'
-       AND DATE(created_at) = CURDATE()`,
+       AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))`,
       [req.userId]
     );
     res.json({ ...s[0], today_earning: Number(today[0].earn) });

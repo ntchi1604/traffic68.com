@@ -691,7 +691,7 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
     const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
 
     const [todayTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND DATE(completed_at) = CURDATE()`,
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))`,
       wlParams
     );
     const [totalTasks] = await pool.execute(
@@ -711,9 +711,9 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
 
     // 7 day chart
     const [chart] = await pool.execute(
-      `SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn
-       FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND completed_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-       GROUP BY DATE(completed_at) ORDER BY day`,
+      `SELECT DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn
+       FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND CONVERT_TZ(completed_at, '+00:00', '+07:00') >= DATE_SUB(DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')), INTERVAL 7 DAY)
+       GROUP BY DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) ORDER BY day`,
       wlParams
     );
 
@@ -807,20 +807,20 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
     const days = Math.min(90, Math.max(7, parseInt(req.query.days) || 7));
 
     const [daily] = await pool.execute(
-      `SELECT DATE(completed_at) as date, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earnings
-       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND completed_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-       GROUP BY DATE(completed_at) ORDER BY date DESC`,
+      `SELECT DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) as date, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earnings
+       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND CONVERT_TZ(completed_at, '+00:00', '+07:00') >= DATE_SUB(DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')), INTERVAL ? DAY)
+       GROUP BY DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) ORDER BY date DESC`,
       [uid, days]
     );
 
     const [summary] = await pool.execute(
       `SELECT COALESCE(SUM(earning),0) as total, COUNT(*) as tasks
-       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND completed_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
+       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND CONVERT_TZ(completed_at, '+00:00', '+07:00') >= DATE_SUB(DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')), INTERVAL ? DAY)`,
       [uid, days]
     );
 
     const [todayR] = await pool.execute(
-      `SELECT COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND DATE(completed_at) = CURDATE()`,
+      `SELECT COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))`,
       [uid]
     );
 

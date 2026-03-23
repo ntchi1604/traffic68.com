@@ -22,8 +22,8 @@ router.get('/overview', async (req, res) => {
 
   let dateCondition = '';
   const dateParams = [];
-  if (fromDate) { dateCondition += " AND DATE(created_at) >= ?"; dateParams.push(fromDate); }
-  if (toDate) { dateCondition += " AND DATE(created_at) <= ?"; dateParams.push(toDate); }
+  if (fromDate) { dateCondition += " AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) >= ?"; dateParams.push(fromDate); }
+  if (toDate) { dateCondition += " AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) <= ?"; dateParams.push(toDate); }
 
   const [tu] = await pool.execute('SELECT COUNT(*) as c FROM users');
   const [tc] = await pool.execute('SELECT COUNT(*) as c FROM campaigns');
@@ -39,10 +39,10 @@ router.get('/overview', async (req, res) => {
   // Daily stats
   let chartSql, chartParams;
   if (fromDate || toDate) {
-    chartSql = `SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE 1=1${dateCondition} GROUP BY DATE(created_at) ORDER BY date ASC`;
+    chartSql = `SELECT DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE 1=1${dateCondition} GROUP BY DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) ORDER BY date ASC`;
     chartParams = dateParams;
   } else {
-    chartSql = `SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) GROUP BY DATE(created_at) ORDER BY date ASC`;
+    chartSql = `SELECT DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE CONVERT_TZ(created_at, '+00:00', '+07:00') >= DATE_SUB(DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')), INTERVAL 14 DAY) GROUP BY DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) ORDER BY date ASC`;
     chartParams = [];
   }
   const [rawStats] = await pool.execute(chartSql, chartParams);
@@ -272,8 +272,8 @@ router.get('/transactions', async (req, res) => {
   const filterParams = [];
   if (type && type !== 'all') { sql += ' AND t.type = ?'; params.push(type); filterCondition += ' AND t.type = ?'; filterParams.push(type); }
   if (status && status !== 'all') { sql += ' AND t.status = ?'; params.push(status); filterCondition += ' AND t.status = ?'; filterParams.push(status); }
-  if (fromDate) { sql += ' AND DATE(t.created_at) >= ?'; params.push(fromDate); filterCondition += ' AND DATE(t.created_at) >= ?'; filterParams.push(fromDate); }
-  if (toDate) { sql += ' AND DATE(t.created_at) <= ?'; params.push(toDate); filterCondition += ' AND DATE(t.created_at) <= ?'; filterParams.push(toDate); }
+  if (fromDate) { sql += " AND DATE(CONVERT_TZ(t.created_at, '+00:00', '+07:00')) >= ?"; params.push(fromDate); filterCondition += " AND DATE(CONVERT_TZ(t.created_at, '+00:00', '+07:00')) >= ?"; filterParams.push(fromDate); }
+  if (toDate) { sql += " AND DATE(CONVERT_TZ(t.created_at, '+00:00', '+07:00')) <= ?"; params.push(toDate); filterCondition += " AND DATE(CONVERT_TZ(t.created_at, '+00:00', '+07:00')) <= ?"; filterParams.push(toDate); }
   sql += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
   params.push(Number(limit), Number(offset));
   const [transactions] = await pool.execute(sql, params);
@@ -878,7 +878,7 @@ router.get('/security/ip/:ip', async (req, res) => {
        SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) as expired,
        SUM(CASE WHEN bot_detected = 1 THEN 1 ELSE 0 END) as bot_detected,
        COUNT(DISTINCT worker_id) as unique_workers,
-       COUNT(DISTINCT DATE(created_at)) as active_days,
+       COUNT(DISTINCT DATE(CONVERT_TZ(created_at, '+00:00', '+07:00'))) as active_days,
        MIN(created_at) as first_seen,
        MAX(created_at) as last_seen
        FROM vuot_link_tasks WHERE ip_address = ? AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)`,
@@ -887,10 +887,10 @@ router.get('/security/ip/:ip', async (req, res) => {
 
     // 2. Daily breakdown
     const [dailyBreakdown] = await pool.execute(
-      `SELECT DATE(created_at) as date, COUNT(*) as tasks,
+      `SELECT DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) as date, COUNT(*) as tasks,
        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
        FROM vuot_link_tasks WHERE ip_address = ? AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
-       GROUP BY DATE(created_at) ORDER BY date DESC`,
+       GROUP BY DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) ORDER BY date DESC`,
       [ip]
     );
 
