@@ -153,6 +153,16 @@ router.get('/public/:token', async (req, res) => {
     if (settings.length > 0 && settings[0].setting_value === 'false') captchaEnabled = false;
   } catch (e) { }
 
+  // Admin workers: auto-disable captcha for their widgets
+  if (captchaEnabled) {
+    try {
+      const [ownerRows] = await pool.execute('SELECT role FROM users WHERE id = ?', [widgets[0].user_id]);
+      if (ownerRows.length > 0 && ownerRows[0].role === 'admin') {
+        captchaEnabled = false;
+      }
+    } catch (e) { }
+  }
+
   const resp = { campaignFound: !!campaignInfo, captchaEnabled };
   if (Object.keys(overrides).length > 0) resp.config = overrides;
   if (campaignInfo && campaignInfo.version === 1) {
