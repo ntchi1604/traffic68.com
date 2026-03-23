@@ -10,6 +10,7 @@ const TYPE_LABELS = {
   social: { label: 'Social Traffic', color: 'bg-pink-100 text-pink-700' },
   direct: { label: 'Direct Traffic', color: 'bg-green-100 text-green-700' },
 };
+const TYPE_ORDER = ['google_search', 'direct', 'social'];
 
 export default function AdminWorkerPricing() {
   usePageTitle('Admin - Bảng giá Worker');
@@ -155,7 +156,7 @@ export default function AdminWorkerPricing() {
           </div>
 
           {/* Pricing Tables (all editable inline) */}
-          {Object.entries(grouped).map(([type, items]) => {
+          {Object.entries(grouped).sort((a, b) => (TYPE_ORDER.indexOf(a[0]) === -1 ? 99 : TYPE_ORDER.indexOf(a[0])) - (TYPE_ORDER.indexOf(b[0]) === -1 ? 99 : TYPE_ORDER.indexOf(b[0]))).map(([type, items]) => {
             const typeInfo = TYPE_LABELS[type] || { label: type, color: 'bg-gray-100 text-gray-700' };
             return (
               <div key={type} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
