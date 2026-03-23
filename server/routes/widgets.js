@@ -309,10 +309,11 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
   if (ch.used) { delete widgetChallenges[challengeId]; return res.status(403).json(ERR); }
   if (Date.now() - ch.createdAt > 600000) { delete widgetChallenges[challengeId]; return res.status(403).json(ERR); }
-  if (ch.ip && ch.ip !== ip) return res.status(403).json(ERR);
+  // Skip strict IP check — IPv6 privacy extensions change IP between requests
+  // Challenge is still protected by HMAC signature + timeout + single-use
 
-  if (!_ck || _ck !== signWidgetChallenge(challengeId, ip)) {
-    console.log(`[Widget] Invalid challenge signature — IP: ${ip}`);
+  if (!_ck || _ck !== signWidgetChallenge(challengeId, ch.ip)) {
+    console.log(`[Widget] Invalid challenge signature — IP: ${ip}, challenge IP: ${ch.ip}`);
     return res.status(403).json(ERR);
   }
 
