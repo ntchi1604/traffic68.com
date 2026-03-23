@@ -1516,7 +1516,7 @@
     }
     _v1Phase2Ready = false;
     _v1Phase2Active = true; // Flag so doTick knows to use V1 phase 2 flow
-    var seconds = Math.floor(Math.random() * 16) + 20; // 20-35s
+    var seconds = Math.floor(Math.random() * 11) + 25; // 25-35s
     _v1Phase2Wait = seconds;
     countdownRunning = true;
     remaining = seconds;
@@ -1746,7 +1746,7 @@
     init: function (userCfg) {
       cfg = Object.assign({}, D, userCfg);
       t = Object.assign({}, THEMES.default, THEMES[cfg.theme] || {});
-      remaining = 25 + Math.floor(Math.random() * 11); // random 25-35s
+      remaining = cfg.waitTime;
       circumference = 2 * Math.PI * 36;
 
       injectStyles();
