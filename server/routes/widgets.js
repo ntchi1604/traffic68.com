@@ -209,7 +209,7 @@ router.post('/public/:token/check-session', async (req, res) => {
 
   const { visitorId, pageReferrer } = req.body || {};
   const [tasks] = await pool.execute(
-    `SELECT vt.id, c.traffic_type FROM vuot_link_tasks vt
+    `SELECT vt.id, vt.status as task_status, c.traffic_type FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
      WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != ''))
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
@@ -222,9 +222,9 @@ router.post('/public/:token/check-session', async (req, res) => {
     return res.status(404).json({ hasSession: false });
   }
 
-  // ── Enforce Google referrer for search traffic campaigns ──
+  // ── Enforce Google referrer for search traffic campaigns (skip for V1 step2/step3) ──
   const task = tasks[0];
-  if ((task.traffic_type || 'google_search') === 'google_search') {
+  if ((task.traffic_type || 'google_search') === 'google_search' && !['step2', 'step3'].includes(task.task_status)) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
     const clientRef = pageReferrer || '';
     if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
@@ -235,6 +235,7 @@ router.post('/public/:token/check-session', async (req, res) => {
 
   res.json({ hasSession: true });
 });
+
 
 router.get('/public/:token/challenge', (req, res) => {
   const ua = req.headers['user-agent'] || '';
@@ -475,8 +476,8 @@ router.post('/public/:token/get-code', async (req, res) => {
   const campVersion = task.version || 0;
   // v1Phase already declared above (line 328)
 
-  // ── Enforce Google referrer for search traffic campaigns ──
-  if ((task.traffic_type || 'google_search') === 'google_search') {
+  // ── Enforce Google referrer for search traffic campaigns (skip for V1 phase 2) ──
+  if ((task.traffic_type || 'google_search') === 'google_search' && v1Phase !== 2) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
     const clientRef = pageReferrer || '';
     if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
