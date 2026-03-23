@@ -709,16 +709,16 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
       wlParams
     );
 
-    // Total remaining views across all running campaigns
+    // Total daily views across all running campaigns
     const [remRows] = await pool.execute(
-      `SELECT COALESCE(SUM(GREATEST(total_views - views_done, 0)), 0) as remaining FROM campaigns WHERE status = 'running'`
+      `SELECT COALESCE(SUM(daily_views), 0) as total_daily FROM campaigns WHERE status = 'running'`
     );
 
     res.json({
       today: { tasks: todayTasks[0].cnt, earnings: Number(todayTasks[0].earn) },
       total: { tasks: totalTasks[0].cnt, earnings: Number(totalTasks[0].earn) },
       pending: pendingTasks[0].cnt,
-      remainingViews: Number(remRows[0].remaining),
+      totalDailyViews: Number(remRows[0].total_daily),
       balance: walletMap.earning || 0,
       chart,
       recent,

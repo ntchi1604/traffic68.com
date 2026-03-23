@@ -53,7 +53,7 @@ export default function MemberDashboard() {
   const statCards = [
     { label: 'Nhiệm vụ hoàn thành hôm nay', value: `${data?.today?.tasks || 0} nhiệm vụ`, subtext: fmt(data?.today?.earnings || 0) + ' đ', Icon: Eye, iconBg: 'bg-blue-100', iconColor: 'text-blue-600', accentGradient: 'from-blue-500 to-blue-600' },
     { label: 'Tổng số nhiệm vụ đã làm', value: `${data?.total?.tasks || 0} nhiệm vụ`, subtext: fmt(data?.total?.earnings || 0) + ' đ', Icon: TrendingUp, iconBg: 'bg-green-100', iconColor: 'text-green-600', accentGradient: 'from-green-500 to-green-600' },
-    { label: 'View còn lại hệ thống', value: `${fmt(data?.remainingViews || 0)} views`, subtext: `${data?.pending || 0} nhiệm vụ đang xử lý`, Icon: Zap, iconBg: 'bg-orange-100', iconColor: 'text-orange-600', accentGradient: 'from-orange-400 to-orange-500' },
+    { label: 'Tổng view ngày hệ thống', value: `${fmt(data?.totalDailyViews || 0)} views`, subtext: `${data?.pending || 0} nhiệm vụ đang xử lý`, Icon: Zap, iconBg: 'bg-orange-100', iconColor: 'text-orange-600', accentGradient: 'from-orange-400 to-orange-500' },
     { label: 'Thu nhập khả dụng', value: fmt(data?.balance || 0) + ' đ', subtext: 'Ví thu nhập', Icon: Wallet, iconBg: 'bg-purple-100', iconColor: 'text-purple-600', accentGradient: 'from-purple-500 to-purple-600' },
   ];
 
