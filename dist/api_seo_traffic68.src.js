@@ -64,7 +64,7 @@
     padX: 0,
     padY: 12,
 
-    buttonText: 'Lấy Mã',
+    buttonText: 'LẤY MÃ',
     buttonColor: '#f97316',
     textColor: '#ffffff',
     borderRadius: 50,
@@ -1505,7 +1505,7 @@
     bindVisibility();
     // Update button text to indicate next step
     var label = document.querySelector('#laynut-btn .ln-label');
-    if (label) label.textContent = 'Lấy Mã';
+    if (label) label.textContent = 'LẤY MÃ';
   }
 
   function _startV1Phase2() {
