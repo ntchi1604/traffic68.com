@@ -83,7 +83,7 @@
     brandUrl: 'https://traffic68.com',
     brandLogo: '',
     customCSS: '',
-    overlapFix: 'auto',  // 'auto' | 'zindex' | 'fixed' | 'none'
+    overlapFix: 'none',  // 'auto' | 'zindex' | 'fixed' | 'none'
     hcaptchaSiteKey: '5acaec7e-83b0-464e-ba10-690889fc66ba', // hCaptcha site key
     clarityId: 'vyua2zk5dc', // Microsoft Clarity project ID
     onReveal: null,
