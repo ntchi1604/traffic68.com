@@ -10,7 +10,6 @@ import api from '../../lib/api';
 const BUYER_NAV = [
   { to: '/admin/users',        icon: Users,           label: 'Người dùng' },
   { to: '/admin/campaigns',    icon: Megaphone,       label: 'Chiến dịch' },
-  { to: '/admin/transactions', icon: Receipt,         label: 'Giao dịch' },
   { to: '/admin/pricing',      icon: DollarSign,      label: 'Bảng giá' },
   { to: '/admin/tickets',      icon: LifeBuoy,        label: 'Hỗ trợ' },
   { to: '/admin/referrals/buyers', icon: Gift,         label: 'Referral' },
@@ -106,6 +105,7 @@ export default function AdminLayout() {
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {/* Tổng quan - standalone */}
           <NavItem to="/admin" icon={LayoutDashboard} label="Tổng quan" end />
+          <NavItem to="/admin/transactions" icon={Receipt} label="Giao dịch" />
 
           {/* Buyer Section */}
           <div className="mt-2">
