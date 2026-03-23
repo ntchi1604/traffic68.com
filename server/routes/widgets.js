@@ -183,36 +183,18 @@ router.post('/public/:token/check-session', async (req, res) => {
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
-  // Try exact match (IP + UA)
+  const { visitorId } = req.body || {};
   const [tasks] = await pool.execute(
     `SELECT vt.id FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
-     WHERE vt.ip_address = ? 
-       AND vt.user_agent = ?
+     WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != ''))
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
        AND vt.expires_at > NOW()
      ORDER BY vt.created_at DESC LIMIT 1`,
-    [ip, ua]
+    [ip, visitorId || '']
   );
 
   if (tasks.length === 0) {
-    // Debug: check if there's a task with same IP but different UA
-    const [ipOnly] = await pool.execute(
-      `SELECT vt.id, vt.user_agent FROM vuot_link_tasks vt
-       JOIN campaigns c ON c.id = vt.campaign_id
-       WHERE vt.ip_address = ?
-         AND vt.status IN ('pending', 'step1', 'step2', 'step3')
-         AND vt.expires_at > NOW()
-       ORDER BY vt.created_at DESC LIMIT 1`,
-      [ip]
-    );
-    if (ipOnly.length > 0) {
-      console.log(`[Widget] check-session UA MISMATCH — IP: ${ip}`);
-      console.log(`  Task UA: ${ipOnly[0].user_agent?.substring(0, 100)}`);
-      console.log(`  Req  UA: ${ua.substring(0, 100)}`);
-    } else {
-      console.log(`[Widget] check-session NO TASK — IP: ${ip}, UA: ${ua.substring(0, 80)}`);
-    }
     return res.status(404).json({ hasSession: false });
   }
 
@@ -406,8 +388,8 @@ router.post('/public/:token/get-code', async (req, res) => {
     // Store assessment in task — will be logged to security when task completes
     try {
       const [activeTasks] = await pool.execute(
-        `SELECT id FROM vuot_link_tasks WHERE ip_address = ? AND user_agent = ? AND status IN ('pending','step1','step2','step3') AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
-        [ip, ua]
+        `SELECT id FROM vuot_link_tasks WHERE (ip_address = ? OR (visitor_id = ? AND visitor_id IS NOT NULL AND visitor_id != '')) AND status IN ('pending','step1','step2','step3') AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
+        [ip, visitorId || '']
       );
       if (activeTasks.length > 0) {
         await pool.execute(
@@ -421,15 +403,15 @@ router.post('/public/:token/get-code', async (req, res) => {
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
+  // Match by IP or visitorId
   const [tasks] = await pool.execute(
     `SELECT vt.*, c.url as campaign_url, c.time_on_site, c.version, c.target_page FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
-     WHERE vt.ip_address = ? 
-       AND vt.user_agent = ?
+     WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != ''))
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
        AND vt.expires_at > NOW()
      ORDER BY vt.created_at DESC LIMIT 1`,
-    [ip, ua]
+    [ip, visitorId || '']
   );
 
   if (tasks.length === 0) {
