@@ -452,11 +452,21 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
   const campaign = campaigns[0];
 
-  // ── Buyer CPC: derive from budget/total_views (budget already includes discount from creation) ──
-  let buyerCpc = campaign.total_views > 0
-    ? Math.round(campaign.budget / campaign.total_views)
-    : (campaign.cpc || 0);
-  console.log(`[VuotLink] buyerCpc=${buyerCpc} (budget=${campaign.budget}, total=${campaign.total_views}, cpc_col=${campaign.cpc})`);
+  // ── Buyer CPC: look up from pricing_tiers (giá admin set cho buyer) ──
+  let buyerCpc = campaign.cpc || 0;
+  try {
+    const duration = (campaign.time_on_site || '60').split('-')[0] + 's';
+    const [bptRows] = await pool.execute(
+      'SELECT v1_price, v2_price FROM pricing_tiers WHERE traffic_type = ? AND duration = ?',
+      [campaign.traffic_type || 'google_search', duration]
+    );
+    if (bptRows.length > 0) {
+      buyerCpc = campaign.version === 2 ? bptRows[0].v2_price : bptRows[0].v1_price;
+    }
+  } catch (e) {
+    console.error('[VuotLink] Buyer CPC lookup error:', e.message);
+  }
+  console.log(`[VuotLink] buyerCpc=${buyerCpc} (cpc_col=${campaign.cpc})`);
 
   // ── Check buyer balance ──
   const [buyerWallets] = await pool.execute(
