@@ -123,14 +123,8 @@ export default function AdminPricing() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div>
         <h1 className="text-2xl font-black text-slate-900">Quản lý bảng giá</h1>
-        {hasChanges && (
-          <button onClick={saveAll} disabled={saving}
-            className="flex items-center gap-2 px-5 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-bold rounded-xl transition disabled:opacity-50 animate-pulse">
-            <Save size={16} /> {saving ? 'Đang lưu...' : `Lưu tất cả (${Object.keys(editedTiers).length})`}
-          </button>
-        )}
       </div>
 
       {loading ? (
