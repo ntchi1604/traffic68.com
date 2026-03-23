@@ -482,6 +482,9 @@ export default function VuotLink() {
     const waitTime_ = task?.waitTime || waitTime || 60;
     const widgetConfig = task?.widgetConfig || null;
     const campVersion = task?.version || 0;
+    const trafficType = task?.traffic_type || 'google_search';
+    const targetUrl = task?.target_url || '';
+    const isDirect = trafficType === 'direct';
 
     /* ─── Loading ──────────────────────────────────────── */
     if (loading) return (
@@ -571,7 +574,7 @@ export default function VuotLink() {
                     {/* LEFT: Sticky timeline */}
                     <div className="vl-timeline" style={{ position: 'sticky', top: '80px', paddingTop: '8px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            {[1, 2, 3, 4].map((n, i) => (
+                            {(isDirect ? [1, 2] : [1, 2, 3, 4]).map((n, i, arr) => (
                                 <div key={n} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                                     <div style={{
                                         width: '36px', height: '36px', borderRadius: '50%',
@@ -586,7 +589,7 @@ export default function VuotLink() {
                                             : n
                                         }
                                     </div>
-                                    {i < 3 && (
+                                    {i < arr.length - 1 && (
                                         <div style={{ width: '3px', height: '200px', background: verified ? 'linear-gradient(180deg,#22c55e,#16a34a)' : 'linear-gradient(180deg,#3b82f6,#93c5fd)', margin: '4px 0', borderRadius: '2px', transition: 'all 0.5s ease' }} />
                                     )}
                                 </div>
@@ -595,9 +598,39 @@ export default function VuotLink() {
                     </div>
 
 
-                    {/* RIGHT: All 4 cards always visible */}
+
+                    {/* RIGHT: Cards */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
+                        {isDirect ? (
+                            <>
+                                {/* ── DIRECT: CARD 1: Truy cập URL ── */}
+                                <StepPanel n={1} title="TRUY CẬP TRANG WEB" desc="Mở link bên dưới và ở lại trang ít nhất vài phút." verified={verified}>
+                                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fff', border: '1.5px dashed #3b82f6', borderRadius: '10px', padding: '12px 16px', width: '100%', maxWidth: '400px' }}>
+                                            <Globe size={16} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                                            <span style={{ flex: 1, color: '#1d4ed8', fontSize: 'clamp(12px,2.5vw,14px)', fontWeight: 700, wordBreak: 'break-all' }}>{targetUrl}</span>
+                                            <CopyBtn keyword={targetUrl} />
+                                        </div>
+                                        <a href={targetUrl} target="_blank" rel="noopener noreferrer"
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', textDecoration: 'none', padding: '11px 28px', borderRadius: '10px', fontSize: '14px', fontWeight: 700, boxShadow: '0 4px 16px rgba(59,130,246,0.35)' }}>
+                                            <ExternalLink size={15} /> Mở trang web
+                                        </a>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                                            {['Copy hoặc nhấn nút mở trang web', 'Ở lại trang và tương tác tự nhiên', 'Tìm nút lấy mã trên trang → lấy mã', 'Quay lại đây nhập mã xác nhận'].map((t, i) => (
+                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(59,130,246,0.06)', borderRadius: '8px', padding: '8px 12px' }}>
+                                                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                        <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>{i + 1}</span>
+                                                    </div>
+                                                    <span style={{ color: '#374151', fontSize: '13px' }}>{t}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </StepPanel>
+                            </>
+                        ) : (
+                            <>
                         {/* ── CARD 1: Mở Google ── */}
                         <StepPanel n={1} title="MỞ GOOGLE" desc="Mở trình duyệt và truy cập trang chủ Google." verified={verified}>
                             <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
@@ -698,9 +731,10 @@ export default function VuotLink() {
                                 ))}
                             </div>
                         </StepPanel>
+                        </>)}
 
-                        {/* ── CARD 4: Xác nhận ── */}
-                        <StepPanel n={4} title="XÁC NHẬN" desc="Nhập mã xác nhận để hoàn tất nhiệm vụ." verified={verified}>
+                        {/* ── Shared: Xác nhận ── */}
+                        <StepPanel n={isDirect ? 2 : 4} title="XÁC NHẬN" desc="Nhập mã xác nhận để hoàn tất nhiệm vụ." verified={verified}>
                             {verified ? (
                                 <div style={{ textAlign: 'center', padding: '20px 0' }}>
                                     <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#f0fef4', border: '3px solid #86efac', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -864,7 +898,7 @@ export default function VuotLink() {
                                             {completing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN VÀ HOÀN TẤT →'}
                                         </OrangeBtn>
                                     </div>
-                                </div>
+                                    </div>
                             )}
                         </StepPanel>
                     </div>

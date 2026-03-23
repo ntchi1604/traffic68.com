@@ -378,10 +378,10 @@
       '.ln-msg{font-size:13px;margin:0 0 20px;line-height:1.5;}',
 
       /* Code box */
-      '.ln-code-wrap{display:flex;align-items:stretch;border-radius:12px;overflow:hidden;margin-bottom:6px;}',
+      '.ln-code-wrap{display:flex;align-items:center;border-radius:12px;overflow:hidden;margin-bottom:6px;}',
       '.ln-code-wrap{border-width:2px;border-style:solid;}',
       '.ln-code-val{flex:1;padding:13px 14px;font-size:17px;font-weight:900;letter-spacing:.04em;text-align:left;word-break:break-all;}',
-      '.ln-copy-btn{padding:12px 16px;border:none;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.04em;transition:opacity .15s,transform .1s;flex-shrink:0;}',
+      '.ln-copy-btn{padding:12px 16px;border:none;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.04em;transition:opacity .15s,transform .1s;flex-shrink:0;align-self:stretch;display:flex;align-items:center;}',
       '.ln-copy-btn:hover{opacity:.88;}',
       '.ln-copy-btn:active{transform:scale(.96);}',
       '.ln-copy-btn.ln-copied{background:#16a34a!important;color:#fff!important;}',

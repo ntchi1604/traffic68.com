@@ -233,14 +233,15 @@ async function _handleTaskPost(req, res) {
   }
 
   // Fast random campaign: avoid ORDER BY RAND() full-table-scan
+  // Include both google_search (with keyword) and direct (no keyword needed) campaigns
   const [countRows] = await pool.execute(
-    `SELECT COUNT(*) as cnt FROM campaigns WHERE status = 'running' AND traffic_type = 'google_search' AND keyword != '' AND views_done < total_views`
+    `SELECT COUNT(*) as cnt FROM campaigns WHERE status = 'running' AND ((traffic_type = 'google_search' AND keyword != '') OR traffic_type = 'direct') AND views_done < total_views`
   );
   const totalCampaigns = countRows[0].cnt;
   if (totalCampaigns === 0) return res.status(404).json(ERR);
   const randomOffset = Math.floor(Math.random() * totalCampaigns);
   const [campaigns] = await pool.execute(
-    `SELECT * FROM campaigns WHERE status = 'running' AND traffic_type = 'google_search' AND keyword != '' AND views_done < total_views LIMIT 1 OFFSET ?`,
+    `SELECT * FROM campaigns WHERE status = 'running' AND ((traffic_type = 'google_search' AND keyword != '') OR traffic_type = 'direct') AND views_done < total_views LIMIT 1 OFFSET ?`,
     [randomOffset]
   );
   if (campaigns.length === 0) return res.status(404).json(ERR);
@@ -365,6 +366,8 @@ async function _handleTaskPost(req, res) {
     startedAt: now,
     widgetConfig,
     version: campaign.version || 0,
+    traffic_type: campaign.traffic_type || 'google_search',
+    target_url: selectedUrl,
     _tk,
   });
 }
