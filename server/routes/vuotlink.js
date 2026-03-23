@@ -234,17 +234,25 @@ async function _handleTaskPost(req, res) {
 
   // Fast random campaign: avoid ORDER BY RAND() full-table-scan
   // Include both google_search (with keyword) and direct (no keyword needed) campaigns
-  // Also enforce daily_views limit: skip campaigns that already reached today's quota
+  // Enforce daily_views limit AND hourly rate limit (view_by_hour)
+  // view_by_hour: if > 0, limit to ceil(daily_views / 24) per hour
   const campaignWhere = `c.status = 'running'
     AND ((c.traffic_type = 'google_search' AND c.keyword != '') OR c.traffic_type = 'direct')
     AND c.views_done < c.total_views
-    AND (c.daily_views <= 0 OR COALESCE(td.today_done, 0) < c.daily_views)`;
+    AND (c.daily_views <= 0 OR COALESCE(td.today_done, 0) < c.daily_views)
+    AND (c.view_by_hour <= 0 OR COALESCE(th.hour_done, 0) < CEIL(c.daily_views / 24))`;
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
       FROM vuot_link_tasks
       WHERE status = 'completed' AND DATE(completed_at) = CURDATE()
       GROUP BY campaign_id
-    ) td ON td.campaign_id = c.id`;
+    ) td ON td.campaign_id = c.id
+    LEFT JOIN (
+      SELECT campaign_id, COUNT(*) as hour_done
+      FROM vuot_link_tasks
+      WHERE status = 'completed' AND completed_at >= DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
+      GROUP BY campaign_id
+    ) th ON th.campaign_id = c.id`;
 
   const [countRows] = await pool.execute(
     `SELECT COUNT(*) as cnt FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}`
