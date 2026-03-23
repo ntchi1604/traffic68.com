@@ -76,6 +76,7 @@ router.post('/', async (req, res) => {
 
     // ── Calculate real budget from DB pricing ──
     let realBudget = budget || 0;
+    let useDiscount = false;
     try {
       const durSec = duration ? duration + 's' : '';
       const [tiers] = await pool.execute(
@@ -84,7 +85,7 @@ router.post('/', async (req, res) => {
       );
       if (tiers.length > 0) {
         const tier = tiers[0];
-        let useDiscount = false;
+        useDiscount = false;
         if (discount_applied && discount_code) {
           const [dcSettings] = await pool.execute("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('discount_enabled','discount_code')");
           const cfg = {};
@@ -109,8 +110,8 @@ router.post('/', async (req, res) => {
     const calculatedCpc = _totalViews > 0 ? Math.round(realBudget / _totalViews) : (cpc || 0);
 
     const [result] = await pool.execute(
-      `INSERT INTO campaigns (user_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, target_page, time_on_site, image1_url, image2_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite, image1_url || null, image2_url || null]
+      `INSERT INTO campaigns (user_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, target_page, time_on_site, image1_url, image2_url, discount_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0]
     );
 
     // Tiền KHÔNG trừ ngay — sẽ trừ dần mỗi khi worker hoàn thành task

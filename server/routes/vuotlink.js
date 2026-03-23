@@ -448,25 +448,31 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   }
 
   // Code correct! → Complete task, count as 1 view
-  const [campaigns] = await pool.execute('SELECT cpc, budget, total_views, user_id, traffic_type, time_on_site, version, name FROM campaigns WHERE id = ?', [task.campaign_id]);
+  const [campaigns] = await pool.execute('SELECT cpc, budget, total_views, user_id, traffic_type, time_on_site, version, name, discount_applied FROM campaigns WHERE id = ?', [task.campaign_id]);
   if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
   const campaign = campaigns[0];
 
-  // ── Buyer CPC: look up from pricing_tiers (giá admin set cho buyer) ──
+  // ── Buyer CPC: look up from pricing_tiers, apply discount if campaign was created with discount ──
   let buyerCpc = campaign.cpc || 0;
   try {
     const duration = (campaign.time_on_site || '60').split('-')[0] + 's';
     const [bptRows] = await pool.execute(
-      'SELECT v1_price, v2_price FROM pricing_tiers WHERE traffic_type = ? AND duration = ?',
+      'SELECT v1_price, v2_price, v1_discount, v2_discount FROM pricing_tiers WHERE traffic_type = ? AND duration = ?',
       [campaign.traffic_type || 'google_search', duration]
     );
     if (bptRows.length > 0) {
-      buyerCpc = campaign.version === 2 ? bptRows[0].v2_price : bptRows[0].v1_price;
+      const tier = bptRows[0];
+      const hasDiscount = campaign.discount_applied === 1;
+      if (campaign.version === 2) {
+        buyerCpc = hasDiscount && tier.v2_discount > 0 ? tier.v2_discount : tier.v2_price;
+      } else {
+        buyerCpc = hasDiscount && tier.v1_discount > 0 ? tier.v1_discount : tier.v1_price;
+      }
     }
   } catch (e) {
     console.error('[VuotLink] Buyer CPC lookup error:', e.message);
   }
-  console.log(`[VuotLink] buyerCpc=${buyerCpc} (cpc_col=${campaign.cpc})`);
+  console.log(`[VuotLink] buyerCpc=${buyerCpc} (discount=${campaign.discount_applied}, cpc_col=${campaign.cpc})`);
 
   // ── Check buyer balance ──
   const [buyerWallets] = await pool.execute(
