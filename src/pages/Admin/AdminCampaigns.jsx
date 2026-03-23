@@ -201,14 +201,12 @@ export default function AdminCampaigns() {
 
   useEffect(() => {
     const handler = (e) => {
-      requestAnimationFrame(() => {
-        if (menuRef.current && !menuRef.current.contains(e.target)) {
-          setOpenMenuId(null);
-        }
-      });
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
   }, []);
 
   const fetchCampaigns = () => {
@@ -304,7 +302,7 @@ export default function AdminCampaigns() {
                         <td className="px-5 py-3">
                           <div className="relative flex justify-center" ref={openMenuId === c.id ? menuRef : null}>
                             <button
-                              onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
+                              onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
                               className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
                             >
                               <MoreVertical size={16} />
@@ -380,7 +378,7 @@ export default function AdminCampaigns() {
                       </div>
                       <div className="relative" ref={openMenuId === c.id ? menuRef : null}>
                         <button
-                          onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
+                          onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
                           className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
                         >
                           <MoreVertical size={16} />
