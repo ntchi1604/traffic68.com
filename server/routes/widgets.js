@@ -325,26 +325,31 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json(ERR);
   }
 
-  if (!domWidth || typeof domWidth !== 'number' || domWidth <= 0) {
-    console.log(`[Widget] REJECT get-code: domWidth INVALID — IP: ${ip}, domWidth: ${domWidth}, type: ${typeof domWidth}`);
-    return res.status(403).json(ERR);
-  }
-  const expectedWidth = ch.domText.length * ch.domFontSize * 0.6;
-  if (domWidth < expectedWidth * 0.3 || domWidth > expectedWidth * 2.0) {
-    console.log(`[Widget] REJECT get-code: domWidth OUT OF RANGE — IP: ${ip}, domWidth: ${domWidth}, expected: ${expectedWidth.toFixed(1)}, range: [${(expectedWidth * 0.3).toFixed(1)}, ${(expectedWidth * 2.0).toFixed(1)}]`);
-    return res.status(403).json(ERR);
-  }
+  const v1Phase = req.body?.v1Phase || 0;
 
-  if (!glRenderer || typeof glRenderer !== 'string' || glRenderer.length < 3) {
-    console.log(`[Widget] REJECT get-code: glRenderer INVALID — IP: ${ip}, glRenderer: "${glRenderer}", type: ${typeof glRenderer}`);
-    return res.status(403).json(ERR);
-  }
-  if (glPixel && Array.isArray(glPixel) && glPixel.length >= 3) {
-    const tol = 15;
-    const [er, eg, eb] = ch.glColor.map(v => Math.round(v * 255));
-    if (Math.abs(glPixel[0] - er) > tol || Math.abs(glPixel[1] - eg) > tol || Math.abs(glPixel[2] - eb) > tol) {
-      console.log(`[Widget] REJECT get-code: glPixel MISMATCH — IP: ${ip}, got: [${glPixel}], expected: [${er},${eg},${eb}], tol: ${tol}`);
+  // Skip Canvas/WebGL checks for V1 phase 2 (already verified in phase 1)
+  if (v1Phase !== 2) {
+    if (!domWidth || typeof domWidth !== 'number' || domWidth <= 0) {
+      console.log(`[Widget] REJECT get-code: domWidth INVALID — IP: ${ip}, domWidth: ${domWidth}, type: ${typeof domWidth}`);
       return res.status(403).json(ERR);
+    }
+    const expectedWidth = ch.domText.length * ch.domFontSize * 0.6;
+    if (domWidth < expectedWidth * 0.3 || domWidth > expectedWidth * 2.0) {
+      console.log(`[Widget] REJECT get-code: domWidth OUT OF RANGE — IP: ${ip}, domWidth: ${domWidth}, expected: ${expectedWidth.toFixed(1)}, range: [${(expectedWidth * 0.3).toFixed(1)}, ${(expectedWidth * 2.0).toFixed(1)}]`);
+      return res.status(403).json(ERR);
+    }
+
+    if (!glRenderer || typeof glRenderer !== 'string' || glRenderer.length < 3) {
+      console.log(`[Widget] REJECT get-code: glRenderer INVALID — IP: ${ip}, glRenderer: "${glRenderer}", type: ${typeof glRenderer}`);
+      return res.status(403).json(ERR);
+    }
+    if (glPixel && Array.isArray(glPixel) && glPixel.length >= 3) {
+      const tol = 15;
+      const [er, eg, eb] = ch.glColor.map(v => Math.round(v * 255));
+      if (Math.abs(glPixel[0] - er) > tol || Math.abs(glPixel[1] - eg) > tol || Math.abs(glPixel[2] - eb) > tol) {
+        console.log(`[Widget] REJECT get-code: glPixel MISMATCH — IP: ${ip}, got: [${glPixel}], expected: [${er},${eg},${eb}], tol: ${tol}`);
+        return res.status(403).json(ERR);
+      }
     }
   }
 
@@ -457,7 +462,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   const task = tasks[0];
   const campVersion = task.version || 0;
-  const v1Phase = req.body?.v1Phase || 0;
+  // v1Phase already declared above (line 328)
 
   const tos = task.time_on_site || '60';
   let requiredSeconds = 30;
