@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Search, Globe, ShieldCheck, ShieldOff, ExternalLink, ArrowRight,
-  AlertCircle, Loader2, WifiOff, Copy, Check, Lock, Unlock,
+  AlertCircle, Loader2, WifiOff, Copy, Check, Lock, Unlock, RefreshCw,
 } from 'lucide-react';
 
 /* ─── CreepJS via iframe (same approach as VuotLink.jsx) ─── */
@@ -275,115 +275,152 @@ export default function LinkGateway() {
       .catch(() => setLinkError('Không thể tải thông tin link'));
   }, [slug]);
 
-  // Step 2: After link info loaded, fetch challenge + task
-  useEffect(() => {
+  // Fetch challenge + task (reusable)
+  const fetchTask = useCallback(async (force = false) => {
     if (!linkInfo) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        setLoading(true); setError('');
+    const sessionKey = `gw_task_${slug}`;
 
-        // Incognito detection
-        if (navigator.storage && navigator.storage.estimate) {
-          const { quota } = await navigator.storage.estimate();
-          if (quota && quota < 10 * 1024 * 1024 * 1024) {
-            if (!cancelled) setIsIncognito(true);
+    // If not forced, try to restore from sessionStorage
+    if (!force) {
+      try {
+        const cached = sessionStorage.getItem(sessionKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          // Only use cache if task is still pending (not completed/expired)
+          if (parsed && parsed.id && !parsed._expired) {
+            setTask(parsed);
+            setLoading(false);
             return;
           }
         }
+      } catch { }
+    }
 
-        const creepData = await getCreepData();
-        let visitorId = creepData.visitorId || 'unknown';
-        let botDetectionResult = creepData.botDetection;
+    try {
+      setLoading(true); setError('');
 
-        if (window.clarity) {
-          window.clarity('set', 'visitor_id', visitorId);
-          window.clarity('identify', visitorId);
-        }
-
-        // Get challenge — pass slug so server binds worker_link_id to session
-        const chRes = await fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}`);
-        if (!chRes.ok) throw new Error('Không thể lấy challenge');
-        const challenge = await chRes.json();
-
-        // Solve PoW
-        let powNonce = 0;
-        const target = '0'.repeat(challenge.d || 4);
-        const enc = new TextEncoder();
-        while (true) {
-          const data = enc.encode(challenge.p + powNonce);
-          const buf = await crypto.subtle.digest('SHA-256', data);
-          const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-          if (hex.startsWith(target)) break;
-          powNonce++;
-          if (powNonce > 5000000) throw new Error('PoW timeout');
-        }
-
-        // Canvas 2D + WebGL proof
-        let domWidth = 0;
-        let glRenderer = '';
-        let glPixel = [0, 0, 0];
-        try {
-          const cv = document.createElement('canvas');
-          const ctx2d = cv.getContext('2d');
-          ctx2d.font = `${challenge.df}px monospace`;
-          domWidth = ctx2d.measureText(challenge.dt).width;
-        } catch { }
-        try {
-          const glCv = document.createElement('canvas');
-          glCv.width = 4; glCv.height = 4;
-          const gl = glCv.getContext('webgl') || glCv.getContext('experimental-webgl');
-          if (gl) {
-            const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-            glRenderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
-            const [cr, cg, cb] = challenge.gc;
-            gl.clearColor(cr, cg, cb, 1);
-            gl.clear(gl.COLOR_BUFFER_BIT);
-            const px = new Uint8Array(4);
-            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-            glPixel = [px[0], px[1], px[2]];
-          }
-        } catch { }
-
-        // Request task — worker_link_id is tracked server-side via challenge session
-        const token = localStorage.getItem('token');
-        const headers = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const taskRes = await fetch(`${API}/task`, {
-          method: 'POST', headers,
-          body: JSON.stringify({
-            challengeId: challenge.c,
-            powNonce,
-            domWidth,
-            glRenderer,
-            glPixel,
-            visitorId,
-            botDetection: botDetectionResult,
-            probes: probeData,
-            behavioral: getBehavioralData(),
-          }),
-        });
-
-        if (taskRes.status === 404) {
-          if (!cancelled) setError('Hiện tại không có nhiệm vụ nào. Vui lòng thử lại sau.');
+      // Incognito detection
+      if (navigator.storage && navigator.storage.estimate) {
+        const { quota } = await navigator.storage.estimate();
+        if (quota && quota < 10 * 1024 * 1024 * 1024) {
+          setIsIncognito(true);
           return;
         }
-        if (taskRes.status === 429) {
-          const e = await taskRes.json();
-          if (!cancelled) setError(e.error || 'Bạn đã đạt giới hạn hôm nay.');
-          return;
-        }
-        if (!taskRes.ok) throw new Error('Không thể lấy nhiệm vụ');
-        if (!cancelled) setTask(await taskRes.json());
-      } catch (err) {
-        if (!cancelled) setError(err.message || 'Lỗi');
-      } finally {
-        if (!cancelled) setLoading(false);
       }
-    })();
-    return () => { cancelled = true; };
-  }, [linkInfo]);
+
+      const creepData = await getCreepData();
+      let visitorId = creepData.visitorId || 'unknown';
+      let botDetectionResult = creepData.botDetection;
+
+      if (window.clarity) {
+        window.clarity('set', 'visitor_id', visitorId);
+        window.clarity('identify', visitorId);
+      }
+
+      // Get challenge — pass slug so server binds worker_link_id to session
+      const chRes = await fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}`);
+      if (!chRes.ok) throw new Error('Không thể lấy challenge');
+      const challenge = await chRes.json();
+
+      // Solve PoW
+      let powNonce = 0;
+      const target = '0'.repeat(challenge.d || 4);
+      const enc = new TextEncoder();
+      while (true) {
+        const data = enc.encode(challenge.p + powNonce);
+        const buf = await crypto.subtle.digest('SHA-256', data);
+        const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        if (hex.startsWith(target)) break;
+        powNonce++;
+        if (powNonce > 5000000) throw new Error('PoW timeout');
+      }
+
+      // Canvas 2D + WebGL proof
+      let domWidth = 0;
+      let glRenderer = '';
+      let glPixel = [0, 0, 0];
+      try {
+        const cv = document.createElement('canvas');
+        const ctx2d = cv.getContext('2d');
+        ctx2d.font = `${challenge.df}px monospace`;
+        domWidth = ctx2d.measureText(challenge.dt).width;
+      } catch { }
+      try {
+        const glCv = document.createElement('canvas');
+        glCv.width = 4; glCv.height = 4;
+        const gl = glCv.getContext('webgl') || glCv.getContext('experimental-webgl');
+        if (gl) {
+          const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+          glRenderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+          const [cr, cg, cb] = challenge.gc;
+          gl.clearColor(cr, cg, cb, 1);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          const px = new Uint8Array(4);
+          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+          glPixel = [px[0], px[1], px[2]];
+        }
+      } catch { }
+
+      // Request task
+      const token = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const taskRes = await fetch(`${API}/task`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          challengeId: challenge.c,
+          powNonce,
+          domWidth,
+          glRenderer,
+          glPixel,
+          visitorId,
+          botDetection: botDetectionResult,
+          probes: probeData,
+          behavioral: getBehavioralData(),
+        }),
+      });
+
+      if (taskRes.status === 404) {
+        setError('Hiện tại không có nhiệm vụ nào. Vui lòng thử lại sau.');
+        return;
+      }
+      if (taskRes.status === 429) {
+        const e = await taskRes.json();
+        setError(e.error || 'Bạn đã đạt giới hạn hôm nay.');
+        return;
+      }
+      if (!taskRes.ok) throw new Error('Không thể lấy nhiệm vụ');
+      const newTask = await taskRes.json();
+      setTask(newTask);
+      // Save to sessionStorage
+      try { sessionStorage.setItem(sessionKey, JSON.stringify(newTask)); } catch { }
+    } catch (err) {
+      setError(err.message || 'Lỗi');
+    } finally {
+      setLoading(false);
+    }
+  }, [linkInfo, slug]);
+
+  // Step 2: After link info loaded, fetch challenge + task
+  useEffect(() => {
+    if (!linkInfo) return;
+    fetchTask(false);
+  }, [linkInfo, fetchTask]);
+
+  // Change task (skip current)
+  const [changingTask, setChangingTask] = useState(false);
+  const handleChangeTask = useCallback(async () => {
+    setChangingTask(true);
+    setTask(null);
+    setInputCode('');
+    setVerified(false);
+    setCompletionResult(null);
+    setShowError(false);
+    try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
+    await fetchTask(true);
+    setChangingTask(false);
+  }, [fetchTask, slug]);
 
   // Verify code
   const handleVerify = useCallback(async () => {
@@ -404,6 +441,7 @@ export default function LinkGateway() {
       if (!res.ok) throw new Error(data.error || 'Mã không đúng');
       setCompletionResult(data);
       setVerified(true); setShowError(false);
+      try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
 
       // Redirect to destination_url after 3 seconds
       if (data.destination_url) {
@@ -508,6 +546,15 @@ export default function LinkGateway() {
             HOÀN THÀNH NHIỆM VỤ ĐỂ TRUY CẬP
           </h1>
           <p style={{ color: '#64748B', fontSize: 14, margin: 0 }}>Thực hiện {isDirect ? 2 : 4} bước bên dưới theo thứ tự để mở khóa liên kết</p>
+          {task && !verified && (
+            <button onClick={handleChangeTask} disabled={changingTask}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12, background: 'none', border: '1.5px solid #CBD5E1', color: '#64748B', padding: '8px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+              onMouseOver={e => { e.currentTarget.style.borderColor = '#F97316'; e.currentTarget.style.color = '#F97316'; }}
+              onMouseOut={e => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.color = '#64748B'; }}>
+              <RefreshCw size={14} style={changingTask ? { animation: 'spin 1s linear infinite' } : {}} />
+              {changingTask ? 'Đang đổi...' : 'Đổi nhiệm vụ'}
+            </button>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
