@@ -693,11 +693,13 @@ function secretApiAuth(req, res, next) {
   next();
 }
 
-// POST /api/vuot-link/secret/lookup — Tìm campaign theo keyword + image → trả về trang đích
-router.post('/secret/lookup', secretApiAuth, async (req, res) => {
+// GET & POST /api/vuot-link/secret/lookup — Tìm campaign theo keyword + image → trả về URL dạng text
+async function _secretLookup(req, res) {
   try {
     const pool = getPool();
-    const { keyword, image_url } = req.body || {};
+    // Support cả GET (query) và POST (body)
+    const keyword = req.query.keyword || (req.body || {}).keyword || '';
+    const image_url = req.query.image_url || (req.body || {}).image_url || '';
 
     if (!keyword && !image_url) {
       return res.status(400).json({ error: 'Cần truyền ít nhất keyword hoặc image_url' });
@@ -756,7 +758,9 @@ router.post('/secret/lookup', secretApiAuth, async (req, res) => {
     console.error('[SecretAPI] Lookup error:', err.message);
     res.type('text').status(500).send('ERROR');
   }
-});
+}
+router.get('/secret/lookup', secretApiAuth, _secretLookup);
+router.post('/secret/lookup', secretApiAuth, _secretLookup);
 
 // GET /api/vuot-link/secret/campaigns — Liệt kê tất cả campaigns đang chạy
 router.get('/secret/campaigns', secretApiAuth, async (req, res) => {
