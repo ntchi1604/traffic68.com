@@ -733,18 +733,13 @@ export default function LinkGateway() {
                     <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#22C55E', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', fontWeight: 900, flexShrink: 0 }}>3</span>
                     Nhập mã xác nhận
                   </p>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                  <div style={{ marginBottom: 10 }}>
                     <input type="text" maxLength={6} value={inputCode}
                       onChange={e => setInputCode(e.target.value.toUpperCase())}
                       disabled={completing} placeholder="Nhập mã tại đây"
                       onKeyDown={e => e.key === 'Enter' && handleVerify()}
-                      style={{ flex: 1, padding: '12px 14px', background: '#fff', border: `1.5px solid ${showError ? '#FCA5A5' : '#86EFAC'}`, borderRadius: 10, outline: 'none', fontSize: 16, fontWeight: 700, letterSpacing: 3, textAlign: 'center', color: '#1E293B' }}
+                      style={{ width: '100%', padding: '12px 14px', background: '#fff', border: `1.5px solid ${showError ? '#FCA5A5' : '#86EFAC'}`, borderRadius: 10, outline: 'none', fontSize: 16, fontWeight: 700, letterSpacing: 3, textAlign: 'center', color: '#1E293B', boxSizing: 'border-box' }}
                     />
-                    <button onClick={handleVerify} disabled={inputCode.length < 4 || completing}
-                      style={{ padding: '12px 18px', borderRadius: 10, border: 'none', background: inputCode.length >= 4 && !completing ? 'linear-gradient(135deg,#22C55E,#16A34A)' : '#E2E8F0', color: inputCode.length >= 4 ? '#fff' : '#94A3B8', fontWeight: 700, cursor: inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' }}>
-                      {completing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
-                      {completing ? 'Xử lý...' : 'Xác nhận'}
-                    </button>
                   </div>
                   {showError && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
