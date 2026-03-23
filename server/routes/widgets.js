@@ -101,7 +101,7 @@ router.get('/public/:token', async (req, res) => {
   if (pageUrl && !widgets[0].website_url) {
     try {
       const origin = new URL(decodeURIComponent(pageUrl)).origin;
-      pool.execute('UPDATE widgets SET website_url = ? WHERE id = ? AND (website_url IS NULL OR website_url = "")', [origin, widgets[0].id]).catch(() => {});
+      pool.execute('UPDATE widgets SET website_url = ? WHERE id = ? AND (website_url IS NULL OR website_url = "")', [origin, widgets[0].id]).catch(() => { });
     } catch { }
   }
   let campaignInfo = null;
@@ -151,7 +151,7 @@ router.get('/public/:token', async (req, res) => {
   try {
     const [settings] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'captcha_enabled'");
     if (settings.length > 0 && settings[0].setting_value === 'false') captchaEnabled = false;
-  } catch (e) {}
+  } catch (e) { }
 
   const resp = { campaignFound: !!campaignInfo, captchaEnabled };
   if (Object.keys(overrides).length > 0) resp.config = overrides;
@@ -358,7 +358,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     );
     if (vCount[0].cnt >= 5) {
       detectionLog.push('device_limit');
-      console.log(`[Widget] Device limit: visitorId=${visitorId.substring(0,8)}..., count=${vCount[0].cnt}`);
+      console.log(`[Widget] Device limit: visitorId=${visitorId.substring(0, 8)}..., count=${vCount[0].cnt}`);
       return res.status(429).json({ error: 'Thiết bị đã đạt giới hạn 5 lượt/ngày. Thử lại sau.' });
     }
   }
