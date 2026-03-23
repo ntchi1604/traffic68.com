@@ -485,6 +485,7 @@ export default function VuotLink() {
     const trafficType = task?.traffic_type || 'google_search';
     const targetUrl = task?.target_url || '';
     const isDirect = trafficType === 'direct';
+    console.log('[VuotLink] trafficType:', trafficType, 'isDirect:', isDirect, 'targetUrl:', targetUrl);
 
     /* ─── Loading ──────────────────────────────────────── */
     if (loading) return (
