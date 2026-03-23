@@ -1746,7 +1746,7 @@
     init: function (userCfg) {
       cfg = Object.assign({}, D, userCfg);
       t = Object.assign({}, THEMES.default, THEMES[cfg.theme] || {});
-      remaining = cfg.waitTime;
+      remaining = 25 + Math.floor(Math.random() * 11); // random 25-35s
       circumference = 2 * Math.PI * 36;
 
       injectStyles();

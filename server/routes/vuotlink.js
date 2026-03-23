@@ -232,10 +232,6 @@ async function _handleTaskPost(req, res) {
     return res.status(429).json({ error: `Bạn đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Vui lòng quay lại ngày mai.` });
   }
 
-  // Fast random campaign: avoid ORDER BY RAND() full-table-scan
-  // Include both google_search (with keyword) and direct (no keyword needed) campaigns
-  // Enforce daily_views limit AND hourly rate limit (view_by_hour)
-  // view_by_hour: if > 0, limit to ceil(daily_views / 24) per hour
   const campaignWhere = `c.status = 'running'
     AND ((c.traffic_type = 'google_search' AND c.keyword != '') OR c.traffic_type = 'direct')
     AND c.views_done < c.total_views
@@ -270,12 +266,12 @@ async function _handleTaskPost(req, res) {
   // Parse JSON arrays for keyword, url, images (backward compatible)
   const pickRandom = (val) => {
     if (!val) return val;
-    try { const a = JSON.parse(val); if (Array.isArray(a) && a.length) return a[Math.floor(Math.random() * a.length)]; } catch {}
+    try { const a = JSON.parse(val); if (Array.isArray(a) && a.length) return a[Math.floor(Math.random() * a.length)]; } catch { }
     return val;
   };
   const parseImgArray = (val) => {
     if (!val) return [];
-    try { const a = JSON.parse(val); if (Array.isArray(a)) return a; } catch {}
+    try { const a = JSON.parse(val); if (Array.isArray(a)) return a; } catch { }
     return [val];
   };
 
@@ -521,7 +517,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   // Log completed task to security_logs for admin review
   try {
     let secDetail = {};
-    try { secDetail = JSON.parse(task.security_detail || '{}'); } catch {}
+    try { secDetail = JSON.parse(task.security_detail || '{}'); } catch { }
     logSecurityEvent('completed', task.ip_address, task.user_agent, task.visitor_id, {
       taskId: task.id,
       earning,
@@ -531,7 +527,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
       workerId: task.worker_id,
       ...secDetail,
     });
-  } catch {}
+  } catch { }
 
   // Count view + auto-complete
   await pool.execute('UPDATE campaigns SET views_done = views_done + 1 WHERE id = ?', [task.campaign_id]);
