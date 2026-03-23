@@ -207,9 +207,9 @@ router.post('/public/:token/check-session', async (req, res) => {
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
-  const { visitorId } = req.body || {};
+  const { visitorId, pageReferrer } = req.body || {};
   const [tasks] = await pool.execute(
-    `SELECT vt.id FROM vuot_link_tasks vt
+    `SELECT vt.id, c.traffic_type FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
      WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != ''))
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
@@ -220,6 +220,17 @@ router.post('/public/:token/check-session', async (req, res) => {
 
   if (tasks.length === 0) {
     return res.status(404).json({ hasSession: false });
+  }
+
+  // ── Enforce Google referrer for search traffic campaigns ──
+  const task = tasks[0];
+  if ((task.traffic_type || 'google_search') === 'google_search') {
+    const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
+    const clientRef = pageReferrer || '';
+    if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
+      console.log(`[Widget] check-session BLOCKED: Non-Google referrer — IP: ${ip}, task: #${task.id}, referrer: "${clientRef.substring(0, 120)}"`);
+      return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.', requireGoogle: true });
+    }
   }
 
   res.json({ hasSession: true });

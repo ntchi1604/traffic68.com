@@ -1051,6 +1051,7 @@
 
   /* ── Check if session exists (pre-countdown) ───────────── */
   var _sessionVerified = false;
+  var _requireGoogle = false;
   function checkSession(callback) {
     if (_sessionVerified) { callback(true); return; }
     if (!_widgetToken) { callback(false); return; }
@@ -1064,13 +1065,18 @@
     xhr.onload = function () {
       if (xhr.status === 200) {
         _sessionVerified = true;
+        _requireGoogle = false;
         callback(true);
       } else {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp.requireGoogle) _requireGoogle = true;
+        } catch (e) {}
         callback(false);
       }
     };
     xhr.onerror = function () { callback(false); };
-    xhr.send(JSON.stringify({ visitorId: _visitorId || '' }));
+    xhr.send(JSON.stringify({ visitorId: _visitorId || '', pageReferrer: document.referrer || '' }));
   }
 
   /* ── Fetch challenge token (anti-replay — same as vuotlink) ── */
@@ -1114,11 +1120,16 @@
     var effectiveIcon = cfg.iconUrl || defaultIcon();
     var iconBgStyle = cfg.iconBg !== 'transparent' ? 'background:' + cfg.iconBg + ';border-radius:6px;padding:2px;' : '';
 
+    var popupTitle = _requireGoogle ? 'Truy cập từ Google' : 'Chưa có phiên làm việc';
+    var popupMsg = _requireGoogle
+      ? 'Bạn cần tìm kiếm trên Google và truy cập trang này từ kết quả tìm kiếm để nhận mã.'
+      : 'Vui lòng bắt đầu từ trang vượt link trước hoặc cùng trình duyệt để nhận mã.';
+
     ov.innerHTML = '<div id="laynut-modal">' +
       '<button class="ln-close" onclick="document.getElementById(\'laynut-overlay\').remove()">✕</button>' +
       '<img src="' + escHtml(effectiveIcon) + '" height="' + cfg.iconSize + '" alt="" style="margin:0 auto 14px;display:block;width:auto;max-width:120px;object-fit:contain;' + iconBgStyle + '">' +
-      '<h2 class="ln-title" style="color:' + t.modalText + '">Chưa có phiên làm việc</h2>' +
-      '<p class="ln-msg" style="color:' + t.subText + '">Vui lòng bắt đầu từ trang vượt link trước hoặc cùng trình duyệt để nhận mã.</p>' +
+      '<h2 class="ln-title" style="color:' + t.modalText + '">' + escHtml(popupTitle) + '</h2>' +
+      '<p class="ln-msg" style="color:' + t.subText + '">' + escHtml(popupMsg) + '</p>' +
       '<div style="margin-top:16px">' +
       '<button onclick="document.getElementById(\'laynut-overlay\').remove()" ' +
       'style="padding:10px 24px;border:none;border-radius:12px;cursor:pointer;font-weight:700;font-size:13px;' +
