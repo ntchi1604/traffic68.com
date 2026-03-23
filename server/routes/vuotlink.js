@@ -673,6 +673,153 @@ router.post('/task/:id/complete', optionalAuth, async (req, res) => {
 });
 
 /* ═════════════════════════════════════════════════════════
+   SECRET API — Tra cứu trang đích bằng keyword + image
+   Không cần login, chỉ cần SECRET_API_KEY
+   
+   POST /api/vuot-link/secret/lookup
+   Headers: x-api-key: <SECRET_API_KEY>
+   Body: { keyword: "...", image_url: "..." }
+   
+   GET  /api/vuot-link/secret/campaigns
+   Headers: x-api-key: <SECRET_API_KEY>
+═════════════════════════════════════════════════════════ */
+const SECRET_API_KEY = process.env.SECRET_API_KEY || 'CHANGE_ME_IN_ENV';
+
+function secretApiAuth(req, res, next) {
+  const key = req.headers['x-api-key'] || req.query.api_key || '';
+  if (!key || key !== SECRET_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
+// POST /api/vuot-link/secret/lookup — Tìm campaign theo keyword + image → trả về trang đích
+router.post('/secret/lookup', secretApiAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const { keyword, image_url } = req.body || {};
+
+    if (!keyword && !image_url) {
+      return res.status(400).json({ error: 'Cần truyền ít nhất keyword hoặc image_url' });
+    }
+
+    // Build dynamic query
+    let conditions = [`c.status IN ('running', 'paused', 'completed')`];
+    let params = [];
+
+    if (keyword) {
+      // Search keyword: exact match OR JSON array contains
+      conditions.push(`(c.keyword = ? OR c.keyword LIKE ? OR c.keyword LIKE ?)`);
+      params.push(keyword, `%"${keyword}"%`, `%${keyword}%`);
+    }
+
+    if (image_url) {
+      // Search image in image1_url or image2_url
+      conditions.push(`(c.image1_url LIKE ? OR c.image2_url LIKE ? OR c.image1_url = ? OR c.image2_url = ?)`);
+      params.push(`%${image_url}%`, `%${image_url}%`, image_url, image_url);
+    }
+
+    const [campaigns] = await pool.execute(
+      `SELECT c.id, c.name, c.url, c.url2, c.keyword, c.target_page, c.traffic_type,
+              c.image1_url, c.image2_url, c.status, c.views_done, c.total_views,
+              c.time_on_site, c.version, c.daily_views, c.created_at
+       FROM campaigns c
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY c.created_at DESC
+       LIMIT 1`,
+      params
+    );
+
+    if (campaigns.length === 0) {
+      return res.type('text').status(404).send('NOT_FOUND');
+    }
+
+    // Collect all URLs from campaign (url + url2, both can be JSON arrays)
+    const c = campaigns[0];
+    const allUrls = [];
+    const parseUrls = (val) => {
+      if (!val) return;
+      try { const a = JSON.parse(val); if (Array.isArray(a)) { allUrls.push(...a.filter(Boolean)); return; } } catch {}
+      allUrls.push(val);
+    };
+    parseUrls(c.url);
+    parseUrls(c.url2);
+
+    if (allUrls.length === 0) {
+      return res.type('text').status(404).send('NO_URL');
+    }
+
+    // Pick random URL and return as plain text
+    const picked = allUrls[Math.floor(Math.random() * allUrls.length)];
+    res.type('text').send(picked);
+  } catch (err) {
+    console.error('[SecretAPI] Lookup error:', err.message);
+    res.type('text').status(500).send('ERROR');
+  }
+});
+
+// GET /api/vuot-link/secret/campaigns — Liệt kê tất cả campaigns đang chạy
+router.get('/secret/campaigns', secretApiAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const status = req.query.status || 'running';
+    const limit = Math.min(100, parseInt(req.query.limit) || 50);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+
+    const [campaigns] = await pool.execute(
+      `SELECT c.id, c.name, c.url, c.url2, c.keyword, c.target_page, c.traffic_type,
+              c.image1_url, c.image2_url, c.status, c.views_done, c.total_views,
+              c.time_on_site, c.version, c.daily_views, c.created_at,
+              u.name as owner_name, u.email as owner_email
+       FROM campaigns c
+       LEFT JOIN users u ON u.id = c.user_id
+       WHERE c.status = ?
+       ORDER BY c.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [status, limit, offset]
+    );
+
+    const [countR] = await pool.execute(
+      `SELECT COUNT(*) as total FROM campaigns WHERE status = ?`, [status]
+    );
+
+    const results = campaigns.map(c => {
+      let keywords = [];
+      try { const a = JSON.parse(c.keyword); if (Array.isArray(a)) keywords = a; } catch { keywords = [c.keyword]; }
+      let images = [];
+      try { const a1 = JSON.parse(c.image1_url); if (Array.isArray(a1)) images.push(...a1); } catch { if (c.image1_url) images.push(c.image1_url); }
+      try { const a2 = JSON.parse(c.image2_url); if (Array.isArray(a2)) images.push(...a2); } catch { if (c.image2_url) images.push(c.image2_url); }
+
+      return {
+        campaign_id: c.id,
+        campaign_name: c.name,
+        owner: c.owner_name,
+        owner_email: c.owner_email,
+        status: c.status,
+        traffic_type: c.traffic_type,
+        version: c.version,
+        target_url: c.url,
+        target_url2: c.url2 || null,
+        target_page: c.target_page || null,
+        keywords,
+        images: images.filter(Boolean),
+        time_on_site: c.time_on_site,
+        daily_views: c.daily_views,
+        views_done: c.views_done,
+        total_views: c.total_views,
+        created_at: c.created_at,
+      };
+    });
+
+    res.json({ total: countR[0].total, page, limit, campaigns: results });
+  } catch (err) {
+    console.error('[SecretAPI] Campaigns error:', err.message);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
+/* ═════════════════════════════════════════════════════════
    PROTECTED endpoints
 ═════════════════════════════════════════════════════════ */
 router.use(authMiddleware);
