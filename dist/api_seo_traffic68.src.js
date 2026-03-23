@@ -991,9 +991,8 @@
       var msgEl = document.getElementById('laynut-msg');
       if (msgEl) msgEl.textContent = cfg.countdownText.replace('{s}', remaining);
 
-      // Check if it's time for a challenge
-      if (challengeTimes.length > 0 && remaining <= challengeTimes[0]) {
-        challengeTimes.shift(); // consume this challenge
+      if (remaining > 0 && challengeTimes.length > 0 && remaining <= challengeTimes[0]) {
+        challengeTimes.shift();
         showChallenge();
         return;
       }
@@ -1001,6 +1000,7 @@
       // Countdown done!
       if (remaining <= 0) {
         if (badge) badge.remove();
+        challengeTimes = [];
         if (_noCampaign) {
           revealed = true;
           closeModal();
@@ -1071,7 +1071,7 @@
         try {
           var resp = JSON.parse(xhr.responseText);
           if (resp.requireGoogle) _requireGoogle = true;
-        } catch (e) {}
+        } catch (e) { }
         callback(false);
       }
     };
