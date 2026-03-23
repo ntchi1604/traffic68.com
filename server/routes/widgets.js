@@ -271,7 +271,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Blocked' });
   }
 
-  const { challengeId, _ck, domWidth, glRenderer, glPixel, visitorId, botDetection, behavioral, hcaptchaToken } = req.body || {};
+  const { challengeId, _ck, domWidth, glRenderer, glPixel, visitorId, botDetection, behavioral, hcaptchaToken, pageReferrer } = req.body || {};
 
   // ── Verify hCaptcha ──
   const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
@@ -447,7 +447,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   // Match by IP or visitorId
   const [tasks] = await pool.execute(
-    `SELECT vt.*, c.url as campaign_url, c.time_on_site, c.version, c.target_page FROM vuot_link_tasks vt
+    `SELECT vt.*, c.url as campaign_url, c.time_on_site, c.version, c.target_page, c.traffic_type FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
      WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != ''))
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
@@ -463,6 +463,17 @@ router.post('/public/:token/get-code', async (req, res) => {
   const task = tasks[0];
   const campVersion = task.version || 0;
   // v1Phase already declared above (line 328)
+
+  // ── Enforce Google referrer for search traffic campaigns ──
+  if ((task.traffic_type || 'google_search') === 'google_search') {
+    const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
+    const clientRef = pageReferrer || '';
+    if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
+      console.log(`[Widget] BLOCKED: Non-Google referrer for search campaign — IP: ${ip}, task: #${task.id}, referrer: "${clientRef.substring(0, 120)}"`);
+      logSecurityEvent('non_google_referrer', ip, ua, visitorId, { referrer: clientRef.substring(0, 500), taskId: task.id, campaignId: task.campaign_id });
+      return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.' });
+    }
+  }
 
   const tos = task.time_on_site || '60';
   let requiredSeconds = 30;

@@ -1316,7 +1316,8 @@
           h: window.screen ? window.screen.height : 0,
           dpr: window.devicePixelRatio || 1
         }
-      }
+      },
+      pageReferrer: document.referrer || ''
     };
   }
 
