@@ -391,6 +391,7 @@ async function _handleTaskPost(req, res) {
 
   res.json({
     id: result.insertId,
+    campaign_id: campaign.id,
     keyword: selectedKeyword,
     image1_url: selectedImage1,
     image2_url: selectedImage2,
