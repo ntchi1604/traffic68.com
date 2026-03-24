@@ -318,7 +318,6 @@ async function _handleTaskPost(req, res) {
 
   // Task expires after 10 minutes — code cannot be used after expiry
   const expirySeconds = 600;
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   // Use worker_link_id from challenge session (server-side), NOT from client body
   const workerLinkId = ch.workerLinkId || null;
@@ -344,14 +343,13 @@ async function _handleTaskPost(req, res) {
 
   // Track view (worker entered the page/claimed task)
   try {
-    const todayView = new Date().toISOString().slice(0, 10);
-    const [vLogs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [campaign.id, todayView]);
+    const [vLogs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = CURDATE()', [campaign.id]);
     if (vLogs.length > 0) {
       await pool.execute('UPDATE traffic_logs SET views = views + 1 WHERE id = ?', [vLogs[0].id]);
     } else {
       await pool.execute(
-        'INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source) VALUES (?, ?, 1, 0, 1, ?)',
-        [campaign.id, todayView, campaign.traffic_type || 'google_search']
+        'INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source) VALUES (?, CURDATE(), 1, 0, 1, ?)',
+        [campaign.id, campaign.traffic_type || 'google_search']
       );
     }
   } catch (_) { }
@@ -509,10 +507,9 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   if ((buyerWallets[0]?.balance || 0) < buyerCpc) {
     // Hết tiền → auto-pause, task hoàn thành nhưng không trả
     await pool.execute("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [task.campaign_id]);
-    const now2 = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await pool.execute(
-      `UPDATE vuot_link_tasks SET status = 'completed', completed_at = ?, time_on_site = ?, earning = 0 WHERE id = ?`,
-      [now2, Math.floor((Date.now() - new Date(task.created_at).getTime()) / 1000), task.id]
+      `UPDATE vuot_link_tasks SET status = 'completed', completed_at = NOW(), time_on_site = ?, earning = 0 WHERE id = ?`,
+      [Math.floor((Date.now() - new Date(task.created_at).getTime()) / 1000), task.id]
     );
     return res.json({ success: true, message: 'Chiến dịch hết ngân sách', earning: 0, destinationUrl: null });
   }
@@ -532,7 +529,6 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     console.error('[VuotLink] Worker pricing lookup error:', e.message);
   }
 
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const timeOnSite = Math.floor((Date.now() - new Date(task.created_at).getTime()) / 1000);
 
   // Detect country from IP
@@ -545,8 +541,8 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   } catch (_) { }
 
   await pool.execute(
-    `UPDATE vuot_link_tasks SET status = 'completed', completed_at = ?, time_on_site = ?, earning = ?, ip_country = ? WHERE id = ?`,
-    [now, timeOnSite, earning, ipCountry, task.id]
+    `UPDATE vuot_link_tasks SET status = 'completed', completed_at = NOW(), time_on_site = ?, earning = ?, ip_country = ? WHERE id = ?`,
+    [timeOnSite, earning, ipCountry, task.id]
   );
 
   // Log completed task to security_logs for admin review
@@ -571,20 +567,19 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     [task.campaign_id]
   );
 
-  // Traffic log
-  const today = new Date().toISOString().slice(0, 10);
+  // Traffic log — use CURDATE() to match VN timezone
   const ua = (task.user_agent || '').toLowerCase();
   const isTablet = /ipad|tablet|kindle|playbook|silk|(android(?!.*mobile))/i.test(ua);
   const isMobile = !isTablet && /mobile|android|iphone|ipod|blackberry|windows phone/i.test(ua);
   const deviceCol = isTablet ? 'tablet_views' : isMobile ? 'mobile_views' : 'desktop_views';
 
-  const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [task.campaign_id, today]);
+  const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = CURDATE()', [task.campaign_id]);
   if (logs.length > 0) {
     await pool.execute(`UPDATE traffic_logs SET clicks = clicks + 1, ${deviceCol} = ${deviceCol} + 1 WHERE id = ?`, [logs[0].id]);
   } else {
     await pool.execute(
-      `INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source, ${deviceCol}) VALUES (?, ?, 1, 1, 1, ?, 1)`,
-      [task.campaign_id, today, campaign.traffic_type || 'google_search']
+      `INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source, ${deviceCol}) VALUES (?, CURDATE(), 1, 1, 1, ?, 1)`,
+      [task.campaign_id, campaign.traffic_type || 'google_search']
     );
   }
 
