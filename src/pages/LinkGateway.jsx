@@ -10,7 +10,7 @@ import {
   AlertCircle, Loader2, WifiOff, Copy, Check, Lock, Unlock, RefreshCw,
 } from 'lucide-react';
 
-/* ─── CreepJS via iframe (same approach as VuotLink.jsx) ─── */
+/* ─── CreepJS via console.log interception (fast, no iframe) ─── */
 let _creepResult = null;
 let _creepVisitorId = 'unknown';
 let _creepDone = false;
@@ -31,43 +31,76 @@ function _generateFallbackId() {
     const ctx = cv.getContext('2d');
     ctx.textBaseline = 'top';
     ctx.font = '14px Arial';
-    ctx.fillText('traffic68-fp-' + navigator.userAgent.length, 2, 2);
-    return 'fb-' + cv.toDataURL().slice(-32);
-  } catch { return 'fb-' + Date.now().toString(36); }
+    ctx.fillText('fg' + navigator.userAgent.length, 2, 2);
+    const raw = cv.toDataURL().slice(-64) + '|' + screen.width + 'x' + screen.height + '|' + (navigator.hardwareConcurrency || 0) + '|' + (navigator.deviceMemory || 0);
+    let h = 0;
+    for (let i = 0; i < raw.length; i++) { h = ((h << 5) - h) + raw.charCodeAt(i); h |= 0; }
+    return 'fb_' + Math.abs(h).toString(36);
+  } catch { return 'fb_' + Math.random().toString(36).substring(2, 10); }
 }
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('message', function handler(e) {
-    if (!e.data || e.data.type !== 'creep-result') return;
-    const d = e.data.data;
-    if (d) {
-      if (d.visitorId && d.visitorId !== 'unknown') _creepVisitorId = d.visitorId;
-      _resolveCreep(d.botDetection || { bot: false });
-    }
-    window.removeEventListener('message', handler);
-  });
+  const _origLog = console.log;
+  console.log = function (...args) {
+    for (const arg of args) {
+      if (arg && typeof arg === 'object' && arg.workerScope && arg.workerScope.lied !== undefined) {
+        let totalLied = 0;
+        const liedSections = [];
+        for (const key in arg) {
+          if (arg[key] && typeof arg[key] === 'object' && arg[key].lied !== undefined) {
+            const liedVal = arg[key].lied === true ? 1 : (typeof arg[key].lied === 'number' ? arg[key].lied : 0);
+            totalLied += liedVal;
+            if (liedVal > 0) liedSections.push(key + ':' + liedVal);
+          }
+        }
+        let vid = 'unknown';
+        if (arg.workerScope?.$hash) vid = arg.workerScope.$hash;
+        else if (arg.$hash) vid = arg.$hash;
+        else if (arg.id) vid = arg.id;
 
-  const _loadCreepFrame = () => {
-    const iframe = document.createElement('iframe');
-    iframe.src = '/creep-frame.html';
-    iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;opacity:0;pointer-events:none;';
-    iframe.setAttribute('aria-hidden', 'true');
-    iframe.onerror = () => {
-      if (_creepVisitorId === 'unknown') _creepVisitorId = _generateFallbackId();
-      _resolveCreep({ bot: false, creepError: true });
-    };
-    document.body.appendChild(iframe);
+        if (vid && vid !== 'unknown') _creepVisitorId = vid;
+        console.log = _origLog;
+        _resolveCreep({
+          bot: totalLied > 0,
+          totalLied,
+          liedSections,
+          headless: arg.headless || (arg.headlessness ? arg.headlessness.lied : null),
+          stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null),
+        });
+        return;
+      }
+      if (arg && typeof arg === 'object' && arg.$hash) {
+        _creepVisitorId = arg.$hash;
+        console.log = _origLog;
+        _resolveCreep({ bot: false, totalLied: 0, liedSections: [] });
+        return;
+      }
+    }
+    _origLog.apply(console, args);
   };
 
-  if (document.body) _loadCreepFrame();
-  else document.addEventListener('DOMContentLoaded', _loadCreepFrame);
+  // Load creep.js trực tiếp
+  const _loadCreep = () => {
+    const s = document.createElement('script');
+    s.src = '/creep.js';
+    s.onerror = () => {
+      if (_creepVisitorId === 'unknown') _creepVisitorId = _generateFallbackId();
+      console.log = _origLog;
+      _resolveCreep({ bot: false, creepError: true });
+    };
+    document.head.appendChild(s);
+  };
+
+  if (document.body) _loadCreep();
+  else document.addEventListener('DOMContentLoaded', _loadCreep);
 
   setTimeout(() => {
     if (!_creepDone) {
       if (_creepVisitorId === 'unknown') _creepVisitorId = _generateFallbackId();
+      console.log = _origLog;
       _resolveCreep({ bot: false, creepTimeout: true });
     }
-  }, 12000);
+  }, 5000);
 }
 
 function getCreepData() {
@@ -79,7 +112,7 @@ function getCreepData() {
         if (_creepVisitorId === 'unknown') _creepVisitorId = _generateFallbackId();
         _resolveCreep({ bot: false, creepTimeout: true });
       }
-    }, 12000);
+    }, 5000);
   });
 }
 

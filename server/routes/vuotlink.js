@@ -126,7 +126,7 @@ async function _handleTaskPost(req, res) {
     return res.status(429).json({ error: 'Quá nhiều yêu cầu. Thử lại sau.' });
   }
 
-  const { challengeId, powNonce, visitorId, deviceData, botDetection, probes: clientProbes, excludeCampaigns } = req.body || {};
+  const { challengeId, powNonce, visitorId, deviceData, botDetection, excludeCampaigns } = req.body || {};
 
   let botDetected = false;
   let detectionLog = [];
@@ -182,13 +182,7 @@ async function _handleTaskPost(req, res) {
     }
   }
 
-  const probes = clientProbes || {};
-  if (probes.webdriver === true || probes.cdc === true || probes.selenium === true) {
-    console.log(`[VuotLink] Automation probe warning (NOT blocking): IP=${ip}`);
-    logSecurityEvent('automation_probes', ip, ua, visitorId, probes);
-    botDetected = true;
-    detectionLog.push('automation_probes');
-  }
+
 
   // ── Limit check: load setting ONCE ──
   const pool = getPool();
