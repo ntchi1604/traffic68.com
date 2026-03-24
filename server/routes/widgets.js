@@ -215,9 +215,9 @@ router.post('/public/:token/check-session', async (req, res) => {
   }
 
   const sToken = req.headers['x-session-token'] || '';
-  if (!verifySessionToken(sToken, ip, ua)) {
-    console.log(`[Widget] check-session INVALID TOKEN — IP: ${ip}, hasToken: ${!!sToken}, UA: ${ua.substring(0, 80)}`);
-    return res.status(403).json({ error: 'Invalid session' });
+  const tokenValid = verifySessionToken(sToken, ip, ua);
+  if (!tokenValid && sToken) {
+    console.log(`[Widget] check-session token invalid (continuing) — IP: ${ip}, UA: ${ua.substring(0, 80)}`);
   }
 
   if (BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
