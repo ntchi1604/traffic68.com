@@ -237,6 +237,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   );
 
   if (tasks.length === 0) {
+    console.log(`[Widget] check-session NO TASK — IP: ${ip}, visitorId: ${(visitorId || '').substring(0, 20)}, referrer: ${(pageReferrer || '').substring(0, 60)}`);
     return res.status(404).json({ hasSession: false });
   }
 
