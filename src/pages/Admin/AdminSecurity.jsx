@@ -37,7 +37,8 @@ const ST = {
 /* ─── Task Detail Modal ─── */
 function TaskModal({ task: t, onClose }) {
   if (!t) return null;
-  const sd = t.security_detail || {};
+  let sd = {};
+  try { sd = typeof t.security_detail === 'string' ? JSON.parse(t.security_detail || '{}') : (t.security_detail || {}); } catch {}
   const bd = sd.botDetection || {};
   const pr = sd.probes || {};
   const dl = sd.detectionLog || [];

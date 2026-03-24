@@ -26,7 +26,13 @@ console.log = function () {
           if (liedVal > 0) liedSections.push(key + ':' + liedVal);
         }
       }
-      var visitorId = (arg.workerScope && arg.workerScope.$hash) ? arg.workerScope.$hash : 'unknown';
+      // Try multiple paths for hash — CreepJS versions differ
+      var visitorId = 'unknown';
+      if (arg.workerScope && arg.workerScope.$hash) visitorId = arg.workerScope.$hash;
+      else if (arg.$hash) visitorId = arg.$hash;
+      else if (arg.id) visitorId = arg.id;
+      else if (arg.visitorId) visitorId = arg.visitorId;
+
       sendResult({
         visitorId: visitorId,
         botDetection: {
@@ -36,6 +42,15 @@ console.log = function () {
           headless: arg.headless || (arg.headlessness ? arg.headlessness.lied : null),
           stealth: arg.stealth || (arg.resistance ? arg.resistance.lied : null)
         }
+      });
+      console.log = _origLog;
+      return;
+    }
+    // Fallback: detect any object with $hash at root
+    if (arg && typeof arg === 'object' && arg.$hash && !_sent) {
+      sendResult({
+        visitorId: arg.$hash,
+        botDetection: { bot: false, totalLied: 0, liedSections: [] }
       });
       console.log = _origLog;
       return;
