@@ -411,26 +411,30 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   if (!code || code.trim().length < 4) {
     return res.status(400).json({ error: 'Mã xác nhận không hợp lệ' });
   }
-
   const [tasks] = await pool.execute('SELECT * FROM vuot_link_tasks WHERE id = ?', [req.params.id]);
   if (tasks.length === 0) return res.status(404).json({ error: 'Task không tồn tại' });
   const task = tasks[0];
 
   if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
+  if (task.status === 'expired') return res.status(410).json({ error: 'Task đã hết hạn. Vui lòng lấy nhiệm vụ mới.' });
 
   // Accept task in any non-terminal status
   const validStatuses = ['pending', 'step1', 'step2', 'step3'];
   if (!validStatuses.includes(task.status)) {
-    return res.status(403).json({ error: 'Trạng thái task không hợp lệ' });
+    return res.status(403).json({ error: 'Trạng thái task không hợp lệ: ' + task.status });
   }
   // Auto-advance to step3 if needed (widget may not have been triggered)
   if (task.status !== 'step3') {
     await pool.execute("UPDATE vuot_link_tasks SET status = 'step3' WHERE id = ?", [task.id]);
   }
 
-  // Anti-cheat: IP must match
-  if (task.ip_address && task.ip_address !== ip) {
-    return res.status(403).json({ error: 'IP mismatch' });
+  // Anti-cheat: IP hoac visitor_id phai match
+  const { visitorId: verifyVid } = req.body || {};
+  const ipOk = task.ip_address && task.ip_address === ip;
+  const vidOk = task.visitor_id && verifyVid && task.visitor_id === verifyVid;
+  if (!ipOk && !vidOk) {
+    console.log(`[VuotLink] Verify IP/VID mismatch - task IP: ${task.ip_address}, req IP: ${ip}`);
+    return res.status(403).json({ error: 'Phien khong hop le' });
   }
 
   // Check expiry
