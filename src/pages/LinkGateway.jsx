@@ -3,7 +3,7 @@
  * Visitor must complete a vượt link task to access the destination URL
  * set by the worker who created this link.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Search, Globe, ShieldCheck, ShieldOff, ExternalLink, ArrowRight,
@@ -421,11 +421,13 @@ export default function LinkGateway() {
     } finally {
       setLoading(false);
     }
-  }, [linkInfo, slug, skippedCampaigns]);
+  }, [linkInfo, slug]);
 
-  // Step 2: After link info loaded, fetch challenge + task
+  // Step 2: After link info loaded, fetch challenge + task (chỉ gọi 1 lần)
+  const _taskInitRef = useRef(false);
   useEffect(() => {
-    if (!linkInfo) return;
+    if (!linkInfo || _taskInitRef.current) return;
+    _taskInitRef.current = true;
     fetchTask(false);
   }, [linkInfo, fetchTask]);
 
