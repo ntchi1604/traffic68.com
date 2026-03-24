@@ -189,27 +189,38 @@ async function _handleTaskPost(req, res) {
   const [limitSetting] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
   const maxViewsPerIp = limitSetting.length > 0 ? parseInt(limitSetting[0].setting_value) || 2 : 2;
 
+  // Debug: log MySQL timezone (session should be +07:00)
+  const [tzInfo] = await pool.execute("SELECT NOW() as now_vn, CURDATE() as today_vn, @@session.time_zone as session_tz");
+  console.log(`[VuotLink] TZ: ${JSON.stringify(tzInfo[0])}`);
+
+  // Count completed views today for this device (visitorId)
+  let deviceViewsToday = 0;
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')) AND status = 'completed'`,
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
       [visitorId]
     );
-    if (vCount[0].cnt >= maxViewsPerIp) {
-      console.log(`[VuotLink] Device limit: visitorId=${visitorId.substring(0, 8)}..., count=${vCount[0].cnt}, max=${maxViewsPerIp}`);
-      return res.status(429).json({ error: `Thiết bị đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Thử lại sau.` });
+    deviceViewsToday = vCount[0].cnt;
+    if (deviceViewsToday >= maxViewsPerIp) {
+      console.log(`[VuotLink] Device limit: visitorId=${visitorId.substring(0, 8)}..., count=${deviceViewsToday}, max=${maxViewsPerIp}`);
+      return res.status(429).json({ error: `Thiết bị đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Thử lại sau.`, remaining: 0, maxViews: maxViewsPerIp });
     }
   }
 
-  console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0, 8) || '?'}`);
-
+  // Count completed views today for this IP
   const [ipCount] = await pool.execute(
-    `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')) AND status = 'completed'`,
+    `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
     [ip]
   );
-  if (ipCount[0].cnt >= maxViewsPerIp) {
-    console.log(`VuotLink blocked: IP ${ip} reached daily limit (${ipCount[0].cnt}/${maxViewsPerIp})`);
-    return res.status(429).json({ error: `Bạn đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Vui lòng quay lại ngày mai.` });
+  const ipViewsToday = ipCount[0].cnt;
+  if (ipViewsToday >= maxViewsPerIp) {
+    console.log(`[VuotLink] IP blocked: IP ${ip} reached daily limit (${ipViewsToday}/${maxViewsPerIp})`);
+    return res.status(429).json({ error: `Bạn đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Vui lòng quay lại ngày mai.`, remaining: 0, maxViews: maxViewsPerIp });
   }
+
+  const viewsUsed = Math.max(deviceViewsToday, ipViewsToday);
+  const viewsRemaining = maxViewsPerIp - viewsUsed;
+  console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0, 8) || '?'}, views=${viewsUsed}/${maxViewsPerIp}`);
 
   const campaignWhere = `c.status = 'running'
     AND ((c.traffic_type = 'google_search' AND c.keyword != '') OR c.traffic_type = 'direct')
@@ -219,13 +230,13 @@ async function _handleTaskPost(req, res) {
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
       FROM vuot_link_tasks
-      WHERE status = 'completed' AND DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))
+      WHERE status = 'completed' AND DATE(completed_at) = CURDATE()
       GROUP BY campaign_id
     ) td ON td.campaign_id = c.id
     LEFT JOIN (
       SELECT campaign_id, COUNT(*) as hour_done
       FROM vuot_link_tasks
-      WHERE status = 'completed' AND completed_at >= DATE_FORMAT(CONVERT_TZ(NOW(), '+00:00', '+07:00'), '%Y-%m-%d %H:00:00')
+      WHERE status = 'completed' AND completed_at >= DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
       GROUP BY campaign_id
     ) th ON th.campaign_id = c.id`;
 
@@ -250,7 +261,18 @@ async function _handleTaskPost(req, res) {
     excludeFilter = '';
   }
 
-  if (totalCampaigns === 0) return res.status(404).json(ERR);
+  if (totalCampaigns === 0) {
+    // Debug: log to identify why no campaigns available
+    try {
+      const [dbTime] = await pool.execute("SELECT NOW() as now_vn, CURDATE() as today_vn, @@session.time_zone as tz");
+      const [allCamps] = await pool.execute("SELECT COUNT(*) as total FROM campaigns WHERE status = 'running'");
+      const [todayDone] = await pool.execute(
+        `SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks WHERE status = 'completed' AND DATE(completed_at) = CURDATE() GROUP BY campaign_id`
+      );
+      console.log(`[VuotLink] NO CAMPAIGNS - DB time: ${JSON.stringify(dbTime[0])}, running: ${allCamps[0].total}, todayDone: ${JSON.stringify(todayDone)}`);
+    } catch(e) { console.log('[VuotLink] Debug error:', e.message); }
+    return res.status(404).json(ERR);
+  }
   const randomOffset = Math.floor(Math.random() * totalCampaigns);
   const [campaigns] = await pool.execute(
     `SELECT c.* FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${excludeFilter} LIMIT 1 OFFSET ?`,
@@ -385,6 +407,8 @@ async function _handleTaskPost(req, res) {
     traffic_type: campaign.traffic_type || 'google_search',
     target_url: selectedUrl,
     _tk,
+    remaining: viewsRemaining - 1,  // -1 because this task just used a slot
+    maxViews: maxViewsPerIp,
   });
 }
 
@@ -795,7 +819,7 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
     const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
 
     const [todayTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))`,
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND DATE(completed_at) = CURDATE()`,
 
       wlParams
     );
@@ -816,9 +840,9 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
 
     // 7 day chart
     const [chart] = await pool.execute(
-      `SELECT DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn
-       FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND CONVERT_TZ(completed_at, '+00:00', '+07:00') >= DATE_SUB(DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')), INTERVAL 7 DAY)
-       GROUP BY DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) ORDER BY day`,
+      `SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn
+       FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+       GROUP BY DATE(completed_at) ORDER BY day`,
       wlParams
     );
 
@@ -838,7 +862,7 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
        FROM campaigns c
        LEFT JOIN (
          SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks
-         WHERE status = 'completed' AND DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))
+         WHERE status = 'completed' AND DATE(completed_at) = CURDATE()
          GROUP BY campaign_id
        ) td ON td.campaign_id = c.id
        WHERE c.status = 'running' AND c.daily_views > 0`
@@ -912,20 +936,20 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
     const days = Math.min(90, Math.max(7, parseInt(req.query.days) || 7));
 
     const [daily] = await pool.execute(
-      `SELECT DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) as date, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earnings
-       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND CONVERT_TZ(completed_at, '+00:00', '+07:00') >= DATE_SUB(DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')), INTERVAL ? DAY)
-       GROUP BY DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) ORDER BY date DESC`,
+      `SELECT DATE(completed_at) as date, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earnings
+       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+       GROUP BY DATE(completed_at) ORDER BY date DESC`,
       [uid, days]
     );
 
     const [summary] = await pool.execute(
       `SELECT COALESCE(SUM(earning),0) as total, COUNT(*) as tasks
-       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND CONVERT_TZ(completed_at, '+00:00', '+07:00') >= DATE_SUB(DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')), INTERVAL ? DAY)`,
+       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
       [uid, days]
     );
 
     const [todayR] = await pool.execute(
-      `SELECT COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))`,
+      `SELECT COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND DATE(completed_at) = CURDATE()`,
       [uid]
     );
 

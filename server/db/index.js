@@ -20,7 +20,17 @@ function getPool() {
       connectionLimit: 10,
       charset: 'utf8mb4',
       multipleStatements: true,
+      timezone: '+07:00',
     });
+
+    // Force MySQL session timezone to VN for every connection
+    // This ensures NOW(), CURDATE() always return Vietnam time
+    const rawPool = pool.pool || pool;
+    if (rawPool.on) {
+      rawPool.on('connection', (conn) => {
+        conn.query("SET time_zone = '+07:00'");
+      });
+    }
   }
   return pool;
 }
