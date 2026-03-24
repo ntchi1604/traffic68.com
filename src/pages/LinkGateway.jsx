@@ -83,138 +83,149 @@ function getCreepData() {
   });
 }
 
-/* ─── Probe data ─── */
-const probeData = {};
-if (typeof window !== 'undefined') {
-  try {
-    probeData.webdriver = !!navigator.webdriver;
-    probeData.cdc = !!(window.cdc_adoQpoasnfa76pfcZLmcfl_ || window.cdc_adoQpoasnfa76pfcZLmcfl_Array || window.cdc_adoQpoasnfa76pfcZLmcfl_Promise || window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol);
-    probeData.selenium = !!(document.__selenium_unwrapped || document.__webdriver_evaluate || document.__driver_evaluate || window._Selenium_IDE_Recorder || window.__nightmare);
-    probeData.pluginCount = navigator.plugins ? navigator.plugins.length : -1;
-    probeData.langCount = navigator.languages ? navigator.languages.length : 0;
-    probeData.hasChrome = !!window.chrome;
-    probeData.hasChromeRuntime = !!(window.chrome && window.chrome.runtime);
-    if (window.Notification) probeData.notifPerm = Notification.permission;
-    if (navigator.connection) probeData.rtt = navigator.connection.rtt;
-  } catch (e) { }
-}
-
-/* ─── Behavioral tracking ─── */
-const _bhv = {
-  startTime: Date.now(),
-  mouseTrail: [], clickPositions: [],
-  touchTrail: [], touchTaps: [], _touchStartMap: {},
-  keyDwellTimes: [], keyFlightTimes: [], _keyDownMap: {},
-  backspaceCount: 0, totalKeys: 0,
-  scrollEvents: [], scrollPauses: 0, _lastScrollT: 0,
-  totalBlur: 0, rafStable: true, _lastKeyUp: 0,
-  screen: typeof window !== 'undefined' ? { w: screen.width, h: screen.height, dpr: window.devicePixelRatio || 1 } : null,
+/* ─── Device data collection (Desktop vs Mobile) ─── */
+const _deviceData = {
   isMobile: typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent),
+  sensor: { samples: [], isNull: true },
+  gpu: {},
+  hardware: {},
+  battery: {},
+  audio: {},
+  touch: { samples: [], maxTouches: 0 },
+  mouse: [],
+  scroll: [],
+  automation: {},
 };
-let _bhvBound = false;
-function bindBehavior() {
-  if (_bhvBound || typeof document === 'undefined') return;
-  _bhvBound = true;
-  const st = _bhv.startTime;
-  document.addEventListener('mousemove', (e) => {
-    _bhv.mouseTrail.push({ x: e.clientX, y: e.clientY, t: Date.now() - st });
-    if (_bhv.mouseTrail.length > 80) _bhv.mouseTrail.shift();
-  }, { passive: true });
-  document.addEventListener('click', (e) => {
-    const r = e.target ? e.target.getBoundingClientRect() : null;
-    const entry = { x: e.clientX, y: e.clientY, t: Date.now() - st };
-    if (r) { entry.elCenterX = Math.round(r.left + r.width / 2); entry.elCenterY = Math.round(r.top + r.height / 2); }
-    _bhv.clickPositions.push(entry);
-    if (_bhv.clickPositions.length > 20) _bhv.clickPositions.shift();
-  }, { passive: true });
-  // ── Touch events (mobile) ──
-  document.addEventListener('touchstart', (e) => {
-    const touch = e.touches[0];
-    if (!touch) return;
-    const now = Date.now();
-    _bhv._touchStartMap[touch.identifier] = { x: touch.clientX, y: touch.clientY, t: now };
-  }, { passive: true });
-  document.addEventListener('touchmove', (e) => {
-    const touch = e.touches[0];
-    if (!touch) return;
-    const entry = { x: Math.round(touch.clientX), y: Math.round(touch.clientY), t: Date.now() - st };
-    if (touch.radiusX) { entry.rx = Math.round(touch.radiusX); entry.ry = Math.round(touch.radiusY); }
-    if (touch.force) entry.force = Math.round(touch.force * 100) / 100;
-    _bhv.touchTrail.push(entry);
-    if (_bhv.touchTrail.length > 80) _bhv.touchTrail.shift();
-  }, { passive: true });
-  document.addEventListener('touchend', (e) => {
-    const touch = e.changedTouches[0];
-    if (!touch) return;
-    const now = Date.now();
-    const start = _bhv._touchStartMap[touch.identifier];
-    const entry = { x: Math.round(touch.clientX), y: Math.round(touch.clientY), t: now - st };
-    if (start) {
-      entry.duration = now - start.t;
-      entry.dx = Math.round(touch.clientX - start.x);
-      entry.dy = Math.round(touch.clientY - start.y);
-      delete _bhv._touchStartMap[touch.identifier];
-    }
-    const r = e.target ? e.target.getBoundingClientRect() : null;
-    if (r) { entry.elCenterX = Math.round(r.left + r.width / 2); entry.elCenterY = Math.round(r.top + r.height / 2); }
-    _bhv.touchTaps.push(entry);
-    if (_bhv.touchTaps.length > 20) _bhv.touchTaps.shift();
-  }, { passive: true });
-  document.addEventListener('keydown', (e) => {
-    _bhv.totalKeys++;
-    if (e.key === 'Backspace') _bhv.backspaceCount++;
-    if (!_bhv._keyDownMap[e.key]) _bhv._keyDownMap[e.key] = Date.now();
-  }, { passive: true });
-  document.addEventListener('keyup', (e) => {
-    const d = _bhv._keyDownMap[e.key];
-    if (d) {
-      const dwell = Date.now() - d;
-      _bhv.keyDwellTimes.push(dwell);
-      if (_bhv.keyDwellTimes.length > 30) _bhv.keyDwellTimes.shift();
-      if (_bhv._lastKeyUp) {
-        _bhv.keyFlightTimes.push(Date.now() - _bhv._lastKeyUp);
-        if (_bhv.keyFlightTimes.length > 30) _bhv.keyFlightTimes.shift();
-      }
-      _bhv._lastKeyUp = Date.now();
-      delete _bhv._keyDownMap[e.key];
-    }
-  }, { passive: true });
-  window.addEventListener('scroll', () => {
-    const now = Date.now();
-    if (_bhv._lastScrollT && (now - _bhv._lastScrollT) > 500) _bhv.scrollPauses++;
-    _bhv._lastScrollT = now;
-    _bhv.scrollEvents.push({ y: window.scrollY || 0, t: now - st });
-    if (_bhv.scrollEvents.length > 40) _bhv.scrollEvents.shift();
-  }, { passive: true });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) _bhv.totalBlur++; });
-  let rafCount = 0; const rafStart = performance.now();
-  function checkRaf(ts) {
-    rafCount++;
-    if (rafCount < 60) requestAnimationFrame(checkRaf);
-    else _bhv.rafStable = (ts - rafStart) < 3000;
-  }
-  if (window.requestAnimationFrame) requestAnimationFrame(checkRaf);
-}
-if (typeof window !== 'undefined') bindBehavior();
+let _deviceBound = false;
 
-function getBehavioralData() {
-  return {
-    mouseTrail: _bhv.mouseTrail,
-    clickPositions: _bhv.clickPositions,
-    touchTrail: _bhv.touchTrail,
-    touchTaps: _bhv.touchTaps,
-    keyDwellTimes: _bhv.keyDwellTimes,
-    keyFlightTimes: _bhv.keyFlightTimes,
-    backspaceCount: _bhv.backspaceCount,
-    totalKeys: _bhv.totalKeys,
-    scrollEvents: _bhv.scrollEvents,
-    scrollPauses: _bhv.scrollPauses,
-    totalBlur: _bhv.totalBlur,
-    rafStable: _bhv.rafStable,
-    screen: _bhv.screen,
-    isMobile: _bhv.isMobile,
-    probes: probeData,
-  };
+function bindDeviceCollection() {
+  if (_deviceBound || typeof document === 'undefined') return;
+  _deviceBound = true;
+  const startT = Date.now();
+
+  // Automation flags
+  try {
+    _deviceData.automation.webdriver = !!navigator.webdriver;
+    _deviceData.automation.cdc = !!(window.cdc_adoQpoasnfa76pfcZLmcfl_ || window.cdc_adoQpoasnfa76pfcZLmcfl_Array || window.cdc_adoQpoasnfa76pfcZLmcfl_Promise || window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol);
+    _deviceData.automation.selenium = !!(document.__selenium_unwrapped || document.__webdriver_evaluate || document.__driver_evaluate || window._Selenium_IDE_Recorder || window.__nightmare);
+  } catch (e) { }
+
+  // Hardware
+  _deviceData.hardware.concurrency = navigator.hardwareConcurrency || 0;
+  _deviceData.hardware.memory = navigator.deviceMemory || 0;
+
+  // GPU / WebGL
+  try {
+    const glCv = document.createElement('canvas');
+    glCv.width = 4; glCv.height = 4;
+    const gl = glCv.getContext('webgl') || glCv.getContext('experimental-webgl');
+    if (gl) {
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      _deviceData.gpu.unmaskedRenderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+
+      // GPU float error test
+      const floatVs = 'attribute vec4 p;void main(){gl_Position=p;}';
+      const floatFs = 'precision highp float;void main(){float a=1.0000000001;float b=1.0;gl_FragColor=vec4(a-b,0,0,1);}';
+      try {
+        const vs = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(vs, floatVs); gl.compileShader(vs);
+        const fs = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(fs, floatFs); gl.compileShader(fs);
+        const pg = gl.createProgram(); gl.attachShader(pg, vs); gl.attachShader(pg, fs); gl.linkProgram(pg); gl.useProgram(pg);
+        gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+        const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,0,1, 1,-1,0,1, -1,1,0,1, 1,1,0,1]), gl.STATIC_DRAW);
+        const loc = gl.getAttribLocation(pg, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        const fpx = new Uint8Array(4); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, fpx);
+        _deviceData.gpu.floatError = fpx[0];
+      } catch { _deviceData.gpu.floatError = -1; }
+    }
+  } catch { }
+
+  // AudioContext fingerprint
+  try {
+    const AudioCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (AudioCtx) {
+      const actx = new AudioCtx(1, 44100, 44100);
+      const osc = actx.createOscillator();
+      osc.type = 'triangle'; osc.frequency.setValueAtTime(10000, actx.currentTime);
+      const comp = actx.createDynamicsCompressor();
+      comp.threshold.setValueAtTime(-50, actx.currentTime);
+      comp.knee.setValueAtTime(40, actx.currentTime);
+      comp.ratio.setValueAtTime(12, actx.currentTime);
+      comp.attack.setValueAtTime(0, actx.currentTime);
+      comp.release.setValueAtTime(0.25, actx.currentTime);
+      osc.connect(comp); comp.connect(actx.destination);
+      osc.start(0);
+      actx.startRendering().then(audioBuffer => {
+        try {
+          const data = audioBuffer.getChannelData(0);
+          let hash = 0;
+          for (let i = 4500; i < 5000; i++) hash += Math.abs(data[i]);
+          _deviceData.audio.hash = Math.round(hash * 1000000) / 1000000;
+        } catch { _deviceData.audio.error = true; }
+      }).catch(() => { _deviceData.audio.error = true; });
+    }
+  } catch { _deviceData.audio.error = true; }
+
+  // Battery API
+  if (navigator.getBattery) {
+    try {
+      navigator.getBattery().then(b => {
+        _deviceData.battery.level = b.level;
+        _deviceData.battery.charging = b.charging;
+        _deviceData.battery.chargingTime = b.chargingTime;
+        _deviceData.battery.dischargingTime = b.dischargingTime;
+      }).catch(() => {});
+    } catch { }
+  }
+
+  // Mobile: Sensor data (Gyro/Accel)
+  if (_deviceData.isMobile) {
+    const sensorSamples = [];
+    const sensorHandler = (e) => {
+      if (e.alpha != null || e.beta != null || e.gamma != null) {
+        _deviceData.sensor.isNull = false;
+        sensorSamples.push({ alpha: e.alpha, beta: e.beta, gamma: e.gamma, t: Date.now() - startT });
+        if (sensorSamples.length > 20) sensorSamples.shift();
+      }
+    };
+    window.addEventListener('deviceorientation', sensorHandler, { passive: true });
+    setTimeout(() => {
+      window.removeEventListener('deviceorientation', sensorHandler);
+      _deviceData.sensor.samples = sensorSamples;
+    }, 6000);
+
+    // Touch tracking
+    document.addEventListener('touchstart', (e) => {
+      if (e.touches.length > _deviceData.touch.maxTouches) _deviceData.touch.maxTouches = e.touches.length;
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+      const t = e.touches[0]; if (!t) return;
+      const entry = { x: Math.round(t.clientX), y: Math.round(t.clientY), t: Date.now() - startT };
+      if (t.radiusX) { entry.rx = Math.round(t.radiusX); entry.ry = Math.round(t.radiusY); }
+      if (t.force) entry.force = Math.round(t.force * 100) / 100;
+      _deviceData.touch.samples.push(entry);
+      if (_deviceData.touch.samples.length > 40) _deviceData.touch.samples.shift();
+    }, { passive: true });
+  }
+
+  // Mouse trail
+  document.addEventListener('mousemove', (e) => {
+    _deviceData.mouse.push({ x: e.clientX, y: e.clientY, t: Date.now() - startT });
+    if (_deviceData.mouse.length > 60) _deviceData.mouse.shift();
+  }, { passive: true });
+
+  // Scroll events
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY || 0;
+    _deviceData.scroll.push({ y, t: Date.now() - startT });
+    if (_deviceData.scroll.length > 40) _deviceData.scroll.shift();
+  }, { passive: true });
+}
+if (typeof window !== 'undefined') bindDeviceCollection();
+
+function getDeviceData() {
+  return _deviceData;
 }
 
 const API = '/api/vuot-link';
@@ -340,31 +351,6 @@ export default function LinkGateway() {
         if (powNonce > 5000000) throw new Error('PoW timeout');
       }
 
-      // Canvas 2D + WebGL proof
-      let domWidth = 0;
-      let glRenderer = '';
-      let glPixel = [0, 0, 0];
-      try {
-        const cv = document.createElement('canvas');
-        const ctx2d = cv.getContext('2d');
-        ctx2d.font = `${challenge.df}px monospace`;
-        domWidth = ctx2d.measureText(challenge.dt).width;
-      } catch { }
-      try {
-        const glCv = document.createElement('canvas');
-        glCv.width = 4; glCv.height = 4;
-        const gl = glCv.getContext('webgl') || glCv.getContext('experimental-webgl');
-        if (gl) {
-          const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-          glRenderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
-          const [cr, cg, cb] = challenge.gc;
-          gl.clearColor(cr, cg, cb, 1);
-          gl.clear(gl.COLOR_BUFFER_BIT);
-          const px = new Uint8Array(4);
-          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-          glPixel = [px[0], px[1], px[2]];
-        }
-      } catch { }
 
       // Request task
       const token = localStorage.getItem('token');
@@ -376,13 +362,9 @@ export default function LinkGateway() {
         body: JSON.stringify({
           challengeId: challenge.c,
           powNonce,
-          domWidth,
-          glRenderer,
-          glPixel,
           visitorId,
           botDetection: botDetectionResult,
-          probes: probeData,
-          behavioral: getBehavioralData(),
+          deviceData: getDeviceData(),
           excludeCampaigns: excludeList || skippedCampaigns,
         }),
       });

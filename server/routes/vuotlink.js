@@ -3,7 +3,7 @@ const geoip = require('geoip-lite');
 const crypto = require('crypto');
 const { getPool } = require('../db');
 const { authMiddleware, optionalAuth } = require('../middleware/auth');
-const { analyzeBehavior } = require('../lib/behavior');
+const { analyzeDevice } = require('../lib/behavior');
 
 const router = express.Router();
 
@@ -86,12 +86,8 @@ router.get('/challenge', async (req, res) => {
   const challengeId = crypto.randomBytes(16).toString('hex');
   const prefix = crypto.randomBytes(8).toString('hex');
   const difficulty = 4;
-  const domText = crypto.randomBytes(6).toString('hex');
-  const domFontSize = 14 + Math.floor(Math.random() * 10);
-  const glSalt = crypto.randomBytes(8).toString('hex');
-  const glColor = [Math.random(), Math.random(), Math.random()].map(v => Math.round(v * 100) / 100);
-  challenges[challengeId] = { createdAt: Date.now(), used: false, ip, prefix, difficulty, domText, domFontSize, glSalt, glColor, workerLinkId };
-  res.json({ c: challengeId, p: prefix, d: difficulty, dt: domText, df: domFontSize, gs: glSalt, gc: glColor });
+  challenges[challengeId] = { createdAt: Date.now(), used: false, ip, prefix, difficulty, workerLinkId };
+  res.json({ c: challengeId, p: prefix, d: difficulty });
 });
 
 /* ═════════════════════════════════════════════════════════
@@ -130,7 +126,7 @@ async function _handleTaskPost(req, res) {
     return res.status(429).json({ error: 'Quá nhiều yêu cầu. Thử lại sau.' });
   }
 
-  const { challengeId, powNonce, domWidth, glRenderer, glPixel, visitorId, botDetection, probes: clientProbes, behavioral, excludeCampaigns } = req.body || {};
+  const { challengeId, powNonce, visitorId, deviceData, botDetection, probes: clientProbes, excludeCampaigns } = req.body || {};
 
   let botDetected = false;
   let detectionLog = [];
@@ -149,33 +145,22 @@ async function _handleTaskPost(req, res) {
     return res.status(403).json(ERR);
   }
 
-  if (!domWidth || typeof domWidth !== 'number' || domWidth <= 0) {
-    delete challenges[challengeId];
-    return res.status(403).json(ERR);
-  }
-  const expectedWidth = ch.domText.length * ch.domFontSize * 0.6;
-  if (domWidth < expectedWidth * 0.3 || domWidth > expectedWidth * 2.0) {
-    delete challenges[challengeId];
-    return res.status(403).json(ERR);
-  }
-
-  if (!glRenderer || typeof glRenderer !== 'string' || glRenderer.length < 3) {
-    delete challenges[challengeId];
-    return res.status(403).json(ERR);
-  }
-  if (glPixel && Array.isArray(glPixel) && glPixel.length >= 3) {
-    const tol = 15;
-    const [er, eg, eb] = ch.glColor.map(v => Math.round(v * 255));
-    if (Math.abs(glPixel[0] - er) > tol || Math.abs(glPixel[1] - eg) > tol || Math.abs(glPixel[2] - eb) > tol) {
-      delete challenges[challengeId];
-      return res.status(403).json(ERR);
-    }
-  }
 
   ch.used = true;
 
-  // ── 2. CreepJS check — with mobile tolerance ──
+  // ── Desktop vs Mobile analysis ──
   const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+  if (deviceData) {
+    const result = analyzeDevice(deviceData, ua);
+    if (result.isFake) {
+      console.log(`[VuotLink] Device warning (NOT blocking): score=${result.score}, type=${result.deviceType}, reasons=${result.reasons.join(',')}, IP=${ip}`);
+      logSecurityEvent('device_fake', ip, ua, visitorId, { score: result.score, reasons: result.reasons, detail: result.detail });
+      botDetected = true;
+      detectionLog.push('device_fake');
+    }
+  }
+
+  // ── 2. CreepJS check — with mobile tolerance ──
   if (botDetection) {
     const lied = botDetection.liedSections || [];
     const mobileSafe = ['clientRects', 'maths', 'css', 'domRect'];
@@ -324,11 +309,9 @@ async function _handleTaskPost(req, res) {
 
   // Build security_detail JSON
   const securityDetail = JSON.stringify({
-    botDetection: botDetection || null,
-    probes: clientProbes || null,
-    behavioral: behavioral || null,
+    deviceData: deviceData || null,
     detectionLog,
-    isMobile: isMobileDevice,
+    isMobile: /Mobi|Android|iPhone|iPad|iPod/i.test(ua),
   }).substring(0, 10000);
 
   const [result] = await pool.execute(

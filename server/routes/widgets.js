@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
-const { analyzeBehavior } = require('../lib/behavior');
+const { analyzeDevice } = require('../lib/behavior');
 
 const router = express.Router();
 
@@ -278,14 +278,11 @@ router.get('/public/:token/challenge', (req, res) => {
   }
 
   const challengeId = crypto.randomBytes(16).toString('hex');
-  const domText = crypto.randomBytes(6).toString('hex');
-  const domFontSize = 14 + Math.floor(Math.random() * 10);
-  const glColor = [Math.random(), Math.random(), Math.random()].map(v => Math.round(v * 100) / 100);
-  widgetChallenges[challengeId] = { createdAt: Date.now(), used: false, ip, domText, domFontSize, glColor };
+  widgetChallenges[challengeId] = { createdAt: Date.now(), used: false, ip };
 
   const _ck = signWidgetChallenge(challengeId, ip);
 
-  res.json({ c: challengeId, _ck, dt: domText, df: domFontSize, gc: glColor });
+  res.json({ c: challengeId, _ck });
 });
 
 router.post('/public/:token/get-code', async (req, res) => {
@@ -309,7 +306,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Blocked' });
   }
 
-  const { challengeId, _ck, domWidth, glRenderer, glPixel, visitorId, botDetection, behavioral, hcaptchaToken, pageReferrer } = req.body || {};
+  const { challengeId, _ck, visitorId, deviceData, botDetection, hcaptchaToken, pageReferrer } = req.body || {};
 
   // ── Verify hCaptcha ──
   const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
@@ -332,9 +329,9 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
 
   let botDetected = false;
-  let mouseScore = 0;
-  let mouseReasons = '';
   let detectionLog = [];
+  let deviceScore = 0;
+  let deviceReasons = '';
 
   if (!challengeId) {
     console.log(`[Widget] REJECT get-code: missing challengeId — IP: ${ip}`);
@@ -355,8 +352,6 @@ router.post('/public/:token/get-code', async (req, res) => {
     delete widgetChallenges[challengeId];
     return res.status(403).json(ERR);
   }
-  // Skip strict IP check — IPv6 privacy extensions change IP between requests
-  // Challenge is still protected by HMAC signature + timeout + single-use
 
   if (!_ck || _ck !== signWidgetChallenge(challengeId, ch.ip)) {
     console.log(`[Widget] REJECT get-code: HMAC MISMATCH — IP: ${ip}, challenge IP: ${ch.ip}, hasKey: ${!!_ck}`);
@@ -364,35 +359,38 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
 
   const v1Phase = req.body?.v1Phase || 0;
-
-  // Skip Canvas/WebGL checks for V1 phase 2 (already verified in phase 1)
-  if (v1Phase !== 2) {
-    if (!domWidth || typeof domWidth !== 'number' || domWidth <= 0) {
-      console.log(`[Widget] REJECT get-code: domWidth INVALID — IP: ${ip}, domWidth: ${domWidth}, type: ${typeof domWidth}`);
-      return res.status(403).json(ERR);
-    }
-    const expectedWidth = ch.domText.length * ch.domFontSize * 0.6;
-    if (domWidth < expectedWidth * 0.3 || domWidth > expectedWidth * 2.0) {
-      console.log(`[Widget] REJECT get-code: domWidth OUT OF RANGE — IP: ${ip}, domWidth: ${domWidth}, expected: ${expectedWidth.toFixed(1)}, range: [${(expectedWidth * 0.3).toFixed(1)}, ${(expectedWidth * 2.0).toFixed(1)}]`);
-      return res.status(403).json(ERR);
-    }
-
-    if (!glRenderer || typeof glRenderer !== 'string' || glRenderer.length < 3) {
-      console.log(`[Widget] REJECT get-code: glRenderer INVALID — IP: ${ip}, glRenderer: "${glRenderer}", type: ${typeof glRenderer}`);
-      return res.status(403).json(ERR);
-    }
-    if (glPixel && Array.isArray(glPixel) && glPixel.length >= 3) {
-      const tol = 15;
-      const [er, eg, eb] = ch.glColor.map(v => Math.round(v * 255));
-      if (Math.abs(glPixel[0] - er) > tol || Math.abs(glPixel[1] - eg) > tol || Math.abs(glPixel[2] - eb) > tol) {
-        console.log(`[Widget] REJECT get-code: glPixel MISMATCH — IP: ${ip}, got: [${glPixel}], expected: [${er},${eg},${eb}], tol: ${tol}`);
-        return res.status(403).json(ERR);
-      }
-    }
-  }
-
   ch.used = true;
 
+  // ── Desktop vs Mobile analysis ──
+  if (deviceData) {
+    const result = analyzeDevice(deviceData, ua);
+    deviceScore = result.score;
+    deviceReasons = result.reasons.join(',');
+
+    if (result.isFake) {
+      console.log(`[Widget] Device warning (NOT blocking): score=${result.score}, type=${result.deviceType}, reasons=${deviceReasons}, IP=${ip}`);
+      logSecurityEvent('device_fake', ip, ua, visitorId, { score: result.score, reasons: result.reasons, detail: result.detail });
+      botDetected = true;
+      detectionLog.push('device_fake');
+    }
+
+    // Lưu vào task đang active
+    try {
+      const [activeTasks] = await pool.execute(
+        `SELECT id FROM vuot_link_tasks WHERE (ip_address = ? OR (visitor_id = ? AND visitor_id IS NOT NULL AND visitor_id != '')) AND status IN ('pending','step1','step2','step3') AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
+        [ip, visitorId || '']
+      );
+      if (activeTasks.length > 0) {
+        const fullDetail = { deviceScore: result.score, deviceType: result.deviceType, reasons: result.reasons, detail: result.detail };
+        await pool.execute(
+          `UPDATE vuot_link_tasks SET security_detail = ? WHERE id = ?`,
+          [JSON.stringify(fullDetail).substring(0, 10000), activeTasks[0].id]
+        );
+      }
+    } catch (e) { }
+  }
+
+  // ── CreepJS check — with mobile tolerance ──
   const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
   if (botDetection) {
     const lied = botDetection.liedSections || [];
@@ -415,23 +413,6 @@ router.post('/public/:token/get-code', async (req, res) => {
     }
   }
 
-  const probes = behavioral?.probes || {};
-  if (probes.webdriver === true || probes.cdc === true || probes.selenium === true) {
-    console.log(`[Widget] Automation probe warning (NOT blocking): IP=${ip}`);
-    logSecurityEvent('automation_probes', ip, ua, visitorId, probes);
-    botDetected = true;
-    detectionLog.push('automation_probes');
-  }
-  const isMobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
-  const probeWarnings = [];
-  // Mobile browsers naturally have 0 plugins — skip this check on mobile
-  if (probes.pluginCount === 0 && !isMobileUA) probeWarnings.push('zero_plugins');
-  if (probes.rtt === 0) probeWarnings.push('zero_rtt');
-  if (probes.langCount === 0) probeWarnings.push('zero_languages');
-  if (probeWarnings.length > 0) {
-    logSecurityEvent('probe_warning', ip, ua, visitorId, { ...probes, probeWarnings });
-  }
-
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
       `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00')) AND status = 'completed'`,
@@ -442,42 +423,6 @@ router.post('/public/:token/get-code', async (req, res) => {
       console.log(`[Widget] Device limit: visitorId=${visitorId.substring(0, 8)}..., count=${vCount[0].cnt}`);
       return res.status(429).json({ error: 'Thiết bị đã đạt giới hạn 5 lượt/ngày. Thử lại sau.' });
     }
-  }
-
-  if (behavioral) {
-    const result = analyzeBehavior(behavioral, ua);
-    mouseScore = result.score;
-    mouseReasons = result.reasons.join(',');
-
-    const fullDetail = {
-      behaviorScore: result.score,
-      assessments: result.assessments,
-      botDetection: botDetection || null,
-      probes: behavioral.probes || {},
-      screen: behavioral.screen || null,
-      countdownTime: behavioral.countdownTime || 0,
-    };
-
-    if (result.score >= 70) {
-      console.log(`[Widget] Behavior bot warning (NOT blocking): score=${result.score}, reasons=${mouseReasons}, IP=${ip}`);
-      logSecurityEvent('bot_behavior', ip, ua, visitorId, { score: result.score, reasons: mouseReasons });
-      botDetected = true;
-      detectionLog.push('behavior_warning');
-    }
-
-    // Store assessment in task — will be logged to security when task completes
-    try {
-      const [activeTasks] = await pool.execute(
-        `SELECT id FROM vuot_link_tasks WHERE (ip_address = ? OR (visitor_id = ? AND visitor_id IS NOT NULL AND visitor_id != '')) AND status IN ('pending','step1','step2','step3') AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
-        [ip, visitorId || '']
-      );
-      if (activeTasks.length > 0) {
-        await pool.execute(
-          `UPDATE vuot_link_tasks SET security_detail = ? WHERE id = ?`,
-          [JSON.stringify(fullDetail).substring(0, 10000), activeTasks[0].id]
-        );
-      }
-    } catch (e) { }
   }
 
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
@@ -571,7 +516,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     await pool.execute("UPDATE vuot_link_tasks SET status = 'step3' WHERE id = ?", [task.id]);
   }
 
-  console.log(`[Widget] Code given — IP: ${ip}, task: #${task.id}, code: ${task.code_given}, elapsed: ${elapsedSeconds}s, behaviorScore=${mouseScore}`);
+  console.log(`[Widget] Code given — IP: ${ip}, task: #${task.id}, code: ${task.code_given}, elapsed: ${elapsedSeconds}s, deviceScore=${deviceScore}`);
 
   res.json({ success: true, code: task.code_given });
 });

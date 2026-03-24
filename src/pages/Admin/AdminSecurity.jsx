@@ -22,6 +22,7 @@ const REASON_VI = {
   creep_detected: 'Fingerprint giả', automation_probes: 'Automation',
   mouse_bot: 'Hành vi bot', bot_ua: 'UA bot', bot_behavior: 'Hành vi',
   suspicious: 'Nghi ngờ', probe_warning: 'Browser probe', ip_rate_limit: 'Rate limit',
+  device_fake: 'Thiết bị giả lập',
 };
 
 const ST = {
@@ -40,25 +41,68 @@ function TaskModal({ task: t, onClose }) {
   const bd = sd.botDetection || {};
   const pr = sd.probes || {};
   const dl = sd.detectionLog || [];
-  const bh = sd.behavioral || {};
   const mobile = isMobileUA(t.user_agent);
   const st = ST[t.status] || { l: t.status, c: 'bg-slate-100 text-slate-600' };
 
+  // Device analysis (new format)
+  const devScore = sd.deviceScore || 0;
+  const devType = sd.deviceType || (mobile ? 'mobile' : 'desktop');
+  const devReasons = sd.reasons || [];
+  const devDetail = sd.detail || {};
+
   // Build info cards
   const checks = [];
+  // New device checks
+  if (devScore > 0) checks.push({ k: 'Device Score', v: `${devScore}/100`, bad: devScore >= 50 });
+  if (devDetail.headless) checks.push({ k: 'Headless', v: 'Phát hiện', bad: true });
+  if (devDetail.webdriver) checks.push({ k: 'Webdriver', v: 'Phát hiện', bad: true });
+  if (devDetail.selenium) checks.push({ k: 'Selenium', v: 'Phát hiện', bad: true });
+  if (devDetail.cdc) checks.push({ k: 'CDP', v: 'Phát hiện', bad: true });
+  // GPU
+  if (devDetail.gpu) {
+    const gpuV = devDetail.gpu.verdict;
+    checks.push({ k: 'GPU', v: devDetail.gpu.renderer || gpuV, bad: gpuV === 'virtual' || gpuV === 'missing' });
+  }
+  if (devDetail.gpuFloat) {
+    checks.push({ k: 'GPU Float', v: devDetail.gpuFloat.verdict, bad: devDetail.gpuFloat.verdict === 'software_renderer' });
+  }
+  // Battery
+  if (devDetail.battery) {
+    const bv = devDetail.battery.verdict;
+    checks.push({ k: 'Pin', v: bv === 'emulator_pattern' ? `100% + sạc (giả lập)` : bv === 'suspicious' ? '100% + sạc' : `${Math.round((devDetail.battery.level || 0) * 100)}%`, bad: bv !== 'ok' });
+  }
+  // Audio
+  if (devDetail.audio) {
+    checks.push({ k: 'Audio', v: devDetail.audio.verdict === 'anti_detect' ? 'Tĩnh / Lỗi' : 'OK', bad: devDetail.audio.verdict === 'anti_detect' });
+  }
+  // Sensor (mobile)
+  if (devDetail.sensor && typeof devDetail.sensor === 'object' && devDetail.sensor.verdict) {
+    checks.push({ k: 'Cảm biến', v: devDetail.sensor.verdict === 'static_5s' ? 'Đứng yên (giả lập)' : devDetail.sensor.verdict, bad: devDetail.sensor.verdict !== 'ok' });
+  } else if (devDetail.sensor === 'null_or_empty') {
+    checks.push({ k: 'Cảm biến', v: 'Không có', bad: true });
+  }
+  // Touch
+  if (devDetail.touchRadius) {
+    const tr = typeof devDetail.touchRadius === 'string' ? devDetail.touchRadius : devDetail.touchRadius.verdict;
+    checks.push({ k: 'Touch Radius', v: tr === 'all_zero' ? '0 (giả lập)' : tr === 'fixed' ? 'Cố định' : 'OK', bad: tr !== 'ok' });
+  }
+  // Mouse
+  if (devDetail.mouse) {
+    checks.push({ k: 'Chuột', v: devDetail.mouse.verdict === 'bot_linear' ? 'Tốc độ đều (bot)' : `CV=${devDetail.mouse.speedCV}`, bad: devDetail.mouse.verdict === 'bot_linear' });
+  }
+  // Scroll
+  if (devDetail.scroll) {
+    checks.push({ k: 'Cuộn trang', v: devDetail.scroll.verdict === 'scrollTo_bot' ? 'Nhảy cóc (bot)' : 'OK', bad: devDetail.scroll.verdict === 'scrollTo_bot' });
+  }
+  // Legacy CreepJS checks
   if (bd.bot !== undefined)       checks.push({ k: 'CreepJS Bot', v: bd.bot ? 'Có' : 'Không', bad: !!bd.bot });
   if (bd.totalLied !== undefined) checks.push({ k: 'Tổng giả mạo', v: bd.totalLied, bad: bd.totalLied > 0 });
   if (bd.liedSections?.length)    checks.push({ k: 'Mục giả mạo', v: bd.liedSections.join(', '), bad: true });
-  if (pr.webdriver)    checks.push({ k: 'Webdriver', v: 'Phát hiện', bad: true });
-  if (pr.selenium)     checks.push({ k: 'Selenium', v: 'Phát hiện', bad: true });
-  if (pr.cdc)          checks.push({ k: 'CDP', v: 'Phát hiện', bad: true });
+  // Legacy probes
+  if (pr.webdriver)    checks.push({ k: 'Webdriver (legacy)', v: 'Phát hiện', bad: true });
+  if (pr.selenium)     checks.push({ k: 'Selenium (legacy)', v: 'Phát hiện', bad: true });
+  if (pr.cdc)          checks.push({ k: 'CDP (legacy)', v: 'Phát hiện', bad: true });
   if (pr.pluginCount !== undefined) checks.push({ k: 'Plugins', v: pr.pluginCount, bad: pr.pluginCount === 0 && !mobile });
-
-  // Behavior assessments
-  const assessments = sd.assessments || (bh.assessments) || [];
-  const grouped = {};
-  assessments.forEach(a => { if (!grouped[a.cat]) grouped[a.cat] = []; grouped[a.cat].push(a); });
-  const catNames = { interaction: 'Tương tác', mouse: 'Chuột', touch: 'Touch', scroll: 'Cuộn trang', click: 'Click', tap: 'Tap', device: 'Thiết bị' };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
@@ -136,25 +180,19 @@ function TaskModal({ task: t, onClose }) {
             </div>
           )}
 
-          {/* Behavior assessments */}
-          {Object.keys(grouped).length > 0 && (
+          {/* Behavior / Device reasons */}
+          {devReasons.length > 0 && (
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Phân tích hành vi</p>
-              {Object.entries(grouped).map(([cat, items]) => (
-                <div key={cat} className="mb-2">
-                  <p className="text-[11px] font-bold text-slate-600 mb-0.5">{catNames[cat] || cat}</p>
-                  {items.map((a, i) => (
-                    <div key={i} className={`px-3 py-1 rounded-lg text-[10px] mb-0.5 ${a.flagged ? 'bg-red-50 text-red-700' : 'bg-emerald-50/50 text-emerald-700'}`}>
-                      <span className="font-semibold">{a.note}</span>
-                      <span className="text-slate-400 ml-1">({String(a.value)})</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Phân tích thiết bị ({devType})</p>
+              <div className="flex flex-wrap gap-1">
+                {devReasons.map((r, i) => (
+                  <span key={i} className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-700">{r}</span>
+                ))}
+              </div>
             </div>
           )}
 
-          {!checks.length && !Object.keys(grouped).length && !dl.length && (
+          {!checks.length && !devReasons.length && !dl.length && (
             <p className="text-center text-slate-400 py-6">Chưa có dữ liệu đánh giá bảo mật</p>
           )}
         </div>
@@ -172,7 +210,7 @@ function EventModal({ event: ev, onClose }) {
   if (!ev) return null;
   let det = {};
   try { det = typeof ev.details === 'string' ? JSON.parse(ev.details || '{}') : (ev.details || {}); } catch {}
-  const blocked = ['creep_detected','automation_probes','mouse_bot','bot_ua','bot_behavior','ip_rate_limit'].includes(ev.reason);
+  const blocked = ['creep_detected','automation_probes','mouse_bot','bot_ua','bot_behavior','ip_rate_limit','device_fake'].includes(ev.reason);
   const mobile = isMobileUA(ev.user_agent);
 
   // Build check cards from details
@@ -196,11 +234,34 @@ function EventModal({ event: ev, onClose }) {
   if (det.timeOnSite) taskInfo.push(['Time on site', `${det.timeOnSite}s`]);
   if (det.ipCountry) taskInfo.push(['Quốc gia', det.ipCountry]);
 
-  // Behavioral assessments
-  const assessments = det.assessments || det.behavioral?.assessments || [];
-  const grouped = {};
-  assessments.forEach(a => { if (!grouped[a.cat]) grouped[a.cat] = []; grouped[a.cat].push(a); });
-  const catNames = { interaction: 'Tương tác', mouse: 'Chuột', touch: 'Touch', scroll: 'Cuộn trang', click: 'Click', tap: 'Tap', device: 'Thiết bị' };
+  // New device analysis format (device_fake events)
+  const devDetail = det.detail || {};
+  const devReasons = det.reasons || [];
+  const devScore = det.score || 0;
+  if (devScore > 0) checks.push({ k: 'Device Score', v: `${devScore}/100`, bad: devScore >= 50 });
+  if (devDetail.gpu) {
+    const gpuV = devDetail.gpu?.verdict;
+    checks.push({ k: 'GPU', v: devDetail.gpu?.renderer || gpuV, bad: gpuV === 'virtual' || gpuV === 'missing' });
+  }
+  if (devDetail.gpuFloat) checks.push({ k: 'GPU Float', v: devDetail.gpuFloat.verdict, bad: devDetail.gpuFloat.verdict === 'software_renderer' });
+  if (devDetail.battery) {
+    const bv = devDetail.battery?.verdict;
+    checks.push({ k: 'Pin', v: bv === 'emulator_pattern' ? '100%+sạc (giả lập)' : bv === 'suspicious' ? '100%+sạc' : 'OK', bad: bv !== 'ok' });
+  }
+  if (devDetail.audio) checks.push({ k: 'Audio', v: devDetail.audio.verdict === 'anti_detect' ? 'Tĩnh/Lỗi' : 'OK', bad: devDetail.audio.verdict === 'anti_detect' });
+  if (devDetail.sensor && typeof devDetail.sensor === 'object' && devDetail.sensor.verdict) {
+    checks.push({ k: 'Cảm biến', v: devDetail.sensor.verdict === 'static_5s' ? 'Đứng yên (giả lập)' : devDetail.sensor.verdict, bad: devDetail.sensor.verdict !== 'ok' });
+  } else if (devDetail.sensor === 'null_or_empty') {
+    checks.push({ k: 'Cảm biến', v: 'Không có', bad: true });
+  }
+  if (devDetail.touchRadius) {
+    const tr = typeof devDetail.touchRadius === 'string' ? devDetail.touchRadius : devDetail.touchRadius.verdict;
+    checks.push({ k: 'Touch', v: tr === 'all_zero' ? '0 (giả lập)' : tr, bad: tr !== 'ok' });
+  }
+  if (devDetail.mouse) checks.push({ k: 'Chuột', v: devDetail.mouse.verdict === 'bot_linear' ? 'Bot' : 'OK', bad: devDetail.mouse.verdict === 'bot_linear' });
+  if (devDetail.scroll) checks.push({ k: 'Cuộn', v: devDetail.scroll.verdict === 'scrollTo_bot' ? 'Bot' : 'OK', bad: devDetail.scroll.verdict === 'scrollTo_bot' });
+  if (devDetail.headless) checks.push({ k: 'Headless', v: 'Phát hiện', bad: true });
+  if (devDetail.webdriver) checks.push({ k: 'Webdriver', v: 'Phát hiện', bad: true });
 
   // Detection log
   const dl = det.detectionLog || [];
@@ -303,21 +364,15 @@ function EventModal({ event: ev, onClose }) {
             </div>
           )}
 
-          {/* Behavior assessments */}
-          {Object.keys(grouped).length > 0 && (
+          {/* Device reasons */}
+          {devReasons.length > 0 && (
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Phân tích hành vi</p>
-              {Object.entries(grouped).map(([cat, items]) => (
-                <div key={cat} className="mb-2">
-                  <p className="text-[11px] font-bold text-slate-600 mb-0.5">{catNames[cat] || cat}</p>
-                  {items.map((a, i) => (
-                    <div key={i} className={`px-3 py-1 rounded-lg text-[10px] mb-0.5 ${a.flagged ? 'bg-red-50 text-red-700' : 'bg-emerald-50/50 text-emerald-700'}`}>
-                      <span className="font-semibold">{a.note}</span>
-                      <span className="text-slate-400 ml-1">({String(a.value)})</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Phân tích thiết bị</p>
+              <div className="flex flex-wrap gap-1">
+                {devReasons.map((r, i) => (
+                  <span key={i} className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-700">{r}</span>
+                ))}
+              </div>
             </div>
           )}
 
@@ -331,17 +386,7 @@ function EventModal({ event: ev, onClose }) {
             </div>
           )}
 
-          {/* Probe warnings */}
-          {(det.probeWarnings || []).length > 0 && (
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Probe Warnings</p>
-              <div className="flex flex-wrap gap-1">
-                {det.probeWarnings.map((w, i) => <span key={i} className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600">{w}</span>)}
-              </div>
-            </div>
-          )}
-
-          {!checks.length && !Object.keys(grouped).length && !dl.length && taskInfo.length === 0 && (
+          {!checks.length && !devReasons.length && !dl.length && taskInfo.length === 0 && (
             <p className="text-center text-slate-400 py-6">Chưa có dữ liệu chi tiết</p>
           )}
         </div>
@@ -550,9 +595,9 @@ function UserDetail({ user: u, onBack }) {
                 ) : events.map(ev => {
                   let det = {};
                   try { det = JSON.parse(ev.details || '{}'); } catch {}
-                  const isBlocked = ['creep_detected','automation_probes','mouse_bot','bot_ua','bot_behavior','ip_rate_limit'].includes(ev.reason);
+                  const isBlocked = ['creep_detected','automation_probes','mouse_bot','bot_ua','bot_behavior','ip_rate_limit','device_fake'].includes(ev.reason);
                   const mob = isMobileUA(ev.user_agent);
-                  const hasDetail = det.totalLied > 0 || det.liedSections?.length || det.probeWarnings?.length || det.taskId || det.assessments?.length;
+                  const hasDetail = det.totalLied > 0 || det.liedSections?.length || det.taskId || det.score > 0 || det.reasons?.length;
                   return (
                     <tr key={ev.id} className={`border-b border-slate-100 hover:bg-slate-50/50 ${isBlocked ? 'bg-red-50/20' : ''}`}>
                       <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{fmt(ev.created_at)}</td>
@@ -575,6 +620,8 @@ function UserDetail({ user: u, onBack }) {
                       <td className="px-3 py-2.5 font-mono text-slate-500 text-[10px] max-w-[80px] truncate">{ev.visitor_id ? ev.visitor_id.substring(0, 12) + '...' : '—'}</td>
                       <td className="px-3 py-2.5">
                         <div className="flex flex-wrap gap-0.5">
+                          {det.score > 0 && <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${det.score >= 50 ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>Score:{det.score}</span>}
+                          {(det.reasons || []).slice(0, 2).map((r, i) => <span key={`r${i}`} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600">{r}</span>)}
                           {det.totalLied > 0 && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600">Lied:{det.totalLied}</span>}
                           {(det.liedSections || []).slice(0, 2).map((s, i) => <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600">{s}</span>)}
                           {det.count > 0 && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-600">x{det.count}</span>}
