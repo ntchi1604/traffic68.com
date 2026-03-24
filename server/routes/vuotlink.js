@@ -407,7 +407,7 @@ async function _handleTaskPost(req, res) {
     traffic_type: campaign.traffic_type || 'google_search',
     target_url: selectedUrl,
     _tk,
-    remaining: viewsRemaining - 1,  // -1 because this task just used a slot
+    remaining: viewsRemaining,  // based on completed tasks, this pending task doesn't count yet
     maxViews: maxViewsPerIp,
   });
 }
@@ -670,7 +670,32 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     });
   } catch (e) { }
 
-  res.json({ success: true, earning, destination_url: destinationUrl });
+  // Calculate remaining views for today (after this completion)
+  let remaining = 0;
+  let maxViews = 2;
+  try {
+    const [limitSetting] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
+    maxViews = limitSetting.length > 0 ? parseInt(limitSetting[0].setting_value) || 2 : 2;
+
+    // Count completed tasks today for this IP
+    const [ipDone] = await pool.execute(
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
+      [ip]
+    );
+    // Also count by visitor_id if available
+    let vidDone = 0;
+    if (task.visitor_id && task.visitor_id !== 'unknown') {
+      const [vDone] = await pool.execute(
+        `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
+        [task.visitor_id]
+      );
+      vidDone = vDone[0].cnt;
+    }
+    const usedToday = Math.max(ipDone[0].cnt, vidDone);
+    remaining = Math.max(0, maxViews - usedToday);
+  } catch (e) { console.error('[VuotLink] Remaining calc error:', e.message); }
+
+  res.json({ success: true, earning, destination_url: destinationUrl, remaining, maxViews });
 });
 
 /* ═════════════════════════════════════════════════════════
