@@ -307,12 +307,17 @@ async function _handleTaskPost(req, res) {
   // Use worker_link_id from challenge session (server-side), NOT from client body
   const workerLinkId = ch.workerLinkId || null;
 
-  // Build security_detail JSON
-  const securityDetail = JSON.stringify({
-    deviceData: deviceData || null,
-    detectionLog,
-    isMobile: /Mobi|Android|iPhone|iPad|iPod/i.test(ua),
-  }).substring(0, 10000);
+  // Build security_detail JSON — include analyzed result + creepJS
+  const secObj = { detectionLog, isMobile: /Mobi|Android|iPhone|iPad|iPod/i.test(ua) };
+  if (deviceData) {
+    const devResult = analyzeDevice(deviceData, ua);
+    secObj.deviceScore = devResult.score;
+    secObj.deviceType = devResult.deviceType;
+    secObj.reasons = devResult.reasons;
+    secObj.detail = devResult.detail;
+  }
+  if (botDetection) secObj.botDetection = botDetection;
+  const securityDetail = JSON.stringify(secObj).substring(0, 10000);
 
   const [result] = await pool.execute(
     `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id, security_detail) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?)`,

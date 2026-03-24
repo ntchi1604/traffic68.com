@@ -362,8 +362,10 @@ router.post('/public/:token/get-code', async (req, res) => {
   ch.used = true;
 
   // ── Desktop vs Mobile analysis ──
+  let deviceResult = null;
   if (deviceData) {
     const result = analyzeDevice(deviceData, ua);
+    deviceResult = result;
     deviceScore = result.score;
     deviceReasons = result.reasons.join(',');
 
@@ -373,21 +375,6 @@ router.post('/public/:token/get-code', async (req, res) => {
       botDetected = true;
       detectionLog.push('device_fake');
     }
-
-    // Lưu vào task đang active
-    try {
-      const [activeTasks] = await pool.execute(
-        `SELECT id FROM vuot_link_tasks WHERE (ip_address = ? OR (visitor_id = ? AND visitor_id IS NOT NULL AND visitor_id != '')) AND status IN ('pending','step1','step2','step3') AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
-        [ip, visitorId || '']
-      );
-      if (activeTasks.length > 0) {
-        const fullDetail = { deviceScore: result.score, deviceType: result.deviceType, reasons: result.reasons, detail: result.detail };
-        await pool.execute(
-          `UPDATE vuot_link_tasks SET security_detail = ? WHERE id = ?`,
-          [JSON.stringify(fullDetail).substring(0, 10000), activeTasks[0].id]
-        );
-      }
-    } catch (e) { }
   }
 
   // ── CreepJS check — with mobile tolerance ──
@@ -412,6 +399,28 @@ router.post('/public/:token/get-code', async (req, res) => {
       }
     }
   }
+
+  // ── Save security_detail to active task (combines device analysis + CreepJS + detectionLog) ──
+  try {
+    const [activeTasks] = await pool.execute(
+      `SELECT id FROM vuot_link_tasks WHERE (ip_address = ? OR (visitor_id = ? AND visitor_id IS NOT NULL AND visitor_id != '')) AND status IN ('pending','step1','step2','step3') AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
+      [ip, visitorId || '']
+    );
+    if (activeTasks.length > 0) {
+      const secObj = { detectionLog, isMobile: isMobileDevice };
+      if (deviceResult) {
+        secObj.deviceScore = deviceResult.score;
+        secObj.deviceType = deviceResult.deviceType;
+        secObj.reasons = deviceResult.reasons;
+        secObj.detail = deviceResult.detail;
+      }
+      if (botDetection) secObj.botDetection = botDetection;
+      await pool.execute(
+        `UPDATE vuot_link_tasks SET security_detail = ? WHERE id = ?`,
+        [JSON.stringify(secObj).substring(0, 10000), activeTasks[0].id]
+      );
+    }
+  } catch (e) { }
 
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
