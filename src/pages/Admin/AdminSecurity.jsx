@@ -97,8 +97,13 @@ function TaskModal({ task: t, onClose }) {
   }
   // Legacy CreepJS checks
   if (bd.bot !== undefined)       checks.push({ k: 'CreepJS Bot', v: bd.bot ? 'Có' : 'Không', bad: !!bd.bot });
-  if (bd.totalLied !== undefined) checks.push({ k: 'Tổng giả mạo', v: bd.totalLied, bad: bd.totalLied > 0 });
-  if (bd.liedSections?.length)    checks.push({ k: 'Mục giả mạo', v: bd.liedSections.join(', '), bad: true });
+  const _safeLied = ['clientRects', 'maths', 'css', 'domRect'];
+  const _filterLied = (arr) => (arr || []).filter(s => !_safeLied.some(safe => s === safe || s.startsWith(safe + ':')));
+  const bdRealLies = _filterLied(bd.liedSections);
+  const bdHasNavLie = (bd.liedSections || []).some(s => s === 'navigator' || s.startsWith('navigator:'));
+  if (bdHasNavLie) checks.push({ k: 'Fake Device', v: '100% (navigator lied)', bad: true });
+  if (bd.totalLied !== undefined) checks.push({ k: 'Tổng giả mạo', v: bdRealLies.length, bad: bdRealLies.length > 0 });
+  if (bdRealLies.length > 0)      checks.push({ k: 'Mục giả mạo', v: bdRealLies.join(', '), bad: true });
   // Legacy probes
   if (pr.webdriver)    checks.push({ k: 'Webdriver (legacy)', v: 'Phát hiện', bad: true });
   if (pr.selenium)     checks.push({ k: 'Selenium (legacy)', v: 'Phát hiện', bad: true });
@@ -217,8 +222,13 @@ function EventModal({ event: ev, onClose }) {
   // Build check cards from details
   const checks = [];
   if (det.bot !== undefined) checks.push({ k: 'CreepJS Bot', v: det.bot ? 'Có' : 'Không', bad: !!det.bot });
-  if (det.totalLied !== undefined) checks.push({ k: 'Tổng giả mạo', v: det.totalLied, bad: det.totalLied > 0 });
-  if (det.liedSections?.length) checks.push({ k: 'Mục giả mạo', v: det.liedSections.join(', '), bad: true });
+  const _safe2 = ['clientRects', 'maths', 'css', 'domRect'];
+  const _filter2 = (arr) => (arr || []).filter(s => !_safe2.some(safe => s === safe || s.startsWith(safe + ':')));
+  const detRealLies = _filter2(det.liedSections);
+  const detHasNavLie = (det.liedSections || []).some(s => s === 'navigator' || s.startsWith('navigator:'));
+  if (detHasNavLie) checks.push({ k: 'Fake Device', v: '100% (navigator lied)', bad: true });
+  if (det.totalLied !== undefined) checks.push({ k: 'Tổng giả mạo', v: detRealLies.length, bad: detRealLies.length > 0 });
+  if (detRealLies.length > 0) checks.push({ k: 'Mục giả mạo', v: detRealLies.join(', '), bad: true });
   if (det.webdriver) checks.push({ k: 'Webdriver', v: 'Phát hiện', bad: true });
   if (det.selenium) checks.push({ k: 'Selenium', v: 'Phát hiện', bad: true });
   if (det.cdc) checks.push({ k: 'CDP', v: 'Phát hiện', bad: true });
