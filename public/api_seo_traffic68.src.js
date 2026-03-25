@@ -1,4 +1,4 @@
-﻿/**
+/**
  * LayNut.js — Embeddable Button Script v3
  * Traffic68.com — https://traffic68.com
  *
@@ -83,7 +83,7 @@
     brandUrl: 'https://traffic68.com',
     brandLogo: '',
     customCSS: '',
-    overlapFix: 'none',
+    overlapFix: 'none',  // 'auto' | 'zindex' | 'fixed' | 'none'
     hcaptchaSiteKey: '5acaec7e-83b0-464e-ba10-690889fc66ba',
     clarityId: 'vyua2zk5dc',
     onReveal: null,
@@ -355,7 +355,7 @@
 
     var css = [
       /* Button — base (position set dynamically) */
-      '#laynut-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border:none;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-weight:700;letter-spacing:0.01em;transition:transform .15s ease,box-shadow .15s ease,opacity .3s ease;user-select:none;white-space:nowrap;animation:ln-pop .4s cubic-bezier(.34,1.56,.64,1) both;}',
+      '#laynut-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border:none;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-weight:700;letter-spacing:0.01em;text-transform:none;transition:transform .15s ease,box-shadow .15s ease,opacity .3s ease;user-select:none;white-space:nowrap;animation:ln-pop .4s cubic-bezier(.34,1.56,.64,1) both;}',
       '#laynut-btn:hover{transform:translateY(-2px) scale(1.03);}',
       '#laynut-btn:active{transform:scale(0.97);}',
       '#laynut-btn .ln-icon-img{object-fit:contain;display:block;flex-shrink:0;}',
