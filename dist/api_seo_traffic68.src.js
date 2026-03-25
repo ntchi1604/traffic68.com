@@ -1,4 +1,4 @@
-/**
+﻿/**
  * LayNut.js — Embeddable Button Script v3
  * Traffic68.com — https://traffic68.com
  *
@@ -361,7 +361,7 @@
       '#laynut-btn .ln-icon-img{object-fit:contain;display:block;flex-shrink:0;}',
       '#laynut-btn .ln-icon-em{font-style:normal;line-height:1;}',
       '#laynut-btn .ln-label{flex-shrink:0;}',
-      '#laynut-btn .ln-badge{background:rgba(255,255,255,0.25);border-radius:10px;padding:1px 5px;font-size:11px;font-weight:800;text-align:center;flex-shrink:0;line-height:1.3;}',
+      '#laynut-btn .ln-badge{background:rgba(255,255,255,0.25);border-radius:10px;padding:1px 5px;font-size:13px;font-weight:800;text-align:center;flex-shrink:0;line-height:1.3;}',
       /* Inline wrapper (used when target is set) */
       '#laynut-wrap{position:absolute;z-index:9999;pointer-events:none;}',
       '#laynut-wrap #laynut-btn{pointer-events:all;}',
