@@ -232,18 +232,20 @@ router.post('/public/:token/check-session', async (req, res) => {
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
   const { visitorId, pageReferrer } = req.body || {};
+  // Sanitize visitorId — 'unknown' is the default/fallback, treat as empty
+  const cleanVisitorId = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const [tasks] = await pool.execute(
     `SELECT vt.id, vt.status as task_status, c.traffic_type FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
-     WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != ''))
+     WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id != 'unknown'))
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
        AND vt.expires_at > NOW()
      ORDER BY vt.created_at DESC LIMIT 1`,
-    [ip, visitorId || '']
+    [ip, cleanVisitorId]
   );
 
   if (tasks.length === 0) {
-    console.log(`[Widget] check-session NO TASK — IP: ${ip}, visitorId: ${(visitorId || '').substring(0, 20)}, referrer: ${(pageReferrer || '').substring(0, 60)}`);
+    console.log(`[Widget] check-session NO TASK — IP: ${ip}, visitorId: ${(cleanVisitorId).substring(0, 20)}, referrer: ${(pageReferrer || '').substring(0, 60)}`);
     return res.status(404).json({ hasSession: false });
   }
 
@@ -448,14 +450,15 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
   // Match by IP or visitorId
+  const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const [tasks] = await pool.execute(
     `SELECT vt.*, c.url as campaign_url, c.time_on_site, c.version, c.target_page, c.traffic_type FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
-     WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != ''))
+     WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id != 'unknown'))
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
        AND vt.expires_at > NOW()
      ORDER BY vt.created_at DESC LIMIT 1`,
-    [ip, visitorId || '']
+    [ip, cleanVid]
   );
 
   if (tasks.length === 0) {
