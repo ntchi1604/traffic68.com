@@ -260,7 +260,10 @@
     probes: {},
   };
 
+  var _bhvInit = false;
   function _initBehaviorTracking() {
+    if (_bhvInit) return;
+    _bhvInit = true;
     _bhv.startTime = Date.now();
 
     document.addEventListener('mousemove', function (e) {
@@ -1523,7 +1526,7 @@
     // Just mark ready — countdown starts when user clicks the button
     _v1Phase2Ready = true;
     // Pre-load detection libs and challenge in background
-    _bindBehavior();
+    _initBehaviorTracking();
     _loadDetectionLibs(function () { });
     fetchChallenge(function () { });
     bindVisibility();
@@ -1739,7 +1742,7 @@
     countdownRunning = true;
 
     // Start behavioral tracking (same as VuotLink.jsx)
-    _bindBehavior();
+    _initBehaviorTracking();
 
     // Load FingerprintJS + BotD (same as VuotLink.jsx useEffect)
     _loadDetectionLibs(function () {
