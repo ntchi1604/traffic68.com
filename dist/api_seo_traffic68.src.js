@@ -479,6 +479,12 @@
         _startV1Phase2();
         return;
       }
+      // V1: Phase 1 already done but user is still on the same page → show error
+      if (_campVersion === 1 && _isV1Phase2() && !_isV1DifferentPage()) {
+        _showSamePageError();
+        fetchChallenge(function () { });
+        return;
+      }
       // First click: verify session exists before starting countdown
       checkSession(function (hasSession) {
         if (hasSession) {
