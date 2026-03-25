@@ -391,6 +391,7 @@ async function _handleTaskPost(req, res) {
   // Generate signed task token (binds to IP, cannot be forged)
   const _tk = signTask(result.insertId, ip);
 
+  const isDirect = (campaign.traffic_type || 'google_search') === 'direct';
   res.json({
     id: result.insertId,
     keyword: selectedKeyword,
@@ -399,7 +400,7 @@ async function _handleTaskPost(req, res) {
     waitTime,
     widgetConfig,
     traffic_type: campaign.traffic_type || 'google_search',
-    target_url: selectedUrl,
+    ...(isDirect ? { target_url: selectedUrl } : {}),
     _tk,
   });
 }
