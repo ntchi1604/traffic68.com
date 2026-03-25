@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(grep -n \"$hash\\\\|workerScope\" \"c:/Users/NguyenThanhChi/Downloads/web/public/creep.js\")",
-      "Bash(grep -o \"workerScope\\\\.$hash\\\\|arg\\\\.$hash\\\\|workerScope\\\\.\\\\id\" c:/Users/NguyenThanhChi/Downloads/web/public/creep.js)"
+      "Bash(grep -o \"workerScope\\\\.$hash\\\\|arg\\\\.$hash\\\\|workerScope\\\\.\\\\id\" c:/Users/NguyenThanhChi/Downloads/web/public/creep.js)",
+      "Bash(xxd)"
     ]
   }
 }

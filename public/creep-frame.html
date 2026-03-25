@@ -12,38 +12,62 @@ function sendResult(data) {
  }
 }
 
+// Override console.log BEFORE loading creep.js
+var _origLog = console.log;
+console.log = function () {
+ for (var i = 0; i < arguments.length; i++) {
+ var arg = arguments[i];
+ if (arg && typeof arg === 'object') {
+ // Check for workerScope (CreepJS output)
+ if (arg.workerScope) {
+ var visitorId = 'unknown';
+ var botData = { bot: false, totalLied: 0, liedSections: [] };
+
+ // Get visitorId from workerScope.$hash
+ if (arg.workerScope.$hash) visitorId = arg.workerScope.$hash;
+
+ // Count lied
+ if (arg.workerScope.lied !== undefined) {
+ botData.bot = true;
+ botData.totalLied = arg.workerScope.lied === true ? 1 : (typeof arg.workerScope.lied === 'number' ? arg.workerScope.lied : 0);
+ }
+
+ // Count lied in sections
+ for (var key in arg.workerScope) {
+ if (arg.workerScope[key] && typeof arg.workerScope[key] === 'object' && arg.workerScope[key].lied !== undefined) {
+ var liedVal = arg.workerScope[key].lied === true ? 1 : (typeof arg.workerScope[key].lied === 'number' ? arg.workerScope[key].lied : 0);
+ botData.totalLied += liedVal;
+ if (liedVal > 0) botData.liedSections.push(key + ':' + liedVal);
+ }
+ }
+
+ botData.bot = botData.totalLied > 0;
+
+ if (visitorId !== 'unknown') {
+ sendResult({ visitorId: visitorId, botDetection: botData });
+ console.log = _origLog;
+ return;
+ }
+ }
+ // Check root level $hash
+ if (arg.$hash && visitorId === 'unknown') {
+ visitorId = arg.$hash;
+ sendResult({ visitorId: visitorId, botDetection: { bot: false } });
+ console.log = _origLog;
+ return;
+ }
+ }
+ }
+ // Call original log
+ _origLog.apply(console, arguments);
+};
+
 // Load CreepJS
 var s = document.createElement('script');
 s.src = '/creep.js';
-s.onload = function() {
- // Wait for CreepJS to initialize and check for global visitorId
- setTimeout(function() {
- // Check if CreepJS exposes visitorId globally
- if (window.CreepJS && window.CreepJS.visitorId) {
- sendResult({ visitorId: window.CreepJS.visitorId, botDetection: { bot: false } });
- return;
- }
- if (window.creep && window.creep.visitorId) {
- sendResult({ visitorId: window.creep.visitorId, botDetection: { bot: false } });
- return;
- }
- if (window.$creep && window.$creep.visitorId) {
- sendResult({ visitorId: window.$creep.visitorId, botDetection: { bot: false } });
- return;
- }
- // If no global exposed, try to read from creep object if exists
- if (window.creepjs && typeof window.creepjs === 'object') {
- var data = window.creepjs;
- var visitorId = data.visitorId || data.id || data.hash || data.$hash || 'unknown';
- sendResult({ visitorId: visitorId, botDetection: { bot: false, creepDebug: data } });
- return;
- }
- // Still no luck - send debug info
- sendResult({ visitorId: 'unknown', botDetection: { bot: false, creepNoGlobal: true } });
- }, 3000);
-};
 s.onerror = function () {
  sendResult({ visitorId: 'unknown', botDetection: { bot: false, creepError: true } });
+ console.log = _origLog;
 };
 document.head.appendChild(s);
 
@@ -51,6 +75,7 @@ document.head.appendChild(s);
 setTimeout(function () {
  if (!_sent) {
  sendResult({ visitorId: 'unknown', botDetection: { bot: false, creepTimeout: true } });
+ console.log = _origLog;
  }
 }, 10000);
 </script>
