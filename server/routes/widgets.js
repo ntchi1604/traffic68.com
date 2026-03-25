@@ -89,7 +89,10 @@ router.get('/public/:token', async (req, res) => {
 
   if (BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
 
-  const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
+  const [widgets] = await pool.execute(
+    `SELECT w.* FROM widgets w JOIN users u ON u.id = w.user_id WHERE w.token = ? AND w.is_active = 1 AND u.status = 'active'`,
+    [req.params.token]
+  );
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại hoặc đã bị tắt' });
 
   let config = {};
@@ -222,7 +225,10 @@ router.post('/public/:token/check-session', async (req, res) => {
 
   if (BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
 
-  const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
+  const [widgets] = await pool.execute(
+    `SELECT w.* FROM widgets w JOIN users u ON u.id = w.user_id WHERE w.token = ? AND w.is_active = 1 AND u.status = 'active'`,
+    [req.params.token]
+  );
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
   const { visitorId, pageReferrer } = req.body || {};
@@ -435,7 +441,10 @@ router.post('/public/:token/get-code', async (req, res) => {
     }
   }
 
-  const [widgets] = await pool.execute('SELECT * FROM widgets WHERE token = ? AND is_active = 1', [req.params.token]);
+  const [widgets] = await pool.execute(
+    `SELECT w.* FROM widgets w JOIN users u ON u.id = w.user_id WHERE w.token = ? AND w.is_active = 1 AND u.status = 'active'`,
+    [req.params.token]
+  );
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
   // Match by IP or visitorId

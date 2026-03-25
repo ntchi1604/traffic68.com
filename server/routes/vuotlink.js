@@ -148,6 +148,19 @@ async function _handleTaskPost(req, res) {
 
   ch.used = true;
 
+  // ── Check if gateway link owner is still active (prevent banned user links) ──
+  if (ch.workerLinkId) {
+    const pool = getPool();
+    const [wlCheck] = await pool.execute(
+      `SELECT u.status FROM worker_links wl JOIN users u ON u.id = wl.worker_id WHERE wl.id = ?`,
+      [ch.workerLinkId]
+    );
+    if (!wlCheck.length || wlCheck[0].status !== 'active') {
+      delete challenges[challengeId];
+      return res.status(403).json({ error: 'Link này đã bị vô hiệu hóa.' });
+    }
+  }
+
   // ── Desktop vs Mobile analysis ──
   const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
   if (deviceData) {
@@ -397,7 +410,6 @@ async function _handleTaskPost(req, res) {
     keyword: selectedKeyword,
     image1_url: selectedImage1,
     image2_url: selectedImage2,
-    waitTime,
     widgetConfig,
     traffic_type: campaign.traffic_type || 'google_search',
     ...(isDirect ? { target_url: selectedUrl } : {}),
