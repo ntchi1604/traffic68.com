@@ -355,7 +355,7 @@
 
     var css = [
       /* Button — base (position set dynamically) */
-      '#laynut-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border:none;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-weight:700;letter-spacing:0.01em;text-transform:none;transition:transform .15s ease,box-shadow .15s ease,opacity .3s ease;user-select:none;white-space:nowrap;animation:ln-pop .4s cubic-bezier(.34,1.56,.64,1) both;}',
+      '#laynut-btn{display:inline-flex;align-items:center;gap:6px;padding:3px 14px;border:none;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-weight:700;letter-spacing:0.01em;text-transform:none;transition:transform .15s ease,box-shadow .15s ease,opacity .3s ease;user-select:none;white-space:nowrap;animation:ln-pop .4s cubic-bezier(.34,1.56,.64,1) both;}',
       '#laynut-btn:hover{transform:translateY(-2px) scale(1.03);}',
       '#laynut-btn:active{transform:scale(0.97);}',
       '#laynut-btn .ln-icon-img{object-fit:contain;display:block;flex-shrink:0;}',
@@ -1762,7 +1762,7 @@
     var btn = document.getElementById('laynut-btn');
     var label = document.querySelector('#laynut-btn .ln-label');
     if (label) label.textContent = 'Vui lòng chờ';
-    if (btn) btn.style.padding = '6px 14px 6px 10px';
+    if (btn) btn.style.padding = '3px 12px 3px 8px';
     var badge = document.getElementById('laynut-badge');
     if (badge) badge.style.display = '';
     doTick();
