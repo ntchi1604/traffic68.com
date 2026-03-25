@@ -185,75 +185,30 @@
       }
     }
 
-    // SHA-256 hash (same algorithm CreepJS uses)
-    function sha256(text) {
-      var data = new TextEncoder().encode(text);
-      return crypto.subtle.digest('SHA-256', data).then(function(buf) {
-        var arr = Array.from(new Uint8Array(buf));
-        return arr.map(function(b) { return ('00' + b.toString(16)).slice(-2); }).join('');
-      });
-    }
+    // Dùng iframe creep-frame.html — bắt buộc
+    var iframe = document.createElement('iframe');
+    iframe.src = _scriptBase + '/creep-frame.html';
+    iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+    iframe.setAttribute('aria-hidden', 'true');
 
-    // Load creep.js and poll for fingerprint hash
-    var s = document.createElement("script");
-    s.src = _scriptBase + "/creep.js";
-    s.onload = function() {
-      // Poll for CreepJS results — it takes several seconds to compute
-      var attempts = 0;
-      var maxAttempts = 60; // 30 seconds (500ms * 60)
-      var pollInterval = setInterval(function() {
-        attempts++;
+    // Lắng nghe kết quả từ iframe
+    window.addEventListener('message', function onMsg(e) {
+      if (!e.data || e.data.type !== 'creep-result') return;
+      window.removeEventListener('message', onMsg);
+      var d = e.data.data || {};
+      if (d.visitorId && d.visitorId !== 'unknown') {
+        _visitorId = d.visitorId;
+      }
+      if (d.botDetection) _botDetection = d.botDetection;
+      done();
+    });
 
-        // Strategy 1: Read hash from DOM element #creep-fingerprint
-        var fpEl = document.getElementById('creep-fingerprint');
-        if (fpEl) {
-          var text = fpEl.textContent || '';
-          var hashMatch = text.match(/[a-f0-9]{64}/i);
-          if (hashMatch) {
-            clearInterval(pollInterval);
-            _visitorId = hashMatch[0];
-            _botDetection = _extractBotDetection();
-            done();
-            return;
-          }
-        }
-
-        // Strategy 2: Hash window.Creep (the stable fingerprint object)
-        if (window.Creep && !_called) {
-          try {
-            sha256(JSON.stringify(window.Creep)).then(function(hash) {
-              if (!_called && hash) {
-                clearInterval(pollInterval);
-                _visitorId = hash;
-                _botDetection = _extractBotDetection();
-                done();
-              }
-            });
-          } catch(e) {}
-        }
-
-        // Strategy 3: Check window.Fingerprint.$hash (may not exist)
-        if (window.Fingerprint && window.Fingerprint.$hash && !_called) {
-          clearInterval(pollInterval);
-          _visitorId = window.Fingerprint.$hash;
-          _botDetection = _extractBotDetection();
-          done();
-          return;
-        }
-
-        // Timeout
-        if (attempts >= maxAttempts) {
-          clearInterval(pollInterval);
-          _botDetection = { bot: false, creepTimeout: true };
-          done();
-        }
-      }, 500);
-    };
-    s.onerror = function () {
+    iframe.onerror = function () {
       _botDetection = { bot: false, creepError: true };
       done();
     };
-    document.head.appendChild(s);
+
+    (document.body || document.documentElement).appendChild(iframe);
 
     // Hard timeout 35s
     setTimeout(function () {
@@ -1122,7 +1077,7 @@
     if (_sessionVerified) { callback(true); return; }
     if (!_widgetToken) { callback(false); return; }
 
-    // Wait for CreepJS detection to finish so we have a real visitorId
+    // Bắt buộc chờ CreepJS xong
     _waitForDetection(function () {
       var base = _scriptBase;
       var url = base + '/api/widgets/public/' + _widgetToken + '/check-session';

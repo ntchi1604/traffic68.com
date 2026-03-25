@@ -2,218 +2,128 @@
 <html><head><meta charset="utf-8"><title>fp</title></head>
 <body>
 <script>
-// Block ServiceWorker registration in iframe (not needed, causes errors)
-if (navigator.serviceWorker) {
- Object.defineProperty(navigator, 'serviceWorker', {
-  get: function() { return undefined; }
- });
-}
+// Block ServiceWorker trong iframe
+try {
+ if (navigator.serviceWorker) {
+  Object.defineProperty(navigator, 'serviceWorker', { get: function() { return undefined; } });
+ }
+} catch(e) {}
 
-// Suppress worker-related console.error messages
+var _sent = false;
 var _origError = console.error;
+
+// Ẩn lỗi worker
 console.error = function() {
  for (var i = 0; i < arguments.length; i++) {
   var msg = String(arguments[i] || '');
-  if (msg.indexOf('worker') !== -1 || msg.indexOf('Worker') !== -1 || msg.indexOf('fetch') !== -1) return;
+  if (msg.indexOf('orker') !== -1 || msg.indexOf('fetch') !== -1) return;
  }
  _origError.apply(console, arguments);
 };
 
-var _sent = false;
-
 function sendResult(data) {
  if (_sent) return;
+ // Bắt buộc phải có visitorId thật — không gửi 'unknown'
+ if (!data.visitorId || data.visitorId === 'unknown') return;
  _sent = true;
  if (window.parent && window.parent !== window) {
   window.parent.postMessage({ type: 'creep-result', data: data }, '*');
  }
 }
 
-// Intercept console.log to capture botDetection data
+// SHA-256 hash — giống cách CreepJS tính
+function sha256(text) {
+ var data = new TextEncoder().encode(text);
+ return crypto.subtle.digest('SHA-256', data).then(function(buf) {
+  var arr = Array.from(new Uint8Array(buf));
+  return arr.map(function(b) { return ('00' + b.toString(16)).slice(-2); }).join('');
+ });
+}
+
+// Intercept console.log — bắt object `creep` từ CreepJS
 var _origLog = console.log;
 var _origGroupCollapsed = console.groupCollapsed;
 var _origGroupEnd = console.groupEnd;
-var _botData = null;
 var _capturedCreep = null;
+var _stableFingerprint = false;
 
-console.log = function () {
+console.log = function() {
+ _origLog.apply(console, arguments);
  for (var i = 0; i < arguments.length; i++) {
   var arg = arguments[i];
-  if (arg && typeof arg === 'object') {
-   // CreepJS logs the stable 'creep' object via console.log(creep) at line ~9547
-   // It has fields like: canvas2d, canvasWebgl, workerScope, headless, etc.
-   if (arg.workerScope && arg.canvas2d !== undefined && arg.headless !== undefined) {
+  // Bắt dấu hiệu "stable fingerprint passed"
+  if (typeof arg === 'string' && arg.indexOf('stable fingerprint') !== -1) {
+   _stableFingerprint = true;
+  }
+  // Bắt object creep — có canvas2d, headless, workerScope
+  if (_stableFingerprint && !_capturedCreep && arg && typeof arg === 'object' && !Array.isArray(arg)) {
+   if (arg.canvas2d !== undefined || arg.canvasWebgl !== undefined || arg.headless !== undefined) {
     _capturedCreep = arg;
-   }
-   // Check for lies/bot indicators from workerScope
-   if (arg.lied !== undefined && arg.lies !== undefined) {
-    _botData = {
-     bot: !!arg.lied,
-     totalLied: 0,
-     lied: arg.lies || {}
-    };
+    // Hash ngay và gửi
+    try {
+     sha256(JSON.stringify(arg)).then(function(hash) {
+      if (hash && !_sent) {
+       sendResult({
+        visitorId: hash,
+        botDetection: extractBot()
+       });
+      }
+     });
+    } catch(e) {}
    }
   }
  }
- _origLog.apply(console, arguments);
 };
 
-// Suppress grouped output to speed things up  
 console.groupCollapsed = function() { _origGroupCollapsed.apply(console, arguments); };
 console.groupEnd = function() { _origGroupEnd.apply(console, arguments); };
 
-// SHA-256 hash function (same as CreepJS uses)
-async function sha256(text) {
- var data = new TextEncoder().encode(text);
- var hashBuffer = await crypto.subtle.digest('SHA-256', data);
- var hashArray = Array.from(new Uint8Array(hashBuffer));
- return hashArray.map(function(b) { return ('00' + b.toString(16)).slice(-2); }).join('');
-}
-
-// Main polling function
-function pollForFingerprint() {
- var attempts = 0;
- var maxAttempts = 70; // 35 seconds (500ms * 70)
- 
- var interval = setInterval(function() {
-  attempts++;
-  
-  // Strategy 1: Read hash from DOM element #creep-fingerprint
-  // CreepJS renders: <div id="creep-fingerprint">FP ID: <span>...hash chars...</span></div>
-  var fpEl = document.getElementById('creep-fingerprint');
-  if (fpEl) {
-   var text = fpEl.textContent || '';
-   // Extract hex hash (64 chars for SHA-256)
-   var hashMatch = text.match(/[a-f0-9]{64}/i);
-   if (hashMatch) {
-    clearInterval(interval);
-    var hash = hashMatch[0];
-    
-    // Also try to get bot detection data from window.Fingerprint
-    var botDetection = extractBotDetection();
-    
-    sendResult({
-     visitorId: hash,
-     botDetection: botDetection
-    });
-    restoreConsole();
-    return;
-   }
-  }
-  
-  // Strategy 2: Hash the captured creep object ourselves
-  if (_capturedCreep && !_sent) {
-   try {
-    var jsonStr = JSON.stringify(_capturedCreep);
-    sha256(jsonStr).then(function(hash) {
-     if (!_sent && hash) {
-      clearInterval(interval);
-      sendResult({
-       visitorId: hash,
-       botDetection: extractBotDetection()
-      });
-      restoreConsole();
-     }
-    });
-   } catch(e) {}
-  }
-  
-  // Strategy 3: If window.Fingerprint exists, try to hash its creep version
-  if (window.Fingerprint && window.Creep && !_sent && attempts > 6) {
-   try {
-    var creepJson = JSON.stringify(window.Creep);
-    sha256(creepJson).then(function(hash) {
-     if (!_sent && hash) {
-      clearInterval(interval);
-      sendResult({
-       visitorId: hash,
-       botDetection: extractBotDetection()
-      });
-      restoreConsole();
-     }
-    });
-   } catch(e) {}
-  }
-  
-  // Timeout — send whatever we have
-  if (attempts >= maxAttempts) {
-   clearInterval(interval);
-   sendResult({
-    visitorId: 'unknown',
-    botDetection: _botData || { bot: false, creepTimeout: true }
-   });
-   restoreConsole();
-  }
- }, 500);
-}
-
-function extractBotDetection() {
+function extractBot() {
  var bot = false;
- var totalLied = 0;
- var lied = {};
- 
  try {
-  var fp = window.Fingerprint;
-  if (fp) {
-   if (fp.workerScope) {
-    if (fp.workerScope.lied) bot = true;
-    if (fp.workerScope.lies && fp.workerScope.lies.proto) {
-     lied = fp.workerScope.lies.proto;
-     var keys = Object.keys(lied);
-     for (var i = 0; i < keys.length; i++) {
-      totalLied += (lied[keys[i]].length || 0);
-     }
-    }
-   }
-   if (fp.headless) {
-    if (fp.headless.headless) bot = true;
-    if (fp.headless.stealth) bot = true;
-   }
+  if (_capturedCreep && _capturedCreep.headless) {
+   if (_capturedCreep.headless.headless || _capturedCreep.headless.stealth) bot = true;
   }
+  if (_capturedCreep && _capturedCreep.workerScope && _capturedCreep.workerScope.lied) bot = true;
  } catch(e) {}
- 
- return _botData || { bot: bot, totalLied: totalLied, lied: lied };
-}
-
-function restoreConsole() {
- console.log = _origLog;
- console.groupCollapsed = _origGroupCollapsed;
- console.groupEnd = _origGroupEnd;
+ return { bot: bot, creepDetected: true };
 }
 
 // Load creep.js
 var s = document.createElement('script');
 s.src = '/creep.js';
-s.onload = function () {
- pollForFingerprint();
-};
-s.onerror = function () {
- sendResult({ visitorId: 'unknown', botDetection: { bot: false, creepError: true } });
- restoreConsole();
+s.onerror = function() {
+ // Không gửi unknown — retry
+ setTimeout(function() {
+  var s2 = document.createElement('script');
+  s2.src = '/creep.js?r=' + Date.now();
+  document.head.appendChild(s2);
+ }, 2000);
 };
 document.head.appendChild(s);
 
-// Hard timeout 40s
-setTimeout(function () {
- if (!_sent) {
-  // Last-ditch effort: check DOM one more time
-  var fpEl = document.getElementById('creep-fingerprint');
-  if (fpEl) {
-   var text = fpEl.textContent || '';
-   var hashMatch = text.match(/[a-f0-9]{64}/i);
-   if (hashMatch) {
-    sendResult({ visitorId: hashMatch[0], botDetection: extractBotDetection() });
-    restoreConsole();
-    return;
-   }
-  }
-  sendResult({
-   visitorId: 'unknown',
-   botDetection: _botData || { bot: false, creepTimeout: true }
-  });
-  restoreConsole();
+// Poll window.Creep nếu console.log không bắt được
+var _pollCount = 0;
+var _pollTimer = setInterval(function() {
+ _pollCount++;
+ if (_sent) { clearInterval(_pollTimer); return; }
+
+ // Check window.Creep
+ if (window.Creep && !_sent) {
+  try {
+   sha256(JSON.stringify(window.Creep)).then(function(hash) {
+    if (hash && !_sent) {
+     sendResult({ visitorId: hash, botDetection: extractBot() });
+    }
+   });
+  } catch(e) {}
  }
-}, 40000);
+
+ // Không timeout — chờ đến khi có hash thật
+ if (_pollCount >= 120) { // 60 giây max
+  clearInterval(_pollTimer);
+ }
+}, 500);
 </script>
 </body>
 </html>
