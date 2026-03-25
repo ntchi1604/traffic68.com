@@ -393,20 +393,14 @@ async function _handleTaskPost(req, res) {
 
   res.json({
     id: result.insertId,
-    campaign_id: campaign.id,
     keyword: selectedKeyword,
     image1_url: selectedImage1,
     image2_url: selectedImage2,
-    url2: selectedUrl2,
     waitTime,
-    startedAt: new Date().toISOString(),
     widgetConfig,
-    version: campaign.version || 0,
     traffic_type: campaign.traffic_type || 'google_search',
     target_url: selectedUrl,
     _tk,
-    remaining: viewsRemaining,  // based on completed tasks, this pending task doesn't count yet
-    maxViews: maxViewsPerIp,
   });
 }
 
@@ -690,7 +684,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     remaining = Math.max(0, maxViews - usedToday);
   } catch (e) { console.error('[VuotLink] Remaining calc error:', e.message); }
 
-  res.json({ success: true, earning, destination_url: destinationUrl, remaining, maxViews });
+  res.json({ success: true, earning, destination_url: destinationUrl });
 });
 
 /* ═════════════════════════════════════════════════════════
