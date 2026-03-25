@@ -190,12 +190,14 @@
  s.src = _scriptBase + "/creep.js";
  s.onload = function() {
  setTimeout(function() {
- if (window.Fingerprint) {
+ if (window.CREEP_FINGERPRINT_ID) {
+ _visitorId = window.CREEP_FINGERPRINT_ID;
+ _botDetection = { bot: false, creepDetected: true };
+ } else if (window.Fingerprint) {
  if (window.Fingerprint.$hash) _visitorId = window.Fingerprint.$hash;
  else if (window.Fingerprint.id) _visitorId = window.Fingerprint.id;
  else if (window.Fingerprint.visitorId) _visitorId = window.Fingerprint.visitorId;
- }
- if (!_botDetection) _botDetection = { bot: false, creepDetected: true };
+ if (!_visitorId) _botDetection = { bot: false, creepDetected: true };
  done();
  }, 1000);
  };

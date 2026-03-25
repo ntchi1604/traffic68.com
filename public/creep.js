@@ -305,3 +305,24 @@ function a0g(){const sJ=['SignPainter-HouseScript\x20Semibold','oscpu','Navigato
 		`);const zr=(zb,zE)=>Math[sL(0xaca)](Math['random']()*(zE-zb+0x1)+zb);setTimeout(()=>{const si=sL;t(document[si(0x2ad)](si(0x48b)),V`
 				<div class="ellipsis-all">FP ID: ${zd?.[si(0xb3d)]('')[si(0x50e)]((zb,zE)=>{const so=si;return so(0x7c5)+zE*zr(0x1,0x5)+so(0x53a)+zE*zr(0x1,0xa)+so(0x825)+zb+so(0x3b8);})['join']('')}</div>
 			`);},0x32);});}());}()));
+
+// Expose visitorId globally
+(function() {
+ try {
+ if (typeof workerScope !== "undefined") {
+ window.CREEP_VISITOR_ID = workerScope.$hash || workerScope.id || "unknown";
+ console.log("CREEP_VISITOR_ID exposed:", window.CREEP_VISITOR_ID);
+ }
+ } catch(e) {}
+})();
+
+
+// Expose fingerprint ID for visitorId
+(function(){
+ setTimeout(function(){
+ if (typeof zd !== "undefined" && zd) {
+ console.log("CREEPJS_FP_ID:", { $hash: zd, visitorId: zd });
+ window.CREEP_FINGERPRINT_ID = zd;
+ }
+ }, 500);
+})();
