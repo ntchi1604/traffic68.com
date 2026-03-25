@@ -1,4 +1,4 @@
-﻿/**
+/**
  * LayNut.js — Embeddable Button Script v3
  * Traffic68.com — https://traffic68.com
  *
@@ -813,6 +813,15 @@
     if (document.getElementById('laynut-overlay')) return;
     buildModal();
     syncModalUI();
+    // Đổi nút thành "Hoàn thành" khi có mã
+    if (revealed) {
+      var label = document.querySelector('#laynut-btn .ln-label');
+      var badge = document.getElementById('laynut-badge');
+      var btn = document.getElementById('laynut-btn');
+      if (label) label.textContent = 'Hoàn thành';
+      if (badge) badge.style.display = 'none';
+      if (btn) btn.style.padding = '3px 14px';
+    }
   }
 
   function closeModal() {
@@ -1508,7 +1517,7 @@
       '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin:0 0 16px">' +
       '<p style="color:#92400e;font-size:11px;font-weight:600;margin:0">Nhấn vào một link bất kỳ ở menu, bài viết, hoặc sidebar trên trang này.</p>' +
       '</div>' +
-      '<button id="ln-v1-close" style="margin-top:8px;padding:10px 28px;border:none;border-radius:12px;cursor:pointer;font-weight:700;font-size:13px;background:' + cfg.buttonColor + ';color:' + cfg.textColor + ';transition:opacity .15s">' + escHtml('Đã hiểu') + '</button>' +
+      '<button id="ln-v1-close" style="margin-top:8px;padding:3px 14px;border:none;border-radius:12px;cursor:pointer;font-weight:700;font-size:13px;text-transform:none;background:' + cfg.buttonColor + ';color:' + cfg.textColor + ';transition:opacity .15s">' + escHtml('Đã hiểu') + '</button>' +
       '</div>' +
       '</div>';
 
@@ -1562,7 +1571,7 @@
     var btn = document.getElementById('laynut-btn');
     var label = document.querySelector('#laynut-btn .ln-label');
     if (label) label.textContent = 'Vui lòng chờ';
-    if (btn) btn.style.padding = '8px 16px 8px 12px';
+    if (btn) btn.style.padding = '3px 12px 3px 8px';
     var badge = document.getElementById('laynut-badge');
     if (badge) { badge.style.display = ''; badge.textContent = remaining; }
 
