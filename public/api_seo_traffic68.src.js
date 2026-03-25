@@ -361,7 +361,7 @@
       '#laynut-btn .ln-icon-img{object-fit:contain;display:block;flex-shrink:0;}',
       '#laynut-btn .ln-icon-em{font-style:normal;line-height:1;}',
       '#laynut-btn .ln-label{flex-shrink:0;}',
-      '#laynut-btn .ln-badge{background:rgba(255,255,255,0.28);border-radius:20px;padding:0px 7px;font-size:11px;font-weight:800;min-width:22px;text-align:center;flex-shrink:0;}',
+      '#laynut-btn .ln-badge{font-size:13px;font-weight:800;flex-shrink:0;}',
       /* Inline wrapper (used when target is set) */
       '#laynut-wrap{position:absolute;z-index:9999;pointer-events:none;}',
       '#laynut-wrap #laynut-btn{pointer-events:all;}',
