@@ -264,6 +264,16 @@
     }, 35000);
   }
 
+  // Chờ detection xong rồi gọi callback
+  function _waitForDetection(callback) {
+    if (_detectionReady) { callback(); return; }
+    _detectionCallbacks.push(callback);
+    // Nếu chưa load, tự load
+    if (!_fpLoaded) {
+      _loadDetectionLibs(function() {});
+    }
+  }
+
   function _extractBotDetection() {
     var bot = false;
     var totalLied = 0;
