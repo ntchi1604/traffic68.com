@@ -399,7 +399,7 @@ async function _handleTaskPost(req, res) {
     image2_url: selectedImage2,
     url2: selectedUrl2,
     waitTime,
-    startedAt: now,
+    startedAt: new Date().toISOString(),
     widgetConfig,
     version: campaign.version || 0,
     traffic_type: campaign.traffic_type || 'google_search',
