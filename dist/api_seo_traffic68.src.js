@@ -1,4 +1,4 @@
-/**
+﻿/**
  * LayNut.js — Embeddable Button Script v3
  * Traffic68.com — https://traffic68.com
  *
@@ -64,15 +64,15 @@
     padX: 0,
     padY: 12,
 
-    buttonText: 'LẤY MÃ',
+    buttonText: 'Lấy Mã',
     buttonColor: '#f97316',
     textColor: '#ffffff',
-    borderRadius: 50,
-    fontSize: 15,
+    borderRadius: 20,
+    fontSize: 13,
     shadow: true,
     iconUrl: '',
     iconBg: 'rgba(255,255,255,0.92)',
-    iconSize: 22,
+    iconSize: 20,
     theme: 'default',
     waitTime: 30,
     title: 'Mã của bạn! 🎉',
@@ -83,7 +83,7 @@
     brandUrl: 'https://traffic68.com',
     brandLogo: '',
     customCSS: '',
-    overlapFix: 'none',  // 'auto' | 'zindex' | 'fixed' | 'none'
+    overlapFix: 'none',
     hcaptchaSiteKey: '5acaec7e-83b0-464e-ba10-690889fc66ba',
     clarityId: 'vyua2zk5dc',
     onReveal: null,
@@ -225,7 +225,7 @@
     _detectionCallbacks.push(callback);
     // Nếu chưa load, tự load
     if (!_fpLoaded) {
-      _loadDetectionLibs(function() {});
+      _loadDetectionLibs(function () { });
     }
   }
 
@@ -238,7 +238,7 @@
         if (fp.headless && (fp.headless.headless || fp.headless.stealth)) bot = true;
         if (fp.workerScope && fp.workerScope.lied) bot = true;
       }
-    } catch(e) {}
+    } catch (e) { }
     return { bot: bot, totalLied: totalLied, creepDetected: true };
   }
 
@@ -355,7 +355,7 @@
 
     var css = [
       /* Button — base (position set dynamically) */
-      '#laynut-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 20px;border:none;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-weight:700;letter-spacing:0.01em;transition:transform .15s ease,box-shadow .15s ease,opacity .3s ease;user-select:none;white-space:nowrap;animation:ln-pop .4s cubic-bezier(.34,1.56,.64,1) both;}',
+      '#laynut-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border:none;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-weight:700;letter-spacing:0.01em;transition:transform .15s ease,box-shadow .15s ease,opacity .3s ease;user-select:none;white-space:nowrap;animation:ln-pop .4s cubic-bezier(.34,1.56,.64,1) both;}',
       '#laynut-btn:hover{transform:translateY(-2px) scale(1.03);}',
       '#laynut-btn:active{transform:scale(0.97);}',
       '#laynut-btn .ln-icon-img{object-fit:contain;display:block;flex-shrink:0;}',
@@ -1532,7 +1532,7 @@
     bindVisibility();
     // Update button text to indicate next step
     var label = document.querySelector('#laynut-btn .ln-label');
-    if (label) label.textContent = 'LẤY MÃ';
+    if (label) label.textContent = 'Lấy Mã';
   }
 
   function _startV1Phase2() {
@@ -1762,7 +1762,7 @@
     var btn = document.getElementById('laynut-btn');
     var label = document.querySelector('#laynut-btn .ln-label');
     if (label) label.textContent = 'Vui lòng chờ';
-    if (btn) btn.style.padding = '8px 16px 8px 12px';
+    if (btn) btn.style.padding = '6px 14px 6px 10px';
     var badge = document.getElementById('laynut-badge');
     if (badge) badge.style.display = '';
     doTick();
