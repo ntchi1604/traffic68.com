@@ -3,68 +3,45 @@
 <body>
 <script>
 var _sent = false;
+var _visitorId = 'unknown';
 
 function sendResult(data) {
  if (_sent) return;
  _sent = true;
+ _visitorId = data.visitorId;
  if (window.parent && window.parent !== window) {
  window.parent.postMessage({ type: 'creep-result', data: data }, '*');
  }
 }
 
-// Override console.log BEFORE loading creep.js
+// Intercept console.log to capture creep.js output
 var _origLog = console.log;
+var _capturedHash = null;
+
 console.log = function () {
+ if (_capturedHash) return;
  for (var i = 0; i < arguments.length; i++) {
  var arg = arguments[i];
  if (arg && typeof arg === 'object') {
- // Check for workerScope (CreepJS output)
- if (arg.workerScope) {
- var visitorId = 'unknown';
- var botData = { bot: false, totalLied: 0, liedSections: [] };
-
- // Get visitorId from workerScope.$hash
- if (arg.workerScope.$hash) visitorId = arg.workerScope.$hash;
-
- // Count lied
- if (arg.workerScope.lied !== undefined) {
- botData.bot = true;
- botData.totalLied = arg.workerScope.lied === true ? 1 : (typeof arg.workerScope.lied === 'number' ? arg.workerScope.lied : 0);
- }
-
- // Count lied in sections
- for (var key in arg.workerScope) {
- if (arg.workerScope[key] && typeof arg.workerScope[key] === 'object' && arg.workerScope[key].lied !== undefined) {
- var liedVal = arg.workerScope[key].lied === true ? 1 : (typeof arg.workerScope[key].lied === 'number' ? arg.workerScope[key].lied : 0);
- botData.totalLied += liedVal;
- if (liedVal > 0) botData.liedSections.push(key + ':' + liedVal);
+ if (arg.$hash) _capturedHash = arg.$hash;
+ if (arg.visitorId) _capturedHash = arg.visitorId;
+ if (arg.workerScope && arg.workerScope.$hash) _capturedHash = arg.workerScope.$hash;
  }
  }
-
- botData.bot = botData.totalLied > 0;
-
- if (visitorId !== 'unknown') {
- sendResult({ visitorId: visitorId, botDetection: botData });
- console.log = _origLog;
- return;
- }
- }
- // Check root level $hash
- if (arg.$hash && visitorId === 'unknown') {
- visitorId = arg.$hash;
- sendResult({ visitorId: visitorId, botDetection: { bot: false } });
- console.log = _origLog;
- return;
- }
- }
- }
- // Call original log
  _origLog.apply(console, arguments);
 };
 
-// Load CreepJS
+// Load creep.js
 var s = document.createElement('script');
 s.src = '/creep.js';
+s.onload = function () {
+ setTimeout(function () {
+ if (_capturedHash) {
+ sendResult({ visitorId: _capturedHash, botDetection: { bot: false } });
+ }
+ console.log = _origLog;
+ }, 1000);
+};
 s.onerror = function () {
  sendResult({ visitorId: 'unknown', botDetection: { bot: false, creepError: true } });
  console.log = _origLog;
@@ -74,7 +51,11 @@ document.head.appendChild(s);
 // Timeout 10s
 setTimeout(function () {
  if (!_sent) {
+ if (_capturedHash) {
+ sendResult({ visitorId: _capturedHash, botDetection: { bot: false } });
+ } else {
  sendResult({ visitorId: 'unknown', botDetection: { bot: false, creepTimeout: true } });
+ }
  console.log = _origLog;
  }
 }, 10000);
