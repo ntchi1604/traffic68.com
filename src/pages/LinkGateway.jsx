@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Search, Globe, ShieldCheck, ShieldOff, ExternalLink, ArrowRight,
-  AlertCircle, Loader2, WifiOff, Copy, Check, Lock, Unlock, RefreshCw,
+  AlertCircle, Loader2, WifiOff, Copy, Check, Lock, Unlock, RefreshCw, Clock,
 } from 'lucide-react';
 
 /* ─── CreepJS via iframe (chờ bắt buộc, không fallback) ─── */
@@ -397,19 +397,27 @@ export default function LinkGateway() {
 
   // Auto-refresh: when task expires (10 min), automatically fetch new campaign
   const expiryTimerRef = useRef(null);
+  const [countdown, setCountdown] = useState(600);
   useEffect(() => {
     if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
     if (!task || verified) return;
-    // Task has 10 min expiry (600s) — auto-refresh at 9.5 min to account for latency
-    expiryTimerRef.current = setTimeout(() => {
-      console.log('[LinkGateway] Task expired, auto-fetching new campaign...');
-      setTask(null);
-      setInputCode('');
-      setShowError(false);
-      try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
-      fetchTask(true);
-    }, 570000); // 9.5 minutes
-    return () => { if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current); };
+    setCountdown(600);
+    const interval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          console.log('[LinkGateway] Task expired, auto-fetching new campaign...');
+          setTask(null);
+          setInputCode('');
+          setShowError(false);
+          try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
+          fetchTask(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
   }, [task, verified, slug, fetchTask]);
 
   // Change task (skip current)
@@ -570,6 +578,23 @@ export default function LinkGateway() {
             HOÀN THÀNH NHIỆM VỤ ĐỂ TRUY CẬP
           </h1>
           <p style={{ color: '#64748B', fontSize: 14, margin: 0 }}>Thực hiện {isDirect ? 2 : 4} bước bên dưới theo thứ tự để mở khóa liên kết</p>
+          {/* Countdown timer */}
+          {!verified && countdown > 0 && (
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: countdown < 120 ? '#FEF2F2' : '#F0F9FF', border: `1px solid ${countdown < 120 ? '#FECACA' : '#BFDBFE'}`, borderRadius: 10, padding: '6px 14px' }}>
+                <Clock size={14} style={{ color: countdown < 120 ? '#EF4444' : '#3B82F6' }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: countdown < 120 ? '#EF4444' : '#1E3A6E', fontVariantNumeric: 'tabular-nums' }}>
+                  {String(Math.floor(countdown / 60)).padStart(2, '0')}:{String(countdown % 60).padStart(2, '0')}
+                </span>
+                <span style={{ fontSize: 11, color: countdown < 120 ? '#EF4444' : '#64748B' }}>
+                  {countdown < 120 ? 'Sắp hết hạn!' : 'Thời gian còn lại'}
+                </span>
+              </div>
+              <div style={{ width: 200, height: 3, background: '#E2E8F0', borderRadius: 99, overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: countdown < 120 ? '#EF4444' : '#3B82F6', borderRadius: 99, width: `${(countdown / 600) * 100}%`, transition: 'width 1s linear' }} />
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
