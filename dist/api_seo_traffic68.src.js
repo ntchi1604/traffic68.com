@@ -1,4 +1,4 @@
-﻿/**
+/**
  * LayNut.js — Embeddable Button Script v3
  * Traffic68.com — https://traffic68.com
  *
@@ -1496,6 +1496,15 @@
   /* ── V1: Build the "visit internal link" popup overlay (user closes manually) ── */
   function _buildV1VisitPopup() {
     closeModal();
+    
+    // Cập nhật lại nhãn của nút bấm cứng trên màn hình để nhắc nhở
+    var label = document.querySelector('#laynut-btn .ln-label');
+    var badge = document.getElementById('laynut-badge');
+    var btn = document.getElementById('laynut-btn');
+    if (label) label.textContent = 'Click vào link bất kỳ';
+    if (badge) badge.style.display = 'none';
+    if (btn) btn.style.padding = '3px 14px';
+
     var ov = document.createElement('div');
     ov.id = 'laynut-overlay';
     ov.style.background = t.overlayBg;
