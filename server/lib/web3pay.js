@@ -6,7 +6,7 @@ const BSC_CHAIN_ID = 56;
 const BSC_EXPLORER = 'https://bscscan.com';
 
 // USDT BEP20 on BSC Mainnet
-const USDT_ADDRESS = '';
+const USDT_ADDRESS = '0x55d398326f99059fF775485246999027B3197955';
 
 // Minimal ERC20 ABI
 const ERC20_ABI = [
