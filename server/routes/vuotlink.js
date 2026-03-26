@@ -202,16 +202,19 @@ async function _handleTaskPost(req, res) {
   const [limitSetting] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
   const maxViewsPerIp = limitSetting.length > 0 ? parseInt(limitSetting[0].setting_value) || 2 : 2;
 
-  // Debug: log MySQL timezone (session should be +07:00)
-  const [tzInfo] = await pool.execute("SELECT NOW() as now_vn, CURDATE() as today_vn, @@session.time_zone as session_tz");
-  console.log(`[VuotLink] TZ: ${JSON.stringify(tzInfo[0])}`);
+  // Explicitly calculate Vietnam Day and Hour string to enforce limits flawlessly
+  // This bypasses any bugs in MySQL server's global or session timezone defaults
+  const vnOpts = { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' };
+  const todayVn = new Intl.DateTimeFormat('en-CA', vnOpts).format(new Date()); // e.g. "2026-03-26"
+  const hourVnRaw = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', hour12: false }).format(new Date());
+  const hourStartVn = `${todayVn} ${hourVnRaw.padStart(2, '0')}:00:00`;
 
   // Count completed views today for this device (visitorId)
   let deviceViewsToday = 0;
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
-      [visitorId]
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND created_at >= ? AND created_at <= ? AND status = 'completed'`,
+      [visitorId, `${todayVn} 00:00:00`, `${todayVn} 23:59:59`]
     );
     deviceViewsToday = vCount[0].cnt;
     if (deviceViewsToday >= maxViewsPerIp) {
@@ -222,8 +225,8 @@ async function _handleTaskPost(req, res) {
 
   // Count completed views today for this IP
   const [ipCount] = await pool.execute(
-    `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
-    [ip]
+    `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND created_at >= ? AND created_at <= ? AND status = 'completed'`,
+    [ip, `${todayVn} 00:00:00`, `${todayVn} 23:59:59`]
   );
   const ipViewsToday = ipCount[0].cnt;
   if (ipViewsToday >= maxViewsPerIp) {
@@ -233,7 +236,7 @@ async function _handleTaskPost(req, res) {
 
   const viewsUsed = Math.max(deviceViewsToday, ipViewsToday);
   const viewsRemaining = maxViewsPerIp - viewsUsed;
-  console.log(`[VuotLink] ✅ PASS: IP=${ip}, visitor=${visitorId?.substring(0, 8) || '?'}, views=${viewsUsed}/${maxViewsPerIp}`);
+  console.log(`[VuotLink] ✅ VN_DATE=${todayVn} | PASS: IP=${ip}, visitor=${visitorId?.substring(0, 8) || '?'}, views=${viewsUsed}/${maxViewsPerIp}`);
 
   const campaignWhere = `c.status = 'running'
     AND ((c.traffic_type = 'google_search' AND c.keyword != '') OR c.traffic_type = 'direct')
@@ -243,13 +246,13 @@ async function _handleTaskPost(req, res) {
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
       FROM vuot_link_tasks
-      WHERE status = 'completed' AND DATE(completed_at) = CURDATE()
+      WHERE status = 'completed' AND completed_at >= '${todayVn} 00:00:00' AND completed_at <= '${todayVn} 23:59:59'
       GROUP BY campaign_id
     ) td ON td.campaign_id = c.id
     LEFT JOIN (
       SELECT campaign_id, COUNT(*) as hour_done
       FROM vuot_link_tasks
-      WHERE status = 'completed' AND completed_at >= DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
+      WHERE status = 'completed' AND completed_at >= '${hourStartVn}'
       GROUP BY campaign_id
     ) th ON th.campaign_id = c.id`;
 
