@@ -9,11 +9,16 @@ const router = express.Router();
 
 // Helper: ensure wallet exists then credit — fixes bug where UPDATE affects 0 rows if wallet missing
 async function ensureWalletCredit(pool, userId, walletType, amount) {
-  await pool.execute(
-    `INSERT INTO wallets (user_id, type, balance) VALUES (?, ?, ?)
-     ON DUPLICATE KEY UPDATE balance = balance + ?`,
-    [userId, walletType, amount, amount]
+  const [res] = await pool.execute(
+    'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
+    [amount, userId, walletType]
   );
+  if (res.affectedRows === 0) {
+    await pool.execute(
+      'INSERT INTO wallets (user_id, type, balance) VALUES (?, ?, ?)',
+      [userId, walletType, amount]
+    );
+  }
 }
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
 const HMAC_SECRET = process.env.CHALLENGE_KEY || crypto.randomBytes(32).toString('hex');
