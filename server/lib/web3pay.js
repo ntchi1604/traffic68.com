@@ -80,7 +80,8 @@ async function convertVndToUSDT(vndAmount, customRate = null) {
     try {
       const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=vnd');
       const data = await resp.json();
-      rate = data.tether?.vnd;
+      rate = parseFloat(data.tether?.vnd);
+      if (isNaN(rate) || !rate) rate = 25500;
     } catch {
       rate = 25500;
     }
