@@ -74,16 +74,32 @@ async function sendUSDT(privateKey, toAddress, amount, gasLimit = 100000) {
   };
 }
 
+let cachedRate = null;
+let lastRateFetchTime = 0;
+
 async function convertVndToUSDT(vndAmount, customRate = null) {
-  let rate = customRate;
-  if (!rate) {
-    try {
-      const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=vnd');
-      const data = await resp.json();
-      rate = parseFloat(data.tether?.vnd);
-      if (isNaN(rate) || !rate) rate = 25500;
-    } catch {
-      rate = 25500;
+  let rate = customRate ? parseFloat(customRate) : null;
+  
+  if (!rate || isNaN(rate)) {
+    const now = Date.now();
+    // Use cached rate if within 10 minutes (600,000 ms)
+    if (cachedRate && now - lastRateFetchTime < 600000) {
+      rate = cachedRate;
+    } else {
+      try {
+        const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=vnd');
+        const data = await resp.json();
+        const fetchedRate = parseFloat(data.tether?.vnd);
+        if (fetchedRate && !isNaN(fetchedRate)) {
+          rate = fetchedRate;
+          cachedRate = rate;
+          lastRateFetchTime = now;
+        } else {
+          rate = cachedRate || 25500;
+        }
+      } catch {
+        rate = cachedRate || 25500;
+      }
     }
   }
   return {
