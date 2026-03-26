@@ -1,4 +1,4 @@
-﻿/**
+/**
  * LayNut.js — Embeddable Button Script v3
  * Traffic68.com — https://traffic68.com
  *
@@ -1714,37 +1714,6 @@
     document.body.appendChild(ov);
   }
 
-  function fetchSessionCodeV1Phase2(callback) {
-    if (!_widgetToken) { sessionCode = 'ERR'; if (callback) callback(); return; }
-    var base = _scriptBase;
-    var url = base + '/api/widgets/public/' + _widgetToken + '/get-code';
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', url, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
-
-    var payload = {
-      challengeId: _challengeId,
-      _ck: _challengeKey,
-      v1Phase: 2,
-      visitorId: _visitorId,
-      botDetection: _botDetection,
-      hcaptchaToken: 'v1-phase2',
-      behavioral: { v1Phase2: true }
-    };
-
-    xhr.onload = function () {
-      if (xhr.status === 200) {
-        try {
-          var resp = JSON.parse(xhr.responseText);
-          sessionCode = resp.code || '';
-        } catch (e) { sessionCode = 'ERR'; }
-      } else { sessionCode = 'ERR'; }
-      if (callback) callback();
-    };
-    xhr.onerror = function () { sessionCode = 'ERR'; if (callback) callback(); };
-    xhr.send(JSON.stringify(payload));
-  }
 
   /* ── Button click starts everything ──────────────────── */
   function startGlobal() {
