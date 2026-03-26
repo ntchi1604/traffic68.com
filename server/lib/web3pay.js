@@ -26,8 +26,7 @@ async function getPaymentSettings() {
   const [rows] = await pool.execute(
     `SELECT setting_key, setting_value FROM site_settings 
      WHERE setting_key IN (
-       'web3_enabled', 'web3_private_key',
-       'web3_vnd_rate', 'web3_auto_approve', 'web3_gas_limit'
+       'web3_enabled', 'web3_vnd_rate', 'web3_auto_approve', 'web3_gas_limit'
      )`
   );
   const config = {};
@@ -98,13 +97,12 @@ async function convertVndToUSDT(vndAmount, customRate = null) {
   };
 }
 
-async function processAutoPayment(txId) {
+async function processAutoPayment(txId, privateKey) {
   const pool = getPool();
   const config = await getPaymentSettings();
 
   if (config.web3_enabled !== 'true') throw new Error('Web3 payment chưa được bật');
-  const privateKey = config.web3_private_key;
-  if (!privateKey) throw new Error('Chưa cấu hình private key hot wallet');
+  if (!privateKey) throw new Error('Chưa cung cấp Private Key');
 
   const gasLimit = parseInt(config.web3_gas_limit) || 100000;
 

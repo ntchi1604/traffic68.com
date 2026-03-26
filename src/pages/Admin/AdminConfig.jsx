@@ -29,15 +29,18 @@ const WITHDRAW_FIELDS = [
   { key: 'withdraw_crypto_enabled', label: 'Cho phép rút qua Crypto', description: 'Bật/tắt phương thức rút tiền qua ví tiền mã hóa (USDT BEP20)', type: 'toggle', defaultValue: 'true' },
 ];
 
-const WEB3_FIELDS = [
+// Web3 fields saved to DB (NOT including private key)
+const WEB3_DB_FIELDS = [
   { key: 'web3_enabled', label: 'Bật Web3 Auto Payment', description: 'Tự động gửi USDT (BEP20) trên BSC Mainnet', type: 'toggle', defaultValue: 'false' },
-  { key: 'web3_private_key', label: 'Private Key (Hot Wallet)', description: 'Private key ví dùng để gửi USDT. Chỉ dùng ví riêng biệt!', type: 'password', defaultValue: '' },
   { key: 'web3_vnd_rate', label: 'Tỷ giá (1 USDT = ? VNĐ)', description: 'Để trống = tự động lấy từ CoinGecko', type: 'number', defaultValue: '', min: 0 },
   { key: 'web3_gas_limit', label: 'Gas Limit', description: 'Mặc định 100000. Thường không cần thay đổi', type: 'number', defaultValue: '', min: 21000 },
   { key: 'web3_auto_approve', label: 'Tự động gửi khi duyệt', description: 'Khi admin duyệt rút crypto → tự động gửi USDT', type: 'toggle', defaultValue: 'false' },
 ];
 
-const ALL_CONFIG_FIELDS = [...VUOTLINK_FIELDS, ...WITHDRAW_FIELDS, ...WEB3_FIELDS];
+const ALL_CONFIG_FIELDS = [...VUOTLINK_FIELDS, ...WITHDRAW_FIELDS, ...WEB3_DB_FIELDS];
+
+// LocalStorage key for private key
+const PK_STORAGE_KEY = 'web3_hot_wallet_pk';
 
 export default function AdminConfig() {
   usePageTitle('Admin - Cấu hình');
@@ -46,6 +49,11 @@ export default function AdminConfig() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Private key (localStorage only, never sent to DB)
+  const [privateKey, setPrivateKey] = useState(() => {
+    try { return localStorage.getItem(PK_STORAGE_KEY) || ''; } catch { return ''; }
+  });
 
   // Web3 state
   const [web3Status, setWeb3Status] = useState(null);
@@ -71,8 +79,9 @@ export default function AdminConfig() {
 
   const fetchWeb3 = useCallback(async () => {
     try {
+      const pk = localStorage.getItem(PK_STORAGE_KEY) || '';
       const [s, w, p] = await Promise.all([
-        api.get('/admin/web3/status').catch(() => ({ enabled: false })),
+        api.post('/admin/web3/status', { privateKey: pk }).catch(() => ({ enabled: false })),
         api.get('/admin/worker-withdrawals?status=pending').catch(() => ({ withdrawals: [] })),
         api.get('/admin/web3/payments').catch(() => ({ payments: [] })),
       ]);
@@ -84,11 +93,17 @@ export default function AdminConfig() {
 
   const updateField = (key, value) => setConfig(prev => ({ ...prev, [key]: value }));
 
+  const handleSavePrivateKey = (val) => {
+    setPrivateKey(val);
+    try { localStorage.setItem(PK_STORAGE_KEY, val); } catch { }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
       const settings = {};
       ALL_CONFIG_FIELDS.forEach(f => { settings[f.key] = config[f.key] ?? f.defaultValue; });
+      // Private key NOT sent to DB
       await api.put('/admin/settings/site', { settings });
       toast.success('Cấu hình đã được lưu');
       setSaved(true);
@@ -99,10 +114,11 @@ export default function AdminConfig() {
   };
 
   const handlePay = async (id) => {
+    if (!privateKey) { toast.error('Chưa nhập Private Key!'); return; }
     if (!await toast.confirm('Xác nhận gửi USDT (BEP20) cho yêu cầu này?')) return;
     setPayingId(id);
     try {
-      const d = await api.post(`/admin/web3/pay/${id}`);
+      const d = await api.post(`/admin/web3/pay/${id}`, { privateKey });
       toast.success(d.message || 'Thanh toán thành công');
       fetchWeb3();
     } catch (err) { toast.error(err.response?.data?.error || err.message); }
@@ -110,10 +126,11 @@ export default function AdminConfig() {
   };
 
   const handleBatchPay = async () => {
+    if (!privateKey) { toast.error('Chưa nhập Private Key!'); return; }
     if (!await toast.confirm(`Gửi USDT cho ${pendingCrypto.length} yêu cầu?`)) return;
     setBatchPaying(true);
     try {
-      const d = await api.post('/admin/web3/batch-pay');
+      const d = await api.post('/admin/web3/batch-pay', { privateKey });
       toast.success(`${d.success}/${d.total} thành công`);
       fetchWeb3();
     } catch (err) { toast.error(err.response?.data?.error || err.message); }
@@ -133,11 +150,6 @@ export default function AdminConfig() {
             className={`relative inline-flex w-14 h-7 rounded-full transition-colors duration-200 ${config[field.key] === 'true' ? 'bg-green-500' : 'bg-slate-300'}`}>
             <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-200 ${config[field.key] === 'true' ? 'translate-x-7' : 'translate-x-0'}`} />
           </button>
-        ) : field.type === 'password' ? (
-          <input type="password" value={config[field.key] || ''}
-            onChange={e => updateField(field.key, e.target.value)}
-            placeholder="0x..."
-            className="w-48 px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
         ) : (
           <input type={field.type} min={field.min} max={field.max}
             value={config[field.key] || ''}
@@ -205,16 +217,33 @@ export default function AdminConfig() {
           </button>
         </div>
 
-        {/* Web3 Config Fields */}
+        {/* Web3 Config Fields (saved to DB) */}
         <div className="divide-y divide-slate-100">
-          {WEB3_FIELDS.map(renderField)}
+          {WEB3_DB_FIELDS.map(renderField)}
+        </div>
+
+        {/* Private Key — localStorage only */}
+        <div className="px-6 py-4 border-t border-slate-100">
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-slate-700">Private Key (Hot Wallet)</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Lưu trên trình duyệt của bạn (localStorage). <strong className="text-emerald-600">Không gửi lên server.</strong>
+              </p>
+            </div>
+            <input type="password" value={privateKey}
+              onChange={e => handleSavePrivateKey(e.target.value)}
+              placeholder="0x..."
+              className="w-64 px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono text-slate-700 focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+          </div>
         </div>
 
         {/* Warning */}
-        <div className="mx-6 my-4 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <AlertTriangle size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
-          <p className="text-[10px] text-red-600">
-            <strong>CẢNH BÁO:</strong> Dùng hot wallet riêng biệt, nạp USDT (BEP20) + ~0.01 BNB (gas fee). Không dùng ví chứa nhiều tài sản.
+        <div className="mx-6 my-4 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <AlertTriangle size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
+          <p className="text-[10px] text-amber-700">
+            <strong>Private Key lưu ở trình duyệt</strong> — chỉ admin thấy được. Key được gửi tới server khi thanh toán nhưng <strong>không lưu vào database</strong>.
+            Dùng hot wallet riêng biệt, nạp USDT (BEP20) + ~0.01 BNB (gas).
           </p>
         </div>
 

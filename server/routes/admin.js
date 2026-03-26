@@ -1170,14 +1170,15 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
 // WEB3 AUTO-PAYMENT — USDT BEP20
 // ═══════════════════════════════════════════════════════════
 
-// ── GET /api/admin/web3/status — Hot wallet info ──
-router.get('/web3/status', async (req, res) => {
+// ── POST /api/admin/web3/status — Hot wallet info (privateKey from client) ──
+router.post('/web3/status', async (req, res) => {
   try {
     const config = await getWeb3Pay().getPaymentSettings();
-    if (config.web3_enabled !== 'true' || !config.web3_private_key) {
+    const { privateKey } = req.body || {};
+    if (config.web3_enabled !== 'true' || !privateKey) {
       return res.json({ enabled: false });
     }
-    const walletInfo = await getWeb3Pay().getHotWalletInfo(config.web3_private_key);
+    const walletInfo = await getWeb3Pay().getHotWalletInfo(privateKey);
 
     const pool = getPool();
     const [pending] = await pool.execute(
@@ -1200,10 +1201,12 @@ router.get('/web3/status', async (req, res) => {
   }
 });
 
-// ── POST /api/admin/web3/pay/:id — Manual Web3 payment for a specific withdrawal ──
+// ── POST /api/admin/web3/pay/:id — Manual Web3 payment (privateKey from client) ──
 router.post('/web3/pay/:id', async (req, res) => {
   try {
-    const result = await getWeb3Pay().processAutoPayment(Number(req.params.id));
+    const { privateKey } = req.body || {};
+    if (!privateKey) return res.status(400).json({ error: 'Chưa cung cấp Private Key' });
+    const result = await getWeb3Pay().processAutoPayment(Number(req.params.id), privateKey);
     res.json({ message: 'Thanh toán USDT thành công', result });
   } catch (err) {
     console.error('[Web3Pay] Error:', err.message);
@@ -1211,9 +1214,11 @@ router.post('/web3/pay/:id', async (req, res) => {
   }
 });
 
-// ── POST /api/admin/web3/batch-pay — Pay all pending crypto withdrawals ──
+// ── POST /api/admin/web3/batch-pay — Pay all pending (privateKey from client) ──
 router.post('/web3/batch-pay', async (req, res) => {
   try {
+    const { privateKey } = req.body || {};
+    if (!privateKey) return res.status(400).json({ error: 'Chưa cung cấp Private Key' });
     const pool = getPool();
     const [rows] = await pool.execute(
       `SELECT id FROM transactions WHERE type='withdraw' AND wallet_type='earning' AND status='pending' AND note LIKE '%[Crypto]%' ORDER BY created_at ASC`
@@ -1222,12 +1227,11 @@ router.post('/web3/batch-pay', async (req, res) => {
     const results = [];
     for (const row of rows) {
       try {
-        const r = await getWeb3Pay().processAutoPayment(row.id);
+        const r = await getWeb3Pay().processAutoPayment(row.id, privateKey);
         results.push({ id: row.id, status: 'success', txHash: r.txHash });
       } catch (err) {
         results.push({ id: row.id, status: 'error', error: err.message });
       }
-      // Small delay between transactions
       await new Promise(r => setTimeout(r, 2000));
     }
 
