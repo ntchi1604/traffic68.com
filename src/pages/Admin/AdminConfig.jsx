@@ -228,7 +228,7 @@ export default function AdminConfig() {
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm text-slate-700">Private Key (Hot Wallet)</p>
               <p className="text-xs text-slate-400 mt-0.5">
-                Lưu trên trình duyệt của bạn (localStorage). <strong className="text-emerald-600">Không gửi lên server.</strong>
+                Lưu trên trình duyệt của bạn (localStorage)
               </p>
             </div>
             <input type="password" value={privateKey}
