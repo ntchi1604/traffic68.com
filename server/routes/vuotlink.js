@@ -268,15 +268,7 @@ async function _handleTaskPost(req, res) {
   );
   let totalCampaigns = countRows[0].cnt;
 
-  // If all campaigns excluded, fall back to no exclusion
-  if (totalCampaigns === 0 && excludeFilter) {
-    const [countAll] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}`
-    );
-    totalCampaigns = countAll[0].cnt;
-    excludeFilter = '';
-  }
-
+  // Removing fallback logic so it doesn't give the user the exact same campaign they just skipped
   if (totalCampaigns === 0) {
     // Debug: log to identify why no campaigns available
     try {
