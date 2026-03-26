@@ -1,7 +1,16 @@
 const express = require('express');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
-const web3pay = require('../lib/web3pay');
+
+// Lazy-load web3pay to avoid crashing if ethers is not installed
+let _web3pay = null;
+function getWeb3Pay() {
+  if (!_web3pay) {
+    try { _web3pay = require('../lib/web3pay'); }
+    catch (e) { throw new Error('Web3 module chưa sẵn sàng. Chạy: cd server && npm install ethers@6'); }
+  }
+  return _web3pay;
+}
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -1145,9 +1154,9 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
     // Auto Web3 payment (fire-and-forget after response)
     if (action === 'approve' && (tx.note || '').includes('[Crypto]')) {
       try {
-        const w3config = await web3pay.getPaymentSettings();
+        const w3config = await getWeb3Pay().getPaymentSettings();
         if (w3config.web3_enabled === 'true' && w3config.web3_auto_approve === 'true') {
-          web3pay.processAutoPayment(tx.id).catch(e => console.error('[Web3 Auto-Pay]', e.message));
+          getWeb3Pay().processAutoPayment(tx.id).catch(e => console.error('[Web3 Auto-Pay]', e.message));
         }
       } catch (e) { console.error('[Web3 Auto-Pay]', e.message); }
     }
@@ -1164,7 +1173,7 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
 // ── GET /api/admin/web3/status — Hot wallet info ──
 router.get('/web3/status', async (req, res) => {
   try {
-    const config = await web3pay.getPaymentSettings();
+    const config = await getWeb3Pay().getPaymentSettings();
     if (config.web3_enabled !== 'true' || !config.web3_private_key) {
       return res.json({
         enabled: false,
@@ -1173,14 +1182,14 @@ router.get('/web3/status', async (req, res) => {
       });
     }
     const network = config.web3_network || 'mainnet';
-    const walletInfo = await web3pay.getHotWalletBalance(config.web3_private_key, network);
+    const walletInfo = await getWeb3Pay().getHotWalletBalance(config.web3_private_key, network);
     
     // Get token balance if paying with token
     let tokenBalance = null;
     const payToken = config.web3_pay_token || 'BNB';
     if (payToken !== 'BNB') {
       try {
-        tokenBalance = await web3pay.getTokenBalance(config.web3_private_key, payToken, network);
+        tokenBalance = await getWeb3Pay().getTokenBalance(config.web3_private_key, payToken, network);
       } catch (e) { tokenBalance = { balance: '0', error: e.message }; }
     }
 
@@ -1215,7 +1224,7 @@ router.get('/web3/status', async (req, res) => {
 // ── POST /api/admin/web3/pay/:id — Manual Web3 payment for a specific withdrawal ──
 router.post('/web3/pay/:id', async (req, res) => {
   try {
-    const result = await web3pay.processAutoPayment(Number(req.params.id));
+    const result = await getWeb3Pay().processAutoPayment(Number(req.params.id));
     res.json({ message: 'Thanh toán Web3 thành công', result });
   } catch (err) {
     console.error('[Web3Pay] Error:', err.message);
@@ -1234,7 +1243,7 @@ router.post('/web3/batch-pay', async (req, res) => {
     const results = [];
     for (const row of rows) {
       try {
-        const r = await web3pay.processAutoPayment(row.id);
+        const r = await getWeb3Pay().processAutoPayment(row.id);
         results.push({ id: row.id, status: 'success', txHash: r.txHash });
       } catch (err) {
         results.push({ id: row.id, status: 'error', error: err.message });
@@ -1288,11 +1297,11 @@ router.get('/web3/convert', async (req, res) => {
     const { amount, token } = req.query;
     if (!amount) return res.status(400).json({ error: 'Missing amount' });
     
-    const config = await web3pay.getPaymentSettings();
+    const config = await getWeb3Pay().getPaymentSettings();
     const payToken = token || config.web3_pay_token || 'BNB';
     const customRate = config.web3_vnd_rate ? parseFloat(config.web3_vnd_rate) : null;
     
-    const conversion = await web3pay.convertVndToCrypto(Number(amount), payToken, customRate);
+    const conversion = await getWeb3Pay().convertVndToCrypto(Number(amount), payToken, customRate);
     res.json(conversion);
   } catch (err) {
     res.status(500).json({ error: err.message });
