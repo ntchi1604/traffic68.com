@@ -1,17 +1,12 @@
-/**
- * Web3 Auto-Payment Service — USDT BEP20 on BSC Mainnet
- */
-
 const { ethers } = require('ethers');
 const { getPool } = require('../db');
 
-// BSC Mainnet only
 const BSC_RPC = 'https://bsc-dataseed1.binance.org';
 const BSC_CHAIN_ID = 56;
 const BSC_EXPLORER = 'https://bscscan.com';
 
 // USDT BEP20 on BSC Mainnet
-const USDT_ADDRESS = '0x55d398326f99059fF775485246999027B3197955';
+const USDT_ADDRESS = '';
 
 // Minimal ERC20 ABI
 const ERC20_ABI = [
@@ -138,15 +133,15 @@ async function processAutoPayment(txId, privateKey) {
         amount_vnd, amount_crypto, token, network, gas_used, block_number, explorer_url, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'USDT', 'mainnet', ?, ?, ?, ?)`,
       [txId, tx.user_id, payResult.txHash, payResult.from, toAddress,
-       tx.amount, conversion.usdtAmount,
-       payResult.gasUsed, payResult.blockNumber, payResult.explorerUrl, payResult.status]
+        tx.amount, conversion.usdtAmount,
+        payResult.gasUsed, payResult.blockNumber, payResult.explorerUrl, payResult.status]
     );
     const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
     await conn.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
       [tx.user_id, '✅ Thanh toán USDT thành công',
-       `Yêu cầu rút ${fmtAmount} đ đã được thanh toán: ${conversion.usdtAmount} USDT (BEP20). TxHash: ${payResult.txHash}`,
-       'success', 'worker']
+      `Yêu cầu rút ${fmtAmount} đ đã được thanh toán: ${conversion.usdtAmount} USDT (BEP20). TxHash: ${payResult.txHash}`,
+        'success', 'worker']
     );
     await conn.commit();
     conn.release();
