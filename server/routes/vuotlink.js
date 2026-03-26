@@ -645,28 +645,32 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   // Worker referral commission — pay referrer when worker earns
   if (paidWorkerId && earning > 0) {
     try {
+      console.log(`[Commission] Checking referral for worker=${paidWorkerId}, earning=${earning}`);
       const [refRows] = await pool.execute('SELECT referred_by FROM users WHERE id = ?', [paidWorkerId]);
       const referrerId = refRows[0]?.referred_by;
+      console.log(`[Commission] referred_by=${referrerId}`);
       if (referrerId) {
         const [commSetting] = await pool.execute(
           "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_worker'"
         );
         const commPct = Number(commSetting[0]?.setting_value || 0);
+        console.log(`[Commission] commPct=${commPct}`);
         if (commPct > 0) {
           const commAmount = Math.floor(earning * commPct / 100);
+          console.log(`[Commission] commAmount=${commAmount}, paying referrerId=${referrerId}`);
           if (commAmount > 0) {
-            await ensureWalletCredit(pool, referrerId, 'commission', commAmount
-            );
+            await ensureWalletCredit(pool, referrerId, 'commission', commAmount);
             const commRef = `COMM-WORKER-${Date.now()}`;
             await pool.execute(
               `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
                VALUES (?, 'commission', 'commission', 'referral', ?, 'completed', ?, ?)`,
-              [referrerId, commAmount, commRef, `Hoa hồng ${commPct}% từ worker vượt link (${earning} đ)`]
+              [referrerId, commAmount, commRef, `Hoa hong ${commPct}% tu worker vuot link (${earning} d)`]
             );
+            console.log(`[Commission] Paid ${commAmount} to referrer ${referrerId}`);
           }
         }
       }
-    } catch (e) { console.error('[VuotLink] Worker referral commission error:', e.message); }
+    } catch (e) { console.error('[VuotLink] Worker referral commission error:', e.message, e.stack); }
   }
 
   console.log(`[VuotLink] Task #${task.id} VERIFIED — code=${code}, earning=${earning}`);
