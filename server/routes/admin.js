@@ -1174,14 +1174,16 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
 router.post('/web3/status', async (req, res) => {
   try {
     const config = await getWeb3Pay().getPaymentSettings();
-    const { privateKey } = req.body || {};
-    if (config.web3_enabled !== 'true' || !privateKey) {
+    let pk = (req.body.privateKey || '').trim();
+    if (pk.length === 64 && /^[0-9a-fA-F]{64}$/.test(pk)) pk = '0x' + pk;
+
+    if (config.web3_enabled !== 'true' || !pk) {
       return res.json({ enabled: false });
     }
-    if (!/^0x[0-9a-fA-F]{64}$/.test(privateKey)) {
-      return res.status(400).json({ error: 'Private Key không hợp lệ. Phải bắt đầu bằng 0x và có đúng 64 ký tự hex (tổng 66 ký tự).' });
+    if (!/^0x[0-9a-fA-F]{64}$/.test(pk)) {
+      return res.status(400).json({ error: 'Private Key không hợp lệ. Phải bao gồm 64 ký tự hex (có hoặc không có 0x).' });
     }
-    const walletInfo = await getWeb3Pay().getHotWalletInfo(privateKey);
+    const walletInfo = await getWeb3Pay().getHotWalletInfo(pk);
 
     const pool = getPool();
     const [pending] = await pool.execute(
@@ -1207,9 +1209,11 @@ router.post('/web3/status', async (req, res) => {
 // ── POST /api/admin/web3/pay/:id — Manual Web3 payment (privateKey from client) ──
 router.post('/web3/pay/:id', async (req, res) => {
   try {
-    const { privateKey } = req.body || {};
-    if (!privateKey) return res.status(400).json({ error: 'Chưa cung cấp Private Key' });
-    const result = await getWeb3Pay().processAutoPayment(Number(req.params.id), privateKey);
+    let pk = (req.body.privateKey || '').trim();
+    if (pk.length === 64 && /^[0-9a-fA-F]{64}$/.test(pk)) pk = '0x' + pk;
+    if (!pk || !/^0x[0-9a-fA-F]{64}$/.test(pk)) return res.status(400).json({ error: 'Private Key không hợp lệ.' });
+
+    const result = await getWeb3Pay().processAutoPayment(Number(req.params.id), pk);
     res.json({ message: 'Thanh toán USDT thành công', result });
   } catch (err) {
     console.error('[Web3Pay] Error:', err.message);
@@ -1220,8 +1224,10 @@ router.post('/web3/pay/:id', async (req, res) => {
 // ── POST /api/admin/web3/batch-pay — Pay all pending (privateKey from client) ──
 router.post('/web3/batch-pay', async (req, res) => {
   try {
-    const { privateKey } = req.body || {};
-    if (!privateKey) return res.status(400).json({ error: 'Chưa cung cấp Private Key' });
+    let pk = (req.body.privateKey || '').trim();
+    if (pk.length === 64 && /^[0-9a-fA-F]{64}$/.test(pk)) pk = '0x' + pk;
+    if (!pk || !/^0x[0-9a-fA-F]{64}$/.test(pk)) return res.status(400).json({ error: 'Private Key không hợp lệ.' });
+
     const pool = getPool();
     const [rows] = await pool.execute(
       `SELECT id FROM transactions WHERE type='withdraw' AND wallet_type='earning' AND status='pending' AND note LIKE '%[Crypto]%' ORDER BY created_at ASC`
