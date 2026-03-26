@@ -19,7 +19,6 @@ const WORKER_NAV = [
   { to: '/admin/worker-users',       icon: Users,        label: 'Người dùng' },
   { to: '/admin/worker-tasks',       icon: HardHat,      label: 'Nhiệm vụ' },
   { to: '/admin/worker-withdrawals', icon: Receipt,      label: 'Rút tiền' },
-  { to: '/admin/web3-payments',      icon: Wallet,       label: 'Web3 Payment' },
   { to: '/admin/worker-pricing',     icon: DollarSign,   label: 'Bảng giá' },
   { to: '/admin/worker-tickets',     icon: LifeBuoy,     label: 'Hỗ trợ' },
   { to: '/admin/referrals/workers',  icon: Gift,         label: 'Referral' },
@@ -27,8 +26,9 @@ const WORKER_NAV = [
 ];
 
 const SYSTEM_NAV = [
-  { to: '/admin/config',       icon: Settings2,       label: 'Cấu hình' },
-  { to: '/admin/settings',     icon: Settings,        label: 'Cài đặt' },
+  { to: '/admin/web3-payments',  icon: Wallet,      label: 'Web3 Payment' },
+  { to: '/admin/config',         icon: Settings2,   label: 'Cấu hình' },
+  { to: '/admin/settings',       icon: Settings,    label: 'Cài đặt' },
 ];
 
 export default function AdminLayout() {

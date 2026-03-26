@@ -82,7 +82,7 @@ export default function Withdraw() {
     setLoading(false);
   };
 
-  const CRYPTO_NETWORKS = ['USDT (TRC20)', 'USDT (BEP20)', 'USDT (ERC20)', 'BTC', 'ETH', 'BUSD'];
+  const CRYPTO_NETWORKS = ['USDT (BEP20)'];
 
   return (
     <div className="space-y-6 w-full min-w-0">

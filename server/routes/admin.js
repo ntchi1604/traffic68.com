@@ -1167,7 +1167,7 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// WEB3 AUTO-PAYMENT — BNB / BEP20
+// WEB3 AUTO-PAYMENT — USDT BEP20
 // ═══════════════════════════════════════════════════════════
 
 // ── GET /api/admin/web3/status — Hot wallet info ──
@@ -1175,41 +1175,21 @@ router.get('/web3/status', async (req, res) => {
   try {
     const config = await getWeb3Pay().getPaymentSettings();
     if (config.web3_enabled !== 'true' || !config.web3_private_key) {
-      return res.json({
-        enabled: false,
-        network: config.web3_network || 'mainnet',
-        payToken: config.web3_pay_token || 'BNB',
-      });
+      return res.json({ enabled: false, network: config.web3_network || 'mainnet' });
     }
     const network = config.web3_network || 'mainnet';
-    const walletInfo = await getWeb3Pay().getHotWalletBalance(config.web3_private_key, network);
-    
-    // Get token balance if paying with token
-    let tokenBalance = null;
-    const payToken = config.web3_pay_token || 'BNB';
-    if (payToken !== 'BNB') {
-      try {
-        tokenBalance = await getWeb3Pay().getTokenBalance(config.web3_private_key, payToken, network);
-      } catch (e) { tokenBalance = { balance: '0', error: e.message }; }
-    }
+    const walletInfo = await getWeb3Pay().getHotWalletInfo(config.web3_private_key, network);
 
-    // Get pending withdrawal count
     const pool = getPool();
     const [pending] = await pool.execute(
       `SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM transactions WHERE type='withdraw' AND wallet_type='earning' AND status='pending' AND note LIKE '%[Crypto]%'`
     );
-
-    // Get recent web3 payments
     const [recent] = await pool.execute(
       `SELECT COUNT(*) as c, COALESCE(SUM(amount_crypto), 0) as total_crypto FROM web3_payments WHERE created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
     );
 
     res.json({
-      enabled: true,
-      network,
-      payToken,
-      hotWallet: walletInfo,
-      tokenBalance,
+      enabled: true, network, hotWallet: walletInfo,
       pendingWithdrawals: { count: pending[0].c, totalVND: Number(pending[0].total) },
       last24h: { count: recent[0].c, totalCrypto: Number(recent[0].total_crypto) },
       vndRate: config.web3_vnd_rate || null,
@@ -1225,7 +1205,7 @@ router.get('/web3/status', async (req, res) => {
 router.post('/web3/pay/:id', async (req, res) => {
   try {
     const result = await getWeb3Pay().processAutoPayment(Number(req.params.id));
-    res.json({ message: 'Thanh toán Web3 thành công', result });
+    res.json({ message: 'Thanh toán USDT thành công', result });
   } catch (err) {
     console.error('[Web3Pay] Error:', err.message);
     res.status(500).json({ error: err.message });
@@ -1291,17 +1271,16 @@ router.get('/web3/payments', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/web3/convert — Preview VND to crypto conversion ──
+// ── GET /api/admin/web3/convert — Preview VND to USDT conversion ──
 router.get('/web3/convert', async (req, res) => {
   try {
-    const { amount, token } = req.query;
+    const { amount } = req.query;
     if (!amount) return res.status(400).json({ error: 'Missing amount' });
     
     const config = await getWeb3Pay().getPaymentSettings();
-    const payToken = token || config.web3_pay_token || 'BNB';
     const customRate = config.web3_vnd_rate ? parseFloat(config.web3_vnd_rate) : null;
     
-    const conversion = await getWeb3Pay().convertVndToCrypto(Number(amount), payToken, customRate);
+    const conversion = await getWeb3Pay().convertVndToUSDT(Number(amount), customRate);
     res.json(conversion);
   } catch (err) {
     res.status(500).json({ error: err.message });
