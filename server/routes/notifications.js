@@ -17,7 +17,19 @@ router.get('/', async (req, res) => {
     `SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0 AND (role = ? OR role = 'all')`,
     [req.userId, role]
   );
-  res.json({ notifications, unreadCount: unread[0].count });
+  // Strip specific emojis correctly and cleanly
+  const cleanObj = (obj) => {
+    return {
+      ...obj,
+      title: obj.title?.replace(/[✅🎉]/g, '')?.replace(/\s+/g, ' ')?.trim(),
+      message: obj.message?.replace(/[✅🎉]/g, '')?.replace(/\s+/g, ' ')?.trim()
+    };
+  };
+
+  res.json({ 
+    notifications: notifications.map(cleanObj), 
+    unreadCount: unread[0].count 
+  });
 });
 
 // ── PUT /api/notifications/:id/read ──
