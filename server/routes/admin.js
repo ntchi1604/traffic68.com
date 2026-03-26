@@ -1175,10 +1175,9 @@ router.get('/web3/status', async (req, res) => {
   try {
     const config = await getWeb3Pay().getPaymentSettings();
     if (config.web3_enabled !== 'true' || !config.web3_private_key) {
-      return res.json({ enabled: false, network: config.web3_network || 'mainnet' });
+      return res.json({ enabled: false });
     }
-    const network = config.web3_network || 'mainnet';
-    const walletInfo = await getWeb3Pay().getHotWalletInfo(config.web3_private_key, network);
+    const walletInfo = await getWeb3Pay().getHotWalletInfo(config.web3_private_key);
 
     const pool = getPool();
     const [pending] = await pool.execute(
@@ -1189,7 +1188,7 @@ router.get('/web3/status', async (req, res) => {
     );
 
     res.json({
-      enabled: true, network, hotWallet: walletInfo,
+      enabled: true, hotWallet: walletInfo,
       pendingWithdrawals: { count: pending[0].c, totalVND: Number(pending[0].total) },
       last24h: { count: recent[0].c, totalCrypto: Number(recent[0].total_crypto) },
       vndRate: config.web3_vnd_rate || null,

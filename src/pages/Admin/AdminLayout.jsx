@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Megaphone, Receipt, LifeBuoy,
   ChevronLeft, Shield, Settings, Settings2, Menu, X, DollarSign, Fingerprint, LogOut,
-  ChevronDown, Briefcase, HardHat, Gift, ShieldAlert, Wallet,
+  ChevronDown, Briefcase, HardHat, Gift, ShieldAlert,
 } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -26,7 +26,6 @@ const WORKER_NAV = [
 ];
 
 const SYSTEM_NAV = [
-  { to: '/admin/web3-payments',  icon: Wallet,      label: 'Web3 Payment' },
   { to: '/admin/config',         icon: Settings2,   label: 'Cấu hình' },
   { to: '/admin/settings',       icon: Settings,    label: 'Cài đặt' },
 ];
