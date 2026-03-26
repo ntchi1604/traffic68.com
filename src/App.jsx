@@ -67,6 +67,7 @@ import AdminWorkerTasks from './pages/Admin/AdminWorkerTasks';
 import AdminWorkerWithdrawals from './pages/Admin/AdminWorkerWithdrawals';
 import AdminWorkerPricing from './pages/Admin/AdminWorkerPricing';
 import AdminConfig from './pages/Admin/AdminConfig';
+import AdminWeb3Payments from './pages/Admin/AdminWeb3Payments';
 
 const DASHBOARD_ROUTES = ['/buyer', '/worker', '/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/admin'];
 
@@ -169,6 +170,7 @@ function Layout() {
           <Route path="worker-pricing" element={<AdminWorkerPricing />} />
           <Route path="worker-tickets" element={<AdminTickets defaultRole="worker" />} />
           <Route path="config" element={<AdminConfig />} />
+          <Route path="web3-payments" element={<AdminWeb3Payments />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 

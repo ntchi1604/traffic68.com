@@ -71,13 +71,21 @@ export default function AdminWorkerWithdrawals() {
                     <p className="text-[10px] text-slate-400">{r.user_email || ''}</p>
                   </td>
                   <td className="px-4 py-3 text-right font-bold text-slate-800 text-xs">{fmt(r.amount)} đ</td>
-                  <td className="px-4 py-3 text-xs text-slate-600 max-w-[220px]">
+                  <td className="px-4 py-3 text-xs text-slate-600 max-w-[260px]">
                     {(() => {
                       const parts = (r.note || '').split(' | Nguồn: ');
+                      const txMatch = (r.note || '').match(/TxHash:\s*(0x[a-fA-F0-9]+)/);
                       return (
                         <>
                           <p className="truncate font-medium">{parts[0] || '—'}</p>
-                          {parts[1] && <p className="text-[10px] text-blue-600 mt-0.5 truncate">Nguồn: {parts[1]}</p>}
+                          {parts[1] && <p className="text-[10px] text-blue-600 mt-0.5 truncate">Nguồn: {parts[1].split(' | ')[0]}</p>}
+                          {txMatch && (
+                            <a href={`https://bscscan.com/tx/${txMatch[1]}`} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 mt-1 text-[10px] text-amber-600 hover:text-amber-700 font-mono">
+                              <svg width="10" height="10" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#F3BA2F"/></svg>
+                              {txMatch[1].slice(0, 10)}...{txMatch[1].slice(-6)} ↗
+                            </a>
+                          )}
                         </>
                       );
                     })()}

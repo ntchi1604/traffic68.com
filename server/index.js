@@ -215,6 +215,32 @@ app.use((err, req, res, next) => {
     try { await pool.execute(`ALTER TABLE support_tickets ADD COLUMN role VARCHAR(10) DEFAULT 'worker'`); } catch (e) {}
     try { await pool.execute(`ALTER TABLE support_tickets ADD COLUMN admin_reply TEXT DEFAULT NULL`); } catch (e) {}
 
+    // web3_payments: track Web3 auto-payment transactions
+    try {
+      await pool.execute(`CREATE TABLE IF NOT EXISTS web3_payments (
+        id              INT PRIMARY KEY AUTO_INCREMENT,
+        transaction_id  INT NOT NULL,
+        user_id         INT NOT NULL,
+        tx_hash         VARCHAR(100) NOT NULL,
+        from_address    VARCHAR(50) NOT NULL,
+        to_address      VARCHAR(50) NOT NULL,
+        amount_vnd      DECIMAL(15,2) NOT NULL DEFAULT 0,
+        amount_crypto   DECIMAL(20,8) NOT NULL DEFAULT 0,
+        token           VARCHAR(10) NOT NULL DEFAULT 'BNB',
+        network         VARCHAR(20) NOT NULL DEFAULT 'mainnet',
+        gas_used        VARCHAR(30) DEFAULT NULL,
+        block_number    INT DEFAULT NULL,
+        explorer_url    VARCHAR(255) DEFAULT NULL,
+        status          VARCHAR(20) NOT NULL DEFAULT 'success',
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_tx_hash (tx_hash),
+        INDEX idx_user (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+      console.log('  ✅ web3_payments table ready');
+    } catch (e) { console.error('  ⚠ web3_payments:', e.message); }
+
     app.listen(PORT, () => {
       console.log(`
 ╔════════════════════════════════════════════╗

@@ -1,6 +1,7 @@
 const express = require('express');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
+const web3pay = require('../lib/web3pay');
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -1141,11 +1142,163 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
     await conn.commit();
     conn.release();
     res.json({ message: action === 'approve' ? 'Đã duyệt' : 'Đã từ chối và hoàn tiền' });
+    // Auto Web3 payment (fire-and-forget after response)
+    if (action === 'approve' && (tx.note || '').includes('[Crypto]')) {
+      try {
+        const w3config = await web3pay.getPaymentSettings();
+        if (w3config.web3_enabled === 'true' && w3config.web3_auto_approve === 'true') {
+          web3pay.processAutoPayment(tx.id).catch(e => console.error('[Web3 Auto-Pay]', e.message));
+        }
+      } catch (e) { console.error('[Web3 Auto-Pay]', e.message); }
+    }
   } catch (err) {
     await conn.rollback(); conn.release();
     res.status(500).json({ error: err.message });
   }
 });
+
+// ═══════════════════════════════════════════════════════════
+// WEB3 AUTO-PAYMENT — BNB / BEP20
+// ═══════════════════════════════════════════════════════════
+
+// ── GET /api/admin/web3/status — Hot wallet info ──
+router.get('/web3/status', async (req, res) => {
+  try {
+    const config = await web3pay.getPaymentSettings();
+    if (config.web3_enabled !== 'true' || !config.web3_private_key) {
+      return res.json({
+        enabled: false,
+        network: config.web3_network || 'mainnet',
+        payToken: config.web3_pay_token || 'BNB',
+      });
+    }
+    const network = config.web3_network || 'mainnet';
+    const walletInfo = await web3pay.getHotWalletBalance(config.web3_private_key, network);
+    
+    // Get token balance if paying with token
+    let tokenBalance = null;
+    const payToken = config.web3_pay_token || 'BNB';
+    if (payToken !== 'BNB') {
+      try {
+        tokenBalance = await web3pay.getTokenBalance(config.web3_private_key, payToken, network);
+      } catch (e) { tokenBalance = { balance: '0', error: e.message }; }
+    }
+
+    // Get pending withdrawal count
+    const pool = getPool();
+    const [pending] = await pool.execute(
+      `SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM transactions WHERE type='withdraw' AND wallet_type='earning' AND status='pending' AND note LIKE '%[Crypto]%'`
+    );
+
+    // Get recent web3 payments
+    const [recent] = await pool.execute(
+      `SELECT COUNT(*) as c, COALESCE(SUM(amount_crypto), 0) as total_crypto FROM web3_payments WHERE created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
+    );
+
+    res.json({
+      enabled: true,
+      network,
+      payToken,
+      hotWallet: walletInfo,
+      tokenBalance,
+      pendingWithdrawals: { count: pending[0].c, totalVND: Number(pending[0].total) },
+      last24h: { count: recent[0].c, totalCrypto: Number(recent[0].total_crypto) },
+      vndRate: config.web3_vnd_rate || null,
+      autoApprove: config.web3_auto_approve === 'true',
+      gasLimit: config.web3_gas_limit || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/admin/web3/pay/:id — Manual Web3 payment for a specific withdrawal ──
+router.post('/web3/pay/:id', async (req, res) => {
+  try {
+    const result = await web3pay.processAutoPayment(Number(req.params.id));
+    res.json({ message: 'Thanh toán Web3 thành công', result });
+  } catch (err) {
+    console.error('[Web3Pay] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/admin/web3/batch-pay — Pay all pending crypto withdrawals ──
+router.post('/web3/batch-pay', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute(
+      `SELECT id FROM transactions WHERE type='withdraw' AND wallet_type='earning' AND status='pending' AND note LIKE '%[Crypto]%' ORDER BY created_at ASC`
+    );
+
+    const results = [];
+    for (const row of rows) {
+      try {
+        const r = await web3pay.processAutoPayment(row.id);
+        results.push({ id: row.id, status: 'success', txHash: r.txHash });
+      } catch (err) {
+        results.push({ id: row.id, status: 'error', error: err.message });
+      }
+      // Small delay between transactions
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    res.json({
+      message: `Đã xử lý ${results.length} giao dịch`,
+      total: rows.length,
+      success: results.filter(r => r.status === 'success').length,
+      failed: results.filter(r => r.status === 'error').length,
+      results,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/admin/web3/payments — Web3 payment history ──
+router.get('/web3/payments', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { page = 1, limit = 30 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+    
+    const [count] = await pool.execute('SELECT COUNT(*) as c FROM web3_payments');
+    const [rows] = await pool.execute(
+      `SELECT wp.*, u.name as user_name, u.email as user_email
+       FROM web3_payments wp
+       LEFT JOIN users u ON wp.user_id = u.id
+       ORDER BY wp.created_at DESC LIMIT ? OFFSET ?`,
+      [Number(limit), offset]
+    );
+    
+    res.json({
+      payments: rows,
+      total: count[0].c,
+      page: Number(page),
+      limit: Number(limit),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/admin/web3/convert — Preview VND to crypto conversion ──
+router.get('/web3/convert', async (req, res) => {
+  try {
+    const { amount, token } = req.query;
+    if (!amount) return res.status(400).json({ error: 'Missing amount' });
+    
+    const config = await web3pay.getPaymentSettings();
+    const payToken = token || config.web3_pay_token || 'BNB';
+    const customRate = config.web3_vnd_rate ? parseFloat(config.web3_vnd_rate) : null;
+    
+    const conversion = await web3pay.convertVndToCrypto(Number(amount), payToken, customRate);
+    res.json(conversion);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // ── GET /api/admin/referrals/:type ──
 router.get('/referrals/:type', async (req, res) => {

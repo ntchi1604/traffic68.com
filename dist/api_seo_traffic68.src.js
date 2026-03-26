@@ -1,4 +1,4 @@
-/**
+﻿/**
  * LayNut.js — Embeddable Button Script v3
  * Traffic68.com — https://traffic68.com
  *

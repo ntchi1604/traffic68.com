@@ -239,4 +239,19 @@ router.get('/withdrawals', async (req, res) => {
   }
 });
 
+// ── GET /api/finance/web3-payment/:txId ── Worker checks Web3 payment detail
+router.get('/web3-payment/:txId', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute(
+      `SELECT * FROM web3_payments WHERE transaction_id = ? AND user_id = ?`,
+      [req.params.txId, req.userId]
+    );
+    if (!rows[0]) return res.json({ payment: null });
+    res.json({ payment: rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

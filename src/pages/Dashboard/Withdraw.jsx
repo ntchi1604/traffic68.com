@@ -232,19 +232,33 @@ export default function Withdraw() {
             <div className="space-y-3">
               {withdrawals.length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-4">Chưa có lịch sử rút tiền</p>
-              ) : withdrawals.slice(0, 5).map(w => (
-                <div key={w.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-700">{fmt(w.amount)} đ</p>
-                    <p className="text-[10px] text-slate-400">
-                      {w.method === 'crypto' ? 'Crypto' : 'Bank'} • {w.note} • {new Date(w.created_at).toLocaleDateString('vi-VN')}
-                    </p>
+              ) : withdrawals.slice(0, 5).map(w => {
+                // Check for TxHash in note
+                const txMatch = (w.note || '').match(/TxHash:\s*(0x[a-fA-F0-9]+)/);
+                const txHash = txMatch ? txMatch[1] : null;
+                return (
+                <div key={w.id} className="py-2 border-b border-slate-50 last:border-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-700">{fmt(w.amount)} đ</p>
+                      <p className="text-[10px] text-slate-400">
+                        {w.method === 'crypto' ? 'Crypto' : 'Bank'} • {new Date(w.created_at).toLocaleDateString('vi-VN')}
+                      </p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${w.status === 'completed' ? 'bg-green-50 text-green-600' : w.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}>
+                      {w.status === 'completed' ? <><CheckCircle2 size={10} /> Thành công</> : w.status === 'pending' ? <><Clock size={10} /> Đang xử lý</> : 'Từ chối'}
+                    </span>
                   </div>
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${w.status === 'completed' ? 'bg-green-50 text-green-600' : w.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}>
-                    {w.status === 'completed' ? <><CheckCircle2 size={10} /> Thành công</> : w.status === 'pending' ? <><Clock size={10} /> Đang xử lý</> : 'Từ chối'}
-                  </span>
+                  {txHash && (
+                    <a href={`https://bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 mt-1 text-[10px] text-blue-600 hover:text-blue-700 font-mono">
+                      <svg width="10" height="10" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#F3BA2F"/></svg>
+                      TxHash: {txHash.slice(0, 10)}...{txHash.slice(-6)} ↗
+                    </a>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
