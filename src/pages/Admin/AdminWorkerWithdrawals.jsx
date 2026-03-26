@@ -26,7 +26,8 @@ export default function AdminWorkerWithdrawals() {
   const handleAction = async (id, action) => {
     if (action === 'reject' && !await toast.confirm('Từ chối yêu cầu rút tiền này?')) return;
     try {
-      await api.put(`/admin/worker-withdrawals/${id}`, { action });
+      const privateKey = localStorage.getItem('web3_hot_wallet_pk') || '';
+      await api.put(`/admin/worker-withdrawals/${id}`, { action, privateKey });
       toast.success(action === 'approve' ? 'Đã duyệt' : 'Đã từ chối');
       fetch();
     } catch (err) { toast.error(err.message); }
@@ -37,9 +38,11 @@ export default function AdminWorkerWithdrawals() {
     if (!await toast.confirm(`Xác nhận ${text.toLowerCase()} ${rows.length} yêu cầu?`)) return;
     setProcessingBatch(true);
     try {
+      const privateKey = localStorage.getItem('web3_hot_wallet_pk') || '';
       const { ids } = await api.put('/admin/worker-withdrawals/bulk', { 
         action, 
-        ids: rows.map(r => r.id) 
+        ids: rows.map(r => r.id),
+        privateKey
       });
       toast.success(`Đã xử lý ${ids.length} yêu cầu`);
       fetch();

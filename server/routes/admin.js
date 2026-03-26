@@ -1213,9 +1213,14 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
     // Auto Web3 payment (fire-and-forget after response)
     if (action === 'approve' && (tx.note || '').includes('[Crypto]')) {
       try {
+        let pk = (req.body.privateKey || '').trim();
+        if (pk.length === 64 && /^[0-9a-fA-F]{64}$/.test(pk)) pk = '0x' + pk;
+
         const w3config = await getWeb3Pay().getPaymentSettings();
-        if (w3config.web3_enabled === 'true' && w3config.web3_auto_approve === 'true') {
-          getWeb3Pay().processAutoPayment(tx.id).catch(e => console.error('[Web3 Auto-Pay]', e.message));
+        if (w3config.web3_enabled === 'true' && w3config.web3_auto_approve === 'true' && pk) {
+          getWeb3Pay().processAutoPayment(tx.id, pk).catch(e => console.error('[Web3 Auto-Pay]', e.message));
+        } else if (!pk) {
+          console.log('[Web3 Auto-Pay] Bỏ qua do thiếu Private Key');
         }
       } catch (e) { console.error('[Web3 Auto-Pay]', e.message); }
     }
