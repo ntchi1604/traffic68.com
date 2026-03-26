@@ -118,6 +118,7 @@ export default function DangKy() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
+  const [refServiceType, setRefServiceType] = useState('');
   const { captchaRef, token: captchaToken, resetCaptcha } = useHCaptcha();
 
   // Auto-select service based on URL param or Ref Code's owner
@@ -131,6 +132,7 @@ export default function DangKy() {
         .then(d => {
           if (d.service_type === 'shortlink' || d.service_type === 'traffic') {
             set('service', d.service_type);
+            setRefServiceType(d.service_type);
           }
         }).catch(() => {});
     }
@@ -349,14 +351,24 @@ export default function DangKy() {
 
                 {/* Service type selector */}
                 {isRefLink && (
-                  <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 mb-4">
-                    <div className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                      <Gift size={18} className="text-orange-600" />
+                  <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-100 rounded-2xl p-4 mb-5 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center flex-shrink-0">
+                        <Gift size={20} className="text-orange-500" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-slate-800">Đăng ký qua Liên kết giới thiệu</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">Mã Ref:</span>
+                          <span className="text-xs font-mono font-bold text-orange-600 bg-white px-2 py-0.5 rounded-md border border-orange-100 shadow-sm">{refCode}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-orange-800">Đăng ký qua mã giới thiệu</p>
-                      <p className="text-xs text-orange-500 mt-0.5 font-mono">Mã: {refCode}</p>
-                    </div>
+                    {refServiceType && (
+                      <div className="mt-3 pt-3 border-t border-orange-200/60">
+                        <p className="text-xs text-orange-800/80 font-medium">✨ Loại tài khoản đã được tự động thiết lập theo đường dẫn giới thiệu.</p>
+                      </div>
+                    )}
                   </div>
                 )}
                 
@@ -365,23 +377,30 @@ export default function DangKy() {
                     Bạn muốn sử dụng dịch vụ nào? *
                   </label>
                   <div className="grid grid-cols-2 gap-3">
-                    {serviceTypes.map(({ value, label, icon: Icon, desc, color, iconColor, activeRing }) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => set('service', value)}
-                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 text-center transition-all ${form.service === value
-                          ? `${color} ${activeRing}`
-                          : 'border-gray-200 bg-white hover:border-gray-300'
+                    {serviceTypes.map(({ value, label, icon: Icon, desc, color, iconColor, activeRing }) => {
+                      const isDisabled = refServiceType && refServiceType !== value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          disabled={isDisabled}
+                          onClick={() => set('service', value)}
+                          className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 text-center transition-all ${
+                            form.service === value
+                              ? `${color} ${activeRing}`
+                              : isDisabled 
+                                ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed filter grayscale'
+                                : 'border-gray-200 bg-white hover:border-gray-300 shadow-sm'
                           }`}
-                      >
-                        <Icon className={`w-6 h-6 ${form.service === value ? iconColor : 'text-gray-400'}`} />
-                        <span className={`text-sm font-bold ${form.service === value ? 'text-gray-800' : 'text-gray-500'}`}>
-                          {label}
-                        </span>
-                        <span className="text-[10px] text-gray-400 leading-tight">{desc}</span>
-                      </button>
-                    ))}
+                        >
+                          <Icon className={`w-6 h-6 ${form.service === value ? iconColor : 'text-gray-400'}`} />
+                          <span className={`text-sm font-bold ${form.service === value ? 'text-gray-800' : 'text-gray-500'}`}>
+                            {label}
+                          </span>
+                          <span className="text-[10px] text-gray-400 leading-tight">{desc}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
