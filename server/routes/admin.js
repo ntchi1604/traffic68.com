@@ -262,7 +262,7 @@ router.put('/campaigns/:id', async (req, res) => {
        traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), time_on_site=COALESCE(?,time_on_site),
        target_page=COALESCE(?,target_page), status=COALESCE(?,status) WHERE id = ?`,
       [n(name), n(url), n(url2), n(keyword), n(dailyViews), n(viewByHour), n(image1_url), n(image2_url),
-       n(totalViews), n(budget), n(cpc), n(trafficType), n(version), n(timeOnSite), n(targetPage), n(status), req.params.id]
+      n(totalViews), n(budget), n(cpc), n(trafficType), n(version), n(timeOnSite), n(targetPage), n(status), req.params.id]
     );
     const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [req.params.id]);
     res.json({ message: 'Cập nhật thành công', campaign: campaigns[0] });
@@ -676,7 +676,7 @@ router.get('/security/users', async (req, res) => {
             );
             if (cnt2[0].cnt > 0) secMap[uid] = Number(cnt2[0].cnt);
           }
-        } catch {}
+        } catch { }
       }
     }
 
@@ -739,7 +739,7 @@ router.get('/security/user/:uid/tasks', async (req, res) => {
     res.json({
       tasks: rows.map(r => {
         let sd = {};
-        try { sd = JSON.parse(r.security_detail || '{}'); } catch {}
+        try { sd = JSON.parse(r.security_detail || '{}'); } catch { }
         return { ...r, security_detail: sd };
       }),
       total: cnt[0].total,
@@ -1142,10 +1142,10 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
     await conn.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
       [tx.user_id,
-       action === 'approve' ? 'Rút tiền thành công' : 'Rút tiền bị từ chối',
-       action === 'approve' ? `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) đã được duyệt.` : `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) bị từ chối. Số tiền đã hoàn lại ví.`,
-       action === 'approve' ? 'success' : 'warning',
-       'worker']
+      action === 'approve' ? 'Rút tiền thành công' : 'Rút tiền bị từ chối',
+      action === 'approve' ? `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) đã được duyệt.` : `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) bị từ chối. Số tiền đã hoàn lại ví.`,
+      action === 'approve' ? 'success' : 'warning',
+        'worker']
     );
 
     await conn.commit();
@@ -1177,6 +1177,9 @@ router.post('/web3/status', async (req, res) => {
     const { privateKey } = req.body || {};
     if (config.web3_enabled !== 'true' || !privateKey) {
       return res.json({ enabled: false });
+    }
+    if (!/^0x[0-9a-fA-F]{64}$/.test(privateKey)) {
+      return res.status(400).json({ error: 'Private Key không hợp lệ. Phải bắt đầu bằng 0x và có đúng 64 ký tự hex (tổng 66 ký tự).' });
     }
     const walletInfo = await getWeb3Pay().getHotWalletInfo(privateKey);
 
@@ -1253,7 +1256,7 @@ router.get('/web3/payments', async (req, res) => {
     const pool = getPool();
     const { page = 1, limit = 30 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
-    
+
     const [count] = await pool.execute('SELECT COUNT(*) as c FROM web3_payments');
     const [rows] = await pool.execute(
       `SELECT wp.*, u.name as user_name, u.email as user_email
@@ -1262,7 +1265,7 @@ router.get('/web3/payments', async (req, res) => {
        ORDER BY wp.created_at DESC LIMIT ? OFFSET ?`,
       [Number(limit), offset]
     );
-    
+
     res.json({
       payments: rows,
       total: count[0].c,
@@ -1279,10 +1282,10 @@ router.get('/web3/convert', async (req, res) => {
   try {
     const { amount } = req.query;
     if (!amount) return res.status(400).json({ error: 'Missing amount' });
-    
+
     const config = await getWeb3Pay().getPaymentSettings();
     const customRate = config.web3_vnd_rate ? parseFloat(config.web3_vnd_rate) : null;
-    
+
     const conversion = await getWeb3Pay().convertVndToUSDT(Number(amount), customRate);
     res.json(conversion);
   } catch (err) {
