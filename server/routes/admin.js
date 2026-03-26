@@ -1117,15 +1117,23 @@ router.get('/worker-withdrawals', async (req, res) => {
 // ── PUT /api/admin/worker-withdrawals/bulk ──
 router.put('/worker-withdrawals/bulk', async (req, res) => {
   const pool = getPool();
-  const { action, ids } = req.body; // 'approve' or 'reject', array of ids
+  const { action, ids, privateKey } = req.body; // 'approve' or 'reject', array of ids
   if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'Hành động không hợp lệ' });
   if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'Danh sách trống' });
 
   const conn = await pool.getConnection();
-  await conn.beginTransaction();
+  
+  let pk = (privateKey || '').trim();
+  if (pk.length === 64 && /^[0-9a-fA-F]{64}$/.test(pk)) pk = '0x' + pk;
+  
+  const w3config = await getWeb3Pay().getPaymentSettings();
+  const isWeb3Active = action === 'approve' && w3config.web3_enabled === 'true' && w3config.web3_auto_approve === 'true' && pk;
+
   const processedIds = [];
+  const cryptoIdsToPay = [];
 
   try {
+    await conn.beginTransaction();
     for (const id of ids) {
       const [txs] = await conn.execute(
         'SELECT * FROM transactions WHERE id = ? AND type = ? AND wallet_type = ? FOR UPDATE',
@@ -1134,6 +1142,16 @@ router.put('/worker-withdrawals/bulk', async (req, res) => {
       if (!txs[0] || txs[0].status !== 'pending') continue;
 
       const tx = txs[0];
+      const isCrypto = (tx.note || '').includes('[Crypto]');
+
+      // Nếu là Crypto và đang bật Auto-Approve -> Tách riêng ra để thanh toán nền
+      if (isWeb3Active && isCrypto) {
+        cryptoIdsToPay.push(tx.id);
+        processedIds.push(id);
+        continue; 
+      }
+
+      // Xử lý tiêu chuẩn (Tiền mặt, hoặc Crypto nhưng tắt Auto-Approve, hoặc là hành động Reject)
       const newStatus = action === 'approve' ? 'completed' : 'rejected';
       await conn.execute('UPDATE transactions SET status = ? WHERE id = ?', [newStatus, tx.id]);
 
@@ -1156,14 +1174,29 @@ router.put('/worker-withdrawals/bulk', async (req, res) => {
       );
       processedIds.push(id);
     }
-
     await conn.commit();
     conn.release();
 
-    res.json({ message: `Đã xử lý ${processedIds.length} yêu cầu`, ids: processedIds });
+    // Trả về kết quả ngay lập tức
+    res.json({ 
+      message: `Đã xử lý ${processedIds.length} yêu cầu${cryptoIdsToPay.length > 0 ? ` (${cryptoIdsToPay.length} lệnh Crypto đang chuyển ngầm)` : ''}`, 
+      ids: processedIds 
+    });
 
-    // Không kích hoạt auto-pay crypto khi dùng bulk approve, 
-    // vì ta đã thống nhất thanh toán Crypto sẽ xử lý trực tiếp = privateKey từ frontend trong tab Rút Tiền
+    // Chạy thanh toán Crypto ngầm trong Background (nếu có)
+    if (cryptoIdsToPay.length > 0) {
+      (async () => {
+        for (const cryptoId of cryptoIdsToPay) {
+          try {
+            await getWeb3Pay().processAutoPayment(cryptoId, pk);
+          } catch (e) {
+            console.error(`[Web3 Auto-Pay Bulk] Lỗi gửi Crypto ID ${cryptoId}:`, e.message);
+          }
+          // Chờ 2 giây giữa mỗi lệnh chuyển tiền mạng lưới
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      })();
+    }
 
   } catch (err) {
     await conn.rollback();
