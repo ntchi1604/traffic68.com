@@ -177,7 +177,7 @@ async function processAutoPayment(txId, privateKey) {
     const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
     await conn.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
-      [tx.user_id, '✅ Thanh toán USDT thành công',
+      [tx.user_id, 'Thanh toán USDT thành công',
       `Yêu cầu rút ${fmtAmount} đ đã được thanh toán: ${conversion.usdtAmount} USDT (BEP20). TxHash: ${payResult.txHash}`,
         'success', 'worker']
     );
