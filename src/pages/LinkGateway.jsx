@@ -395,10 +395,28 @@ export default function LinkGateway() {
     fetchTask(false);
   }, [linkInfo, fetchTask]);
 
+  // Auto-refresh: when task expires (10 min), automatically fetch new campaign
+  const expiryTimerRef = useRef(null);
+  useEffect(() => {
+    if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
+    if (!task || verified) return;
+    // Task has 10 min expiry (600s) — auto-refresh at 9.5 min to account for latency
+    expiryTimerRef.current = setTimeout(() => {
+      console.log('[LinkGateway] Task expired, auto-fetching new campaign...');
+      setTask(null);
+      setInputCode('');
+      setShowError(false);
+      try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
+      fetchTask(true);
+    }, 570000); // 9.5 minutes
+    return () => { if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current); };
+  }, [task, verified, slug, fetchTask]);
+
   // Change task (skip current)
   const [changingTask, setChangingTask] = useState(false);
   const handleChangeTask = useCallback(async () => {
     setChangingTask(true);
+    if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
     // Build new skip list with current campaign
     const newSkipList = task?.campaign_id
       ? [...new Set([...skippedCampaigns, task.campaign_id])]
@@ -432,6 +450,18 @@ export default function LinkGateway() {
         body: JSON.stringify({ code: inputCode.trim(), _tk: task._tk }),
       });
       const data = await res.json();
+
+      // Task expired → auto fetch new campaign
+      if (res.status === 410) {
+        setCompleting(false);
+        setInputCode('');
+        setShowError(false);
+        setTask(null);
+        try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
+        fetchTask(true);
+        return;
+      }
+
       if (!res.ok) throw new Error(data.error || 'Mã không đúng');
       setCompletionResult(data);
       setVerified(true); setShowError(false);
@@ -448,7 +478,7 @@ export default function LinkGateway() {
     } finally {
       setCompleting(false);
     }
-  }, [inputCode, task]);
+  }, [inputCode, task, slug, fetchTask]);
 
   const keyword = task?.keyword || '';
   const campaignImage = task?.image1_url || '';
