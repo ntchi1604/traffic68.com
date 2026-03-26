@@ -107,6 +107,20 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// ── GET /api/auth/referrer/:code ──
+router.get('/referrer/:code', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [users] = await pool.execute('SELECT service_type FROM users WHERE referral_code = ? LIMIT 1', [req.params.code]);
+    if (users.length > 0) {
+      return res.json({ service_type: users[0].service_type || 'traffic' });
+    }
+    res.status(404).json({ error: 'Không tìm thấy người giới thiệu' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /api/auth/login ──
 router.post('/login', async (req, res) => {
   const { email, password, remember, captchaToken } = req.body;

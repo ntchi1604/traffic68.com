@@ -120,11 +120,21 @@ export default function DangKy() {
   const [error, setError] = useState('');
   const { captchaRef, token: captchaToken, resetCaptcha } = useHCaptcha();
 
-  // Pre-select service if passed in URL, otherwise let user decide
+  // Auto-select service based on URL param or Ref Code's owner
   useEffect(() => {
     const sv = searchParams.get('svc');
-    if (sv === 'shortlink' || sv === 'traffic') set('service', sv);
-  }, [searchParams]);
+    if (sv === 'shortlink' || sv === 'traffic') {
+      set('service', sv);
+    } else if (refCode) {
+      fetch(`/api/auth/referrer/${refCode}`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.service_type === 'shortlink' || d.service_type === 'traffic') {
+            set('service', d.service_type);
+          }
+        }).catch(() => {});
+    }
+  }, [searchParams, refCode]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
