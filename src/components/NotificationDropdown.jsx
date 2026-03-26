@@ -42,6 +42,8 @@ export default function NotificationDropdown({ isWorker = false }) {
     api.get(`/notifications?role=${role}`).then(data => {
       setNotifications((data.notifications || []).map(n => ({
         ...n,
+        title: n.title?.replace(/[✅🎉]/g, '')?.replace('✅', '')?.replace('🎉', '')?.trim(),
+        message: n.message?.replace(/[✅🎉]/g, '')?.replace('✅', '')?.replace('🎉', '')?.trim(),
         isRead: !!n.is_read,
         time: new Date(n.created_at).toLocaleString('vi-VN'),
       })));
