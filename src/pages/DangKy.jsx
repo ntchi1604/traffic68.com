@@ -113,17 +113,18 @@ export default function DangKy() {
     email: '',
     password: '',
     confirm: '',
-    service: isRefLink ? 'traffic' : '',
+    service: '',
   });
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
   const { captchaRef, token: captchaToken, resetCaptcha } = useHCaptcha();
 
-  // If ref link, ensure service is always traffic
+  // Pre-select service if passed in URL, otherwise let user decide
   useEffect(() => {
-    if (isRefLink) set('service', 'traffic');
-  }, [isRefLink]);
+    const sv = searchParams.get('svc');
+    if (sv === 'shortlink' || sv === 'traffic') set('service', sv);
+  }, [searchParams]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -337,42 +338,42 @@ export default function DangKy() {
                 </div>
 
                 {/* Service type selector */}
-                {isRefLink ? (
-                  <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-                    <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <Gift size={18} className="text-blue-600" />
+                {isRefLink && (
+                  <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 mb-4">
+                    <div className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                      <Gift size={18} className="text-orange-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-blue-800">Được giới thiệu — Mua Traffic</p>
-                      <p className="text-xs text-blue-500 mt-0.5">Bạn được mời tham gia gói <strong>Mua Traffic</strong></p>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-2">
-                      Bạn muốn sử dụng dịch vụ nào? *
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {serviceTypes.map(({ value, label, icon: Icon, desc, color, iconColor, activeRing }) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => set('service', value)}
-                          className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 text-center transition-all ${form.service === value
-                            ? `${color} ${activeRing}`
-                            : 'border-gray-200 bg-white hover:border-gray-300'
-                            }`}
-                        >
-                          <Icon className={`w-6 h-6 ${form.service === value ? iconColor : 'text-gray-400'}`} />
-                          <span className={`text-sm font-bold ${form.service === value ? 'text-gray-800' : 'text-gray-500'}`}>
-                            {label}
-                          </span>
-                          <span className="text-[10px] text-gray-400 leading-tight">{desc}</span>
-                        </button>
-                      ))}
+                      <p className="text-sm font-bold text-orange-800">Đăng ký qua mã giới thiệu</p>
+                      <p className="text-xs text-orange-500 mt-0.5 font-mono">Mã: {refCode}</p>
                     </div>
                   </div>
                 )}
+                
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-2">
+                    Bạn muốn sử dụng dịch vụ nào? *
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {serviceTypes.map(({ value, label, icon: Icon, desc, color, iconColor, activeRing }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => set('service', value)}
+                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 text-center transition-all ${form.service === value
+                          ? `${color} ${activeRing}`
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                          }`}
+                      >
+                        <Icon className={`w-6 h-6 ${form.service === value ? iconColor : 'text-gray-400'}`} />
+                        <span className={`text-sm font-bold ${form.service === value ? 'text-gray-800' : 'text-gray-500'}`}>
+                          {label}
+                        </span>
+                        <span className="text-[10px] text-gray-400 leading-tight">{desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {error && (
                   <p className="text-red-500 text-xs font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2">
