@@ -1179,8 +1179,28 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
   const { action } = req.body; // 'approve' or 'reject'
   if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'Invalid action' });
 
-  const conn = await pool.getConnection();
   try {
+    // ── Check if this is an auto-approve Crypto request ──
+    if (action === 'approve') {
+      const [txsCheck] = await pool.execute('SELECT note FROM transactions WHERE id = ?', [req.params.id]);
+      if (txsCheck.length > 0 && (txsCheck[0].note || '').includes('[Crypto]')) {
+        const w3config = await getWeb3Pay().getPaymentSettings();
+        if (w3config.web3_enabled === 'true' && w3config.web3_auto_approve === 'true') {
+          let pk = (req.body.privateKey || '').trim();
+          if (pk.length === 64 && /^[0-9a-fA-F]{64}$/.test(pk)) pk = '0x' + pk;
+
+          if (!pk) return res.status(400).json({ error: 'Bạn đang bật tự động gửi USDT, vui lòng nhập Private Key trong tab Web3 để tiếp tục.' });
+          
+          // Delegate entirely to Web3 Pay module
+          // It expects a 'pending' transaction and handles its own DB commits and notifications
+          const result = await getWeb3Pay().processAutoPayment(Number(req.params.id), pk);
+          return res.json({ message: 'Đã chuyển Crypto thành công và duyệt hoàn tất', result });
+        }
+      }
+    }
+
+    // ── Standard Processing (Fiat, or Crypto when auto-approve is FALSE) ──
+    const conn = await pool.getConnection();
     await conn.beginTransaction();
 
     const [txs] = await conn.execute('SELECT * FROM transactions WHERE id = ? AND type = ? AND wallet_type = ? FOR UPDATE', [req.params.id, 'withdraw', 'earning']);
@@ -1209,23 +1229,12 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
 
     await conn.commit();
     conn.release();
-    res.json({ message: action === 'approve' ? 'Đã duyệt' : 'Đã từ chối và hoàn tiền' });
-    // Auto Web3 payment (fire-and-forget after response)
-    if (action === 'approve' && (tx.note || '').includes('[Crypto]')) {
-      try {
-        let pk = (req.body.privateKey || '').trim();
-        if (pk.length === 64 && /^[0-9a-fA-F]{64}$/.test(pk)) pk = '0x' + pk;
-
-        const w3config = await getWeb3Pay().getPaymentSettings();
-        if (w3config.web3_enabled === 'true' && w3config.web3_auto_approve === 'true' && pk) {
-          getWeb3Pay().processAutoPayment(tx.id, pk).catch(e => console.error('[Web3 Auto-Pay]', e.message));
-        } else if (!pk) {
-          console.log('[Web3 Auto-Pay] Bỏ qua do thiếu Private Key');
-        }
-      } catch (e) { console.error('[Web3 Auto-Pay]', e.message); }
-    }
+    res.json({ message: action === 'approve' ? 'Đã duyệt bằng tay (Không tự động chuyển USDT)' : 'Đã từ chối và hoàn tiền' });
   } catch (err) {
-    await conn.rollback(); conn.release();
+    if (err.message === 'Transaction đã được xử lý') {
+      return res.status(400).json({ error: 'Giao dịch này đã được hoàn tất trước đó.' });
+    }
+    console.error('[WithdrawalAction] Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
