@@ -61,7 +61,7 @@ export default function AdminConfig() {
   const [web3Payments, setWeb3Payments] = useState([]);
   const [payingId, setPayingId] = useState(null);
   const [batchPaying, setBatchPaying] = useState(false);
-  const [web3Tab, setWeb3Tab] = useState('status');
+  const [web3Tab, setWeb3Tab] = useState('history');
 
   useEffect(() => {
     api.get('/admin/settings/site')
@@ -271,71 +271,17 @@ export default function AdminConfig() {
           </div>
         )}
 
-        {/* Sub-tabs: Pending | History */}
+        {/* Payment history */}
         {web3Status?.enabled && (
           <div className="border-t border-slate-200">
             <div className="flex gap-0 border-b border-slate-100">
-              {[['status', `Chờ thanh toán (${pendingCrypto.length})`], ['history', 'Lịch sử']].map(([k, l]) => (
+              {[['history', 'Lịch sử giao dịch Web3']].map(([k, l]) => (
                 <button key={k} onClick={() => setWeb3Tab(k)}
                   className={`px-4 py-2.5 text-xs font-bold transition ${web3Tab === k ? 'text-emerald-600 border-b-2 border-emerald-500' : 'text-slate-400 hover:text-slate-600'}`}>
                   {l}
                 </button>
               ))}
             </div>
-
-            {/* Pending crypto withdrawals */}
-            {web3Tab === 'status' && (
-              <div className="p-4 space-y-3">
-                {pendingCrypto.length > 0 && (
-                  <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                    <p className="text-xs font-bold text-slate-700">
-                      <Zap size={12} className="inline text-emerald-600 mr-1" />
-                      {pendingCrypto.length} yêu cầu — {fmt(pendingCrypto.reduce((s, w) => s + Number(w.amount), 0))} VNĐ
-                    </p>
-                    <button onClick={handleBatchPay} disabled={batchPaying}
-                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold rounded-lg transition disabled:opacity-50 flex items-center gap-1">
-                      {batchPaying ? <><RefreshCw size={11} className="animate-spin" /> Đang xử lý...</> : <><Send size={11} /> Pay All</>}
-                    </button>
-                  </div>
-                )}
-                {pendingCrypto.length === 0 ? (
-                  <p className="text-center text-slate-400 text-xs py-6">Không có yêu cầu crypto nào đang chờ</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-xs">
-                      <thead className="bg-slate-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-slate-500">Worker</th>
-                          <th className="px-3 py-2 text-right text-slate-500">Số tiền</th>
-                          <th className="px-3 py-2 text-left text-slate-500">Ví nhận</th>
-                          <th className="px-3 py-2 text-center text-slate-500"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {pendingCrypto.map(w => (
-                          <tr key={w.id} className="hover:bg-slate-50/70">
-                            <td className="px-3 py-2">
-                              <p className="font-semibold text-slate-800">{w.user_name || '—'}</p>
-                            </td>
-                            <td className="px-3 py-2 text-right font-bold text-slate-800">{fmt(w.amount)} đ</td>
-                            <td className="px-3 py-2 font-mono text-slate-400 truncate max-w-[140px]">
-                              {(w.note || '').replace('[Crypto] ', '').split(' | ')[0]}
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <button onClick={() => handlePay(w.id)} disabled={payingId === w.id}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold rounded-lg transition disabled:opacity-50">
-                                {payingId === w.id ? <RefreshCw size={10} className="animate-spin" /> : <UsdtIcon size={11} />}
-                                {payingId === w.id ? 'Đang gửi...' : 'Pay'}
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Payment history */}
             {web3Tab === 'history' && (

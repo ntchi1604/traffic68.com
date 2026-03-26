@@ -1114,6 +1114,65 @@ router.get('/worker-withdrawals', async (req, res) => {
   }
 });
 
+// ── PUT /api/admin/worker-withdrawals/bulk ──
+router.put('/worker-withdrawals/bulk', async (req, res) => {
+  const pool = getPool();
+  const { action, ids } = req.body; // 'approve' or 'reject', array of ids
+  if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'Hành động không hợp lệ' });
+  if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'Danh sách trống' });
+
+  const conn = await pool.getConnection();
+  await conn.beginTransaction();
+  const processedIds = [];
+
+  try {
+    for (const id of ids) {
+      const [txs] = await conn.execute(
+        'SELECT * FROM transactions WHERE id = ? AND type = ? AND wallet_type = ? FOR UPDATE',
+        [id, 'withdraw', 'earning']
+      );
+      if (!txs[0] || txs[0].status !== 'pending') continue;
+
+      const tx = txs[0];
+      const newStatus = action === 'approve' ? 'completed' : 'rejected';
+      await conn.execute('UPDATE transactions SET status = ? WHERE id = ?', [newStatus, tx.id]);
+
+      if (action === 'reject') {
+        // Hoàn lại tiền vào ví earning
+        await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [tx.amount, tx.user_id, 'earning']);
+      }
+
+      // Thông báo cho user
+      const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
+      await conn.execute(
+        `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+        [
+          tx.user_id,
+          action === 'approve' ? 'Rút tiền thành công' : 'Rút tiền bị từ chối',
+          action === 'approve' ? `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) đã được duyệt.` : `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) bị từ chối. Số tiền đã hoàn lại ví.`,
+          action === 'approve' ? 'success' : 'warning',
+          'worker'
+        ]
+      );
+      processedIds.push(id);
+    }
+
+    await conn.commit();
+    conn.release();
+
+    res.json({ message: `Đã xử lý ${processedIds.length} yêu cầu`, ids: processedIds });
+
+    // Không kích hoạt auto-pay crypto khi dùng bulk approve, 
+    // vì ta đã thống nhất thanh toán Crypto sẽ xử lý trực tiếp = privateKey từ frontend trong tab Rút Tiền
+
+  } catch (err) {
+    await conn.rollback();
+    conn.release();
+    console.error('[WorkerBulkWithdraw] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── PUT /api/admin/worker-withdrawals/:id ──
 router.put('/worker-withdrawals/:id', async (req, res) => {
   const pool = getPool();

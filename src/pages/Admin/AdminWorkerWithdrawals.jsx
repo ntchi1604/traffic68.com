@@ -12,6 +12,7 @@ export default function AdminWorkerWithdrawals() {
   const [rows, setRows] = useState([]);
   const [filter, setFilter] = useState('pending');
   const [loading, setLoading] = useState(true);
+  const [processingBatch, setProcessingBatch] = useState(false);
 
   const fetch = () => {
     setLoading(true);
@@ -31,17 +32,56 @@ export default function AdminWorkerWithdrawals() {
     } catch (err) { toast.error(err.message); }
   };
 
+  const handleBulkAction = async (action) => {
+    const text = action === 'approve' ? 'Duyệt tất cả' : 'Từ chối tất cả';
+    if (!await toast.confirm(`Xác nhận ${text.toLowerCase()} ${rows.length} yêu cầu?`)) return;
+    setProcessingBatch(true);
+    try {
+      const { ids } = await api.put('/admin/worker-withdrawals/bulk', { 
+        action, 
+        ids: rows.map(r => r.id) 
+      });
+      toast.success(`Đã xử lý ${ids.length} yêu cầu`);
+      fetch();
+    } catch (err) {
+      toast.error(err.message || 'Lỗi xử lý hàng loạt');
+    } finally {
+      setProcessingBatch(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-black text-slate-900">Rút tiền</h1>
       </div>
 
-      <div className="flex gap-2">
-        {[['pending', 'Chờ duyệt'], ['completed', 'Đã duyệt'], ['rejected', 'Từ chối'], ['all', 'Tất cả']].map(([v, l]) => (
-          <button key={v} onClick={() => setFilter(v)}
-            className={`px-3 py-2 text-xs font-bold rounded-lg transition ${filter === v ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{l}</button>
-        ))}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex gap-2">
+          {[['pending', 'Chờ duyệt'], ['completed', 'Đã duyệt'], ['rejected', 'Từ chối'], ['all', 'Tất cả']].map(([v, l]) => (
+            <button key={v} onClick={() => setFilter(v)} disabled={processingBatch}
+              className={`px-3 py-2 text-xs font-bold rounded-lg transition ${filter === v ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'} disabled:opacity-50`}>{l}</button>
+          ))}
+        </div>
+
+        {filter === 'pending' && rows.length > 0 && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleBulkAction('approve')} disabled={processingBatch}
+              className="flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
+            >
+              {processingBatch ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle2 size={14} />}
+              {processingBatch ? 'Đang xử lý...' : `Duyệt tất cả (${rows.length})`}
+            </button>
+            <button
+              onClick={() => handleBulkAction('reject')} disabled={processingBatch}
+              className="flex items-center gap-1.5 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
+            >
+              <XCircle size={14} />
+              Từ chối tất cả
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
