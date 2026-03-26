@@ -572,7 +572,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   } catch { }
 
   // Count view + auto-complete
-  await pool.execute('UPDATE campaigns SET views_done = views_done + 1 WHERE id = ?', [task.campaign_id]);
+  await pool.execute('UPDATE campaigns SET views_done = COALESCE(views_done, 0) + 1 WHERE id = ?', [task.campaign_id]);
   await pool.execute(
     `UPDATE campaigns SET status = 'completed' WHERE id = ? AND views_done >= total_views AND status != 'completed'`,
     [task.campaign_id]
@@ -586,7 +586,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
 
   const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = CURDATE()', [task.campaign_id]);
   if (logs.length > 0) {
-    await pool.execute(`UPDATE traffic_logs SET clicks = clicks + 1, ${deviceCol} = ${deviceCol} + 1 WHERE id = ?`, [logs[0].id]);
+    await pool.execute(`UPDATE traffic_logs SET clicks = COALESCE(clicks, 0) + 1, views = COALESCE(views, 0) + 1, ${deviceCol} = COALESCE(${deviceCol}, 0) + 1 WHERE id = ?`, [logs[0].id]);
   } else {
     await pool.execute(
       `INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source, ${deviceCol}) VALUES (?, CURDATE(), 1, 1, 1, ?, 1)`,
