@@ -268,7 +268,16 @@ async function _handleTaskPost(req, res) {
   );
   let totalCampaigns = countRows[0].cnt;
 
-  // Removing fallback logic so it doesn't give the user the exact same campaign they just skipped
+  // Nếu user bấm "Đổi nhiệm vụ" (loại trừ ID cũ) nhưng hệ thống chỉ còn đúng 1 mẩu task duy nhất
+  // -> Xóa bộ lọc loại trừ và ưu tiên trả về task đó để user không bị rỗng nhiệm vụ.
+  if (totalCampaigns === 0 && excludeFilter) {
+    const [countAll] = await pool.execute(
+      `SELECT COUNT(*) as cnt FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}`
+    );
+    totalCampaigns = countAll[0].cnt;
+    excludeFilter = '';
+  }
+
   if (totalCampaigns === 0) {
     // Debug: log to identify why no campaigns available
     try {
