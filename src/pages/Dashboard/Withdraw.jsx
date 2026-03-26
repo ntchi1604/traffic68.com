@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
-import { Wallet, Building2, Bitcoin, AlertCircle, CheckCircle2, Clock, Globe } from 'lucide-react';
+import { Wallet, Building2, Bitcoin, AlertCircle, CheckCircle2, Clock, Globe, Gift } from 'lucide-react';
 import api from '../../lib/api';
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
@@ -19,8 +19,10 @@ export default function Withdraw() {
   const [cryptoAddress, setCryptoAddress] = useState('');
   const [trafficSource, setTrafficSource] = useState('');
   const [balance, setBalance] = useState(0);
+  const [commission, setCommission] = useState(0);
   const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [transferring, setTransferring] = useState(false);
   const [bankEnabled, setBankEnabled] = useState(true);
   const [cryptoEnabled, setCryptoEnabled] = useState(true);
   const [configLoaded, setConfigLoaded] = useState(false);
@@ -28,8 +30,15 @@ export default function Withdraw() {
 
   const minWithdraw = 50000;
 
+  const fetchBalance = () => {
+    api.get('/vuot-link/worker/balance').then(d => {
+      setBalance(d.balance || 0);
+      setCommission(d.commission || 0);
+    }).catch(() => { });
+  };
+
   useEffect(() => {
-    api.get('/vuot-link/worker/balance').then(d => setBalance(d.balance || 0)).catch(() => { });
+    fetchBalance();
     api.get('/finance/withdrawals').then(d => setWithdrawals(d.withdrawals || [])).catch(() => { });
     // Fetch withdraw method settings
     api.get('/admin/settings/site').then(d => {
@@ -57,6 +66,23 @@ export default function Withdraw() {
       });
   }, []);
 
+  const handleTransferCommission = async () => {
+    if (commission <= 0) return;
+    if (!window.confirm(`Bạn muốn chuyển ${fmt(commission)} VNĐ từ Ví Hoa Hồng sang Ví Thu nhập để rút tiền?`)) return;
+    
+    setTransferring(true);
+    try {
+      const d = await api.post('/finance/transfer', { amount: commission, targetWallet: 'earning' });
+      toast.success(d.message);
+      fetchBalance();
+      api.get('/finance/withdrawals').then(res => setWithdrawals(res.withdrawals || [])).catch(() => { });
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message || 'Lỗi chuyển tiền');
+    } finally {
+      setTransferring(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!trafficSource.trim()) {
@@ -74,8 +100,8 @@ export default function Withdraw() {
       toast.success(d.message, 'Rút tiền');
       setAmount('');
       setTrafficSource('');
-      api.get('/vuot-link/worker/balance').then(d => setBalance(d.balance || 0)).catch(() => { });
-      api.get('/finance/withdrawals').then(d => setWithdrawals(d.withdrawals || [])).catch(() => { });
+      fetchBalance();
+      api.get('/finance/withdrawals').then(res => setWithdrawals(res.withdrawals || [])).catch(() => { });
     } catch (err) {
       toast.error(err.response?.data?.error || err.message || 'Có lỗi xảy ra');
     }
@@ -94,10 +120,25 @@ export default function Withdraw() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-5">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 text-white">
-            <div className="flex items-center gap-3 mb-2"><Wallet size={20} /><span className="text-sm font-medium text-blue-100">Số dư khả dụng</span></div>
-            <p className="text-3xl font-black">{fmt(balance)} đ</p>
-            <p className="text-xs text-blue-200 mt-1">Tối thiểu rút: {fmt(minWithdraw)} đ</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 text-white">
+              <div className="flex items-center gap-3 mb-2"><Wallet size={20} /><span className="text-sm font-medium text-blue-100">Ví Thu nhập</span></div>
+              <p className="text-3xl font-black">{fmt(balance)} đ</p>
+              <p className="text-xs text-blue-200 mt-1">Tối thiểu rút: {fmt(minWithdraw)} đ</p>
+            </div>
+            
+            <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-5 text-white flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-2"><Gift size={20} /><span className="text-sm font-medium text-emerald-100">Ví Hoa hồng</span></div>
+                <p className="text-3xl font-black">{fmt(commission)} đ</p>
+              </div>
+              <button 
+                onClick={handleTransferCommission} 
+                disabled={commission <= 0 || transferring}
+                className="mt-3 w-full bg-white/20 hover:bg-white/30 disabled:opacity-50 text-white text-sm font-bold py-2 rounded-lg transition cursor-pointer disabled:cursor-not-allowed">
+                {transferring ? 'Đang chuyển...' : 'Chuyển sang Thu nhập'}
+              </button>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200/80 p-5 space-y-4">

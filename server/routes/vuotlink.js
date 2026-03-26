@@ -1006,7 +1006,7 @@ router.get('/worker/balance', authMiddleware, async (req, res) => {
     const [wallets] = await pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [req.userId]);
     const map = {};
     wallets.forEach(w => { map[w.type] = Number(w.balance); });
-    res.json({ balance: map.earning || 0, main: map.main || 0 });
+    res.json({ balance: map.earning || 0, main: map.main || 0, commission: map.commission || 0 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -110,13 +110,14 @@ router.get('/transactions', async (req, res) => {
   res.json({ transactions });
 });
 
-// ── POST /api/finance/transfer ── (Commission → Main)
+// ── POST /api/finance/transfer ── (Commission → Main/Earning)
 router.post('/transfer', async (req, res) => {
   const pool = getPool();
-  const { amount } = req.body;
+  const { amount, targetWallet = 'main' } = req.body;
   const num = Number(amount);
 
   if (!num || num <= 0) return res.status(400).json({ error: 'Số tiền phải lớn hơn 0' });
+  if (!['main', 'earning'].includes(targetWallet)) return res.status(400).json({ error: 'Ví nhận không hợp lệ' });
 
   const conn = await pool.getConnection();
   try {
@@ -132,30 +133,31 @@ router.post('/transfer', async (req, res) => {
 
     // Deduct from commission
     await conn.execute('UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = ?', [num, req.userId, 'commission']);
-    // Add to main
-    await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [num, req.userId, 'main']);
+    // Add to target
+    await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [num, req.userId, targetWallet]);
 
     // Transaction records
     const ts = Date.now();
+    const targetName = targetWallet === 'main' ? 'Ví Traffic' : 'Ví Thu Nhập';
     await conn.execute(
       `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.userId, 'commission', 'withdraw', 'transfer', num, 'completed', 'TRF-OUT-' + ts, 'Chuyển sang Ví Traffic']
+      [req.userId, 'commission', 'withdraw', 'transfer', num, 'completed', 'TRF-OUT-' + ts, `Chuyển sang ${targetName}`]
     );
     await conn.execute(
       `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.userId, 'main', 'deposit', 'transfer', num, 'completed', 'TRF-IN-' + ts, 'Nhận từ Ví Hoa Hồng']
+      [req.userId, targetWallet, 'deposit', 'transfer', num, 'completed', 'TRF-IN-' + ts, 'Nhận từ Ví Hoa Hồng']
     );
 
     // Notification
     const fmtAmount = new Intl.NumberFormat('vi-VN').format(num);
     await conn.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
-      [req.userId, 'Chuyển ví thành công', `Đã chuyển ${fmtAmount} VND từ Ví Hoa Hồng sang Ví Traffic.`, 'success', 'buyer']
+      [req.userId, 'Chuyển ví thành công', `Đã chuyển ${fmtAmount} VND từ Ví Hoa Hồng sang ${targetName}.`, 'success', 'all']
     );
 
     await conn.commit();
     conn.release();
-    res.json({ message: `Đã chuyển ${fmtAmount} VND sang Ví Traffic` });
+    res.json({ message: `Đã chuyển ${fmtAmount} VND sang ${targetName}` });
   } catch (err) {
     await conn.rollback();
     conn.release();
