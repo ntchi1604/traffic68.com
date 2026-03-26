@@ -111,13 +111,34 @@ async function processAutoPayment(txId, privateKey) {
   if (tx.status !== 'pending') throw new Error('Transaction đã được xử lý');
   if (tx.type !== 'withdraw') throw new Error('Không phải yêu cầu rút tiền');
 
+  // Atomic lock: change status to 'processing' before talking to blockchain
+  const [lockRes] = await pool.execute(
+    "UPDATE transactions SET status = 'processing' WHERE id = ? AND status = 'pending'",
+    [txId]
+  );
+  if (lockRes.affectedRows === 0) {
+    throw new Error('Giao dịch đang được xử lý bởi một tiến trình khác hoặc đã hoàn tất!');
+  }
+
   const cryptoMatch = (tx.note || '').match(/\[Crypto\]\s*[^-]*-\s*(0x[a-fA-F0-9]{40})/);
-  if (!cryptoMatch) throw new Error('Không tìm thấy địa chỉ ví crypto');
+  if (!cryptoMatch) {
+    await pool.execute("UPDATE transactions SET status = 'pending' WHERE id = ?", [txId]);
+    throw new Error('Không tìm thấy địa chỉ ví crypto');
+  }
 
   const toAddress = cryptoMatch[1];
   const customRate = config.web3_vnd_rate ? parseFloat(config.web3_vnd_rate) : null;
-  const conversion = await convertVndToUSDT(tx.amount, customRate);
-  const payResult = await sendUSDT(privateKey, toAddress, conversion.usdtAmount, gasLimit);
+  let payResult;
+  let conversion;
+
+  try {
+    conversion = await convertVndToUSDT(tx.amount, customRate);
+    payResult = await sendUSDT(privateKey, toAddress, conversion.usdtAmount, gasLimit);
+  } catch (error) {
+    // Revert lock so it can be retried later
+    await pool.execute("UPDATE transactions SET status = 'pending' WHERE id = ?", [txId]);
+    throw error;
+  }
 
   const conn = await pool.getConnection();
   try {

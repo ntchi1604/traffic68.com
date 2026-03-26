@@ -13,6 +13,7 @@ export default function AdminWorkerWithdrawals() {
   const [filter, setFilter] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [processingBatch, setProcessingBatch] = useState(false);
+  const [processingId, setProcessingId] = useState(null);
 
   const fetch = () => {
     setLoading(true);
@@ -25,12 +26,17 @@ export default function AdminWorkerWithdrawals() {
 
   const handleAction = async (id, action) => {
     if (action === 'reject' && !await toast.confirm('Từ chối yêu cầu rút tiền này?')) return;
+    setProcessingId(id);
     try {
       const privateKey = localStorage.getItem('web3_hot_wallet_pk') || '';
       await api.put(`/admin/worker-withdrawals/${id}`, { action, privateKey });
       toast.success(action === 'approve' ? 'Đã duyệt' : 'Đã từ chối');
       fetch();
-    } catch (err) { toast.error(err.message); }
+    } catch (err) { 
+      toast.error(err.message); 
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   const handleBulkAction = async (action) => {
@@ -146,10 +152,14 @@ export default function AdminWorkerWithdrawals() {
                   <td className="px-4 py-3 text-center">
                     {r.status === 'pending' ? (
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => handleAction(r.id, 'approve')}
-                          className="px-2.5 py-1 bg-green-500 hover:bg-green-600 text-white text-[10px] font-bold rounded-lg transition">Duyệt</button>
-                        <button onClick={() => handleAction(r.id, 'reject')}
-                          className="px-2.5 py-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition">Từ chối</button>
+                        <button onClick={() => handleAction(r.id, 'approve')} disabled={processingId === r.id || processingBatch}
+                          className="px-2.5 py-1 bg-green-500 hover:bg-green-600 text-white text-[10px] font-bold rounded-lg transition disabled:opacity-50">
+                          {processingId === r.id ? 'Đang duyệt...' : 'Duyệt'}
+                        </button>
+                        <button onClick={() => handleAction(r.id, 'reject')} disabled={processingId === r.id || processingBatch}
+                          className="px-2.5 py-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition disabled:opacity-50">
+                          Từ chối
+                        </button>
                       </div>
                     ) : <span className="text-slate-300 text-xs">—</span>}
                   </td>
