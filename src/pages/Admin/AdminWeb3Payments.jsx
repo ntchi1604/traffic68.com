@@ -23,6 +23,9 @@ export default function AdminWeb3Payments() {
 
   const [status, setStatus] = useState(null);
   const [payments, setPayments] = useState([]);
+  const [paymentsTotal, setPaymentsTotal] = useState(0);
+  const [paymentsPage, setPaymentsPage] = useState(1);
+  const PAYMENTS_LIMIT = 20;
   const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [payingId, setPayingId] = useState(null);
@@ -55,10 +58,12 @@ export default function AdminWeb3Payments() {
     } catch { }
   }, []);
 
-  const fetchPayments = useCallback(async () => {
+  const fetchPayments = useCallback(async (page = 1) => {
     try {
-      const d = await api.get('/admin/web3/payments');
+      const d = await api.get(`/admin/web3/payments?page=${page}&limit=20`);
       setPayments(d.payments || []);
+      setPaymentsTotal(d.total || 0);
+      setPaymentsPage(page);
     } catch { }
   }, []);
 
@@ -289,58 +294,107 @@ export default function AdminWeb3Payments() {
 
       {/* Tab: History */}
       {tab === 'history' && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-          {payments.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-sm">Chưa có giao dịch Web3</div>
-          ) : (
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-500">TxHash</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-500">Worker</th>
-                  <th className="px-4 py-3 text-right font-semibold text-slate-500">VNĐ</th>
-                  <th className="px-4 py-3 text-right font-semibold text-slate-500">USDT</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-500">Đến</th>
-                  <th className="px-4 py-3 text-center font-semibold text-slate-500">Status</th>
-                  <th className="px-4 py-3 text-right font-semibold text-slate-500">Ngày</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {payments.map(p => (
-                  <tr key={p.id} className="hover:bg-slate-50/70">
-                    <td className="px-4 py-3">
-                      <a href={p.explorer_url} target="_blank" rel="noopener noreferrer"
-                        className="font-mono text-xs text-blue-600 hover:underline flex items-center gap-1">
-                        {p.tx_hash?.slice(0, 10)}...{p.tx_hash?.slice(-6)}
-                        <ExternalLink size={10} />
-                      </a>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-800 text-xs">{p.user_name || '—'}</p>
-                      <p className="text-[10px] text-slate-400">{p.user_email}</p>
-                    </td>
-                    <td className="px-4 py-3 text-right text-xs text-slate-600">{fmt(p.amount_vnd)} đ</td>
-                    <td className="px-4 py-3 text-right font-bold text-xs text-emerald-600">
-                      {Number(p.amount_crypto).toFixed(2)} USDT
-                    </td>
-                    <td className="px-4 py-3 font-mono text-[10px] text-slate-400 truncate max-w-[120px]">
-                      {p.to_address?.slice(0, 8)}...{p.to_address?.slice(-4)}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold
-                        ${p.status === 'success' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>
-                        {p.status === 'success' ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
-                        {p.status === 'success' ? 'Success' : 'Failed'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-400 text-xs">
-                      {new Date(p.created_at).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                    </td>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            {payments.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-sm">Chưa có giao dịch Web3</div>
+            ) : (
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-500">TxHash</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-500">Worker</th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-500">VNĐ</th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-500">USDT</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-500">Đến</th>
+                    <th className="px-4 py-3 text-center font-semibold text-slate-500">Status</th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-500">Ngày</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {payments.map(p => (
+                    <tr key={p.id} className="hover:bg-slate-50/70">
+                      <td className="px-4 py-3">
+                        <a href={p.explorer_url} target="_blank" rel="noopener noreferrer"
+                          className="font-mono text-xs text-blue-600 hover:underline flex items-center gap-1">
+                          {p.tx_hash?.slice(0, 10)}...{p.tx_hash?.slice(-6)}
+                          <ExternalLink size={10} />
+                        </a>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-slate-800 text-xs">{p.user_name || '—'}</p>
+                        <p className="text-[10px] text-slate-400">{p.user_email}</p>
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-slate-600">{fmt(p.amount_vnd)} đ</td>
+                      <td className="px-4 py-3 text-right font-bold text-xs text-emerald-600">
+                        {Number(p.amount_crypto).toFixed(2)} USDT
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[10px] text-slate-400 truncate max-w-[120px]">
+                        {p.to_address?.slice(0, 8)}...{p.to_address?.slice(-4)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold
+                          ${p.status === 'success' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>
+                          {p.status === 'success' ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
+                          {p.status === 'success' ? 'OK' : 'Failed'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-400 text-xs">
+                        {new Date(p.created_at).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Pagination */}
+          {paymentsTotal > PAYMENTS_LIMIT && (() => {
+            const totalPages = Math.ceil(paymentsTotal / PAYMENTS_LIMIT);
+            return (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50">
+                <p className="text-xs text-slate-500">
+                  Trang <span className="font-bold text-slate-700">{paymentsPage}</span> / {totalPages}
+                  <span className="ml-2 text-slate-400">({paymentsTotal} giao dịch)</span>
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => fetchPayments(paymentsPage - 1)}
+                    disabled={paymentsPage === 1}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  >
+                    ‹ Trước
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === totalPages || Math.abs(p - paymentsPage) <= 1)
+                    .reduce((acc, p, i, arr) => {
+                      if (i > 0 && arr[i - 1] !== p - 1) acc.push('...');
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((p, i) => p === '...' ? (
+                      <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span>
+                    ) : (
+                      <button key={p} onClick={() => fetchPayments(p)}
+                        className={`w-8 h-8 text-xs font-bold rounded-lg transition ${
+                          paymentsPage === p ? 'bg-emerald-500 text-white' : 'hover:bg-white border border-slate-200 text-slate-600'
+                        }`}>
+                        {p}
+                      </button>
+                    ))
+                  }
+                  <button
+                    onClick={() => fetchPayments(paymentsPage + 1)}
+                    disabled={paymentsPage === totalPages}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  >
+                    Sau ›
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

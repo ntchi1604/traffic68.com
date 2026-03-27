@@ -97,8 +97,9 @@ router.get('/challenge', async (req, res) => {
   if (!slug && refParam) {
     try {
       const pool = getPool();
+      // Không lọc theo role vì worker mặc định có role='user'
       const [rows] = await pool.execute(
-        `SELECT id FROM users WHERE referral_code = ? AND status = 'active' AND role = 'worker' LIMIT 1`,
+        `SELECT id FROM users WHERE referral_code = ? AND status = 'active' LIMIT 1`,
         [refParam]
       );
       if (rows.length > 0) {
