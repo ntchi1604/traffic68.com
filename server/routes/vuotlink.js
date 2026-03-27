@@ -192,40 +192,20 @@ async function _handleTaskPost(req, res) {
     }
   }
 
-  // ── Desktop vs Mobile analysis ──
-  const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+  // ── Bot detection: headless/webdriver + CreepJS bot flag ──
   if (deviceData) {
     const result = analyzeDevice(deviceData, ua);
     if (result.isFake) {
-      console.log(`[VuotLink] Device warning (NOT blocking): score=${result.score}, type=${result.deviceType}, reasons=${result.reasons.join(',')}, IP=${ip}`);
-      logSecurityEvent('device_fake', ip, ua, visitorId, { score: result.score, reasons: result.reasons, detail: result.detail });
       botDetected = true;
-      detectionLog.push('device_fake');
+      detectionLog.push('headless_or_webdriver');
     }
   }
 
-  // ── 2. CreepJS check — with mobile tolerance ──
-  if (botDetection) {
-    const lied = botDetection.liedSections || [];
-    const mobileSafe = ['clientRects', 'maths', 'css', 'domRect'];
-    const realLies = isMobileDevice ? lied.filter(s => !mobileSafe.some(safe => s === safe || s.startsWith(safe + ':'))) : lied;
-
-    if (isMobileDevice) {
-      if (botDetection.bot === true || realLies.length > 0) {
-        console.log(`[VuotLink] CreepJS mobile warning (NOT blocking): IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
-        logSecurityEvent('creep_detected', ip, ua, visitorId, { ...botDetection, mobileToleranceApplied: true });
-        detectionLog.push('creep_warning_mobile');
-      }
-    } else {
-      if (botDetection.bot === true || realLies.length > 0) {
-        console.log(`[VuotLink] CreepJS desktop warning (NOT blocking): IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
-        logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
-        botDetected = true;
-        detectionLog.push('creep_warning_desktop');
-      }
-    }
+  // CreepJS: chỉ check bot flag đơn giản
+  if (botDetection && botDetection.bot === true) {
+    botDetected = true;
+    detectionLog.push('creepjs_bot');
   }
-
 
 
   // ── Limit check: load setting ONCE ──

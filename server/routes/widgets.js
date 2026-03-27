@@ -330,97 +330,44 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   let botDetected = false;
   let detectionLog = [];
-  let deviceScore = 0;
-  let deviceReasons = '';
 
-  if (!challengeId) {
-    console.log(`[Widget] REJECT get-code: missing challengeId — IP: ${ip}`);
-    return res.status(403).json(ERR);
-  }
+  if (!challengeId) return res.status(403).json(ERR);
   const ch = widgetChallenges[challengeId];
-  if (!ch) {
-    console.log(`[Widget] REJECT get-code: challengeId NOT FOUND in store — IP: ${ip}, challengeId: ${challengeId?.substring(0, 8)}..., storeSize: ${Object.keys(widgetChallenges).length}`);
-    return res.status(403).json(ERR);
-  }
-  if (ch.used) {
-    console.log(`[Widget] REJECT get-code: challenge ALREADY USED — IP: ${ip}, challengeId: ${challengeId?.substring(0, 8)}...`);
-    delete widgetChallenges[challengeId];
-    return res.status(403).json(ERR);
-  }
-  if (Date.now() - ch.createdAt > 600000) {
-    console.log(`[Widget] REJECT get-code: challenge EXPIRED — IP: ${ip}, age: ${Math.round((Date.now() - ch.createdAt) / 1000)}s`);
-    delete widgetChallenges[challengeId];
-    return res.status(403).json(ERR);
-  }
-
-  if (!_ck || _ck !== signWidgetChallenge(challengeId, ch.ip)) {
-    console.log(`[Widget] REJECT get-code: HMAC MISMATCH — IP: ${ip}, challenge IP: ${ch.ip}, hasKey: ${!!_ck}`);
-    return res.status(403).json(ERR);
-  }
+  if (!ch || ch.used) { delete widgetChallenges[challengeId]; return res.status(403).json(ERR); }
+  if (Date.now() - ch.createdAt > 600000) { delete widgetChallenges[challengeId]; return res.status(403).json(ERR); }
+  if (!_ck || _ck !== signWidgetChallenge(challengeId, ch.ip)) return res.status(403).json(ERR);
 
   const v1Phase = req.body?.v1Phase || 0;
   ch.used = true;
 
-  // ── Desktop vs Mobile analysis ──
-  let deviceResult = null;
+  // ── Bot detection: headless/webdriver + CreepJS bot flag ──
   if (deviceData) {
     const result = analyzeDevice(deviceData, ua);
-    deviceResult = result;
-    deviceScore = result.score;
-    deviceReasons = result.reasons.join(',');
-
     if (result.isFake) {
-      console.log(`[Widget] Device warning (NOT blocking): score=${result.score}, type=${result.deviceType}, reasons=${deviceReasons}, IP=${ip}`);
-      logSecurityEvent('device_fake', ip, ua, visitorId, { score: result.score, reasons: result.reasons, detail: result.detail });
       botDetected = true;
-      detectionLog.push('device_fake');
+      detectionLog.push('headless_or_webdriver');
     }
   }
-
-  // ── CreepJS check — with mobile tolerance ──
-  const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
-  if (botDetection) {
-    const lied = botDetection.liedSections || [];
-    const mobileSafe = ['clientRects', 'maths', 'css', 'domRect'];
-    const realLies = isMobileDevice ? lied.filter(s => !mobileSafe.some(safe => s === safe || s.startsWith(safe + ':'))) : lied;
-
-    if (isMobileDevice) {
-      if (botDetection.bot === true || realLies.length > 0) {
-        console.log(`[Widget] CreepJS mobile warning (NOT blocking): IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
-        logSecurityEvent('creep_detected', ip, ua, visitorId, { ...botDetection, mobileToleranceApplied: true });
-        detectionLog.push('creep_warning_mobile');
-      }
-    } else {
-      if (botDetection.bot === true || realLies.length > 0) {
-        console.log(`[Widget] CreepJS desktop warning (NOT blocking): IP=${ip}, bot=${botDetection.bot}, totalLied=${botDetection.totalLied}, lied=${JSON.stringify(lied)}`);
-        logSecurityEvent('creep_detected', ip, ua, visitorId, botDetection);
-        botDetected = true;
-        detectionLog.push('creep_warning_desktop');
-      }
-    }
+  if (botDetection && botDetection.bot === true) {
+    botDetected = true;
+    detectionLog.push('creepjs_bot');
   }
 
-  // ── Save security_detail to active task (combines device analysis + CreepJS + detectionLog) ──
-  try {
-    const [activeTasks] = await pool.execute(
-      `SELECT id FROM vuot_link_tasks WHERE (ip_address = ? OR (visitor_id = ? AND visitor_id IS NOT NULL AND visitor_id != '')) AND status IN ('pending','step1','step2','step3') AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
-      [ip, visitorId || '']
-    );
-    if (activeTasks.length > 0) {
-      const secObj = { detectionLog, isMobile: isMobileDevice };
-      if (deviceResult) {
-        secObj.deviceScore = deviceResult.score;
-        secObj.deviceType = deviceResult.deviceType;
-        secObj.reasons = deviceResult.reasons;
-        secObj.detail = deviceResult.detail;
-      }
-      if (botDetection) secObj.botDetection = botDetection;
-      await pool.execute(
-        `UPDATE vuot_link_tasks SET security_detail = ? WHERE id = ?`,
-        [JSON.stringify(secObj).substring(0, 10000), activeTasks[0].id]
+  // ── Save security_detail (bot flags only) ──
+  if (botDetected && detectionLog.length > 0) {
+    try {
+      const [activeTasks] = await pool.execute(
+        `SELECT id FROM vuot_link_tasks WHERE (ip_address = ? OR (visitor_id = ? AND visitor_id IS NOT NULL AND visitor_id != '')) AND status IN ('pending','step1','step2','step3') AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
+        [ip, visitorId || '']
       );
-    }
-  } catch (e) { }
+      if (activeTasks.length > 0) {
+        await pool.execute(
+          `UPDATE vuot_link_tasks SET security_detail = ? WHERE id = ?`,
+          [JSON.stringify({ botDetected, detectionLog }).substring(0, 1000), activeTasks[0].id]
+        );
+      }
+    } catch (e) { }
+  }
 
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
@@ -528,7 +475,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     await pool.execute("UPDATE vuot_link_tasks SET status = 'step3' WHERE id = ?", [task.id]);
   }
 
-  console.log(`[Widget] Code given — IP: ${ip}, task: #${task.id}, code: ${task.code_given}, elapsed: ${elapsedSeconds}s, deviceScore=${deviceScore}`);
+  console.log(`[Widget] Code given — IP: ${ip}, task: #${task.id}, code: ${task.code_given}, elapsed: ${elapsedSeconds}s, botDetected=${botDetected}`);
 
   res.json({ success: true, code: task.code_given });
 });

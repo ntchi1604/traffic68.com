@@ -85,7 +85,6 @@
     customCSS: '',
     overlapFix: 'none',  // 'auto' | 'zindex' | 'fixed' | 'none'
     hcaptchaSiteKey: '5acaec7e-83b0-464e-ba10-690889fc66ba',
-    clarityId: 'vyua2zk5dc',
     onReveal: null,
     onCopy: null,
   };
@@ -1394,11 +1393,7 @@
         }
         if (callback) callback();
 
-        // Tag Clarity with visitor_id and identify
-        if (window.clarity && _visitorId && _visitorId !== 'unknown') {
-          window.clarity('set', 'visitor_id', _visitorId);
-          window.clarity('identify', _visitorId);
-        }
+
       } else {
         // ── RETRY: Fetch new challenge and try again ──
         console.warn('[LayNut] get-code failed (status=' + xhr.status + '), retry ' + (_fetchRetryCount + 1) + '/' + _MAX_RETRIES);
@@ -1763,15 +1758,6 @@
       circumference = 2 * Math.PI * 36;
 
       injectStyles();
-
-      // Inject Microsoft Clarity for session recording (only tags visitor_id)
-      if (cfg.clarityId && !window.clarity) {
-        (function (c, l, a, r, i, t, y) {
-          c[a] = c[a] || function () { (c[a].q = c[a].q || []).push(arguments) };
-          t = l.createElement(r); t.async = 1; t.src = 'https://www.clarity.ms/tag/' + i;
-          y = l.getElementsByTagName(r)[0]; y.parentNode.insertBefore(t, y);
-        })(window, document, 'clarity', 'script', cfg.clarityId);
-      }
 
       function ready() {
         _initBehaviorTracking();

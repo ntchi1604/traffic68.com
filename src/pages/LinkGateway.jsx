@@ -80,150 +80,17 @@ function getCreepData() {
   });
 }
 
-/* ─── Device data collection (Desktop vs Mobile) ─── */
-const _deviceData = {
-  isMobile: typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent),
-  sensor: { samples: [], isNull: true },
-  gpu: {},
-  hardware: {},
-  battery: {},
-  audio: {},
-  touch: { samples: [], maxTouches: 0 },
-  mouse: [],
-  scroll: [],
-  automation: {},
-};
-let _deviceBound = false;
-
-function bindDeviceCollection() {
-  if (_deviceBound || typeof document === 'undefined') return;
-  _deviceBound = true;
-  const startT = Date.now();
-
-  // Automation flags
-  try {
-    _deviceData.automation.webdriver = !!navigator.webdriver;
-    _deviceData.automation.cdc = !!(window.cdc_adoQpoasnfa76pfcZLmcfl_ || window.cdc_adoQpoasnfa76pfcZLmcfl_Array || window.cdc_adoQpoasnfa76pfcZLmcfl_Promise || window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol);
-    _deviceData.automation.selenium = !!(document.__selenium_unwrapped || document.__webdriver_evaluate || document.__driver_evaluate || window._Selenium_IDE_Recorder || window.__nightmare);
-  } catch (e) { }
-
-  // Hardware
-  _deviceData.hardware.concurrency = navigator.hardwareConcurrency || 0;
-  _deviceData.hardware.memory = navigator.deviceMemory || 0;
-
-  // GPU / WebGL
-  try {
-    const glCv = document.createElement('canvas');
-    glCv.width = 4; glCv.height = 4;
-    const gl = glCv.getContext('webgl') || glCv.getContext('experimental-webgl');
-    if (gl) {
-      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-      _deviceData.gpu.unmaskedRenderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
-
-      // GPU float error test
-      const floatVs = 'attribute vec4 p;void main(){gl_Position=p;}';
-      const floatFs = 'precision highp float;void main(){float a=1.0000000001;float b=1.0;gl_FragColor=vec4(a-b,0,0,1);}';
-      try {
-        const vs = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(vs, floatVs); gl.compileShader(vs);
-        const fs = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(fs, floatFs); gl.compileShader(fs);
-        const pg = gl.createProgram(); gl.attachShader(pg, vs); gl.attachShader(pg, fs); gl.linkProgram(pg); gl.useProgram(pg);
-        gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
-        const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,0,1, 1,-1,0,1, -1,1,0,1, 1,1,0,1]), gl.STATIC_DRAW);
-        const loc = gl.getAttribLocation(pg, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, 0, 0);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-        const fpx = new Uint8Array(4); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, fpx);
-        _deviceData.gpu.floatError = fpx[0];
-      } catch { _deviceData.gpu.floatError = -1; }
-    }
-  } catch { }
-
-  // AudioContext fingerprint
-  try {
-    const AudioCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-    if (AudioCtx) {
-      const actx = new AudioCtx(1, 44100, 44100);
-      const osc = actx.createOscillator();
-      osc.type = 'triangle'; osc.frequency.setValueAtTime(10000, actx.currentTime);
-      const comp = actx.createDynamicsCompressor();
-      comp.threshold.setValueAtTime(-50, actx.currentTime);
-      comp.knee.setValueAtTime(40, actx.currentTime);
-      comp.ratio.setValueAtTime(12, actx.currentTime);
-      comp.attack.setValueAtTime(0, actx.currentTime);
-      comp.release.setValueAtTime(0.25, actx.currentTime);
-      osc.connect(comp); comp.connect(actx.destination);
-      osc.start(0);
-      actx.startRendering().then(audioBuffer => {
-        try {
-          const data = audioBuffer.getChannelData(0);
-          let hash = 0;
-          for (let i = 4500; i < 5000; i++) hash += Math.abs(data[i]);
-          _deviceData.audio.hash = Math.round(hash * 1000000) / 1000000;
-        } catch { _deviceData.audio.error = true; }
-      }).catch(() => { _deviceData.audio.error = true; });
-    }
-  } catch { _deviceData.audio.error = true; }
-
-  // Battery API
-  if (navigator.getBattery) {
-    try {
-      navigator.getBattery().then(b => {
-        _deviceData.battery.level = b.level;
-        _deviceData.battery.charging = b.charging;
-        _deviceData.battery.chargingTime = b.chargingTime;
-        _deviceData.battery.dischargingTime = b.dischargingTime;
-      }).catch(() => {});
-    } catch { }
-  }
-
-  // Mobile: Sensor data (Gyro/Accel)
-  if (_deviceData.isMobile) {
-    const sensorSamples = [];
-    const sensorHandler = (e) => {
-      if (e.alpha != null || e.beta != null || e.gamma != null) {
-        _deviceData.sensor.isNull = false;
-        sensorSamples.push({ alpha: e.alpha, beta: e.beta, gamma: e.gamma, t: Date.now() - startT });
-        if (sensorSamples.length > 20) sensorSamples.shift();
-      }
-    };
-    window.addEventListener('deviceorientation', sensorHandler, { passive: true });
-    setTimeout(() => {
-      window.removeEventListener('deviceorientation', sensorHandler);
-      _deviceData.sensor.samples = sensorSamples;
-    }, 6000);
-
-    // Touch tracking
-    document.addEventListener('touchstart', (e) => {
-      if (e.touches.length > _deviceData.touch.maxTouches) _deviceData.touch.maxTouches = e.touches.length;
-    }, { passive: true });
-    document.addEventListener('touchmove', (e) => {
-      const t = e.touches[0]; if (!t) return;
-      const entry = { x: Math.round(t.clientX), y: Math.round(t.clientY), t: Date.now() - startT };
-      if (t.radiusX) { entry.rx = Math.round(t.radiusX); entry.ry = Math.round(t.radiusY); }
-      if (t.force) entry.force = Math.round(t.force * 100) / 100;
-      _deviceData.touch.samples.push(entry);
-      if (_deviceData.touch.samples.length > 40) _deviceData.touch.samples.shift();
-    }, { passive: true });
-  }
-
-  // Mouse trail
-  document.addEventListener('mousemove', (e) => {
-    _deviceData.mouse.push({ x: e.clientX, y: e.clientY, t: Date.now() - startT });
-    if (_deviceData.mouse.length > 60) _deviceData.mouse.shift();
-  }, { passive: true });
-
-  // Scroll events
-  window.addEventListener('scroll', () => {
-    const y = window.scrollY || 0;
-    _deviceData.scroll.push({ y, t: Date.now() - startT });
-    if (_deviceData.scroll.length > 40) _deviceData.scroll.shift();
-  }, { passive: true });
-}
-if (typeof window !== 'undefined') bindDeviceCollection();
-
+/* ─── Device data: chỉ cần automation flags cho bot detection ─── */
 function getDeviceData() {
-  return _deviceData;
+  const automation = {};
+  try {
+    automation.webdriver = !!navigator.webdriver;
+    automation.cdc = !!(window.cdc_adoQpoasnfa76pfcZLmcfl_ || window.cdc_adoQpoasnfa76pfcZLmcfl_Array);
+    automation.selenium = !!(document.__selenium_unwrapped || document.__webdriver_evaluate || window._Selenium_IDE_Recorder);
+  } catch (e) { }
+  return { automation };
 }
+
 
 const API = '/api/vuot-link';
 
