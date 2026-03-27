@@ -95,7 +95,10 @@ export default function AdminReferrals({ type = 'buyers' }) {
             </button>
           </div>
           <p className="text-[11px] text-slate-400 mt-1.5">
-            Ví dụ: {commission || 5}% → nạp 1.000.000đ = <strong className="text-amber-600">{Math.floor(1000000 * Number(commission || 5) / 100).toLocaleString('vi-VN')}đ</strong> hoa hồng
+            {type === 'workers'
+              ? <>Ví dụ: {commission || 5}% → worker ref kiếm 100.000đ = <strong className="text-amber-600">{Math.floor(100000 * Number(commission || 5) / 100).toLocaleString('vi-VN')}đ</strong> hoa hồng cho người giới thiệu</>
+              : <>Ví dụ: {commission || 5}% → nạp 1.000.000đ = <strong className="text-amber-600">{Math.floor(1000000 * Number(commission || 5) / 100).toLocaleString('vi-VN')}đ</strong> hoa hồng</>
+            }
           </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
