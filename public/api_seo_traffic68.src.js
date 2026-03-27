@@ -158,13 +158,14 @@
   var _detectionReady = false;
   var _detectionCallbacks = [];
   var _botDetection = null;
-  var _noCampaign = false; // true when campaignFound: false — show msg instead of code
-  var _hcaptchaToken = ''; // hCaptcha response token
+  var _noCampaign = false;
+  var _hcaptchaToken = '';
   var _hcaptchaLoaded = false;
   var _hcaptchaRendered = false;
-  var _captchaEnabled = true; // controlled by admin config
-  var _campVersion = 0; // 0 = default, 1 = multi-step
-  var _v1Phase2Wait = 0; // seconds for V1 phase 2 countdown
+  var _captchaEnabled = true;
+  var _campVersion = 0;
+  var _v1Phase2Wait = 0;
+  var _isDirect = false;
 
   var _fpLoaded = false;
   function _loadDetectionLibs(callback) {
@@ -1155,8 +1156,8 @@
     var effectiveIcon = cfg.iconUrl || defaultIcon();
     var iconBgStyle = cfg.iconBg !== 'transparent' ? 'background:' + cfg.iconBg + ';border-radius:6px;padding:2px;' : '';
 
-    var popupTitle = _requireGoogle ? 'Truy cập từ Google' : 'Chưa có phiên làm việc';
-    var popupMsg = _requireGoogle
+    var popupTitle = (_requireGoogle && !_isDirect) ? 'Truy cập từ Google' : 'Chưa có phiên làm việc';
+    var popupMsg = (_requireGoogle && !_isDirect)
       ? 'Bạn cần tìm kiếm trên Google và truy cập trang này từ kết quả tìm kiếm để nhận mã.'
       : 'Vui lòng bắt đầu từ trang vượt link trước hoặc cùng trình duyệt để nhận mã.';
 
@@ -1363,7 +1364,7 @@
           dpr: window.devicePixelRatio || 1
         }
       },
-      pageReferrer: document.referrer || ''
+      pageReferrer: _isDirect ? '' : (document.referrer || '')
     };
   }
 
@@ -1805,6 +1806,7 @@
               try {
                 var resp = JSON.parse(xhr.responseText);
                 if (resp._t) _sessionToken = resp._t; // save session token
+                if (resp.isDirect) _isDirect = true; // direct traffic — skip referrer checks
                 var config = resp.config || {};
                 if (!resp.campaignFound) {
                   _noCampaign = true; // mark — show button/countdown but no code

@@ -920,6 +920,7 @@ function ShakeChallenge({ onPass, onClose }) {
         } catch (e) { return; }
       }
       const handler = (e) => {
+        if (!e.isTrusted) return;
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
         const total = Math.abs(acc.x || 0) + Math.abs(acc.y || 0) + Math.abs(acc.z || 0);
@@ -1046,8 +1047,8 @@ function CurveChallenge({ onPass, onClose }) {
       const t = i / (n - 1);
       const mt = 1 - t;
       return {
-        x: mt**3*x0 + 3*mt**2*t*x1 + 3*mt*t**2*x2 + t**3*x3,
-        y: mt**3*y0 + 3*mt**2*t*y1 + 3*mt*t**2*y2 + t**3*y3,
+        x: mt ** 3 * x0 + 3 * mt ** 2 * t * x1 + 3 * mt * t ** 2 * x2 + t ** 3 * x3,
+        y: mt ** 3 * y0 + 3 * mt ** 2 * t * y1 + 3 * mt * t ** 2 * y2 + t ** 3 * y3,
       };
     });
   };
@@ -1056,13 +1057,18 @@ function CurveChallenge({ onPass, onClose }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const W = canvas.width = canvas.offsetWidth;
-    const H = canvas.height = canvas.offsetHeight;
+
+    // Fix: dùng offsetWidth và height cố định 220px
+    // offsetHeight thường = 0 khi mount, nên set cứng
+    const W = canvas.width = canvas.offsetWidth || canvas.parentElement?.offsetWidth || 560;
+    const H = canvas.height = 220;
+
     const state = stateRef.current;
     state.pts = genCurve(W, H);
     state.samples = sampleBezier(state.pts);
     state.progress = 0;
     state.isDragging = false;
+    state.passed = false;
 
     const draw = () => {
       ctx.clearRect(0, 0, W, H);
@@ -1107,49 +1113,62 @@ function CurveChallenge({ onPass, onClose }) {
         ctx.stroke();
       }
 
-      // Start dot
+      // Start dot (pulsing)
       ctx.beginPath();
-      ctx.arc(state.pts[0].x, state.pts[0].y, 10, 0, Math.PI*2);
+      ctx.arc(state.pts[0].x, state.pts[0].y, 12, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(124,58,237,0.2)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(state.pts[0].x, state.pts[0].y, 8, 0, Math.PI*2);
       ctx.fillStyle = '#7C3AED';
       ctx.fill();
 
       // End dot
       const endPt = state.pts[3];
       ctx.beginPath();
-      ctx.arc(endPt.x, endPt.y, 10, 0, Math.PI*2);
-      ctx.fillStyle = state.passed ? '#22C55E' : '#E2E8F0';
+      ctx.arc(endPt.x, endPt.y, 12, 0, Math.PI*2);
+      ctx.fillStyle = state.passed ? 'rgba(34,197,94,0.2)' : 'rgba(226,232,240,0.2)';
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(endPt.x, endPt.y, 10, 0, Math.PI*2);
-      ctx.strokeStyle = '#CBD5E1';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      ctx.arc(endPt.x, endPt.y, 8, 0, Math.PI*2);
+      ctx.fillStyle = state.passed ? '#22C55E' : '#94A3B8';
+      ctx.fill();
 
       // Labels
-      ctx.fillStyle = '#7C3AED';
-      ctx.font = 'bold 12px Inter,sans-serif';
-      ctx.fillText('BẮT ĐẦU', state.pts[0].x - 30, state.pts[0].y - 18);
-      ctx.fillStyle = '#64748B';
-      ctx.fillText('KẾT THÚC', endPt.x - 30, endPt.y - 18);
+      ctx.fillStyle = '#A78BFA';
+      ctx.font = 'bold 11px Inter,sans-serif';
+      ctx.fillText('BẮT ĐẦU', state.pts[0].x - 28, state.pts[0].y - 16);
+      ctx.fillStyle = '#94A3B8';
+      ctx.fillText('KẾT THÚC', endPt.x - 28, endPt.y - 16);
 
       animRef.current = requestAnimationFrame(draw);
     };
     animRef.current = requestAnimationFrame(draw);
 
+    // Fix: tính scale ratio vì canvas internal px ≠ CSS display px
     const getPos = (e) => {
       const rect = canvas.getBoundingClientRect();
+      const scaleX = W / rect.width;   // internal / display
+      const scaleY = H / rect.height;
       const src = e.touches ? e.touches[0] : e;
-      return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+      return {
+        x: (src.clientX - rect.left) * scaleX,
+        y: (src.clientY - rect.top) * scaleY,
+      };
     };
 
     const onMove = (e) => {
       if (!state.isDragging) return;
+      // 🛡️ isTrusted: synthetic JS events = false
+      if (!e.isTrusted) { state.isDragging = false; return; }
       e.preventDefault();
+
       const { x, y } = getPos(e);
+
       const current = state.progress;
       const sample = state.samples[current] || state.samples[state.samples.length - 1];
       const dx = x - sample.x, dy = y - sample.y;
-      const dist = Math.sqrt(dx*dx + dy*dy);
+      const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < 32) {
         state.progress = Math.min(current + 1, state.samples.length);
         const pct = Math.round((state.progress / state.samples.length) * 100);
@@ -1162,8 +1181,14 @@ function CurveChallenge({ onPass, onClose }) {
       }
     };
 
-    const onDown = (e) => { state.isDragging = true; setStarted(true); onMove(e); };
-    const onUp   = () => { state.isDragging = false; };
+    const onDown = (e) => {
+      if (!e.isTrusted) return;
+      state.isDragging = true;
+      setStarted(true);
+      onMove(e);
+    };
+
+    const onUp = () => { state.isDragging = false; };
 
     canvas.addEventListener('mousedown', onDown);
     canvas.addEventListener('mousemove', onMove);

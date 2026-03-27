@@ -115,7 +115,7 @@ router.get('/public/:token', async (req, res) => {
       const normalPage = normalize(pageUrl);
 
       const [campaigns] = await pool.execute(
-        `SELECT id, url, url2, time_on_site, keyword, version, target_page FROM campaigns 
+        `SELECT id, url, url2, time_on_site, keyword, version, target_page, traffic_type FROM campaigns 
          WHERE user_id = ? AND status = 'running' AND views_done < total_views 
          ORDER BY created_at DESC`,
         [widgets[0].user_id]
@@ -135,7 +135,7 @@ router.get('/public/:token', async (req, res) => {
           } else {
             waitTime = parseInt(tos) || 30;
           }
-          campaignInfo = { campaignId: camp.id, waitTime, version: camp.version || 0, targetPage: camp.target_page || '' };
+          campaignInfo = { campaignId: camp.id, waitTime, version: camp.version || 0, targetPage: camp.target_page || '', trafficType: camp.traffic_type || 'google_search' };
           break;
         }
       }
@@ -166,6 +166,8 @@ router.get('/public/:token', async (req, res) => {
   }
 
   const resp = { campaignFound: !!campaignInfo, captchaEnabled };
+  if (campaignInfo && campaignInfo.trafficType) resp.trafficType = campaignInfo.trafficType;
+  if (campaignInfo && campaignInfo.trafficType === 'direct') resp.isDirect = true;
   if (Object.keys(overrides).length > 0) resp.config = overrides;
   if (campaignInfo && campaignInfo.version === 1) {
     resp.version = 1;
