@@ -140,6 +140,8 @@ CREATE TABLE IF NOT EXISTS vuot_link_tasks (
   id           INT PRIMARY KEY AUTO_INCREMENT,
   campaign_id  INT NOT NULL,
   worker_id    INT DEFAULT NULL,
+  worker_link_id INT DEFAULT NULL,
+  ref_worker_id  INT DEFAULT NULL,
   keyword      VARCHAR(255) NOT NULL DEFAULT '',
   target_url   TEXT NOT NULL,
   target_page  VARCHAR(500) DEFAULT '',
@@ -160,9 +162,12 @@ CREATE TABLE IF NOT EXISTS vuot_link_tasks (
   KEY idx_ip_status         (ip_address, status, created_at),
   KEY idx_ip_ua_status      (ip_address(50), status),
   KEY idx_status_expires    (status, expires_at),
-  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
-  FOREIGN KEY (worker_id) REFERENCES users(id)
+  FOREIGN KEY (campaign_id)    REFERENCES campaigns(id) ON DELETE CASCADE,
+  FOREIGN KEY (worker_id)      REFERENCES users(id),
+  FOREIGN KEY (worker_link_id) REFERENCES worker_links(id) ON DELETE SET NULL,
+  FOREIGN KEY (ref_worker_id)  REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 
 CREATE TABLE IF NOT EXISTS pricing_tiers (
   id             INT PRIMARY KEY AUTO_INCREMENT,
@@ -176,6 +181,15 @@ CREATE TABLE IF NOT EXISTS pricing_tiers (
   UNIQUE KEY unique_tier (traffic_type, duration)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Migration cho DB đang chạy (chạy 1 lần nếu bảng đã tồn tại) ──
+-- Lưu ý: MySQL 5.x không hỗ trợ IF NOT EXISTS trong ALTER TABLE ADD COLUMN
+-- Nếu báo "Duplicate column name" thì cột đã tồn tại, bỏ qua câu đó.
+-- ALTER TABLE vuot_link_tasks ADD COLUMN worker_link_id INT DEFAULT NULL AFTER worker_id;
+-- ALTER TABLE vuot_link_tasks ADD COLUMN ref_worker_id  INT DEFAULT NULL AFTER worker_link_id;
+-- ALTER TABLE vuot_link_tasks ADD CONSTRAINT fk_vlt_worker_link FOREIGN KEY (worker_link_id) REFERENCES worker_links(id) ON DELETE SET NULL;
+-- ALTER TABLE vuot_link_tasks ADD CONSTRAINT fk_vlt_ref_worker  FOREIGN KEY (ref_worker_id)  REFERENCES users(id) ON DELETE SET NULL;
+-- ALTER TABLE worker_links ADD COLUMN hidden TINYINT NOT NULL DEFAULT 0 AFTER destination_url;
+
 CREATE TABLE IF NOT EXISTS site_settings (
   setting_key   VARCHAR(100) PRIMARY KEY,
   setting_value TEXT NOT NULL,
@@ -188,6 +202,7 @@ CREATE TABLE IF NOT EXISTS worker_links (
   slug            VARCHAR(20) NOT NULL UNIQUE,
   title           VARCHAR(255),
   destination_url VARCHAR(2048) NOT NULL,
+  hidden          TINYINT NOT NULL DEFAULT 0,
   click_count     INT NOT NULL DEFAULT 0,
   completed_count INT NOT NULL DEFAULT 0,
   earning         DECIMAL(15,2) NOT NULL DEFAULT 0,
