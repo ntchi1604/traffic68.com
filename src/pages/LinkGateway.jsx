@@ -754,12 +754,9 @@ export default function LinkGateway() {
                   </div>
                 ))}
 
-                {/* Divider */}
                 <div style={{ borderTop: '1.5px dashed #BBF7D0', margin: 0 }} />
 
-                {/* Code input — gated behind Human Challenge */}
                 {!humanPassed ? (
-                  // Human Gate: unlock button
                   <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
                     <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 12px' }}>
                       {isMobileDevice
@@ -898,11 +895,6 @@ function CopyBtn({ text }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   SHAKE CHALLENGE (Mobile only)
-   Yêu cầu user lắc điện thoại 3 lần. Phát hiện qua DeviceMotionEvent.
-   Threshold: gia tốc tuyệt đối > 15 m/s², loại bỏ rung nhỏ < 500ms.
-───────────────────────────────────────────────────────────────── */
 function ShakeChallenge({ onPass, onClose }) {
   const [shakeCount, setShakeCount] = useState(0);
   const [flashing, setFlashing] = useState(false);
@@ -911,7 +903,6 @@ function ShakeChallenge({ onPass, onClose }) {
   const TARGET = 3;
 
   useEffect(() => {
-    // iOS 13+ cần request permission
     const requestAndListen = async () => {
       if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
         try {
@@ -1025,10 +1016,10 @@ function ShakeChallenge({ onPass, onClose }) {
 function _genCurve(w, h) {
   const m = 60;
   return [
-    { x: m + Math.random() * w * 0.2,         y: m + Math.random() * (h - m * 2) },
-    { x: w * 0.3 + Math.random() * w * 0.15,  y: m + Math.random() * (h - m * 2) },
+    { x: m + Math.random() * w * 0.2, y: m + Math.random() * (h - m * 2) },
+    { x: w * 0.3 + Math.random() * w * 0.15, y: m + Math.random() * (h - m * 2) },
     { x: w * 0.55 + Math.random() * w * 0.15, y: m + Math.random() * (h - m * 2) },
-    { x: w - m - Math.random() * w * 0.2,     y: m + Math.random() * (h - m * 2) },
+    { x: w - m - Math.random() * w * 0.2, y: m + Math.random() * (h - m * 2) },
   ];
 }
 function _sampleBezier(pts, n = 120) {
@@ -1036,8 +1027,8 @@ function _sampleBezier(pts, n = 120) {
   return Array.from({ length: n }, (_, i) => {
     const t = i / (n - 1), mt = 1 - t;
     return {
-      x: mt**3*p0.x + 3*mt**2*t*p1.x + 3*mt*t**2*p2.x + t**3*p3.x,
-      y: mt**3*p0.y + 3*mt**2*t*p1.y + 3*mt*t**2*p2.y + t**3*p3.y,
+      x: mt ** 3 * p0.x + 3 * mt ** 2 * t * p1.x + 3 * mt * t ** 2 * p2.x + t ** 3 * p3.x,
+      y: mt ** 3 * p0.y + 3 * mt ** 2 * t * p1.y + 3 * mt * t ** 2 * p2.y + t ** 3 * p3.y,
     };
   });
 }
@@ -1118,7 +1109,6 @@ function CurveChallenge({ onPass, onClose }) {
         ctx.stroke();
       }
 
-      // Start dot (pulsing)
       ctx.beginPath();
       ctx.arc(state.pts[0].x, state.pts[0].y, 12, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(124,58,237,0.2)';
@@ -1128,7 +1118,6 @@ function CurveChallenge({ onPass, onClose }) {
       ctx.fillStyle = '#7C3AED';
       ctx.fill();
 
-      // End dot
       const endPt = state.pts[3];
       ctx.beginPath();
       ctx.arc(endPt.x, endPt.y, 12, 0, Math.PI * 2);
@@ -1139,7 +1128,6 @@ function CurveChallenge({ onPass, onClose }) {
       ctx.fillStyle = state.passed ? '#22C55E' : '#94A3B8';
       ctx.fill();
 
-      // Labels
       ctx.fillStyle = '#A78BFA';
       ctx.font = 'bold 11px Inter,sans-serif';
       ctx.fillText('BẮT ĐẦU', state.pts[0].x - 28, state.pts[0].y - 16);
@@ -1153,32 +1141,46 @@ function CurveChallenge({ onPass, onClose }) {
     // Fix: tính scale ratio vì canvas internal px ≠ CSS display px
     const getPos = (e) => {
       const rect = canvas.getBoundingClientRect();
-      const scaleX = W / rect.width;   // internal / display
+      const scaleX = W / rect.width;
       const scaleY = H / rect.height;
       const src = e.touches ? e.touches[0] : e;
-      return {
-        x: (src.clientX - rect.left) * scaleX,
-        y: (src.clientY - rect.top) * scaleY,
-      };
+      return { x: (src.clientX - rect.left) * scaleX, y: (src.clientY - rect.top) * scaleY };
     };
 
     const onMove = (e) => {
       if (!state.isDragging) return;
-      // 🛡️ isTrusted: synthetic JS events = false
       if (!e.isTrusted) { state.isDragging = false; return; }
       e.preventDefault();
 
       const { x, y } = getPos(e);
+      const now = performance.now();
+
+      if (state.lastMoveTime && state.lastPos) {
+        const dt = Math.max(now - state.lastMoveTime, 1);
+        const spd = Math.sqrt((x - state.lastPos.x) ** 2 + (y - state.lastPos.y) ** 2) / dt;
+        state.speedBuf = state.speedBuf || [];
+        state.speedBuf.push(spd);
+        if (state.speedBuf.length > 8) state.speedBuf.shift();
+        if (state.speedBuf.length === 8) {
+          const avg = state.speedBuf.reduce((a, b) => a + b, 0) / 8;
+          const variance = state.speedBuf.reduce((a, s) => a + (s - avg) ** 2, 0) / 8;
+          if (variance < 0.0005 && avg > 0.05) {
+            state.progress = 0; setProgress(0); state.speedBuf = []; return;
+          }
+        }
+      }
+      state.lastMoveTime = now;
+      state.lastPos = { x, y };
 
       const current = state.progress;
       const sample = state.samples[current] || state.samples[state.samples.length - 1];
       const dx = x - sample.x, dy = y - sample.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 32) {
+      if (Math.sqrt(dx * dx + dy * dy) < 36) {
         state.progress = Math.min(current + 1, state.samples.length);
-        const pct = Math.round((state.progress / state.samples.length) * 100);
-        setProgress(pct);
+        setProgress(Math.round((state.progress / state.samples.length) * 100));
         if (state.progress >= Math.floor(state.samples.length * 0.85) && !state.passed) {
+          const elapsed = now - (state.dragStartTime || now);
+          if (elapsed < 1200) { state.progress = 0; setProgress(0); state.speedBuf = []; return; }
           state.passed = true;
           setPassed(true);
           setTimeout(() => onPassRef.current(), 900);
@@ -1189,11 +1191,16 @@ function CurveChallenge({ onPass, onClose }) {
     const onDown = (e) => {
       if (!e.isTrusted) return;
       state.isDragging = true;
+      state.dragStartTime = performance.now();
+      state.speedBuf = [];
+      state.lastMoveTime = null;
+      state.lastPos = null;
       setStarted(true);
       onMove(e);
     };
 
     const onUp = () => { state.isDragging = false; };
+
 
     canvas.addEventListener('mousedown', onDown);
     canvas.addEventListener('mousemove', onMove);
@@ -1211,7 +1218,7 @@ function CurveChallenge({ onPass, onClose }) {
       canvas.removeEventListener('touchmove', onMove);
       canvas.removeEventListener('touchend', onUp);
     };
-  }, []); // Chỉ chạy 1 lần khi mount — tránh re-generate curve mỗi setState
+  }, []);
 
 
   return (
