@@ -767,23 +767,69 @@ router.get('/security/user/:uid/tasks', async (req, res) => {
   }
 });
 
-// ── 2b. All IPs for a user (full list, not capped at 5) ──
+// ── 2b. IPs for a user — enriched with stats (tasks, completed, shared workers) ──
 router.get('/security/user/:uid/ips', async (req, res) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.execute(
-      `SELECT DISTINCT ip_address FROM vuot_link_tasks
+    const uid = req.params.uid;
+
+    // Lấy tất cả IP của user này kèm stats tasks
+    const [ipStats] = await pool.execute(
+      `SELECT
+         ip_address,
+         COUNT(*) as total_tasks,
+         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+         SUM(CASE WHEN bot_detected = 1 THEN 1 ELSE 0 END) as bots,
+         MAX(created_at) as last_seen
+       FROM vuot_link_tasks
        WHERE ip_address IS NOT NULL AND ip_address != ''
          AND (worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))
-       ORDER BY ip_address`,
-      [req.params.uid, req.params.uid]
+       GROUP BY ip_address
+       ORDER BY completed DESC, total_tasks DESC`,
+      [uid, uid]
     );
-    res.json({ ips: rows.map(r => r.ip_address) });
+
+    if (!ipStats.length) return res.json({ ips: [] });
+
+    // Kiểm tra IP nào dùng chung với worker khác
+    const ipList = ipStats.map(r => r.ip_address);
+    const ph = ipList.map(() => '?').join(',');
+    const [sharedRows] = await pool.execute(
+      `SELECT vt.ip_address,
+              COUNT(DISTINCT COALESCE(vt.worker_id, wl.worker_id)) as worker_count,
+              GROUP_CONCAT(DISTINCT COALESCE(u.name, u.email) ORDER BY u.name SEPARATOR ', ') as worker_names
+       FROM vuot_link_tasks vt
+       LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+       LEFT JOIN users u ON u.id = COALESCE(vt.worker_id, wl.worker_id)
+       WHERE vt.ip_address IN (${ph})
+         AND COALESCE(vt.worker_id, wl.worker_id) != ?
+         AND COALESCE(vt.worker_id, wl.worker_id) IS NOT NULL
+       GROUP BY vt.ip_address`,
+      [...ipList, uid]
+    );
+
+    const sharedMap = {};
+    sharedRows.forEach(r => {
+      sharedMap[r.ip_address] = {
+        worker_count: Number(r.worker_count),
+        worker_names: r.worker_names || '',
+      };
+    });
+
+    const ips = ipStats.map(r => ({
+      ip: r.ip_address,
+      total: Number(r.total_tasks),
+      completed: Number(r.completed),
+      bots: Number(r.bots),
+      last_seen: r.last_seen,
+      shared: sharedMap[r.ip_address] || null,
+    }));
+
+    res.json({ ips });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 
 // ── 3. Security events for a user (paginated) ──
