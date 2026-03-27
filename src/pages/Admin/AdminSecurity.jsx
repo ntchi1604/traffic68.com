@@ -250,6 +250,8 @@ function UserDetail({ user: u, onBack }) {
   const [selectedIp, setSelectedIp] = useState(null);
   const [ipDetail, setIpDetail] = useState(null);
   const [ipLoading, setIpLoading] = useState(false);
+  const [allIps, setAllIps] = useState(u.ips || []);
+  const [ipsLoaded, setIpsLoaded] = useState(false);
   const LIMIT = 50;
 
   useEffect(() => {
@@ -258,6 +260,15 @@ function UserDetail({ user: u, onBack }) {
       .then(d => { setTasks(d.tasks || []); setTaskTotal(d.total || 0); })
       .catch(console.error).finally(() => setLoading(false));
   }, [u.id, taskPage]);
+
+  // Load danh sách IP đầy đủ khi mở tab IPs
+  useEffect(() => {
+    if (tab === 'ips' && !ipsLoaded) {
+      api.get(`/admin/security/user/${u.id}/ips`)
+        .then(d => { setAllIps(d.ips || u.ips || []); setIpsLoaded(true); })
+        .catch(() => setIpsLoaded(true));
+    }
+  }, [tab, u.id, ipsLoaded]);
 
   useEffect(() => {
     if (tab === 'events') {
@@ -327,7 +338,7 @@ function UserDetail({ user: u, onBack }) {
 
       {/* Tabs */}
       <div className="flex gap-2 flex-wrap">
-        {[['tasks', `Tasks (${taskTotal})`], ['events', `Bot events (${eventTotal || u.events})`], ['ips', `IPs (${(u.ips || []).length})`]].map(([k, l]) => (
+        {[['tasks', `Tasks (${taskTotal})`], ['events', `Bot events (${eventTotal || u.events})`], ['ips', `IPs (${allIps.length}${!ipsLoaded && allIps.length >= 5 ? '+' : ''})`]].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition ${tab === k ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
             {l}
@@ -445,7 +456,7 @@ function UserDetail({ user: u, onBack }) {
       {/* IPs Tab */}
       {tab === 'ips' && (
         <div className="space-y-3">
-          {(u.ips || []).map(ip => (
+          {allIps.map(ip => (
             <div key={ip} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <button onClick={() => loadIp(ip)}
                 className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition text-left ${selectedIp === ip ? 'bg-violet-50' : ''}`}>
@@ -461,15 +472,13 @@ function UserDetail({ user: u, onBack }) {
                   ) : ipDetail ? (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
-                          ipDetail.riskLevel === 'high' ? 'bg-red-100 text-red-700' :
+                        <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${ipDetail.riskLevel === 'high' ? 'bg-red-100 text-red-700' :
                           ipDetail.riskLevel === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                        }`}>Risk: {ipDetail.riskScore}/100 · {ipDetail.riskLevel === 'high' ? 'Cao' : ipDetail.riskLevel === 'medium' ? 'Trung bình' : 'Thấp'}</span>
+                          }`}>Risk: {ipDetail.riskScore}/100 · {ipDetail.riskLevel === 'high' ? 'Cao' : ipDetail.riskLevel === 'medium' ? 'Trung bình' : 'Thấp'}</span>
                         {(ipDetail.risks || []).map((r, i) => (
-                          <span key={i} className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            r.severity === 'high' ? 'bg-red-50 text-red-700' :
+                          <span key={i} className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.severity === 'high' ? 'bg-red-50 text-red-700' :
                             r.severity === 'medium' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'
-                          }`}>{r.label}</span>
+                            }`}>{r.label}</span>
                         ))}
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -484,7 +493,7 @@ function UserDetail({ user: u, onBack }) {
                                     <span className="text-slate-400">{k}</span>
                                     <span className="font-semibold text-slate-700 text-right max-w-[60%] truncate">{v}</span>
                                   </div>
-                              ))}
+                                ))}
                               <div className="flex gap-1 mt-1.5 flex-wrap">
                                 {ipDetail.geo.proxy && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700">VPN/Proxy</span>}
                                 {ipDetail.geo.hosting && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700">Datacenter</span>}
@@ -532,7 +541,7 @@ function UserDetail({ user: u, onBack }) {
               )}
             </div>
           ))}
-          {!(u.ips || []).length && <p className="text-xs text-slate-400 text-center py-6">Không có IP nào được ghi nhận</p>}
+          {!allIps.length && <p className="text-xs text-slate-400 text-center py-6">Không có IP nào được ghi nhận</p>}
         </div>
       )}
 
@@ -556,7 +565,7 @@ export default function AdminSecurity() {
   const [sort, setSort] = useState('ok');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [activePreset, setActivePreset] = useState(0); // 0 = Tất cả
+  const [activePreset, setActivePreset] = useState(0);
   const LIMIT = 20;
 
   const load = useCallback(async () => {

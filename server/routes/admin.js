@@ -767,6 +767,25 @@ router.get('/security/user/:uid/tasks', async (req, res) => {
   }
 });
 
+// ── 2b. All IPs for a user (full list, not capped at 5) ──
+router.get('/security/user/:uid/ips', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute(
+      `SELECT DISTINCT ip_address FROM vuot_link_tasks
+       WHERE ip_address IS NOT NULL AND ip_address != ''
+         AND (worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))
+       ORDER BY ip_address`,
+      [req.params.uid, req.params.uid]
+    );
+    res.json({ ips: rows.map(r => r.ip_address) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
 // ── 3. Security events for a user (paginated) ──
 router.get('/security/user/:uid/events', async (req, res) => {
   try {
