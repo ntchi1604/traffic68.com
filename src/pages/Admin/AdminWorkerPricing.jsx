@@ -22,16 +22,19 @@ export default function AdminWorkerPricing() {
   const [saving, setSaving] = useState(false);
   const [profitPct, setProfitPct] = useState('');
   const [applying, setApplying] = useState(false);
+  const [isDiscountEnabled, setIsDiscountEnabled] = useState(false);
 
   const fetchData = () => {
     setLoading(true);
     Promise.all([
       api.get('/admin/worker-pricing'),
       api.get('/admin/pricing'),
-    ]).then(([wp, bp]) => {
+      api.get('/admin/settings/site')
+    ]).then(([wp, bp, settings]) => {
       setTiers(wp.tiers || []);
       setBuyerTiers(bp.tiers || []);
       setEditedTiers({});
+      setIsDiscountEnabled(settings?.config?.discount_enabled === 'true');
     }).catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -85,8 +88,8 @@ export default function AdminWorkerPricing() {
       for (const wt of tiers) {
         const bt = buyerTiers.find(b => b.traffic_type === wt.traffic_type && b.duration === wt.duration);
         if (bt) {
-          const buyerV1 = bt.v1_discount > 0 ? bt.v1_discount : bt.v1_price;
-          const buyerV2 = bt.v2_discount > 0 ? bt.v2_discount : bt.v2_price;
+          const buyerV1 = (isDiscountEnabled && bt.v1_discount > 0) ? bt.v1_discount : bt.v1_price;
+          const buyerV2 = (isDiscountEnabled && bt.v2_discount > 0) ? bt.v2_discount : bt.v2_price;
           const v1 = Math.round(buyerV1 * workerRate);
           const v2 = Math.round(buyerV2 * workerRate);
           await api.put(`/admin/worker-pricing/${wt.id}`, { v1_price: v1, v2_price: v2 });
@@ -131,7 +134,7 @@ export default function AdminWorkerPricing() {
               <h2 className="font-bold text-slate-800">Tính giá theo % lãi</h2>
             </div>
             <p className="text-xs text-slate-500 mb-4">
-              Nhập % lãi mong muốn → giá worker = giá buyer (sau giảm giá) × (100 - lãi)%.
+              Nhập % lãi mong muốn → giá worker = giá buyer (đã đối chiếu cài đặt giảm giá) × (100 - lãi)%.
             </p>
             <div className="flex items-end gap-3">
               <div className="flex-1 max-w-[200px]">
@@ -188,7 +191,7 @@ export default function AdminWorkerPricing() {
                           <tr key={tier.id} className={isChanged ? 'bg-emerald-50/50' : 'hover:bg-slate-50/70'}>
                             <td className="px-5 py-3 font-bold text-slate-700">{tier.duration}</td>
                             <td className="px-5 py-3 text-center text-slate-400 text-xs">
-                              {buyer ? fmt(buyer.v1_discount > 0 ? buyer.v1_discount : buyer.v1_price) + ' đ' : '—'}
+                              {buyer ? fmt((isDiscountEnabled && buyer.v1_discount > 0) ? buyer.v1_discount : buyer.v1_price) + ' đ' : '—'}
                             </td>
                             <td className="px-5 py-2 text-center">
                               <input type="number" value={v1}
@@ -196,7 +199,7 @@ export default function AdminWorkerPricing() {
                                 className={`${inputCls} ${isChanged ? 'border-emerald-300 bg-emerald-50' : ''}`} />
                             </td>
                             <td className="px-5 py-3 text-center text-slate-400 text-xs">
-                              {buyer ? fmt(buyer.v2_discount > 0 ? buyer.v2_discount : buyer.v2_price) + ' đ' : '—'}
+                              {buyer ? fmt((isDiscountEnabled && buyer.v2_discount > 0) ? buyer.v2_discount : buyer.v2_price) + ' đ' : '—'}
                             </td>
                             <td className="px-5 py-2 text-center">
                               <input type="number" value={v2}
