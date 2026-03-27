@@ -46,6 +46,18 @@ const DL_VI = {
   webgl_api_lied: 'WebGL bị giả mạo',
   creepjs_bot: 'CreepJS Bot',
   creepjs_headless: 'CreepJS Headless',
+  // Widget bot detection
+  widget_bot_detected: 'Widget: Bot phát hiện',
+  widget_bot: 'Widget Bot',
+};
+
+/* Reason events trong security_logs */
+const REASON_VI = {
+  widget_bot_detected: '🤖 Widget: Bot phát hiện',
+  non_google_referrer: '🔗 Referrer không hợp lệ',
+  bot_ua: '🤖 User-Agent Bot',
+  ip_rate_limit: '⚡ Rate limit IP',
+  completed: '✅ Hoàn thành task',
 };
 
 
@@ -68,10 +80,12 @@ function TaskModal({ task: t, onClose }) {
   const mobile = isMobileUA(t.user_agent);
   const st = ST[t.status] || { l: t.status, c: 'bg-slate-100 text-slate-600' };
 
-  // Bot flags (new format - simplified)
+  // Bot flags — bao gồm cả widget_bot
   const botFlags = [];
   if (sd.botDetected || t.bot_detected) botFlags.push({ k: 'Bot phát hiện', bad: true });
-  dl.forEach(d => botFlags.push({ k: DL_VI[d] || d, bad: true }));
+  if (sd.widget_bot) botFlags.push({ k: 'Widget Bot', bad: true });
+  const allDl = [...(dl || []), ...(sd.widget_detection_log || [])];
+  [...new Set(allDl)].forEach(d => botFlags.push({ k: DL_VI[d] || d, bad: true }));
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
@@ -727,6 +741,7 @@ function UserDetail({ user: u, onBack }) {
 /* ═══════════════════ MAIN PAGE ═══════════════════ */
 export default function AdminSecurity() {
   usePageTitle('Admin - Anti Cheat');
+  const [mainTab, setMainTab] = useState('users'); // 'users' | 'botevents'
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -737,7 +752,37 @@ export default function AdminSecurity() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [activePreset, setActivePreset] = useState(0);
+  // Bot events state
+  const [botEvents, setBotEvents] = useState([]);
+  const [botTotal, setBotTotal] = useState(0);
+  const [botLoading, setBotLoading] = useState(false);
+  const [botPage, setBotPage] = useState(1);
+  const [botSummary, setBotSummary] = useState([]);
+  const [botReasonFilter, setBotReasonFilter] = useState('');
+  const [botIpFilter, setBotIpFilter] = useState('');
+  const [botEventModal, setBotEventModal] = useState(null);
+  const BOT_LIMIT = 50;
   const LIMIT = 20;
+
+  const loadBotEvents = useCallback(async () => {
+    if (mainTab !== 'botevents') return;
+    setBotLoading(true);
+    try {
+      const p = new URLSearchParams({ page: botPage, limit: BOT_LIMIT });
+      if (botReasonFilter) p.set('reason', botReasonFilter);
+      if (botIpFilter) p.set('ip', botIpFilter);
+      if (dateFrom) p.set('from', dateFrom);
+      if (dateTo) p.set('to', dateTo);
+      const d = await api.get(`/admin/security/events?${p}`);
+      setBotEvents(d.events || []);
+      setBotTotal(d.total || 0);
+      setBotSummary(d.summary || []);
+    } catch (e) { console.error(e); }
+    setBotLoading(false);
+  }, [mainTab, botPage, botReasonFilter, botIpFilter, dateFrom, dateTo]);
+
+  useEffect(() => { loadBotEvents(); }, [loadBotEvents]);
+
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -808,21 +853,35 @@ export default function AdminSecurity() {
 
       </div>
 
-      <>
-        <div className="flex flex-wrap gap-2 items-center">
-          {[['Hôm nay', 1], ['7 ngày', 7], ['30 ngày', 30], ['Tất cả', 0]].map(([l, d]) => (
-            <button key={l} onClick={() => setPreset(d)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${activePreset === d ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-              {l}
-            </button>
-          ))}
-          <div className="flex items-center gap-1 ml-1">
-            <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-400" />
-            <span className="text-slate-400 text-xs">→</span>
-            <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-400" />
-          </div>
+      {/* Main tab switcher */}
+      <div className="flex gap-2 border-b border-slate-200">
+        {[['users', '👥 Danh sách User'], ['botevents', '🤖 Bot Events']].map(([key, label]) => (
+          <button key={key} onClick={() => setMainTab(key)}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition ${mainTab === key ? 'border-violet-600 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            {label}
+            {key === 'botevents' && botTotal > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] bg-red-100 text-red-700 font-black">{botTotal}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Date filters (shared) */}
+      <div className="flex flex-wrap gap-2 items-center">
+        {[['Hôm nay', 1], ['7 ngày', 7], ['30 ngày', 30], ['Tất cả', 0]].map(([l, d]) => (
+          <button key={l} onClick={() => setPreset(d)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${activePreset === d ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            {l}
+          </button>
+        ))}
+        <div className="flex items-center gap-1 ml-1">
+          <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); setBotPage(1); }}
+            className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-400" />
+          <span className="text-slate-400 text-xs">→</span>
+          <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); setBotPage(1); }}
+            className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-400" />
+        </div>
+        {mainTab === 'users' && (
           <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}
             className="ml-auto px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 bg-white focus:outline-none">
             <option value="ok">Hoàn thành ↓</option>
@@ -831,86 +890,180 @@ export default function AdminSecurity() {
             <option value="total">Tổng task ↓</option>
             <option value="last_at">Mới nhất ↓</option>
           </select>
-        </div>
+        )}
+      </div>
 
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input placeholder="Tìm tên, email..."
-            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  {['User', 'Tổng', 'OK', 'Bot', 'Cảnh báo', 'IP', 'Hoạt động', ''].map(h => (
-                    <th key={h} className={`px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px] ${['User', 'IP', 'Hoạt động'].includes(h) ? 'text-left' : 'text-center'}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={8} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
-                ) : users.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-10 text-slate-400">Chưa có dữ liệu</td></tr>
-                ) : users.map(u => {
-                  const danger = u.blocked > 0 || u.events > 0;
-                  return (
-                    <tr key={u.id} className={`border-b ${danger ? 'bg-red-50 border-red-100 hover:bg-red-50/70' : 'border-slate-100 hover:bg-slate-50/50'}`}>
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-2">
-                          {u.avatar_url ? (
-                            <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
-                          ) : (
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${danger ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                              {(u.name || '?')[0].toUpperCase()}
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <p className="font-bold text-slate-800 truncate flex items-center gap-1">
-                              {u.name || 'N/A'}
-                              {u.status === 'banned' && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-600">BAN</span>}
-                            </p>
-                            <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5 text-center font-bold text-slate-700">{u.total}</td>
-                      <td className="px-3 py-2.5 text-center font-bold text-emerald-600">{u.ok}</td>
-                      <td className="px-3 py-2.5 text-center">
-                        {u.blocked > 0
-                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit mx-auto"><Bot size={9} />{u.blocked}</span>
-                          : <span className="text-slate-300">0</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        {u.events > 0
-                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">{u.events}</span>
-                          : <span className="text-slate-300">0</span>}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex flex-wrap gap-0.5">
-                          {u.ips.slice(0, 2).map((ip, j) => <span key={j} className="font-mono text-[9px] text-slate-500 bg-slate-50 px-1 py-0.5 rounded">{ip}</span>)}
-                          {u.ips.length > 2 && <span className="text-[9px] text-slate-400">+{u.ips.length - 2}</span>}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{ago(u.last_at)}</td>
-                      <td className="px-3 py-2.5">
-                        <button onClick={() => setDetail(u)} className="px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 text-[10px] font-bold">
-                          <Eye size={11} className="inline mr-0.5" />Xem
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {/* ── USERS TAB ── */}
+      {mainTab === 'users' && (
+        <>
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input placeholder="Tìm tên, email..."
+              value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
           </div>
-          <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
-        </div>
-      </>
 
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    {['User', 'Tổng', 'OK', 'Bot', 'Cảnh báo', 'IP', 'Hoạt động', ''].map(h => (
+                      <th key={h} className={`px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px] ${['User', 'IP', 'Hoạt động'].includes(h) ? 'text-left' : 'text-center'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={8} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
+                  ) : users.length === 0 ? (
+                    <tr><td colSpan={8} className="text-center py-10 text-slate-400">Chưa có dữ liệu</td></tr>
+                  ) : users.map(u => {
+                    const danger = u.blocked > 0 || u.events > 0;
+                    return (
+                      <tr key={u.id} className={`border-b ${danger ? 'bg-red-50 border-red-100 hover:bg-red-50/70' : 'border-slate-100 hover:bg-slate-50/50'}`}>
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            {u.avatar_url ? (
+                              <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                            ) : (
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${danger ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                {(u.name || '?')[0].toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-800 truncate flex items-center gap-1">
+                                {u.name || 'N/A'}
+                                {u.status === 'banned' && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-600">BAN</span>}
+                              </p>
+                              <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-center font-bold text-slate-700">{u.total}</td>
+                        <td className="px-3 py-2.5 text-center font-bold text-emerald-600">{u.ok}</td>
+                        <td className="px-3 py-2.5 text-center">
+                          {u.blocked > 0
+                            ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit mx-auto"><Bot size={9} />{u.blocked}</span>
+                            : <span className="text-slate-300">0</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          {u.events > 0
+                            ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">{u.events}</span>
+                            : <span className="text-slate-300">0</span>}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex flex-wrap gap-0.5">
+                            {u.ips.slice(0, 2).map((ip, j) => <span key={j} className="font-mono text-[9px] text-slate-500 bg-slate-50 px-1 py-0.5 rounded">{ip}</span>)}
+                            {u.ips.length > 2 && <span className="text-[9px] text-slate-400">+{u.ips.length - 2}</span>}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{ago(u.last_at)}</td>
+                        <td className="px-3 py-2.5">
+                          <button onClick={() => setDetail(u)} className="px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 text-[10px] font-bold">
+                            <Eye size={11} className="inline mr-0.5" />Xem
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
+          </div>
+        </>
+      )}
+
+      {/* ── BOT EVENTS TAB ── */}
+      {mainTab === 'botevents' && (
+        <>
+          {/* Summary chips */}
+          {botSummary.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => { setBotReasonFilter(''); setBotPage(1); }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${!botReasonFilter ? 'bg-red-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                Tất cả <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-black/10">{botTotal}</span>
+              </button>
+              {botSummary.map(s => (
+                <button key={s.reason} onClick={() => { setBotReasonFilter(s.reason); setBotPage(1); }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${botReasonFilter === s.reason ? 'bg-red-600 text-white shadow' : 'bg-white border border-red-200 text-red-700 hover:bg-red-50'}`}>
+                  {DL_VI[s.reason] || s.reason}
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-black/10">{s.cnt}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* IP filter */}
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input placeholder="Lọc theo IP..."
+              value={botIpFilter} onChange={e => { setBotIpFilter(e.target.value); setBotPage(1); }}
+              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-400" />
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    {['Thời gian', 'Loại', 'Nguồn', 'IP', 'Thiết bị', 'Visitor ID', ''].map(h => (
+                      <th key={h} className="text-left px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px]">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {botLoading ? (
+                    <tr><td colSpan={7} className="text-center py-12">
+                      <div className="w-5 h-5 border-2 border-red-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                    </td></tr>
+                  ) : botEvents.length === 0 ? (
+                    <tr><td colSpan={7} className="text-center py-12 text-slate-400">
+                      Chưa có bot event nào. Hệ thống sẽ ghi lại khi phát hiện bất thường.
+                    </td></tr>
+                  ) : botEvents.map(ev => {
+                    const mob = isMobileUA(ev.user_agent);
+                    let det = {};
+                    try { det = JSON.parse(ev.details || '{}'); } catch { }
+                    return (
+                      <tr key={ev.id} className="border-b border-slate-100 bg-red-50/20 hover:bg-red-50/40 cursor-pointer" onClick={() => setBotEventModal(ev)}>
+                        <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{fmt(ev.created_at)}</td>
+                        <td className="px-3 py-2.5">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
+                            {DL_VI[ev.reason] || ev.reason}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+                            {ev.source === 'widget' ? 'Script' : ev.source === 'vuotlink' ? 'VL' : ev.source}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 font-mono text-[10px] text-slate-600">{ev.ip_address || '—'}</td>
+                        <td className="px-3 py-2.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${mob ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-600'}`}>
+                            {mob ? 'Mobile' : 'Desktop'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 font-mono text-[9px] text-slate-400 max-w-[120px] truncate">{ev.visitor_id || '—'}</td>
+                        <td className="px-3 py-2.5">
+                          <button className="px-2.5 py-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 text-[10px] font-bold">
+                            <Eye size={11} className="inline mr-0.5" />Chi tiết
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pager page={botPage} total={botTotal} limit={BOT_LIMIT} onChange={setBotPage} />
+          </div>
+        </>
+      )}
+
+      {botEventModal && <EventModal event={botEventModal} onClose={() => setBotEventModal(null)} />}
     </div>
   );
 }
+

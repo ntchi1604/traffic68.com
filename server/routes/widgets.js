@@ -342,21 +342,31 @@ router.post('/public/:token/get-code', async (req, res) => {
   const v1Phase = req.body?.v1Phase || 0;
   ch.used = true;
 
-  // ── Bot detection: headless/webdriver + CreepJS bot flag ──
+  // ── Bot detection: headless/webdriver + CreepJS bot flag (full v2) ──
   if (deviceData) {
-    const result = analyzeDevice(deviceData, ua);
+    const result = analyzeDevice(deviceData, ua, botDetection || {});
     if (result.isFake) {
       botDetected = true;
-      detectionLog.push('headless_or_webdriver');
+      detectionLog.push(...(result.detectionLog || ['headless_or_webdriver']));
     }
   }
-  if (botDetection && botDetection.bot === true) {
+  if (botDetection && botDetection.bot === true && !botDetected) {
     botDetected = true;
     detectionLog.push('creepjs_bot');
   }
 
-  // ── Save security_detail (bot flags only) ──
+  // ── Save security_detail + log security event (admin dashboard) ──
   if (botDetected && detectionLog.length > 0) {
+    // Log vào security_logs để admin thấy được
+    logSecurityEvent('widget_bot_detected', ip, ua, visitorId || null, {
+      detectionLog,
+      canvasHash: botDetection?.canvasHash || null,
+      audioHash: botDetection?.audioHash || null,
+      webglRenderer: botDetection?.webglRenderer || null,
+      totalLies: botDetection?.totalLies || 0,
+      lieNames: (botDetection?.lieNames || []).slice(0, 5),
+    });
+    // Cập nhật task nếu tìm thấy
     try {
       const [activeTasks] = await pool.execute(
         `SELECT id FROM vuot_link_tasks WHERE (ip_address = ? OR (visitor_id = ? AND visitor_id IS NOT NULL AND visitor_id != '')) AND status IN ('pending','step1','step2','step3') AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
@@ -364,8 +374,8 @@ router.post('/public/:token/get-code', async (req, res) => {
       );
       if (activeTasks.length > 0) {
         await pool.execute(
-          `UPDATE vuot_link_tasks SET security_detail = ? WHERE id = ?`,
-          [JSON.stringify({ botDetected, detectionLog }).substring(0, 1000), activeTasks[0].id]
+          `UPDATE vuot_link_tasks SET bot_detected = 1, security_detail = JSON_SET(COALESCE(security_detail,'{}'), '$.widget_bot', true, '$.widget_detection_log', CAST(? AS JSON)) WHERE id = ?`,
+          [JSON.stringify(detectionLog), activeTasks[0].id]
         );
       }
     } catch (e) { }

@@ -938,6 +938,49 @@ router.get('/security/ips', async (req, res) => {
   }
 });
 
+// ── GET /api/admin/security/events — System-wide bot events (tất cả, không theo user) ──
+// QUAN TRỌNG: phải khai báo TRƯỚC /security/:id để không bị match nhầm "events" → :id
+router.get('/security/events', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { page = 1, limit = 50, reason = '', source = '', ip = '', from = '', to = '' } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const conditions = ["reason != 'completed'"];
+    const params = [];
+    if (reason) { conditions.push('reason = ?'); params.push(reason); }
+    if (source) { conditions.push('source = ?'); params.push(source); }
+    if (ip) { conditions.push('ip_address LIKE ?'); params.push(`%${ip}%`); }
+    if (from) { conditions.push('DATE(created_at) >= ?'); params.push(from); }
+    if (to) { conditions.push('DATE(created_at) <= ?'); params.push(to); }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) as total FROM security_logs ${where}`, params
+    );
+    const total = countRows[0].total;
+
+    const [rows] = await pool.execute(
+      `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at
+       FROM security_logs ${where}
+       ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      [...params, Number(limit), offset]
+    );
+
+    // Summary counts by reason
+    const [summary] = await pool.execute(
+      `SELECT reason, COUNT(*) as cnt FROM security_logs ${where} GROUP BY reason ORDER BY cnt DESC LIMIT 10`,
+      params
+    );
+
+    res.json({ events: rows, total, page: Number(page), limit: Number(limit), summary });
+  } catch (err) {
+    console.error('[AntiCheat] events error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Keep existing detail endpoint for backward compat
 router.get('/security/:id', async (req, res) => {
   try {
