@@ -80,7 +80,51 @@ function getCreepData() {
   });
 }
 
-/* ─── Device data: chỉ cần automation flags cho bot detection ─── */
+
+/* ─── Behavioral signal collectors (những gì CreepJS không thu thập) ─── */
+// Click latency tracker
+const _clickEvents = [];
+let _mouseDownTime = 0;
+if (typeof window !== 'undefined') {
+  document.addEventListener('mousedown', () => { _mouseDownTime = performance.now(); }, true);
+  document.addEventListener('mouseup', () => {
+    if (_mouseDownTime > 0 && _clickEvents.length < 20) {
+      _clickEvents.push({ duration: Math.round(performance.now() - _mouseDownTime) });
+      _mouseDownTime = 0;
+    }
+  }, true);
+}
+
+// Scroll speed tracker
+let _scrollStart = 0, _scrollDist = 0, _scrollLastY = window?.scrollY || 0, _scrollTime = 0;
+if (typeof window !== 'undefined') {
+  window.addEventListener('scroll', () => {
+    const now = performance.now();
+    const dy = Math.abs(window.scrollY - _scrollLastY);
+    if (_scrollStart === 0) _scrollStart = now;
+    _scrollDist += dy;
+    _scrollLastY = window.scrollY;
+    _scrollTime = now - _scrollStart;
+  }, { passive: true });
+}
+
+// DeviceMotion sensor samples (mobile only)
+const _motionSamples = [];
+if (typeof window !== 'undefined' && window.DeviceMotionEvent) {
+  const _motionHandler = (e) => {
+    if (_motionSamples.length < 10 && e.accelerationIncludingGravity) {
+      _motionSamples.push({
+        x: parseFloat((e.accelerationIncludingGravity.x || 0).toFixed(3)),
+        y: parseFloat((e.accelerationIncludingGravity.y || 0).toFixed(3)),
+        z: parseFloat((e.accelerationIncludingGravity.z || 0).toFixed(3)),
+      });
+    }
+    if (_motionSamples.length >= 10) window.removeEventListener('devicemotion', _motionHandler);
+  };
+  window.addEventListener('devicemotion', _motionHandler, { passive: true });
+}
+
+/* ─── Device data: automation flags + behavioral signals (CreepJS cung cấp phần còn lại) ─── */
 function getDeviceData() {
   const automation = {};
   try {
@@ -88,8 +132,23 @@ function getDeviceData() {
     automation.cdc = !!(window.cdc_adoQpoasnfa76pfcZLmcfl_ || window.cdc_adoQpoasnfa76pfcZLmcfl_Array);
     automation.selenium = !!(document.__selenium_unwrapped || document.__webdriver_evaluate || window._Selenium_IDE_Recorder);
   } catch (e) { }
-  return { automation };
+
+  return {
+    automation,
+    behavior: {
+      // Click latency (mousedown → mouseup duration)
+      clicks: _clickEvents.slice(-10),
+      // Scroll speed
+      scroll: _scrollDist > 0 ? { totalDistance: Math.round(_scrollDist), timeMs: Math.round(_scrollTime) } : null,
+    },
+    sensor: {
+      // DeviceMotion samples (mobile anti-detect detection)
+      motion: _motionSamples.length >= 3 ? { samples: _motionSamples } : null,
+    },
+  };
 }
+
+
 
 
 const API = '/api/vuot-link';
@@ -112,6 +171,10 @@ export default function LinkGateway() {
   const [completionResult, setCompletionResult] = useState(null);
   const [completing, setCompleting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+
+  const [humanPassed, setHumanPassed] = useState(false);
+  const [showChallenge, setShowChallenge] = useState(false);
+  const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '');
 
   // Set tab title
   useEffect(() => {
@@ -694,60 +757,92 @@ export default function LinkGateway() {
                 {/* Divider */}
                 <div style={{ borderTop: '1.5px dashed #BBF7D0', margin: 0 }} />
 
-                {/* Code input */}
-                <div>
-                  <p style={{ color: '#16A34A', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#22C55E', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', fontWeight: 900, flexShrink: 0 }}>3</span>
-                    Nhập mã xác nhận
-                  </p>
-                  <div style={{ marginBottom: 10 }}>
-                    <input type="text" maxLength={6} value={inputCode}
-                      onChange={e => setInputCode(e.target.value.toUpperCase())}
-                      disabled={completing} placeholder="Nhập mã tại đây"
-                      onKeyDown={e => e.key === 'Enter' && handleVerify()}
-                      style={{ width: '100%', padding: '12px 14px', background: '#fff', border: `1.5px solid ${showError ? '#FCA5A5' : '#86EFAC'}`, borderRadius: 10, outline: 'none', fontSize: 16, fontWeight: 700, letterSpacing: 3, textAlign: 'center', color: '#1E293B', boxSizing: 'border-box' }}
-                    />
+                {/* Code input — gated behind Human Challenge */}
+                {!humanPassed ? (
+                  // Human Gate: unlock button
+                  <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
+                    <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 12px' }}>
+                      {isMobileDevice
+                        ? '📱 Cần xác minh bạn là người thật trước khi nhập mã'
+                        : '🖱️ Cần xác minh bạn là người thật trước khi nhập mã'}
+                    </p>
+                    <button
+                      onClick={() => setShowChallenge(true)}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 10,
+                        background: 'linear-gradient(135deg,#7C3AED,#6D28D9)',
+                        color: '#fff', border: 'none', borderRadius: 12,
+                        padding: '13px 28px', fontSize: 14, fontWeight: 800,
+                        cursor: 'pointer', boxShadow: '0 6px 24px rgba(124,58,237,0.35)',
+                        animation: 'glow-purple 2.5s ease-in-out infinite',
+                      }}
+                    >
+                      <span style={{ fontSize: 20 }}>{isMobileDevice ? '📳' : '🖱️'}</span>
+                      {isMobileDevice ? 'LẮC ĐIỆN THOẠI ĐỂ XÁC MINH' : 'RÊ CHUỘT ĐỂ XÁC MINH'}
+                    </button>
                   </div>
-                  {showError && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
-                      <AlertCircle size={14} color="#EF4444" />
-                      <span style={{ color: '#DC2626', fontSize: 12, fontWeight: 500 }}>{error || 'Mã xác nhận không đúng.'}</span>
+                ) : (
+                  <div>
+                    <p style={{ color: '#16A34A', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#22C55E', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', fontWeight: 900, flexShrink: 0 }}>3</span>
+                      Nhập mã xác nhận
+                    </p>
+                    <div style={{ marginBottom: 10 }}>
+                      <input type="text" maxLength={6} value={inputCode}
+                        onChange={e => setInputCode(e.target.value.toUpperCase())}
+                        disabled={completing} placeholder="Nhập mã tại đây"
+                        onKeyDown={e => e.key === 'Enter' && handleVerify()}
+                        style={{ width: '100%', padding: '12px 14px', background: '#fff', border: `1.5px solid ${showError ? '#FCA5A5' : '#86EFAC'}`, borderRadius: 10, outline: 'none', fontSize: 16, fontWeight: 700, letterSpacing: 3, textAlign: 'center', color: '#1E293B', boxSizing: 'border-box' }}
+                      />
                     </div>
-                  )}
-                  <button onClick={handleVerify} disabled={inputCode.length < 4 || completing}
-                    style={{
-                      width: '100%', padding: 15, borderRadius: 12, border: 'none',
-                      background: inputCode.length >= 4 && !completing ? 'linear-gradient(135deg,#F97316,#EA580C)' : '#E2E8F0',
-                      color: inputCode.length >= 4 ? '#fff' : '#94A3B8',
-                      fontSize: 14, fontWeight: 800,
-                      cursor: inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed',
-                      letterSpacing: '0.3px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      boxShadow: inputCode.length >= 4 && !completing ? '0 6px 24px rgba(249,115,22,0.4)' : 'none',
-                      transition: 'all 0.3s',
-                      animation: inputCode.length >= 4 && !completing ? 'glow 2.5s ease-in-out infinite' : 'none',
-                    }}
-                    onMouseEnter={e => { if (inputCode.length >= 4 && !completing) e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
-                  >
-                    {completing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN VÀ MỞ KHÓA LINK'}
-                  </button>
-                </div>
+                    {showError && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
+                        <AlertCircle size={14} color="#EF4444" />
+                        <span style={{ color: '#DC2626', fontSize: 12, fontWeight: 500 }}>{error || 'Mã xác nhận không đúng.'}</span>
+                      </div>
+                    )}
+                    <button onClick={handleVerify} disabled={inputCode.length < 4 || completing}
+                      style={{
+                        width: '100%', padding: 15, borderRadius: 12, border: 'none',
+                        background: inputCode.length >= 4 && !completing ? 'linear-gradient(135deg,#F97316,#EA580C)' : '#E2E8F0',
+                        color: inputCode.length >= 4 ? '#fff' : '#94A3B8',
+                        fontSize: 14, fontWeight: 800,
+                        cursor: inputCode.length >= 4 && !completing ? 'pointer' : 'not-allowed',
+                        letterSpacing: '0.3px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        boxShadow: inputCode.length >= 4 && !completing ? '0 6px 24px rgba(249,115,22,0.4)' : 'none',
+                        transition: 'all 0.3s',
+                        animation: inputCode.length >= 4 && !completing ? 'glow 2.5s ease-in-out infinite' : 'none',
+                      }}
+                      onMouseEnter={e => { if (inputCode.length >= 4 && !completing) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
+                    >
+                      {completing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN VÀ MỞ KHÓA LINK'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </StepCard>
         </div>
       </div>
 
+      {showChallenge && !humanPassed && (
+        isMobileDevice
+          ? <ShakeChallenge onPass={() => { setHumanPassed(true); setShowChallenge(false); }} onClose={() => setShowChallenge(false)} />
+          : <CurveChallenge onPass={() => { setHumanPassed(true); setShowChallenge(false); }} onClose={() => setShowChallenge(false)} />
+      )}
+
       <style>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes progress { from{width:0} to{width:100%} }
         @keyframes glow { 0%,100%{box-shadow:0 6px 24px rgba(249,115,22,0.4)} 50%{box-shadow:0 8px 36px rgba(249,115,22,0.6)} }
+        @keyframes glow-purple { 0%,100%{box-shadow:0 6px 24px rgba(124,58,237,0.35)} 50%{box-shadow:0 8px 40px rgba(124,58,237,0.6)} }
       `}</style>
+
     </Wrapper>
   );
 }
 
-/* ─── Wrapper ─── */
 function Wrapper({ children }) {
   return (
     <div style={{ background: 'linear-gradient(160deg,#DBEAFE 0%,#EFF6FF 40%,#F0F9FF 70%,#F8FAFC 100%)', fontFamily: "'Inter',sans-serif", position: 'relative' }}>
@@ -802,3 +897,340 @@ function CopyBtn({ text }) {
     </button>
   );
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   SHAKE CHALLENGE (Mobile only)
+   Yêu cầu user lắc điện thoại 3 lần. Phát hiện qua DeviceMotionEvent.
+   Threshold: gia tốc tuyệt đối > 15 m/s², loại bỏ rung nhỏ < 500ms.
+───────────────────────────────────────────────────────────────── */
+function ShakeChallenge({ onPass, onClose }) {
+  const [shakeCount, setShakeCount] = useState(0);
+  const [flashing, setFlashing] = useState(false);
+  const [passed, setPassed] = useState(false);
+  const lastShakeRef = useRef(0);
+  const TARGET = 3;
+
+  useEffect(() => {
+    // iOS 13+ cần request permission
+    const requestAndListen = async () => {
+      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+        try {
+          const perm = await DeviceMotionEvent.requestPermission();
+          if (perm !== 'granted') return;
+        } catch (e) { return; }
+      }
+      const handler = (e) => {
+        const acc = e.accelerationIncludingGravity;
+        if (!acc) return;
+        const total = Math.abs(acc.x || 0) + Math.abs(acc.y || 0) + Math.abs(acc.z || 0);
+        const now = Date.now();
+        if (total > 15 && now - lastShakeRef.current > 500) {
+          lastShakeRef.current = now;
+          setFlashing(true);
+          setTimeout(() => setFlashing(false), 300);
+          setShakeCount(prev => {
+            const next = prev + 1;
+            if (next >= TARGET) {
+              setPassed(true);
+              setTimeout(() => onPass(), 800);
+            }
+            return next;
+          });
+        }
+      };
+      window.addEventListener('devicemotion', handler, { passive: true });
+      return () => window.removeEventListener('devicemotion', handler);
+    };
+    const cleanup = requestAndListen();
+    return () => { cleanup.then && cleanup.then(fn => fn && fn()); };
+  }, [onPass]);
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 999,
+      background: passed ? 'rgba(34,197,94,0.92)' : 'rgba(15,15,35,0.92)',
+      backdropFilter: 'blur(12px)', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', padding: 24,
+      transition: 'background 0.4s',
+    }}>
+      {/* Close */}
+      <button onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+
+      {passed ? (
+        <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
+          <div style={{ fontSize: 72, marginBottom: 16 }}>✅</div>
+          <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 8px' }}>Xác minh thành công!</h2>
+          <p style={{ fontSize: 16, opacity: 0.9 }}>Đang mở ô nhập mã...</p>
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', color: '#fff' }}>
+          {/* Phone animation */}
+          <div style={{
+            fontSize: 72, marginBottom: 24,
+            animation: flashing ? 'shake-anim 0.3s ease' : 'phone-idle 2s ease-in-out infinite',
+            display: 'inline-block',
+          }}>📱</div>
+
+          <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 8px', letterSpacing: 0.5 }}>
+            LẮC ĐIỆN THOẠI ĐỂ XÁC MINH
+          </h2>
+          <p style={{ fontSize: 14, opacity: 0.75, margin: '0 0 32px' }}>
+            Lắc mạnh điện thoại <strong>{TARGET} lần</strong> để chứng minh bạn là người thật
+          </p>
+
+          {/* Progress dots */}
+          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginBottom: 28 }}>
+            {Array.from({ length: TARGET }).map((_, i) => (
+              <div key={i} style={{
+                width: 20, height: 20, borderRadius: '50%',
+                background: i < shakeCount ? '#22C55E' : 'rgba(255,255,255,0.25)',
+                border: '2px solid ' + (i < shakeCount ? '#22C55E' : 'rgba(255,255,255,0.4)'),
+                transition: 'all 0.3s',
+                transform: i < shakeCount ? 'scale(1.2)' : 'scale(1)',
+                boxShadow: i < shakeCount ? '0 0 12px rgba(34,197,94,0.6)' : 'none',
+              }} />
+            ))}
+          </div>
+
+          <p style={{ fontSize: 13, opacity: 0.6 }}>
+            {shakeCount === 0 ? 'Chưa phát hiện lắc...' : `Đã lắc ${shakeCount}/${TARGET} lần 💪`}
+          </p>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes phone-idle {
+          0%,100% { transform: rotate(-5deg); }
+          50% { transform: rotate(5deg); }
+        }
+        @keyframes shake-anim {
+          0% { transform: rotate(0deg) scale(1.1); }
+          25% { transform: rotate(-15deg) scale(1.2); }
+          75% { transform: rotate(15deg) scale(1.2); }
+          100% { transform: rotate(0deg) scale(1); }
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+      `}</style>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   CURVE CHALLENGE (Desktop only)
+   Vẽ 1 đường Bézier ngẫu nhiên trên canvas, user phải rê chuột
+   theo sát đường (tolerance 32px). Hoàn thành 85% path → pass.
+───────────────────────────────────────────────────────────────── */
+function CurveChallenge({ onPass, onClose }) {
+  const canvasRef = useRef(null);
+  const stateRef = useRef({ points: [], progress: 0, isDragging: false, passed: false });
+  const [progress, setProgress] = useState(0);
+  const [passed, setPassed] = useState(false);
+  const [started, setStarted] = useState(false);
+  const animRef = useRef(null);
+
+  // Generate random bezier curve points
+  const genCurve = (w, h) => {
+    const margin = 60;
+    const p0 = { x: margin + Math.random() * w * 0.2, y: margin + Math.random() * (h - margin * 2) };
+    const p1 = { x: w * 0.3 + Math.random() * w * 0.15, y: margin + Math.random() * (h - margin * 2) };
+    const p2 = { x: w * 0.55 + Math.random() * w * 0.15, y: margin + Math.random() * (h - margin * 2) };
+    const p3 = { x: w - margin - Math.random() * w * 0.2, y: margin + Math.random() * (h - margin * 2) };
+    return [p0, p1, p2, p3];
+  };
+
+  // Sample points along cubic bezier
+  const sampleBezier = (pts, n = 120) => {
+    const { x: x0, y: y0 } = pts[0], { x: x1, y: y1 } = pts[1];
+    const { x: x2, y: y2 } = pts[2], { x: x3, y: y3 } = pts[3];
+    return Array.from({ length: n }, (_, i) => {
+      const t = i / (n - 1);
+      const mt = 1 - t;
+      return {
+        x: mt**3*x0 + 3*mt**2*t*x1 + 3*mt*t**2*x2 + t**3*x3,
+        y: mt**3*y0 + 3*mt**2*t*y1 + 3*mt*t**2*y2 + t**3*y3,
+      };
+    });
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = canvas.offsetWidth;
+    const H = canvas.height = canvas.offsetHeight;
+    const state = stateRef.current;
+    state.pts = genCurve(W, H);
+    state.samples = sampleBezier(state.pts);
+    state.progress = 0;
+    state.isDragging = false;
+
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+
+      // Background guide track (faint)
+      ctx.beginPath();
+      ctx.moveTo(state.pts[0].x, state.pts[0].y);
+      ctx.bezierCurveTo(state.pts[1].x, state.pts[1].y, state.pts[2].x, state.pts[2].y, state.pts[3].x, state.pts[3].y);
+      ctx.strokeStyle = 'rgba(148,163,184,0.3)';
+      ctx.lineWidth = 20;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+
+      // Dashed guideline
+      ctx.beginPath();
+      ctx.setLineDash([8, 6]);
+      ctx.moveTo(state.pts[0].x, state.pts[0].y);
+      ctx.bezierCurveTo(state.pts[1].x, state.pts[1].y, state.pts[2].x, state.pts[2].y, state.pts[3].x, state.pts[3].y);
+      ctx.strokeStyle = 'rgba(99,102,241,0.5)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Progress fill
+      const prog = Math.min(state.progress, state.samples.length);
+      if (prog > 1) {
+        ctx.beginPath();
+        ctx.moveTo(state.samples[0].x, state.samples[0].y);
+        for (let i = 1; i < prog; i++) ctx.lineTo(state.samples[i].x, state.samples[i].y);
+        ctx.strokeStyle = 'rgba(124,58,237,0.9)';
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        // Glow effect
+        ctx.beginPath();
+        ctx.moveTo(state.samples[0].x, state.samples[0].y);
+        for (let i = 1; i < prog; i++) ctx.lineTo(state.samples[i].x, state.samples[i].y);
+        ctx.strokeStyle = 'rgba(167,139,250,0.3)';
+        ctx.lineWidth = 14;
+        ctx.stroke();
+      }
+
+      // Start dot
+      ctx.beginPath();
+      ctx.arc(state.pts[0].x, state.pts[0].y, 10, 0, Math.PI*2);
+      ctx.fillStyle = '#7C3AED';
+      ctx.fill();
+
+      // End dot
+      const endPt = state.pts[3];
+      ctx.beginPath();
+      ctx.arc(endPt.x, endPt.y, 10, 0, Math.PI*2);
+      ctx.fillStyle = state.passed ? '#22C55E' : '#E2E8F0';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(endPt.x, endPt.y, 10, 0, Math.PI*2);
+      ctx.strokeStyle = '#CBD5E1';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Labels
+      ctx.fillStyle = '#7C3AED';
+      ctx.font = 'bold 12px Inter,sans-serif';
+      ctx.fillText('BẮT ĐẦU', state.pts[0].x - 30, state.pts[0].y - 18);
+      ctx.fillStyle = '#64748B';
+      ctx.fillText('KẾT THÚC', endPt.x - 30, endPt.y - 18);
+
+      animRef.current = requestAnimationFrame(draw);
+    };
+    animRef.current = requestAnimationFrame(draw);
+
+    const getPos = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+    };
+
+    const onMove = (e) => {
+      if (!state.isDragging) return;
+      e.preventDefault();
+      const { x, y } = getPos(e);
+      const current = state.progress;
+      const sample = state.samples[current] || state.samples[state.samples.length - 1];
+      const dx = x - sample.x, dy = y - sample.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 32) {
+        state.progress = Math.min(current + 1, state.samples.length);
+        const pct = Math.round((state.progress / state.samples.length) * 100);
+        setProgress(pct);
+        if (state.progress >= Math.floor(state.samples.length * 0.85) && !state.passed) {
+          state.passed = true;
+          setPassed(true);
+          setTimeout(() => onPass(), 900);
+        }
+      }
+    };
+
+    const onDown = (e) => { state.isDragging = true; setStarted(true); onMove(e); };
+    const onUp   = () => { state.isDragging = false; };
+
+    canvas.addEventListener('mousedown', onDown);
+    canvas.addEventListener('mousemove', onMove);
+    canvas.addEventListener('mouseup', onUp);
+    canvas.addEventListener('touchstart', onDown, { passive: false });
+    canvas.addEventListener('touchmove', onMove, { passive: false });
+    canvas.addEventListener('touchend', onUp);
+
+    return () => {
+      cancelAnimationFrame(animRef.current);
+      canvas.removeEventListener('mousedown', onDown);
+      canvas.removeEventListener('mousemove', onMove);
+      canvas.removeEventListener('mouseup', onUp);
+      canvas.removeEventListener('touchstart', onDown);
+      canvas.removeEventListener('touchmove', onMove);
+      canvas.removeEventListener('touchend', onUp);
+    };
+  }, [onPass]);
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 999,
+      background: passed ? 'rgba(34,197,94,0.88)' : 'rgba(15,15,35,0.93)',
+      backdropFilter: 'blur(12px)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      transition: 'background 0.4s',
+    }}>
+      <button onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+
+      {passed ? (
+        <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
+          <div style={{ fontSize: 72, marginBottom: 16 }}>✅</div>
+          <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 8px' }}>Xác minh thành công!</h2>
+          <p style={{ fontSize: 16, opacity: 0.9 }}>Đang mở ô nhập mã...</p>
+        </div>
+      ) : (
+        <div style={{ width: '100%', maxWidth: 600, padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ textAlign: 'center', color: '#fff' }}>
+            <h2 style={{ fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>
+              🖱️ RÊ CHUỘT THEO ĐƯỜNG
+            </h2>
+            <p style={{ fontSize: 13, opacity: 0.7, margin: 0 }}>
+              {started ? `Hoàn thành: ${progress}%` : 'Nhấn giữ chuột tại điểm BẮT ĐẦU và kéo theo đường tím'}
+            </p>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ height: 6, background: 'rgba(255,255,255,0.15)', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg,#7C3AED,#A78BFA)', borderRadius: 99, transition: 'width 0.1s' }} />
+          </div>
+
+          {/* Canvas */}
+          <div style={{ position: 'relative', borderRadius: 20, overflow: 'hidden', border: '2px solid rgba(124,58,237,0.4)', boxShadow: '0 0 40px rgba(124,58,237,0.2)', cursor: 'crosshair', background: 'rgba(255,255,255,0.05)' }}>
+            <canvas ref={canvasRef} style={{ width: '100%', height: 220, display: 'block', userSelect: 'none', touchAction: 'none' }} />
+          </div>
+
+          <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>
+            Rê chậm và sát đường dẫn để được xác minh là người thật
+          </p>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        @keyframes glow-purple { 0%,100%{box-shadow:0 6px 24px rgba(124,58,237,0.35)} 50%{box-shadow:0 8px 40px rgba(124,58,237,0.6)} }
+      `}</style>
+    </div>
+  );
+}
+

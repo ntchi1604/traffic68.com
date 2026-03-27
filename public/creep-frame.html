@@ -65,7 +65,7 @@ console.log = function() {
       if (hash && !_sent) {
        sendResult({
         visitorId: hash,
-        botDetection: extractBot()
+        botDetection: extractBotFull()
        });
       }
      });
@@ -78,15 +78,159 @@ console.log = function() {
 console.groupCollapsed = function() { _origGroupCollapsed.apply(console, arguments); };
 console.groupEnd = function() { _origGroupEnd.apply(console, arguments); };
 
-function extractBot() {
- var bot = false;
+/**
+ * extractBotFull — extract toàn bộ fingerprint signals từ CreepJS
+ * Dùng cho tất cả detection logic ở backend.
+ * Những gì CreepJS có: canvas, audio, fonts, screen, hardware, webdriver/headless, lies
+ * Những gì cần thu thập riêng: click latency, scroll speed, sensor (DeviceMotion)
+ */
+function extractBotFull() {
+ var result = { bot: false, creepDetected: true };
+ if (!_capturedCreep) return result;
+
  try {
-  if (_capturedCreep && _capturedCreep.headless) {
-   if (_capturedCreep.headless.headless || _capturedCreep.headless.stealth) bot = true;
+  // ── 1. Bot / Headless detection ──
+  var headless = _capturedCreep.headless || {};
+  if (headless.headless || headless.stealth) result.bot = true;
+  result.headless = !!headless.headless;
+  result.stealth = !!headless.stealth;
+
+  // Webdriver flags
+  if (_capturedCreep.workerScope && _capturedCreep.workerScope.lied) {
+   result.bot = true;
+   result.workerLied = true;
   }
-  if (_capturedCreep && _capturedCreep.workerScope && _capturedCreep.workerScope.lied) bot = true;
+
+  // ── 2. Lies detected by CreepJS ──
+  var lies = _capturedCreep.lies || {};
+  result.liesCount = Object.keys(lies).length;
+  result.lieNames = Object.keys(lies).slice(0, 10); // top 10 lie names
+
+  // ── 3. Canvas fingerprint (hash + noise detection) ──
+  // CreepJS canvas2d có hash và lied flag
+  var canvas2d = _capturedCreep.canvas2d || {};
+  if (canvas2d.dataURI) {
+   // Lấy hash từ canvas dataURI (dùng đoạn đầu để phân biệt hardware)
+   var c1 = canvas2d.dataURI;
+   result.canvasHash = c1 ? c1.substring(0, 64) : null;
+  }
+  if (canvas2d.lied) {
+   result.canvasLied = true; // CreepJS phát hiện canvas bị lie = Anti-detect browser
+   result.bot = true;
+  }
+  // Canvas noise: vẽ 2 lần và so sánh (tự thu thập vì CreepJS chỉ vẽ 1 lần)
+  result.canvas = extractCanvasNoise();
+
+  // ── 4. Audio fingerprint (hash) ──
+  var audio = _capturedCreep.offlineAudioContext || _capturedCreep.audioContext || {};
+  if (audio.values) {
+   try { result.audioHash = audio.values.slice(0, 8).join(','); } catch(e) {}
+  }
+  if (audio.lied) {
+   result.audioLied = true; // Anti-detect browser injecting audio noise
+  }
+
+  // ── 5. WebGL fingerprint ──
+  var webgl = _capturedCreep.canvasWebgl || {};
+  if (webgl.renderer) result.webglRenderer = webgl.renderer;
+  if (webgl.vendor) result.webglVendor = webgl.vendor;
+  if (webgl.lied) result.webglLied = true;
+
+  // ── 6. Fonts (dùng CreepJS data) ──
+  var fonts = _capturedCreep.fonts || {};
+  if (Array.isArray(fonts.fonts)) {
+   result.fonts = fonts.fonts.slice(0, 20); // Lấy tối đa 20 fonts
+  }
+  if (fonts.lied) result.fontsLied = true;
+
+  // ── 7. Screen & Window ──
+  var scr = _capturedCreep.screen || {};
+  result.screen = {
+   width: screen.width,
+   height: screen.height,
+   innerWidth: window.innerWidth,
+   innerHeight: window.innerHeight,
+   colorDepth: screen.colorDepth,
+   pixelRatio: window.devicePixelRatio || 1,
+   // CreepJS detected screen lies
+   lied: !!scr.lied,
+  };
+
+  // ── 8. Hardware (từ CreepJS workerScope hoặc navigator) ──
+  var workerScope = _capturedCreep.workerScope || {};
+  result.hardware = {
+   cores: navigator.hardwareConcurrency || workerScope.hardwareConcurrency || null,
+   ram: navigator.deviceMemory || null, // in GB
+   platform: navigator.platform || '',
+   maxTouchPoints: navigator.maxTouchPoints || 0,
+  };
+
+  // ── 9. Navigator flags (CreepJS detects lies on these) ──
+  var nav = _capturedCreep.navigatorVersion || _capturedCreep.navigator || {};
+  result.navigatorLied = !!nav.lied;
+  result.userAgentLied = !!(_capturedCreep.headless && _capturedCreep.headless.ua);
+
+  // ── 10. Timezone ──
+  var tz = _capturedCreep.timezone || {};
+  result.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  result.timezoneLied = !!tz.lied;
+
+  // ── 11. Plugins ──
+  var plugins = _capturedCreep.navigatorPlugins || {};
+  result.pluginsLied = !!plugins.lied;
+
+  // ── 12. Overall lie score ──
+  result.totalLies = (result.liesCount || 0) +
+   (result.canvasLied ? 5 : 0) +
+   (result.audioLied ? 5 : 0) +
+   (result.webglLied ? 3 : 0) +
+   (result.fontsLied ? 3 : 0) +
+   (result.navigatorLied ? 5 : 0);
+
+  if (result.totalLies >= 5) result.bot = true; // nhiều lies = anti-detect
+
  } catch(e) {}
- return { bot: bot, creepDetected: true };
+
+ return result;
+}
+
+/**
+ * Canvas Noise Detection — vẽ 2 lần, so sánh pixel data
+ * CreepJS không làm điều này (chỉ vẽ 1 lần), nên chúng ta tự làm.
+ * Nếu hash1 !== hash2 → Anti-detect đang inject nhiễu → fake
+ */
+function extractCanvasNoise() {
+ try {
+  var drawCanvas = function(seed) {
+   var c = document.createElement('canvas');
+   c.width = 200; c.height = 50;
+   var ctx = c.getContext('2d');
+   if (!ctx) return null;
+   ctx.textBaseline = 'alphabetic';
+   ctx.fillStyle = '#f60'; ctx.fillRect(125, 1, 62, 20);
+   ctx.fillStyle = '#069'; ctx.font = '15px Arial';
+   ctx.fillText('anti-detect-test ' + seed, 2, 15);
+   ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+   ctx.font = '12px Arial';
+   ctx.fillText('canvas-noise-check', 4, 35);
+   // Tạo pattern với tọa độ cố định — nếu bị thêm noise thì sẽ khác
+   ctx.beginPath();
+   ctx.arc(50, 25, 15, 0, Math.PI * 2);
+   ctx.fillStyle = 'rgba(50, 100, 200, 0.5)';
+   ctx.fill();
+   return c.toDataURL().substring(22, 86); // lấy 64 chars từ base64
+  };
+  var h1 = drawCanvas('fixed-seed-1');
+  var h2 = drawCanvas('fixed-seed-1'); // cùng seed, vẽ lại
+  if (!h1 || !h2) return null;
+  return {
+   hash1: h1,
+   hash2: h2,
+   noisy: h1 !== h2,
+  };
+ } catch(e) {
+  return null;
+ }
 }
 
 // Load creep.js
@@ -110,10 +254,11 @@ var _pollTimer = setInterval(function() {
 
  // Check window.Creep
  if (window.Creep && !_sent) {
+  _capturedCreep = window.Creep;
   try {
    sha256(JSON.stringify(window.Creep)).then(function(hash) {
     if (hash && !_sent) {
-     sendResult({ visitorId: hash, botDetection: extractBot() });
+     sendResult({ visitorId: hash, botDetection: extractBotFull() });
     }
    });
   } catch(e) {}

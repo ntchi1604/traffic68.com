@@ -192,19 +192,18 @@ async function _handleTaskPost(req, res) {
     }
   }
 
-  // ── Bot detection: headless/webdriver + CreepJS bot flag ──
-  if (deviceData) {
-    const result = analyzeDevice(deviceData, ua);
-    if (result.isFake) {
-      botDetected = true;
-      detectionLog.push('headless_or_webdriver');
-    }
+  // ── Bot detection: tổng hợp từ CreepJS (botDetection) + client flags (deviceData) ──
+  // analyzeDevice v2 nhận cả 3: deviceData (scroll/click/sensor), ua, botDetection (CreepJS)
+  const devResult = analyzeDevice(deviceData || {}, ua, botDetection || {});
+  if (devResult.isFake) {
+    botDetected = true;
+    detectionLog.push(...devResult.detectionLog);
   }
 
-  // CreepJS: chỉ check bot flag đơn giản
-  if (botDetection && botDetection.bot === true) {
+  // Thêm: CreepJS bot flag trực tiếp (fallback nếu analyzeDevice miss)
+  if (!botDetected && botDetection && botDetection.bot === true) {
     botDetected = true;
-    detectionLog.push('creepjs_bot');
+    if (!detectionLog.includes('headless_or_webdriver')) detectionLog.push('headless_or_webdriver');
   }
 
 
@@ -351,16 +350,27 @@ async function _handleTaskPost(req, res) {
   const workerLinkId = ch.workerLinkId || null;
   const refWorkerId = ch.refWorkerId || null;
 
-  // Build security_detail JSON — include analyzed result + creepJS
-  const secObj = { detectionLog, isMobile: /Mobi|Android|iPhone|iPad|iPod/i.test(ua) };
-  if (deviceData) {
-    const devResult = analyzeDevice(deviceData, ua);
-    secObj.deviceScore = devResult.score;
-    secObj.deviceType = devResult.deviceType;
-    secObj.reasons = devResult.reasons;
-    secObj.detail = devResult.detail;
-  }
-  if (botDetection) secObj.botDetection = botDetection;
+  // Build security_detail JSON — tổng hợp từ analyzeDevice + CreepJS raw data
+  const secObj = {
+    detectionLog: [...new Set(detectionLog)],
+    isMobile: /Mobi|Android|iPhone|iPad|iPod/i.test(ua),
+    deviceScore: devResult.score,
+    deviceType: devResult.deviceType,
+    reasons: devResult.reasons,
+    detail: devResult.detail,
+    // Store canvas & audio hash trực tiếp ở top-level để SQL JSON_EXTRACT dùng được
+    canvasHash: botDetection?.canvasHash || devResult.detail?.canvasHash || null,
+    audioHash: botDetection?.audioHash || devResult.detail?.audioHash || null,
+    canvas: { hash1: botDetection?.canvas?.hash1, hash2: botDetection?.canvas?.hash2, noisy: botDetection?.canvas?.noisy },
+    // CreepJS summary
+    creepSummary: botDetection ? {
+      totalLies: botDetection.totalLies || 0,
+      lieNames: (botDetection.lieNames || []).slice(0, 5),
+      canvasLied: !!botDetection.canvasLied,
+      audioLied: !!botDetection.audioLied,
+      webglRenderer: botDetection.webglRenderer || null,
+    } : null,
+  };
   const securityDetail = JSON.stringify(secObj).substring(0, 10000);
 
   const [result] = await pool.execute(

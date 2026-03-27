@@ -32,7 +32,22 @@ const DL_VI = {
   Fingerprint_bot: 'Fingerprint Bot',
   ip_rate_limit: 'Rate limit IP',
   bot_ua: 'UA Bot',
+  // V2 new detection types
+  font_os_mismatch: 'Font/OS Mismatch',
+  screen_window_mismatch: 'Screen=Window (Headless)',
+  hardware_inconsistency: 'Phần cứng bất thường',
+  canvas_noise_detected: 'Canvas Noise (Anti-detect)',
+  click_latency_anomaly: 'Click bất thường (Bot click)',
+  scroll_speed_bot: 'Cuộn quá nhanh (Bot)',
+  fake_sensor: 'Cảm biến giả (Desktop→Mobile)',
+  canvas_api_lied: 'Canvas API bị giả mạo',
+  audio_api_lied: 'Audio API bị giả mạo',
+  navigator_api_lied: 'Navigator bị giả mạo',
+  webgl_api_lied: 'WebGL bị giả mạo',
+  creepjs_bot: 'CreepJS Bot',
+  creepjs_headless: 'CreepJS Headless',
 };
+
 
 function CopyBtn({ text }) {
   const [ok, setOk] = useState(false);
@@ -126,6 +141,67 @@ function TaskModal({ task: t, onClose }) {
               <span className="text-emerald-700 font-bold text-xs">Không phát hiện bot</span>
             </div>
           )}
+
+          {/* CreepJS Fingerprint Summary */}
+          {(sd.creepSummary || sd.canvasHash || sd.reasons?.length > 0) && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1.5">🔍 Fingerprint Analysis</p>
+              <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
+                {sd.creepSummary && (
+                  <>
+                    {sd.creepSummary.totalLies > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">API Lies</span>
+                        <span className={`font-bold ${sd.creepSummary.totalLies >= 5 ? 'text-red-600' : 'text-amber-600'}`}>
+                          {sd.creepSummary.totalLies} lies
+                          {sd.creepSummary.canvasLied && ' · Canvas✗'}
+                          {sd.creepSummary.audioLied && ' · Audio✗'}
+                        </span>
+                      </div>
+                    )}
+                    {sd.creepSummary.webglRenderer && (
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-400 shrink-0">WebGL</span>
+                        <span className="font-mono text-[10px] text-slate-600 truncate max-w-[55%]">{sd.creepSummary.webglRenderer}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                {sd.canvasHash && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-400 shrink-0">Canvas Hash</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-mono text-[10px] text-slate-600 truncate max-w-[140px]">{sd.canvasHash}</span>
+                      <CopyBtn text={sd.canvasHash} />
+                    </div>
+                  </div>
+                )}
+                {sd.audioHash && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-400 shrink-0">Audio Hash</span>
+                    <span className="font-mono text-[10px] text-slate-600 truncate max-w-[55%]">{sd.audioHash}</span>
+                  </div>
+                )}
+                {sd.canvas?.noisy === true && (
+                  <div className="flex items-center gap-2 mt-1 px-2 py-1 bg-red-50 rounded-lg border border-red-100">
+                    <Bot size={10} className="text-red-500" />
+                    <span className="text-red-700 font-bold text-[10px]">Canvas Noise detected (Anti-detect browser)</span>
+                  </div>
+                )}
+                {sd.reasons && sd.reasons.length > 0 && (
+                  <div className="mt-1.5">
+                    <p className="text-[9px] text-slate-400 font-bold uppercase mb-1">Detection Reasons</p>
+                    <div className="flex flex-wrap gap-1">
+                      {sd.reasons.map((r, i) => (
+                        <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-amber-50 text-amber-700 border border-amber-100">{r}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
         </div>
 
         <div className="px-5 py-3 border-t">

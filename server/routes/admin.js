@@ -1590,4 +1590,241 @@ router.get('/referrals/:type/:userId', async (req, res) => {
   }
 });
 
+
+// ═══════════════════════════════════════════════════════════
+// ANTI-CHEAT V2 — Advanced Detection Endpoints
+// ═══════════════════════════════════════════════════════════
+
+// ── GET /api/admin/security/canvas-clusters — Common Canvas Hash Analysis ──
+// Tìm các nhóm máy có chung Canvas fingerprint → same physical machine farm
+router.get('/security/canvas-clusters', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { days = 30, minCount = 3 } = req.query;
+
+    // Extract canvas hash from security_detail JSON in vuot_link_tasks
+    const [rows] = await pool.execute(
+      `SELECT
+         JSON_UNQUOTE(JSON_EXTRACT(security_detail, '$.canvas.hash1')) as canvas_hash,
+         COUNT(DISTINCT COALESCE(worker_id,
+           (SELECT worker_id FROM worker_links WHERE id = worker_link_id LIMIT 1)
+         )) as worker_count,
+         COUNT(*) as task_count,
+         GROUP_CONCAT(DISTINCT ip_address SEPARATOR ', ') as ips,
+         GROUP_CONCAT(DISTINCT COALESCE(
+           (SELECT name FROM users WHERE id = worker_id LIMIT 1),
+           (SELECT name FROM users WHERE id = (SELECT worker_id FROM worker_links WHERE id = worker_link_id LIMIT 1) LIMIT 1)
+         ) SEPARATOR ', ') as worker_names
+       FROM vuot_link_tasks
+       WHERE created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
+         AND security_detail IS NOT NULL
+         AND security_detail != 'null'
+         AND JSON_EXTRACT(security_detail, '$.canvas.hash1') IS NOT NULL
+         AND JSON_EXTRACT(security_detail, '$.canvas.hash1') != 'null'
+       GROUP BY canvas_hash
+       HAVING worker_count >= ?
+       ORDER BY worker_count DESC, task_count DESC
+       LIMIT 50`,
+      [Number(days), Number(minCount)]
+    );
+
+    res.json({
+      clusters: rows.map(r => ({
+        canvasHash: r.canvas_hash,
+        workerCount: Number(r.worker_count),
+        taskCount: Number(r.task_count),
+        ips: (r.ips || '').split(', ').filter(Boolean).slice(0, 10),
+        workerNames: (r.worker_names || '').split(', ').filter(Boolean).slice(0, 10),
+      })),
+      total: rows.length,
+    });
+  } catch (err) {
+    console.error('[AntiCheat] canvas-clusters error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/admin/security/delayed-ban-audit — Delayed Ban Audit ──
+// Chiến thuật "Thả dây dài, câu cá lớn":
+// Tìm users có earnings nhưng từ sessions bị đánh dấu bot → Từ chối thanh toán
+router.get('/security/delayed-ban-audit', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { threshold = 3 } = req.query; // Minimum bot detections to flag
+
+    // Find workers who have pending withdrawals + significant bot activity
+    const [suspects] = await pool.execute(
+      `SELECT
+         u.id,
+         u.name,
+         u.email,
+         u.status,
+         COUNT(DISTINCT CASE WHEN vt.bot_detected = 1 THEN vt.id END) as bot_tasks,
+         COUNT(DISTINCT CASE WHEN vt.status = 'completed' AND vt.bot_detected = 1 THEN vt.id END) as bot_completed,
+         COALESCE(SUM(CASE WHEN vt.status = 'completed' AND vt.bot_detected = 1 THEN vt.earning END), 0) as suspicious_earning,
+         COALESCE(SUM(CASE WHEN vt.status = 'completed' THEN vt.earning END), 0) as total_earning,
+         (SELECT balance FROM wallets WHERE user_id = u.id AND type = 'earning' LIMIT 1) as pending_balance,
+         (SELECT COUNT(*) FROM transactions WHERE user_id = u.id AND type = 'withdraw' AND status = 'pending' AND wallet_type = 'earning') as pending_withdrawals,
+         MAX(vt.created_at) as last_activity
+       FROM users u
+       LEFT JOIN vuot_link_tasks vt
+         ON (vt.worker_id = u.id OR vt.worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = u.id))
+       WHERE u.status != 'banned'
+       GROUP BY u.id
+       HAVING bot_tasks >= ?
+       ORDER BY bot_completed DESC, suspicious_earning DESC
+       LIMIT 100`,
+      [Number(threshold)]
+    );
+
+    // Also get their detection reasons summary
+    const result = [];
+    for (const row of suspects) {
+      const [detectionTypes] = await pool.execute(
+        `SELECT JSON_EXTRACT(security_detail, '$.detectionLog') as dl_raw
+         FROM vuot_link_tasks
+         WHERE (worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))
+           AND bot_detected = 1
+           AND security_detail IS NOT NULL
+         LIMIT 20`,
+        [row.id, row.id]
+      );
+
+      const detectionCounts = {};
+      detectionTypes.forEach(r => {
+        try {
+          const dl = JSON.parse(r.dl_raw || '[]');
+          if (Array.isArray(dl)) {
+            dl.forEach(d => { detectionCounts[d] = (detectionCounts[d] || 0) + 1; });
+          }
+        } catch {}
+      });
+
+      result.push({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        status: row.status,
+        botTasks: Number(row.bot_tasks),
+        botCompleted: Number(row.bot_completed),
+        suspiciousEarning: Number(row.suspicious_earning),
+        totalEarning: Number(row.total_earning),
+        pendingBalance: Number(row.pending_balance || 0),
+        pendingWithdrawals: Number(row.pending_withdrawals),
+        lastActivity: row.last_activity,
+        detectionTypes: detectionCounts,
+        riskScore: Math.min(100,
+          Number(row.bot_tasks) * 5 +
+          Number(row.bot_completed) * 10 +
+          (Number(row.pending_withdrawals) > 0 ? 20 : 0)
+        ),
+      });
+    }
+
+    // Summary stats
+    const highRisk = result.filter(r => r.riskScore >= 50);
+    const totalSuspiciousEarning = result.reduce((s, r) => s + r.suspiciousEarning, 0);
+    const totalPendingBalance = result.filter(r => r.pendingWithdrawals > 0).reduce((s, r) => s + r.pendingBalance, 0);
+
+    res.json({
+      suspects: result,
+      summary: {
+        total: result.length,
+        highRisk: highRisk.length,
+        totalSuspiciousEarning,
+        totalAtRiskBalance: totalPendingBalance,
+      },
+    });
+  } catch (err) {
+    console.error('[AntiCheat] delayed-ban-audit error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/admin/security/batch-ban — Batch ban multiple users ──
+router.post('/security/batch-ban', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { userIds, rejectWithdrawals = true } = req.body;
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ error: 'userIds required' });
+    }
+
+    const results = [];
+    for (const uid of userIds) {
+      if (Number(uid) === req.userId) continue; // Skip self
+      try {
+        // 1. Ban user
+        await pool.execute("UPDATE users SET status = 'banned' WHERE id = ?", [uid]);
+
+        // 2. Optionally reject pending withdrawals (Delayed Ban enforcement)
+        let rejectedWithdrawals = 0;
+        if (rejectWithdrawals) {
+          const [txs] = await pool.execute(
+            "SELECT id, amount FROM transactions WHERE user_id = ? AND type = 'withdraw' AND status = 'pending' AND wallet_type = 'earning'",
+            [uid]
+          );
+          for (const tx of txs) {
+            await pool.execute("UPDATE transactions SET status = 'rejected', note = 'Từ chối tự động - tài khoản gian lận' WHERE id = ?", [tx.id]);
+            // DO NOT refund earnings back — those are fraudulent earnings
+            rejectedWithdrawals++;
+          }
+        }
+
+        // 3. Notify user
+        await pool.execute(
+          `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+          [uid, 'Tài khoản bị khóa', 'Tài khoản của bạn đã bị khóa do vi phạm điều khoản sử dụng.', 'error', 'worker']
+        );
+
+        results.push({ uid, status: 'banned', rejectedWithdrawals });
+      } catch (e) {
+        results.push({ uid, status: 'error', error: e.message });
+      }
+    }
+
+    res.json({
+      message: `Đã xử lý ${results.length} tài khoản`,
+      results,
+      banned: results.filter(r => r.status === 'banned').length,
+    });
+  } catch (err) {
+    console.error('[AntiCheat] batch-ban error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/admin/security/fingerprint-clusters — AudioContext Hash Clustering ──
+// Tìm các tài khoản có chung AudioContext fingerprint (same hardware farm)
+router.get('/security/fingerprint-clusters', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { days = 30, minCount = 2 } = req.query;
+
+    const [rows] = await pool.execute(
+      `SELECT
+         JSON_UNQUOTE(JSON_EXTRACT(security_detail, '$.audioHash')) as audio_hash,
+         COUNT(DISTINCT COALESCE(worker_id,
+           (SELECT worker_id FROM worker_links WHERE id = worker_link_id LIMIT 1)
+         )) as worker_count,
+         COUNT(*) as task_count,
+         GROUP_CONCAT(DISTINCT ip_address ORDER BY ip_address SEPARATOR ', ') as ips
+       FROM vuot_link_tasks
+       WHERE created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
+         AND security_detail IS NOT NULL
+         AND JSON_EXTRACT(security_detail, '$.audioHash') IS NOT NULL
+       GROUP BY audio_hash
+       HAVING worker_count >= ?
+       ORDER BY worker_count DESC
+       LIMIT 30`,
+      [Number(days), Number(minCount)]
+    );
+
+    res.json({ clusters: rows, total: rows.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
+
