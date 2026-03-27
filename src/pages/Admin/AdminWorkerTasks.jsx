@@ -112,13 +112,25 @@ export default function AdminWorkerTasks() {
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-slate-400">Trang {page}/{totalPages}</p>
-          <div className="flex gap-1">
+        <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-5 py-3">
+          <p className="text-xs text-slate-500">
+            Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages}
+            <span className="ml-2 text-slate-400">({total} nhiệm vụ)</span>
+          </p>
+          <div className="flex items-center gap-1">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-              className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 transition"><ChevronLeft size={16} /></button>
+              className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">‹ Trước</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, i, arr) => { if (i > 0 && arr[i - 1] !== p - 1) acc.push('...'); acc.push(p); return acc; }, [])
+              .map((p, i) => p === '...' ? (
+                <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span>
+              ) : (
+                <button key={p} onClick={() => setPage(p)}
+                  className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-blue-600 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
+              ))}
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-              className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 transition"><ChevronRight size={16} /></button>
+              className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
           </div>
         </div>
       )}

@@ -9,6 +9,9 @@ export default function UserReferral() {
   const [data, setData] = useState({ referralCode: '', referrals: [], commissionPercent: null, totalCommission: 0 });
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [page, setPage] = useState(1);
+  const LIMIT = 20;
+
   const location = useLocation();
   const isWorker = location.pathname.startsWith('/worker');
 
@@ -28,6 +31,9 @@ export default function UserReferral() {
 
   const totalComm = data.totalCommission || 0;
   const fmt = (n) => new Intl.NumberFormat('vi-VN').format(n);
+
+  const totalPages = Math.ceil((data.referrals || []).length / LIMIT);
+  const pagedList = (data.referrals || []).slice((page - 1) * LIMIT, page * LIMIT);
 
   return (
     <div className="space-y-6">
@@ -109,9 +115,9 @@ export default function UserReferral() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {data.referrals.map((r, i) => (
+                {pagedList.map((r, i) => (
                   <tr key={r.id} className="hover:bg-slate-50/50 transition">
-                    <td className="px-5 py-3 text-slate-400">{i + 1}</td>
+                    <td className="px-5 py-3 text-slate-400">{(page - 1) * LIMIT + i + 1}</td>
                     <td className="px-5 py-3">
                       <p className="font-semibold text-slate-800">{r.name || r.email}</p>
                       <p className="text-xs text-slate-400">{r.email}</p>
@@ -140,6 +146,23 @@ export default function UserReferral() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-xs text-slate-500">Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages} <span className="text-slate-400">({data.referrals.length} bạn bè)</span></p>
+          <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200 p-1">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-40 transition">‹ Trước</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, i, arr) => { if (i > 0 && arr[i-1] !== p-1) acc.push('...'); acc.push(p); return acc; }, [])
+              .map((p, i) => p === '...' ? <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span> : (
+                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-orange-500 text-white' : 'hover:bg-slate-50 text-slate-600'}`}>{p}</button>
+              ))}
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

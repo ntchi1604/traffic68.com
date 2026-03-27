@@ -21,6 +21,8 @@ export default function WorkerShortLinks() {
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(null);
   const [formErr, setFormErr] = useState('');
+  const [page, setPage] = useState(1);
+  const LIMIT = 20;
 
   const load = useCallback(async () => {
     try {
@@ -246,7 +248,7 @@ export default function WorkerShortLinks() {
               </tr>
             </thead>
             <tbody>
-              {links.map(l => (
+              {links.slice((page - 1) * LIMIT, page * LIMIT).map(l => (
                 <tr key={l.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
                   <td style={{ padding: '12px 16px', maxWidth: 200 }}>
                     <p style={{ fontWeight: 700, color: '#1E293B', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.title || '—'}</p>
@@ -275,6 +277,23 @@ export default function WorkerShortLinks() {
           </table>
         )}
       </div>
+
+      {Math.ceil(links.length / LIMIT) > 1 && (
+        <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-5 py-3 mt-4 text-sm shadow-sm">
+          <p className="text-xs text-slate-500">Trang <span className="font-bold text-slate-700">{page}</span> / {Math.ceil(links.length / LIMIT)} <span className="text-slate-400">({links.length} liên kết)</span></p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition cursor-pointer">‹ Trước</button>
+            {Array.from({ length: Math.ceil(links.length / LIMIT) }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === Math.ceil(links.length / LIMIT) || Math.abs(p - page) <= 1)
+              .reduce((acc, p, i, arr) => { if (i > 0 && arr[i-1] !== p-1) acc.push('...'); acc.push(p); return acc; }, [])
+              .map((p, i) => p === '...' ? <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span> : (
+                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition cursor-pointer ${page===p ? 'bg-blue-600 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
+              ))}
+            <button onClick={() => setPage(p => Math.min(Math.ceil(links.length / LIMIT), p + 1))} disabled={page >= Math.ceil(links.length / LIMIT)} className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition cursor-pointer">Sau ›</button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

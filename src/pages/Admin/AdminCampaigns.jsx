@@ -210,7 +210,9 @@ export default function AdminCampaigns() {
   const [loading, setLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [editingCampaign, setEditingCampaign] = useState(null);
+  const [page, setPage] = useState(1);
   const menuRef = useRef(null);
+  const LIMIT = 20;
 
   useEffect(() => {
     const handler = (e) => {
@@ -224,8 +226,8 @@ export default function AdminCampaigns() {
 
   const fetchCampaigns = () => {
     setLoading(true);
-    api.get(`/admin/campaigns?search=${search}&status=${statusFilter}&limit=50`)
-      .then(data => setCampaigns(data.campaigns || []))
+    api.get(`/admin/campaigns?search=${search}&status=${statusFilter}&limit=200`)
+      .then(data => { setCampaigns(data.campaigns || []); setPage(1); })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -240,6 +242,9 @@ export default function AdminCampaigns() {
       fetchCampaigns();
     } catch (err) { toast.error(err.message); }
   };
+
+  const totalPages = Math.ceil(campaigns.length / LIMIT);
+  const paged = campaigns.slice((page - 1) * LIMIT, page * LIMIT);
 
   return (
     <div className="space-y-6">
@@ -292,7 +297,7 @@ export default function AdminCampaigns() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {campaigns.map(c => {
+                  {paged.map(c => {
                     const st = STATUS_MAP[c.status] || { label: c.status, cls: 'bg-gray-100 text-gray-700' };
                     return (
                       <tr key={c.id} className="hover:bg-slate-50/70">
@@ -365,7 +370,7 @@ export default function AdminCampaigns() {
 
             {/* Mobile cards */}
             <div className="md:hidden divide-y divide-slate-100">
-              {campaigns.map(c => {
+              {paged.map(c => {
                 const st = STATUS_MAP[c.status] || { label: c.status, cls: 'bg-gray-100 text-gray-700' };
                 return (
                   <div key={c.id} className="p-4 space-y-2">
@@ -431,6 +436,23 @@ export default function AdminCampaigns() {
           </>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-5 py-3">
+          <p className="text-xs text-slate-500">Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages} <span className="text-slate-400">({campaigns.length} chiến dịch)</span></p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">‹ Trước</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, i, arr) => { if (i > 0 && arr[i-1] !== p-1) acc.push('...'); acc.push(p); return acc; }, [])
+              .map((p, i) => p === '...' ? <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span> : (
+                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-orange-500 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
+              ))}
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
+          </div>
+        </div>
+      )}
 
       {editingCampaign && (
         <EditCampaignModal

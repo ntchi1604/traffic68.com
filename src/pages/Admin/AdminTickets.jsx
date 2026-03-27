@@ -96,11 +96,13 @@ export default function AdminTickets({ defaultRole = 'all' }) {
   const [replyTicket, setReplyTicket] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState(defaultRole);
+  const [page, setPage] = useState(1);
+  const LIMIT = 20;
 
   const fetchTickets = () => {
     setLoading(true);
     api.get('/admin/tickets')
-      .then(data => setTickets(data.tickets || []))
+      .then(data => { setTickets(data.tickets || []); setPage(1); })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -132,6 +134,9 @@ export default function AdminTickets({ defaultRole = 'all' }) {
     return true;
   });
 
+  const totalPages = Math.ceil(filteredTickets.length / LIMIT);
+  const pagedTickets = filteredTickets.slice((page - 1) * LIMIT, page * LIMIT);
+
   const countFor = (key) => {
     if (key === 'all') return tickets.length;
     if (key === 'pending') return tickets.filter(t => t.status === 'open' || t.status === 'in_progress').length;
@@ -153,7 +158,7 @@ export default function AdminTickets({ defaultRole = 'all' }) {
         {FILTERS.map(f => {
           const count = countFor(f.key);
           return (
-            <button key={f.key} onClick={() => setStatusFilter(f.key)}
+            <button key={f.key} onClick={() => { setStatusFilter(f.key); setPage(1); }}
               className={`px-4 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 ${
                 statusFilter === f.key
                   ? 'bg-orange-500 text-white'
@@ -178,7 +183,7 @@ export default function AdminTickets({ defaultRole = 'all' }) {
             <MessageSquare size={32} className="mx-auto mb-2 opacity-40" />
             Không có ticket nào
           </div>
-        ) : filteredTickets.map(t => {
+        ) : pagedTickets.map(t => {
           const st = STATUS_MAP[t.status] || STATUS_MAP.open;
           return (
             <div key={t.id} className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-shadow">
@@ -240,6 +245,23 @@ export default function AdminTickets({ defaultRole = 'all' }) {
           );
         })}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-xs text-slate-500">Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages} <span className="text-slate-400">({filteredTickets.length} ticket)</span></p>
+          <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200 p-1">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-40 transition">‹ Trước</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, i, arr) => { if (i > 0 && arr[i-1] !== p-1) acc.push('...'); acc.push(p); return acc; }, [])
+              .map((p, i) => p === '...' ? <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span> : (
+                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-orange-500 text-white' : 'hover:bg-slate-50 text-slate-600'}`}>{p}</button>
+              ))}
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
+          </div>
+        </div>
+      )}
 
       {/* Reply Modal */}
       {replyTicket && (

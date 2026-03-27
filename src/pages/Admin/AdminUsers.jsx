@@ -131,11 +131,14 @@ export default function AdminUsers({ type }) {
   usePageTitle('Admin - Quản lý');
   const toast = useToast();
   const [users, setUsers] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [balanceUser, setBalanceUser] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const menuRef = useRef(null);
+  const LIMIT = 30;
 
   useEffect(() => {
     const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenuId(null); };
@@ -143,30 +146,32 @@ export default function AdminUsers({ type }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const fetchUsers = useCallback((q = '') => {
+  const fetchUsers = useCallback((q = '', p = 1) => {
     setLoading(true);
     const serviceType = isWorker ? 'shortlink' : 'traffic';
     const roleParam = isWorker ? '&include_admin=1' : '';
-    api.get(`/admin/users?search=${q}&limit=50&service_type=${serviceType}${roleParam}`)
-      .then(data => setUsers(data.users || []))
+    api.get(`/admin/users?search=${q}&limit=${LIMIT}&page=${p}&service_type=${serviceType}${roleParam}`)
+      .then(data => { setUsers(data.users || []); setTotal(data.total || 0); setPage(p); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [isWorker]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
-  const handleSearch = (e) => { e.preventDefault(); fetchUsers(search); };
+  const handleSearch = (e) => { e.preventDefault(); fetchUsers(search, 1); };
 
   const updateUser = async (id, updates) => {
-    try { await api.put(`/admin/users/${id}`, updates); fetchUsers(search); }
+    try { await api.put(`/admin/users/${id}`, updates); fetchUsers(search, page); }
     catch (err) { toast.error(err.message); }
   };
 
   const deleteUser = async (id, name) => {
     if (!await toast.confirm(`Xóa người dùng "${name}"? Hành động này không thể hoàn tác.`)) return;
-    try { await api.delete(`/admin/users/${id}`); fetchUsers(search); }
+    try { await api.delete(`/admin/users/${id}`); fetchUsers(search, page); }
     catch (err) { toast.error(err.message); }
   };
+
+  const totalPages = Math.ceil(total / LIMIT);
 
   return (
     <div className="space-y-6">
@@ -175,7 +180,7 @@ export default function AdminUsers({ type }) {
           <h1 className="text-2xl font-black text-slate-900">
             Quản lý
           </h1>
-          <p className="text-sm text-slate-500 mt-1">{users.length} {isWorker ? 'worker' : 'buyer'}</p>
+          <p className="text-sm text-slate-500 mt-1">{total} {isWorker ? 'worker' : 'buyer'}</p>
         </div>
       </div>
 
@@ -315,7 +320,32 @@ export default function AdminUsers({ type }) {
         )}
       </div>
 
-      {balanceUser && <BalanceModal user={balanceUser} isWorkerPage={isWorker} onClose={() => setBalanceUser(null)} onDone={() => fetchUsers(search)} />}
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-5 py-3">
+          <p className="text-xs text-slate-500">
+            Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages}
+            <span className="ml-2 text-slate-400">({total} người dùng)</span>
+          </p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => fetchUsers(search, page - 1)} disabled={page === 1}
+              className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">‹ Trước</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, i, arr) => { if (i > 0 && arr[i - 1] !== p - 1) acc.push('...'); acc.push(p); return acc; }, [])
+              .map((p, i) => p === '...' ? (
+                <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span>
+              ) : (
+                <button key={p} onClick={() => fetchUsers(search, p)}
+                  className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-blue-600 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
+              ))}
+            <button onClick={() => fetchUsers(search, page + 1)} disabled={page >= totalPages}
+              className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
+          </div>
+        </div>
+      )}
+
+      {balanceUser && <BalanceModal user={balanceUser} isWorkerPage={isWorker} onClose={() => setBalanceUser(null)} onDone={() => fetchUsers(search, page)} />}
     </div>
   );
 }

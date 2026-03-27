@@ -5,11 +5,11 @@ import { isLoggedIn, getUser } from '../lib/api';
 
 const links = [
   { label: 'Trang chủ', to: '/' },
-  { label: 'Dịch vụ',   to: '/dich-vu' },
-  { label: 'Bảng giá',  to: '/bang-gia' },
-  { label: 'FAQ',        to: '/faq' },
-  { label: 'Blog',       to: '/blog' },
-  { label: 'Liên hệ',   to: '/lien-he' },
+  { label: 'Dịch vụ', to: '/dich-vu' },
+  { label: 'Bảng giá', to: '/bang-gia' },
+  { label: 'FAQ', to: '/faq' },
+  { label: 'Blog', to: '/blog' },
+  { label: 'Liên hệ', to: '/lien-he' },
 ];
 
 export default function Navbar() {
@@ -17,7 +17,6 @@ export default function Navbar() {
   const loggedIn = isLoggedIn();
   const user = getUser();
 
-  // Xác định đường dẫn dashboard theo role
   const dashboardPath = (() => {
     if (!user) return '/dashboard';
     if (user.role === 'admin') return '/admin';
@@ -42,8 +41,7 @@ export default function Navbar() {
               to={to}
               end={to === '/'}
               className={({ isActive }) =>
-                `text-[13.5px] font-medium relative nav-link transition-colors duration-200 ${
-                  isActive ? 'text-blue-700' : 'text-slate-600 hover:text-blue-700'
+                `text-[13.5px] font-medium relative nav-link transition-colors duration-200 ${isActive ? 'text-blue-700' : 'text-slate-600 hover:text-blue-700'
                 }`
               }
             >
@@ -55,7 +53,6 @@ export default function Navbar() {
         {/* Desktop Auth + CTA */}
         <div className="hidden lg:flex items-center gap-1">
           {loggedIn ? (
-            // Đã đăng nhập → hiện nút Dashboard
             <Link
               to={dashboardPath}
               className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold px-5 py-2 rounded-md shadow transition-colors"
@@ -64,7 +61,6 @@ export default function Navbar() {
               Dashboard
             </Link>
           ) : (
-            // Chưa đăng nhập → hiện đăng nhập / đăng ký
             <>
               <Link to="/dang-nhap" className="text-[13px] font-semibold text-slate-500 hover:text-blue-700 transition-colors px-2">
                 Đăng nhập
@@ -100,8 +96,7 @@ export default function Navbar() {
               end={to === '/'}
               onClick={() => setOpen(false)}
               className={({ isActive }) =>
-                `flex items-center justify-between py-2.5 px-2 text-sm font-medium rounded-lg transition-colors ${
-                  isActive ? 'text-blue-700 bg-blue-50' : 'text-slate-600 hover:text-blue-700 hover:bg-gray-50'
+                `flex items-center justify-between py-2.5 px-2 text-sm font-medium rounded-lg transition-colors ${isActive ? 'text-blue-700 bg-blue-50' : 'text-slate-600 hover:text-blue-700 hover:bg-gray-50'
                 }`
               }
             >
@@ -117,7 +112,7 @@ export default function Navbar() {
                 className="flex items-center justify-center gap-2 w-full orange-btn text-white text-sm font-bold px-5 py-3 rounded-xl text-center shadow-md"
               >
                 <LayoutDashboard className="w-4 h-4" />
-                Vào Dashboard
+                Dashboard
               </Link>
             ) : (
               <>

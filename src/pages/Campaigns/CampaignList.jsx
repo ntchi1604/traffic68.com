@@ -275,6 +275,8 @@ export default function CampaignList() {
   const [loading, setLoading] = useState(true);
   const [editingCampaign, setEditingCampaign] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [page, setPage] = useState(1);
+  const LIMIT = 10;
 
   const fetchCampaigns = () => {
     setLoading(true);
@@ -301,6 +303,9 @@ export default function CampaignList() {
     }
     return list;
   }, [campaigns, filter, search]);
+
+  const totalPages = Math.ceil(filtered.length / LIMIT);
+  const pagedList = filtered.slice((page - 1) * LIMIT, page * LIMIT);
 
   const handleToggle = async (c) => {
     const newStatus = c.status === 'running' ? 'paused' : 'running';
@@ -346,7 +351,7 @@ export default function CampaignList() {
         />
         <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
           {FILTERS.map(f => (
-            <button key={f.key} onClick={() => setFilter(f.key)}
+            <button key={f.key} onClick={() => { setFilter(f.key); setPage(1); }}
               className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${filter === f.key ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
               {f.label}
             </button>
@@ -372,7 +377,7 @@ export default function CampaignList() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {filtered.map(c => {
+          {pagedList.map(c => {
             const isDone = Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0;
             const effStatus = isDone ? 'completed' : c.status;
             const pct = Number(c.total_views) > 0
@@ -473,6 +478,23 @@ export default function CampaignList() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white rounded-2xl border border-slate-200 px-5 py-3 shadow-sm">
+          <p className="text-xs text-slate-500">Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages} <span className="text-slate-400">({filtered.length} chiến dịch)</span></p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">‹ Trước</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, i, arr) => { if (i > 0 && arr[i-1] !== p-1) acc.push('...'); acc.push(p); return acc; }, [])
+              .map((p, i) => p === '...' ? <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span> : (
+                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-blue-600 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
+              ))}
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
+          </div>
         </div>
       )}
 

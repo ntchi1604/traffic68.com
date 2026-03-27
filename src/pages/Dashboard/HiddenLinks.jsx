@@ -14,6 +14,8 @@ export default function HiddenLinks() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(null);
   const [toast, setToast] = useState(null);
+  const [page, setPage] = useState(1);
+  const LIMIT = 20;
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type }); setTimeout(() => setToast(null), 2500);
@@ -24,6 +26,7 @@ export default function HiddenLinks() {
     try {
       const data = await api.get('/shortlink/links/hidden');
       setLinks(data.links || []);
+      setPage(1);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
@@ -49,6 +52,9 @@ export default function HiddenLinks() {
     (l.slug || '').toLowerCase().includes(search.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filtered.length / LIMIT);
+  const pagedList = filtered.slice((page - 1) * LIMIT, page * LIMIT);
+
   return (
     <div className="space-y-6 w-full min-w-0">
       {toast && (
@@ -66,7 +72,7 @@ export default function HiddenLinks() {
       <div className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-5">
         <div className="relative mb-4">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input type="text" placeholder="Tìm kiếm..." value={search} onChange={e => setSearch(e.target.value)}
+          <input type="text" placeholder="Tìm kiếm..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
         </div>
 
@@ -91,7 +97,7 @@ export default function HiddenLinks() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(l => (
+                {pagedList.map(l => (
                   <tr key={l.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                     <td className="py-3 px-4 max-w-[200px]">
                       <p className="font-semibold text-slate-700 text-xs truncate">{l.title || '—'}</p>
@@ -122,6 +128,23 @@ export default function HiddenLinks() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-xs text-slate-500">Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages} <span className="text-slate-400">({filtered.length} link ẩn)</span></p>
+          <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200 p-1">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-40 transition">‹ Trước</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, i, arr) => { if (i > 0 && arr[i-1] !== p-1) acc.push('...'); acc.push(p); return acc; }, [])
+              .map((p, i) => p === '...' ? <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span> : (
+                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-blue-600 text-white' : 'hover:bg-slate-50 text-slate-600'}`}>{p}</button>
+              ))}
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
