@@ -1007,12 +1007,6 @@ function ShakeChallenge({ onPass, onClose }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   CURVE CHALLENGE (Desktop only)
-   Vẽ 1 đường Bézier ngẫu nhiên trên canvas, user phải rê chuột
-   theo sát đường (tolerance 32px). Hoàn thành 85% path → pass.
-───────────────────────────────────────────────────────────────── */
-// Module-level — không tạo lại mỗi render (tránh nhảy curve)
 function _genCurve(w, h) {
   const m = 60;
   return [
@@ -1056,7 +1050,6 @@ function CurveChallenge({ onPass, onClose }) {
     const H = canvas.height = 220;
 
     const state = stateRef.current;
-    // Sinh curve 1 lần duy nhất — flag initialized tránh re-generate khi React re-render
     if (!state.initialized) {
       state.pts = _genCurve(W, H);
       state.samples = _sampleBezier(state.pts);
