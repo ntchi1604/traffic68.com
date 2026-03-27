@@ -1002,14 +1002,27 @@ router.get('/security/ip/:ip', async (req, res) => {
       [ip]
     );
 
-    // 3. Workers using this IP
+    // 3. Workers using this IP (direct + gateway links, via UNION)
     const [workers] = await pool.execute(
-      `SELECT DISTINCT u.id, u.name, u.email, u.status, COUNT(t.id) as task_count
-       FROM vuot_link_tasks t LEFT JOIN users u ON t.worker_id = u.id
-       WHERE t.ip_address = ? AND t.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY) AND t.worker_id IS NOT NULL
-       GROUP BY u.id ORDER BY task_count DESC LIMIT 20`,
-      [ip]
+      `SELECT u.id, u.name, u.email, u.status, SUM(x.cnt) as task_count
+       FROM (
+         SELECT worker_id as uid, COUNT(*) as cnt
+         FROM vuot_link_tasks
+         WHERE ip_address = ? AND worker_id IS NOT NULL
+         GROUP BY worker_id
+         UNION ALL
+         SELECT wl.worker_id as uid, COUNT(*) as cnt
+         FROM vuot_link_tasks t
+         JOIN worker_links wl ON wl.id = t.worker_link_id
+         WHERE t.ip_address = ? AND t.worker_link_id IS NOT NULL
+         GROUP BY wl.worker_id
+       ) x
+       JOIN users u ON u.id = x.uid
+       GROUP BY u.id
+       ORDER BY task_count DESC LIMIT 20`,
+      [ip, ip]
     );
+
 
     // 4. Security events for this IP
     const [secEvents] = await pool.execute(
