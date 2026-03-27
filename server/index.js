@@ -71,18 +71,18 @@ app.get('/api/worker-pricing', async (req, res) => {
 });
 
 // ── Routes ──
-app.use('/api/auth',       require('./routes/auth'));
-app.use('/api/campaigns',  require('./routes/campaigns'));
-app.use('/api/finance',    require('./routes/finance'));
-app.use('/api/widgets',    require('./routes/widgets'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/campaigns', require('./routes/campaigns'));
+app.use('/api/finance', require('./routes/finance'));
+app.use('/api/widgets', require('./routes/widgets'));
 app.use('/api/notifications', require('./routes/notifications'));
-app.use('/api/support',    require('./routes/support'));
-app.use('/api/reports',    require('./routes/reports'));
-app.use('/api/users',      require('./routes/users'));
-app.use('/api/vuot-link',  require('./routes/vuotlink'));
-app.use('/api/admin',      require('./routes/admin'));
-app.use('/api/shortlink',  require('./routes/shortlink'));
-app.use('/api/quicklink',  require('./routes/quicklink'));
+app.use('/api/support', require('./routes/support'));
+app.use('/api/reports', require('./routes/reports'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/vuot-link', require('./routes/vuotlink'));
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/shortlink', require('./routes/shortlink'));
+app.use('/api/quicklink', require('./routes/quicklink'));
 
 
 // ── 404 handler ──
@@ -212,8 +212,8 @@ app.use((err, req, res, next) => {
     } catch (e) { console.error('  ⚠ Earning balance recalc:', e.message); }
 
     // support_tickets: add role + admin_reply columns
-    try { await pool.execute(`ALTER TABLE support_tickets ADD COLUMN role VARCHAR(10) DEFAULT 'worker'`); } catch (e) {}
-    try { await pool.execute(`ALTER TABLE support_tickets ADD COLUMN admin_reply TEXT DEFAULT NULL`); } catch (e) {}
+    try { await pool.execute(`ALTER TABLE support_tickets ADD COLUMN role VARCHAR(10) DEFAULT 'worker'`); } catch (e) { }
+    try { await pool.execute(`ALTER TABLE support_tickets ADD COLUMN admin_reply TEXT DEFAULT NULL`); } catch (e) { }
 
     // web3_payments: track Web3 auto-payment transactions
     try {
@@ -241,7 +241,26 @@ app.use((err, req, res, next) => {
       console.log('  ✅ web3_payments table ready');
     } catch (e) { console.error('  ⚠ web3_payments:', e.message); }
 
+    // security_logs: anti-cheat bot detection events
+    try {
+      await pool.execute(`CREATE TABLE IF NOT EXISTS security_logs (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        source      VARCHAR(20) NOT NULL DEFAULT 'unknown',
+        reason      VARCHAR(50) NOT NULL,
+        ip_address  VARCHAR(45),
+        user_agent  VARCHAR(500),
+        visitor_id  VARCHAR(100),
+        details     TEXT,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_created (created_at),
+        INDEX idx_reason (reason),
+        INDEX idx_ip (ip_address)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+      console.log('  ✅ security_logs table ready');
+    } catch (e) { console.error('  ⚠ security_logs:', e.message); }
+
     app.listen(PORT, () => {
+
       console.log(`
 ╔════════════════════════════════════════════╗
 ║   🚀 Traffic68 API Server (MySQL)         ║

@@ -125,7 +125,6 @@ export default function DailyEarnings() {
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-base font-bold text-slate-900">Biểu đồ Views & Thu nhập</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Cột xanh = views · Đường xanh lá = thu nhập</p>
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-400 inline-block" /> Views</span>
