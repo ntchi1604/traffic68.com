@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
-import { Link2, Copy, EyeOff, ExternalLink, MousePointer, Wallet, CheckCircle, Globe, Plus, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link2, Copy, EyeOff, ExternalLink, MousePointer, Wallet, CheckCircle, Globe, Plus, X, Check, Globe2 } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 import { formatMoney as fmt } from '../../lib/format';
@@ -11,7 +10,6 @@ const BASE = window.location.origin;
 
 export default function AllLinks() {
   usePageTitle('Tất cả liên kết');
-  const navigate = useNavigate();
   const toast = useToast();
 
   const [links, setLinks] = useState([]);
@@ -60,64 +58,72 @@ export default function AllLinks() {
 
   const copyLink = (slug) => {
     navigator.clipboard.writeText(`${BASE}/vuot-link/${slug}`);
-    setCopied(slug); setTimeout(() => setCopied(null), 1500);
+    setCopied(slug); setTimeout(() => setCopied(null), 2000);
   };
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      {/* Toast */}
-
-
-      {/* Right-side panel overlay */}
-      {panelOpen && <div onClick={closePanel} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 1000, backdropFilter: 'blur(2px)' }} />}
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 380, zIndex: 1001, background: '#fff', boxShadow: '-8px 0 32px rgba(0,0,0,0.15)', transform: panelOpen ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Slide-in panel overlay */}
+      {panelOpen && <div onClick={closePanel} className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[1000]" />}
+      <div className="fixed top-0 right-0 bottom-0 w-[380px] z-[1001] bg-white shadow-2xl flex flex-col"
+        style={{ transform: panelOpen ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)' }}>
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h3 style={{ fontWeight: 900, fontSize: 17, color: '#0F172A', margin: 0 }}>Tạo link kiếm tiền</h3>
-            <p style={{ fontSize: 12, color: '#94A3B8', margin: '4px 0 0' }}>Người click phải vượt link → bạn nhận tiền</p>
+            <h3 className="font-black text-[17px] text-slate-900">Tạo link kiếm tiền</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Người click phải vượt link → bạn nhận tiền</p>
           </div>
-          <button onClick={closePanel} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <X size={16} color="#64748B" />
+          <button onClick={closePanel} className="w-8 h-8 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center hover:bg-slate-100 transition">
+            <X size={15} className="text-slate-500" />
           </button>
         </div>
-        <form onSubmit={create} style={{ padding: 24, flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form onSubmit={create} className="p-6 flex-1 flex flex-col gap-4">
           <div>
-            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>URL đích <span style={{ color: '#EF4444' }}>*</span></label>
-            <p style={{ fontSize: 11, color: '#94A3B8', marginBottom: 8 }}>Người dùng được chuyển đến đây sau khi hoàn thành</p>
-            <input value={destUrl} onChange={e => setDestUrl(e.target.value)} autoFocus placeholder="https://example.com/noi-dung"
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${formErr && !destUrl ? '#FCA5A5' : '#E2E8F0'}`, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} required />
+            <label className="block text-xs font-bold text-slate-600 mb-1.5">URL đích <span className="text-red-400">*</span></label>
+            <p className="text-[11px] text-slate-400 mb-2">Người dùng được chuyển đến đây sau khi hoàn thành</p>
+            <div className="relative">
+              <Globe2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input value={destUrl} onChange={e => setDestUrl(e.target.value)} autoFocus
+                placeholder="https://example.com/noi-dung"
+                className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 ${formErr && !destUrl ? 'border-red-300' : 'border-slate-200'}`}
+                required />
+            </div>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>Tiêu đề <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 400 }}>(tùy chọn)</span></label>
+            <label className="block text-xs font-bold text-slate-600 mb-1.5">Tiêu đề <span className="text-[11px] text-slate-400 font-normal">(tùy chọn)</span></label>
             <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ví dụ: Tải xuống file XYZ"
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #E2E8F0', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
           </div>
-          {formErr && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#DC2626', fontWeight: 600 }}>{formErr}</div>}
-          <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '12px 14px' }}>
-            <p style={{ fontSize: 12, color: '#1D4ED8', fontWeight: 700, marginBottom: 4 }}>💡 Cách hoạt động</p>
-            <ul style={{ fontSize: 12, color: '#3B82F6', margin: 0, padding: '0 0 0 16px', lineHeight: 1.7 }}>
+          {formErr && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-600 font-semibold">{formErr}</div>}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5">
+            <p className="text-xs font-bold text-blue-700 mb-2">💡 Cách hoạt động</p>
+            <ul className="text-xs text-blue-600 space-y-1 list-disc pl-4">
               <li>Hệ thống tạo link <strong>/vuot-link/xxxxxxx</strong></li>
               <li>Người click phải vượt link trước</li>
               <li>Hoàn thành → redirect đến URL của bạn</li>
               <li>Bạn nhận <strong>CPC</strong> mỗi lượt hoàn thành</li>
             </ul>
           </div>
-          <div style={{ marginTop: 'auto', display: 'flex', gap: 10 }}>
-            <button type="submit" disabled={creating} style={{ flex: 1, padding: '12px 0', borderRadius: 11, border: 'none', background: creating ? '#93C5FD' : 'linear-gradient(135deg,#3B82F6,#2563EB)', color: '#fff', fontWeight: 700, fontSize: 14, cursor: creating ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <div className="mt-auto flex gap-2.5">
+            <button type="submit" disabled={creating}
+              className="flex-1 py-3 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-1.5 transition disabled:opacity-60"
+              style={{ background: 'linear-gradient(135deg,#3B82F6,#2563EB)' }}>
               {creating ? 'Đang tạo...' : <><Plus size={15} /> Tạo link</>}
             </button>
-            <button type="button" onClick={closePanel} style={{ padding: '12px 18px', borderRadius: 11, border: '1.5px solid #E2E8F0', background: '#fff', color: '#64748B', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Hủy</button>
+            <button type="button" onClick={closePanel}
+              className="px-4 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition">
+              Hủy
+            </button>
           </div>
         </form>
       </div>
 
       <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Tất cả liên kết' }]} />
 
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Tất cả liên kết</h1>
-        </div>
-        <button onClick={openPanel} className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white flex-shrink-0" style={{ background: 'linear-gradient(135deg,#3B82F6,#2563EB)', boxShadow: '0 4px 14px rgba(59,130,246,0.3)' }}>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Tất cả liên kết</h1>
+        <button onClick={openPanel}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white flex-shrink-0 transition hover:opacity-90 active:scale-95"
+          style={{ background: 'linear-gradient(135deg,#3B82F6,#2563EB)', boxShadow: '0 4px 14px rgba(59,130,246,0.3)' }}>
           <Plus size={15} /> Tạo link mới
         </button>
       </div>
@@ -163,36 +169,79 @@ export default function AllLinks() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-slate-400 border-b border-slate-100">
-                  <th className="py-3 px-5 font-medium text-xs uppercase tracking-wider">Tiêu đề / URL đích</th>
-                  <th className="py-3 px-4 font-medium text-xs uppercase tracking-wider">Link chia sẻ</th>
-                  <th className="py-3 px-4 font-medium text-xs uppercase tracking-wider text-center">Lượt vào</th>
-                  <th className="py-3 px-4 font-medium text-xs uppercase tracking-wider text-center">Hoàn thành</th>
-                  <th className="py-3 px-4 font-medium text-xs uppercase tracking-wider text-right">Thu nhập</th>
+                <tr className="border-b border-slate-100 bg-slate-50/60">
+                  <th className="py-3 px-5 text-left font-semibold text-[11px] uppercase tracking-wider text-slate-400">Tiêu đề / URL đích</th>
+                  <th className="py-3 px-4 text-left font-semibold text-[11px] uppercase tracking-wider text-slate-400">Link chia sẻ</th>
+                  <th className="py-3 px-4 text-center font-semibold text-[11px] uppercase tracking-wider text-slate-400">Lượt vào</th>
+                  <th className="py-3 px-4 text-center font-semibold text-[11px] uppercase tracking-wider text-slate-400">Hoàn thành</th>
+                  <th className="py-3 px-4 text-right font-semibold text-[11px] uppercase tracking-wider text-slate-400">Thu nhập</th>
                   <th className="py-3 px-4"></th>
                 </tr>
               </thead>
               <tbody>
                 {links.map(l => (
-                  <tr key={l.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3 px-5 max-w-[200px]">
-                      <p className="font-semibold text-slate-700 text-xs truncate">{l.title || '—'}</p>
-                      <p className="text-[10px] text-slate-400 truncate">{l.destination_url}</p>
+                  <tr key={l.id} className="border-b border-slate-50 hover:bg-blue-50/20 transition-colors group">
+
+                    {/* Tiêu đề */}
+                    <td className="py-4 px-5 max-w-[200px]">
+                      <p className="font-semibold text-slate-700 text-xs truncate">
+                        {l.title || <span className="text-slate-300 italic font-normal">Không có tiêu đề</span>}
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5">{l.destination_url}</p>
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-blue-600 font-bold text-xs">/vuot-link/{l.slug}</span>
-                        <button onClick={() => copyLink(l.slug)} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${copied === l.slug ? 'bg-green-50 border-green-200 text-green-600' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
-                          {copied === l.slug ? '✔' : 'Copy'}
+
+                    {/* Link chia sẻ — redesigned pill */}
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-1.5">
+                        {/* Pill */}
+                        <div className="flex items-center gap-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-lg px-2.5 py-1.5 min-w-0 flex-1 max-w-[160px]">
+                          <Link2 size={11} className="text-blue-400 flex-shrink-0" />
+                          <span className="font-mono text-blue-700 font-bold text-[11px] truncate">
+                            /vuot-link/<span className="text-indigo-600">{l.slug}</span>
+                          </span>
+                        </div>
+                        {/* Copy */}
+                        <button
+                          onClick={() => copyLink(l.slug)}
+                          className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold border transition-all duration-200 flex-shrink-0 ${
+                            copied === l.slug
+                              ? 'bg-green-50 border-green-200 text-green-600 scale-95'
+                              : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 hover:scale-105'
+                          }`}
+                        >
+                          {copied === l.slug ? <><Check size={10} /> Đã copy!</> : <><Copy size={10} /> Copy</>}
                         </button>
-                        <a href={`/vuot-link/${l.slug}`} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-blue-500 transition-colors"><ExternalLink size={12} /></a>
+                        {/* Open tab */}
+                        <a href={`/vuot-link/${l.slug}`} target="_blank" rel="noreferrer"
+                          className="w-6 h-6 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-400 hover:text-blue-500 hover:border-blue-300 hover:bg-blue-50 transition flex-shrink-0">
+                          <ExternalLink size={11} />
+                        </a>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-center font-semibold text-slate-600 text-xs">{fmt(l.click_count)}</td>
-                    <td className="py-3 px-4 text-center font-semibold text-emerald-600 text-xs">{fmt(l.completed_count)}</td>
-                    <td className="py-3 px-4 text-right font-bold text-orange-500 text-xs">+{fmt(l.earning)} đ</td>
-                    <td className="py-3 px-4">
-                      <button onClick={() => hideLink(l.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-100 hover:bg-amber-100 transition-colors">
+
+                    {/* Lượt vào */}
+                    <td className="py-4 px-4 text-center">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 border border-slate-100 rounded-full text-xs font-bold text-slate-600">
+                        <MousePointer size={9} className="text-slate-400" /> {fmt(l.click_count)}
+                      </span>
+                    </td>
+
+                    {/* Hoàn thành */}
+                    <td className="py-4 px-4 text-center">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-100 rounded-full text-xs font-bold text-emerald-600">
+                        <CheckCircle size={9} /> {fmt(l.completed_count)}
+                      </span>
+                    </td>
+
+                    {/* Thu nhập */}
+                    <td className="py-4 px-4 text-right">
+                      <span className="text-sm font-black text-orange-500">+{fmt(l.earning)} đ</span>
+                    </td>
+
+                    {/* Ẩn — chỉ hiện khi hover */}
+                    <td className="py-4 px-4">
+                      <button onClick={() => hideLink(l.id)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-slate-400 border border-transparent hover:text-amber-600 hover:bg-amber-50 hover:border-amber-200 transition-all opacity-0 group-hover:opacity-100">
                         <EyeOff size={11} /> Ẩn
                       </button>
                     </td>

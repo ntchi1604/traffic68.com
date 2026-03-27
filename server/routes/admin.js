@@ -275,18 +275,23 @@ router.put('/campaigns/:id', async (req, res) => {
 router.get('/transactions', async (req, res) => {
   const pool = getPool();
   const { type, status, fromDate, toDate, page = 1, limit = 50 } = req.query;
-  const offset = (page - 1) * limit;
-  let sql = `SELECT t.*, u.name as user_name, u.email as user_email FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE 1=1`;
+  const offset = (Number(page) - 1) * Number(limit);
+  let baseWhere = `WHERE 1=1`;
   const params = [];
-  let filterCondition = '';
   const filterParams = [];
-  if (type && type !== 'all') { sql += ' AND t.type = ?'; params.push(type); filterCondition += ' AND t.type = ?'; filterParams.push(type); }
-  if (status && status !== 'all') { sql += ' AND t.status = ?'; params.push(status); filterCondition += ' AND t.status = ?'; filterParams.push(status); }
-  if (fromDate) { sql += " AND DATE(t.created_at) >= ?"; params.push(fromDate); filterCondition += " AND DATE(t.created_at) >= ?"; filterParams.push(fromDate); }
-  if (toDate) { sql += " AND DATE(t.created_at) <= ?"; params.push(toDate); filterCondition += " AND DATE(t.created_at) <= ?"; filterParams.push(toDate); }
-  sql += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
-  params.push(Number(limit), Number(offset));
-  const [transactions] = await pool.execute(sql, params);
+  let filterCondition = '';
+  if (type && type !== 'all') { baseWhere += ' AND t.type = ?'; params.push(type); filterCondition += ' AND t.type = ?'; filterParams.push(type); }
+  if (status && status !== 'all') { baseWhere += ' AND t.status = ?'; params.push(status); filterCondition += ' AND t.status = ?'; filterParams.push(status); }
+  if (fromDate) { baseWhere += ' AND DATE(t.created_at) >= ?'; params.push(fromDate); filterCondition += ' AND DATE(t.created_at) >= ?'; filterParams.push(fromDate); }
+  if (toDate) { baseWhere += ' AND DATE(t.created_at) <= ?'; params.push(toDate); filterCondition += ' AND DATE(t.created_at) <= ?'; filterParams.push(toDate); }
+
+  const [countRows] = await pool.execute(
+    `SELECT COUNT(*) as c FROM transactions t ${baseWhere}`, params
+  );
+  const total = countRows[0].c;
+
+  const sql = `SELECT t.*, u.name as user_name, u.email as user_email FROM transactions t LEFT JOIN users u ON t.user_id = u.id ${baseWhere} ORDER BY t.created_at DESC LIMIT ? OFFSET ?`;
+  const [transactions] = await pool.execute(sql, [...params, Number(limit), offset]);
 
   // Summary totals (uses same filters but no LIMIT — always count completed transactions)
   const [depRows] = await pool.execute(
@@ -298,8 +303,9 @@ router.get('/transactions', async (req, res) => {
     filterParams
   );
 
-  res.json({ transactions, totalDeposit: Number(depRows[0].total), totalWithdraw: Number(wdRows[0].total) });
+  res.json({ transactions, total, totalDeposit: Number(depRows[0].total), totalWithdraw: Number(wdRows[0].total) });
 });
+
 
 // ── PUT /api/admin/transactions/:id/approve ──
 router.put('/transactions/:id/approve', async (req, res) => {
@@ -1101,23 +1107,28 @@ router.get('/worker-tasks', async (req, res) => {
 router.get('/worker-withdrawals', async (req, res) => {
   try {
     const pool = getPool();
-    const { status } = req.query;
+    const { status, page = 1, limit = 30 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
 
     let where = "t.type = 'withdraw' AND t.wallet_type = 'earning'";
     const params = [];
     if (status && status !== 'all') { where += ' AND t.status = ?'; params.push(status); }
 
+    const [countR] = await pool.execute(
+      `SELECT COUNT(*) as c FROM transactions t WHERE ${where}`, params
+    );
     const [rows] = await pool.execute(
       `SELECT t.*, u.name as user_name, u.email as user_email
        FROM transactions t LEFT JOIN users u ON t.user_id = u.id
-       WHERE ${where} ORDER BY t.created_at DESC LIMIT 200`,
+       WHERE ${where} ORDER BY t.created_at DESC LIMIT ${Number(limit)} OFFSET ${offset}`,
       params
     );
-    res.json({ withdrawals: rows });
+    res.json({ withdrawals: rows, total: countR[0].c, page: Number(page), limit: Number(limit) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // ── PUT /api/admin/worker-withdrawals/bulk ──
 router.put('/worker-withdrawals/bulk', async (req, res) => {

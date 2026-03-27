@@ -10,19 +10,22 @@ export default function AdminWorkerWithdrawals() {
   usePageTitle('Admin - Rút tiền Worker');
   const toast = useToast();
   const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const LIMIT = 30;
   const [filter, setFilter] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [processingBatch, setProcessingBatch] = useState(false);
   const [processingId, setProcessingId] = useState(null);
 
-  const fetch = () => {
+  const fetch = (p = 1) => {
     setLoading(true);
-    api.get(`/admin/worker-withdrawals?status=${filter}`)
-      .then(d => { setRows(d.withdrawals || []); setLoading(false); })
+    api.get(`/admin/worker-withdrawals?status=${filter}&page=${p}&limit=${LIMIT}`)
+      .then(d => { setRows(d.withdrawals || []); setTotal(d.total || 0); setPage(p); setLoading(false); })
       .catch(() => setLoading(false));
   };
 
-  useEffect(() => { fetch(); }, [filter]);
+  useEffect(() => { fetch(1); }, [filter]);
 
   const handleAction = async (id, action) => {
     if (action === 'reject' && !await toast.confirm('Từ chối yêu cầu rút tiền này?')) return;
@@ -31,7 +34,7 @@ export default function AdminWorkerWithdrawals() {
       const privateKey = localStorage.getItem('web3_hot_wallet_pk') || '';
       await api.put(`/admin/worker-withdrawals/${id}`, { action, privateKey });
       toast.success(action === 'approve' ? 'Đã duyệt' : 'Đã từ chối');
-      fetch();
+      fetch(page);
     } catch (err) { 
       toast.error(err.message); 
     } finally {
@@ -51,7 +54,7 @@ export default function AdminWorkerWithdrawals() {
         privateKey
       });
       toast.success(`Đã xử lý ${ids.length} yêu cầu`);
-      fetch();
+      fetch(1);
     } catch (err) {
       toast.error(err.message || 'Lỗi xử lý hàng loạt');
     } finally {
@@ -169,6 +172,36 @@ export default function AdminWorkerWithdrawals() {
           </table>
         )}
       </div>
+
+      {/* Pagination */}
+      {total > LIMIT && (
+        <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-5 py-3">
+          <p className="text-xs text-slate-500">
+            Trang <span className="font-bold text-slate-700">{page}</span> / {Math.ceil(total / LIMIT)}
+            <span className="ml-2 text-slate-400">({total} yêu cầu)</span>
+          </p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => fetch(page - 1)} disabled={page === 1}
+              className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">
+              ‹ Trước
+            </button>
+            {Array.from({ length: Math.ceil(total / LIMIT) }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === Math.ceil(total / LIMIT) || Math.abs(p - page) <= 1)
+              .reduce((acc, p, i, arr) => { if (i > 0 && arr[i - 1] !== p - 1) acc.push('...'); acc.push(p); return acc; }, [])
+              .map((p, i) => p === '...' ? (
+                <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span>
+              ) : (
+                <button key={p} onClick={() => fetch(p)}
+                  className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-blue-600 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
+              ))
+            }
+            <button onClick={() => fetch(page + 1)} disabled={page >= Math.ceil(total / LIMIT)}
+              className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">
+              Sau ›
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

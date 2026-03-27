@@ -29,12 +29,12 @@ function ChartTooltip({ active, payload, label }) {
 function StatusBadge({ status }) {
   const cfg = {
     completed: { label: 'Hoàn thành', cls: 'bg-emerald-50 text-emerald-600 ring-emerald-500/20', Icon: CheckCircle2 },
-    pending:   { label: 'Đang xử lý', cls: 'bg-amber-50 text-amber-600 ring-amber-500/20',     Icon: Clock },
-    step1:     { label: 'Bước 1',      cls: 'bg-blue-50 text-blue-600 ring-blue-500/20',         Icon: Clock },
-    step2:     { label: 'Bước 2',      cls: 'bg-blue-50 text-blue-600 ring-blue-500/20',         Icon: Clock },
-    step3:     { label: 'Bước 3',      cls: 'bg-blue-50 text-blue-600 ring-blue-500/20',         Icon: Clock },
-    expired:   { label: 'Hết hạn',    cls: 'bg-slate-50 text-slate-500 ring-slate-500/20',      Icon: XCircle },
-    failed:    { label: 'Thất bại',   cls: 'bg-red-50 text-red-500 ring-red-500/20',            Icon: XCircle },
+    pending: { label: 'Đang xử lý', cls: 'bg-amber-50 text-amber-600 ring-amber-500/20', Icon: Clock },
+    step1: { label: 'Bước 1', cls: 'bg-blue-50 text-blue-600 ring-blue-500/20', Icon: Clock },
+    step2: { label: 'Bước 2', cls: 'bg-blue-50 text-blue-600 ring-blue-500/20', Icon: Clock },
+    step3: { label: 'Bước 3', cls: 'bg-blue-50 text-blue-600 ring-blue-500/20', Icon: Clock },
+    expired: { label: 'Hết hạn', cls: 'bg-slate-50 text-slate-500 ring-slate-500/20', Icon: XCircle },
+    failed: { label: 'Thất bại', cls: 'bg-red-50 text-red-500 ring-red-500/20', Icon: XCircle },
   };
   const { label, cls, Icon } = cfg[status] || cfg.pending;
   return (
@@ -141,7 +141,6 @@ export default function MemberDashboard() {
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-base font-bold text-slate-900">Views & Thu nhập 7 ngày qua</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Cột xanh = views · Đường cam = thu nhập</p>
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-400 inline-block" /> Views</span>

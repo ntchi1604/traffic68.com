@@ -85,6 +85,9 @@ export default function AdminTransactions() {
   usePageTitle('Admin - Giao dịch');
   const toast = useToast();
   const [transactions, setTransactions] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const LIMIT = 50;
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [fromDate, setFromDate] = useState('');
@@ -94,30 +97,32 @@ export default function AdminTransactions() {
   const [totalDeposit, setTotalDeposit] = useState(0);
   const [totalWithdraw, setTotalWithdraw] = useState(0);
 
-  const fetchData = () => {
+  const fetchData = (p = 1) => {
     setLoading(true);
-    const params = new URLSearchParams({ type: typeFilter, status: statusFilter, limit: '100' });
+    const params = new URLSearchParams({ type: typeFilter, status: statusFilter, limit: String(LIMIT), page: String(p) });
     if (fromDate) params.set('fromDate', fromDate);
     if (toDate) params.set('toDate', toDate);
 
     api.get(`/admin/transactions?${params}`)
       .then(data => {
         setTransactions(data.transactions || []);
+        setTotal(data.total || (data.transactions || []).length);
         setTotalDeposit(data.totalDeposit || 0);
         setTotalWithdraw(data.totalWithdraw || 0);
+        setPage(p);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchData(); }, [typeFilter, statusFilter, fromDate, toDate]);
+  useEffect(() => { fetchData(1); }, [typeFilter, statusFilter, fromDate, toDate]);
 
   const approveTx = async (tx) => {
     if (!await toast.confirm(`Duyệt đơn nạp ${fmt(tx.amount)} đ của ${tx.user_name}?`)) return;
     try {
       await api.put(`/admin/transactions/${tx.id}/approve`);
       toast.success(`Đã duyệt đơn nạp ${fmt(tx.amount)} đ`);
-      fetchData();
+      fetchData(page);
     } catch (err) { toast.error(err.message); }
   };
 
@@ -127,6 +132,7 @@ export default function AdminTransactions() {
   };
 
   const pendingCount = transactions.filter(t => t.status === 'pending').length;
+  const totalPages = Math.ceil(total / LIMIT);
 
   return (
     <div className="space-y-5">
@@ -134,7 +140,7 @@ export default function AdminTransactions() {
       <div>
         <h1 className="text-2xl font-black text-slate-900">Giao dịch hệ thống</h1>
         <p className="text-sm text-slate-500 mt-1">
-          {transactions.length} giao dịch
+          {total > 0 ? `${total} giao dịch` : `${transactions.length} giao dịch`}
           {pendingCount > 0 && <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-full animate-pulse">{pendingCount} chờ duyệt</span>}
         </p>
       </div>
@@ -286,8 +292,40 @@ export default function AdminTransactions() {
         )}
       </div>
 
+      {/* Pagination */}
+      {total > LIMIT && (
+        <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-5 py-3">
+          <p className="text-xs text-slate-500">
+            Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages}
+            <span className="ml-2 text-slate-400">({total} giao dịch)</span>
+          </p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => fetchData(page - 1)} disabled={page === 1}
+              className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+              ‹ Trước
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, i, arr) => { if (i > 0 && arr[i - 1] !== p - 1) acc.push('...'); acc.push(p); return acc; }, [])
+              .map((p, i) => p === '...' ? (
+                <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span>
+              ) : (
+                <button key={p} onClick={() => fetchData(p)}
+                  className={`w-8 h-8 text-xs font-bold rounded-lg transition ${
+                    page === p ? 'bg-orange-500 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'
+                  }`}>{p}</button>
+              ))
+            }
+            <button onClick={() => fetchData(page + 1)} disabled={page >= totalPages}
+              className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+              Sau ›
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Reject Modal */}
-      {rejectTx && <RejectModal tx={rejectTx} onClose={() => setRejectTx(null)} onDone={fetchData} />}
+      {rejectTx && <RejectModal tx={rejectTx} onClose={() => setRejectTx(null)} onDone={() => fetchData(page)} />}
     </div>
   );
 }
