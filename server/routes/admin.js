@@ -886,8 +886,26 @@ router.get('/security/:id', async (req, res) => {
 
 
 
+// ── DELETE /api/admin/security/clear-all — Xóa toàn bộ data anti-cheat ──
+router.delete('/security/clear-all', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [r1] = await pool.execute(`DELETE FROM security_logs`);
+    const [r2] = await pool.execute(`UPDATE vuot_link_tasks SET security_detail = NULL, bot_detected = 0 WHERE bot_detected = 1 OR security_detail IS NOT NULL`);
+    res.json({
+      message: 'Đã xóa toàn bộ dữ liệu anti-cheat',
+      deletedLogs: r1.affectedRows,
+      resetTasks: r2.affectedRows,
+    });
+  } catch (e) {
+    console.error('[Admin] clear-all error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── GET /api/admin/security/ip/:ip — IP Evaluation ──
 router.get('/security/ip/:ip', async (req, res) => {
+
   try {
     const pool = getPool();
     const ip = req.params.ip;

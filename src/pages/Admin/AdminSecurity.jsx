@@ -693,9 +693,23 @@ export default function AdminSecurity() {
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">{total} user · CreepJS + Automation detection</p>
         </div>
+      <div className="flex items-center gap-2">
         <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Làm mới
         </button>
+        <button onClick={async () => {
+          if (!confirm('Xóa toàn bộ dữ liệu Anti-Cheat?\n(security_logs + bot_detected + security_detail)')) return;
+          if (!confirm('XÁC NHẬN LẦN 2: Hành động này không thể hoàn tác!')) return;
+          try {
+            await api.delete('/admin/security/clear-all');
+            alert('Đã xóa toàn bộ dữ liệu anti-cheat!');
+            load();
+          } catch (e) { alert('Lỗi: ' + (e.message || 'Không xóa được')); }
+        }} className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-600 hover:bg-red-100 transition">
+          <AlertTriangle size={14} /> Xóa tất cả data
+        </button>
+      </div>
+
       </div>
 
       <div className="flex gap-2">
