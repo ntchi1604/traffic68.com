@@ -1021,6 +1021,27 @@ function ShakeChallenge({ onPass, onClose }) {
    Vẽ 1 đường Bézier ngẫu nhiên trên canvas, user phải rê chuột
    theo sát đường (tolerance 32px). Hoàn thành 85% path → pass.
 ───────────────────────────────────────────────────────────────── */
+// Module-level — không tạo lại mỗi render (tránh nhảy curve)
+function _genCurve(w, h) {
+  const m = 60;
+  return [
+    { x: m + Math.random() * w * 0.2,         y: m + Math.random() * (h - m * 2) },
+    { x: w * 0.3 + Math.random() * w * 0.15,  y: m + Math.random() * (h - m * 2) },
+    { x: w * 0.55 + Math.random() * w * 0.15, y: m + Math.random() * (h - m * 2) },
+    { x: w - m - Math.random() * w * 0.2,     y: m + Math.random() * (h - m * 2) },
+  ];
+}
+function _sampleBezier(pts, n = 120) {
+  const [p0, p1, p2, p3] = pts;
+  return Array.from({ length: n }, (_, i) => {
+    const t = i / (n - 1), mt = 1 - t;
+    return {
+      x: mt**3*p0.x + 3*mt**2*t*p1.x + 3*mt*t**2*p2.x + t**3*p3.x,
+      y: mt**3*p0.y + 3*mt**2*t*p1.y + 3*mt*t**2*p2.y + t**3*p3.y,
+    };
+  });
+}
+
 function CurveChallenge({ onPass, onClose }) {
   const canvasRef = useRef(null);
   const stateRef = useRef({ points: [], progress: 0, isDragging: false, passed: false });
@@ -1028,44 +1049,28 @@ function CurveChallenge({ onPass, onClose }) {
   const [passed, setPassed] = useState(false);
   const [started, setStarted] = useState(false);
   const animRef = useRef(null);
+  // Ref để giữ onPass hiện tại — không cần trong deps array của useEffect
+  const onPassRef = useRef(onPass);
+  useEffect(() => { onPassRef.current = onPass; });
 
-  // Generate random bezier curve points
-  const genCurve = (w, h) => {
-    const margin = 60;
-    const p0 = { x: margin + Math.random() * w * 0.2, y: margin + Math.random() * (h - margin * 2) };
-    const p1 = { x: w * 0.3 + Math.random() * w * 0.15, y: margin + Math.random() * (h - margin * 2) };
-    const p2 = { x: w * 0.55 + Math.random() * w * 0.15, y: margin + Math.random() * (h - margin * 2) };
-    const p3 = { x: w - margin - Math.random() * w * 0.2, y: margin + Math.random() * (h - margin * 2) };
-    return [p0, p1, p2, p3];
-  };
-
-  // Sample points along cubic bezier
-  const sampleBezier = (pts, n = 120) => {
-    const { x: x0, y: y0 } = pts[0], { x: x1, y: y1 } = pts[1];
-    const { x: x2, y: y2 } = pts[2], { x: x3, y: y3 } = pts[3];
-    return Array.from({ length: n }, (_, i) => {
-      const t = i / (n - 1);
-      const mt = 1 - t;
-      return {
-        x: mt ** 3 * x0 + 3 * mt ** 2 * t * x1 + 3 * mt * t ** 2 * x2 + t ** 3 * x3,
-        y: mt ** 3 * y0 + 3 * mt ** 2 * t * y1 + 3 * mt * t ** 2 * y2 + t ** 3 * y3,
-      };
-    });
-  };
+  // Generate random bezier curve points — ONLY via _genCurve (module-level)
+  // Không định nghĩa trong component để tránh tạo mới mỗi render
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    // Fix: dùng offsetWidth và height cố định 220px
-    // offsetHeight thường = 0 khi mount, nên set cứng
     const W = canvas.width = canvas.offsetWidth || canvas.parentElement?.offsetWidth || 560;
     const H = canvas.height = 220;
 
     const state = stateRef.current;
-    state.pts = genCurve(W, H);
-    state.samples = sampleBezier(state.pts);
+    // Sinh curve 1 lần duy nhất — flag initialized tránh re-generate khi React re-render
+    if (!state.initialized) {
+      state.pts = _genCurve(W, H);
+      state.samples = _sampleBezier(state.pts);
+      state.initialized = true;
+    }
     state.progress = 0;
     state.isDragging = false;
     state.passed = false;
@@ -1115,22 +1120,22 @@ function CurveChallenge({ onPass, onClose }) {
 
       // Start dot (pulsing)
       ctx.beginPath();
-      ctx.arc(state.pts[0].x, state.pts[0].y, 12, 0, Math.PI*2);
+      ctx.arc(state.pts[0].x, state.pts[0].y, 12, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(124,58,237,0.2)';
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(state.pts[0].x, state.pts[0].y, 8, 0, Math.PI*2);
+      ctx.arc(state.pts[0].x, state.pts[0].y, 8, 0, Math.PI * 2);
       ctx.fillStyle = '#7C3AED';
       ctx.fill();
 
       // End dot
       const endPt = state.pts[3];
       ctx.beginPath();
-      ctx.arc(endPt.x, endPt.y, 12, 0, Math.PI*2);
+      ctx.arc(endPt.x, endPt.y, 12, 0, Math.PI * 2);
       ctx.fillStyle = state.passed ? 'rgba(34,197,94,0.2)' : 'rgba(226,232,240,0.2)';
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(endPt.x, endPt.y, 8, 0, Math.PI*2);
+      ctx.arc(endPt.x, endPt.y, 8, 0, Math.PI * 2);
       ctx.fillStyle = state.passed ? '#22C55E' : '#94A3B8';
       ctx.fill();
 
@@ -1176,7 +1181,7 @@ function CurveChallenge({ onPass, onClose }) {
         if (state.progress >= Math.floor(state.samples.length * 0.85) && !state.passed) {
           state.passed = true;
           setPassed(true);
-          setTimeout(() => onPass(), 900);
+          setTimeout(() => onPassRef.current(), 900);
         }
       }
     };
@@ -1206,7 +1211,8 @@ function CurveChallenge({ onPass, onClose }) {
       canvas.removeEventListener('touchmove', onMove);
       canvas.removeEventListener('touchend', onUp);
     };
-  }, [onPass]);
+  }, []); // Chỉ chạy 1 lần khi mount — tránh re-generate curve mỗi setState
+
 
   return (
     <div style={{
