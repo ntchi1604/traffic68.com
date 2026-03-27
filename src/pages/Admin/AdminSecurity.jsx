@@ -414,12 +414,11 @@ function UserDetail({ user: u, onBack }) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
           ['Tổng', u.total, 'text-slate-800'],
           ['Hoàn thành', u.ok, 'text-emerald-600'],
           ['Blocked', u.blocked, 'text-red-600'],
-          ['Bot', u.events, 'text-amber-600'],
           ['Thu nhập', money(u.earned), 'text-emerald-600'],
         ].map(([l, v, c]) => (
           <div key={l} className="bg-white rounded-xl border border-slate-200 p-3 text-center">
@@ -431,7 +430,7 @@ function UserDetail({ user: u, onBack }) {
 
       {/* Tabs */}
       <div className="flex gap-2 flex-wrap">
-        {[['tasks', `Tasks (${taskTotal})`], ['events', `Bot events (${eventTotal || u.events})`], ['ips', `IPs (${allIps.length}${!ipsLoaded && allIps.length >= 5 ? '+' : ''})`]].map(([k, l]) => (
+        {[['tasks', `Tasks (${taskTotal})`], ['ips', `IPs (${allIps.length}${!ipsLoaded && allIps.length >= 5 ? '+' : ''})`]].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition ${tab === k ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
             {l}
@@ -489,60 +488,6 @@ function UserDetail({ user: u, onBack }) {
             </table>
           </div>
           <Pager page={taskPage} total={taskTotal} limit={LIMIT} onChange={setTaskPage} />
-        </div>
-      )}
-
-      {/* Events Tab */}
-      {tab === 'events' && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  {['Thời gian', 'Lý do', 'Nguồn', 'Thiết bị', 'IP', 'Visitor ID', ''].map(h => (
-                    <th key={h} className="text-left px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px]">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {eventsLoading ? (
-                  <tr><td colSpan={7} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
-                ) : events.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-10 text-slate-400">Không có cảnh báo</td></tr>
-                ) : events.map(ev => {
-                  const mob = isMobileUA(ev.user_agent);
-                  return (
-                    <tr key={ev.id} className="border-b border-slate-100 bg-red-50/20 hover:bg-red-50/40">
-                      <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{fmt(ev.created_at)}</td>
-                      <td className="px-3 py-2.5">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{ev.reason}</span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                          {ev.source === 'widget' ? 'Script' : ev.source === 'vuotlink' ? 'VL' : ev.source}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${mob ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-600'}`}>
-                          {mob ? 'Mobile' : 'Desktop'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 font-mono text-slate-600 text-[10px]">{ev.ip_address}</td>
-                      <td className="px-3 py-2.5 font-mono text-slate-500 text-[10px] max-w-[80px] truncate">
-                        {ev.visitor_id ? ev.visitor_id.substring(0, 12) + '...' : '—'}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <button onClick={() => setEventModal(ev)} className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-[10px] font-bold">
-                          <Eye size={11} className="inline mr-0.5" />Xem
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <Pager page={eventPage} total={eventTotal} limit={LIMIT} onChange={setEventPage} />
         </div>
       )}
 

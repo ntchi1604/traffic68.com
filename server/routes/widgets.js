@@ -242,13 +242,13 @@ router.post('/public/:token/check-session', async (req, res) => {
     return res.status(404).json({ hasSession: false });
   }
 
-  // ── Enforce Google referrer for search traffic campaigns (skip for V1 step2/step3) ──
+  // ── Enforce Google referrer CHỄ khi campaign rõ ràng là google_search ──
   const task = tasks[0];
-  if ((task.traffic_type || 'google_search') === 'google_search' && !['step2', 'step3'].includes(task.task_status)) {
+  if (task.traffic_type === 'google_search' && !['step2', 'step3'].includes(task.task_status)) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
     const clientRef = pageReferrer || '';
     if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
-      console.log(`[Widget] check-session BLOCKED: Non-Google referrer — IP: ${ip}, task: #${task.id}, referrer: "${clientRef.substring(0, 120)}"`);
+      console.log(`[Widget] check-session BLOCKED: Non-Google referrer — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
       return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.', requireGoogle: true });
     }
   }
@@ -419,13 +419,12 @@ router.post('/public/:token/get-code', async (req, res) => {
   const campVersion = task.version || 0;
   // v1Phase already declared above (line 328)
 
-  // ── Enforce Google referrer for search traffic campaigns (skip for V1 phase 2) ──
-  if ((task.traffic_type || 'google_search') === 'google_search' && v1Phase !== 2) {
+  // ── Enforce Google referrer CHỄ khi campaign rõ ràng là google_search ──
+  if (task.traffic_type === 'google_search' && v1Phase !== 2) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
     const clientRef = pageReferrer || '';
     if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
-      console.log(`[Widget] BLOCKED: Non-Google referrer for search campaign — IP: ${ip}, task: #${task.id}, referrer: "${clientRef.substring(0, 120)}"`);
-      // Ghi flag vào security_detail — sẽ log event nếu user vẫn hoàn thành
+      console.log(`[Widget] BLOCKED: Non-Google referrer for search campaign — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
       await pool.execute(
         `UPDATE vuot_link_tasks SET security_detail = JSON_SET(COALESCE(security_detail,'{}'), '$.non_google_referrer', true, '$.bad_referrer', ?) WHERE id = ?`,
         [clientRef.substring(0, 500), task.id]
