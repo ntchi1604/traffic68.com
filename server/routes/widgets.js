@@ -413,7 +413,11 @@ router.post('/public/:token/get-code', async (req, res) => {
     const clientRef = pageReferrer || '';
     if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
       console.log(`[Widget] BLOCKED: Non-Google referrer for search campaign — IP: ${ip}, task: #${task.id}, referrer: "${clientRef.substring(0, 120)}"`);
-      logSecurityEvent('non_google_referrer', ip, ua, visitorId, { referrer: clientRef.substring(0, 500), taskId: task.id, campaignId: task.campaign_id });
+      // Ghi flag vào security_detail — sẽ log event nếu user vẫn hoàn thành
+      await pool.execute(
+        `UPDATE vuot_link_tasks SET security_detail = JSON_SET(COALESCE(security_detail,'{}'), '$.non_google_referrer', true, '$.bad_referrer', ?) WHERE id = ?`,
+        [clientRef.substring(0, 500), task.id]
+      ).catch(() => {});
       return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.' });
     }
   }

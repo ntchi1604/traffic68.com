@@ -581,6 +581,18 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
       workerId: task.worker_id,
       ...secDetail,
     });
+
+    // Chỉ log non_google_referrer khi task HOÀN THÀNH mà trước đó bị block referrer
+    // (user bypass được bước check hoặc referrer check xảy ra lúc completed)
+    if (secDetail.non_google_referrer === true) {
+      logSecurityEvent('non_google_referrer', task.ip_address, task.user_agent, task.visitor_id, {
+        taskId: task.id,
+        campaignId: task.campaign_id,
+        workerId: task.worker_id,
+        referrer: secDetail.bad_referrer || '',
+        note: 'Completed task with invalid referrer',
+      });
+    }
   } catch { }
 
   // Count view + auto-complete

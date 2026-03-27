@@ -20,11 +20,11 @@ const isMobileUA = ua => /Mobi|Android|iPhone|iPad|iPod/i.test(ua || '');
 
 const ST = {
   completed: { l: 'Hoàn thành', c: 'bg-emerald-100 text-emerald-700' },
-  expired:   { l: 'Hết hạn',    c: 'bg-slate-100 text-slate-500' },
-  pending:   { l: 'Đang chờ',   c: 'bg-amber-100 text-amber-700' },
-  step1:     { l: 'Bước 1',     c: 'bg-blue-100 text-blue-700' },
-  step2:     { l: 'Bước 2',     c: 'bg-blue-100 text-blue-700' },
-  step3:     { l: 'Bước 3',     c: 'bg-violet-100 text-violet-700' },
+  expired: { l: 'Hết hạn', c: 'bg-slate-100 text-slate-500' },
+  pending: { l: 'Đang chờ', c: 'bg-amber-100 text-amber-700' },
+  step1: { l: 'Bước 1', c: 'bg-blue-100 text-blue-700' },
+  step2: { l: 'Bước 2', c: 'bg-blue-100 text-blue-700' },
+  step3: { l: 'Bước 3', c: 'bg-violet-100 text-violet-700' },
 };
 
 const DL_VI = {
@@ -48,7 +48,7 @@ function CopyBtn({ text }) {
 function TaskModal({ task: t, onClose }) {
   if (!t) return null;
   let sd = {};
-  try { sd = typeof t.security_detail === 'string' ? JSON.parse(t.security_detail || '{}') : (t.security_detail || {}); } catch {}
+  try { sd = typeof t.security_detail === 'string' ? JSON.parse(t.security_detail || '{}') : (t.security_detail || {}); } catch { }
   const dl = sd.detectionLog || [];
   const mobile = isMobileUA(t.user_agent);
   const st = ST[t.status] || { l: t.status, c: 'bg-slate-100 text-slate-600' };
@@ -140,7 +140,7 @@ function TaskModal({ task: t, onClose }) {
 function EventModal({ event: ev, onClose }) {
   if (!ev) return null;
   let det = {};
-  try { det = typeof ev.details === 'string' ? JSON.parse(ev.details || '{}') : (ev.details || {}); } catch {}
+  try { det = typeof ev.details === 'string' ? JSON.parse(ev.details || '{}') : (ev.details || {}); } catch { }
   const mobile = isMobileUA(ev.user_agent);
   const dl = det.detectionLog || [];
 
@@ -358,8 +358,8 @@ function UserDetail({ user: u, onBack }) {
                         {t.bot_detected
                           ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit"><Bot size={9} />BOT</span>
                           : t.status === 'completed'
-                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">✓</span>
-                          : <span className="text-slate-300">—</span>}
+                            ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">✓</span>
+                            : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-3 py-2.5">
                         <button onClick={() => setModal(t)} className="px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 text-[10px] font-bold">
@@ -543,7 +543,7 @@ function IPAnalysis() {
                       <td className="px-3 py-2.5 text-center">
                         {ip.incomplete_rate > 50 ? <span className="font-bold text-red-600">{ip.incomplete_rate}%</span>
                           : ip.incomplete_rate > 20 ? <span className="font-bold text-amber-600">{ip.incomplete_rate}%</span>
-                          : <span className="text-slate-400">{ip.incomplete_rate}%</span>}
+                            : <span className="text-slate-400">{ip.incomplete_rate}%</span>}
                       </td>
                       <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{ago(ip.last_seen)}</td>
                     </tr>
@@ -557,19 +557,17 @@ function IPAnalysis() {
                           ) : ipDetail ? (
                             <div className="space-y-3">
                               <div className="flex items-center gap-3 flex-wrap">
-                                <div className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
-                                  ipDetail.riskLevel === 'high' ? 'bg-red-100 text-red-700' :
-                                  ipDetail.riskLevel === 'medium' ? 'bg-amber-100 text-amber-700' :
-                                  'bg-emerald-100 text-emerald-700'
-                                }`}>
+                                <div className={`px-3 py-1.5 rounded-lg text-xs font-bold ${ipDetail.riskLevel === 'high' ? 'bg-red-100 text-red-700' :
+                                    ipDetail.riskLevel === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                      'bg-emerald-100 text-emerald-700'
+                                  }`}>
                                   Risk: {ipDetail.riskScore}/100 ({ipDetail.riskLevel === 'high' ? 'Cao' : ipDetail.riskLevel === 'medium' ? 'Trung bình' : 'Thấp'})
                                 </div>
                                 {(ipDetail.risks || []).map((r, i) => (
-                                  <span key={i} className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                    r.severity === 'high' ? 'bg-red-50 text-red-700' :
-                                    r.severity === 'medium' ? 'bg-amber-50 text-amber-700' :
-                                    'bg-blue-50 text-blue-700'
-                                  }`}>{r.label}</span>
+                                  <span key={i} className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.severity === 'high' ? 'bg-red-50 text-red-700' :
+                                      r.severity === 'medium' ? 'bg-amber-50 text-amber-700' :
+                                        'bg-blue-50 text-blue-700'
+                                    }`}>{r.label}</span>
                                 ))}
                               </div>
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -693,22 +691,22 @@ export default function AdminSecurity() {
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">{total} user · CreepJS + Automation detection</p>
         </div>
-      <div className="flex items-center gap-2">
-        <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Làm mới
-        </button>
-        <button onClick={async () => {
-          if (!confirm('Xóa toàn bộ dữ liệu Anti-Cheat?\n(security_logs + bot_detected + security_detail)')) return;
-          if (!confirm('XÁC NHẬN LẦN 2: Hành động này không thể hoàn tác!')) return;
-          try {
-            await api.delete('/admin/security/clear-all');
-            alert('Đã xóa toàn bộ dữ liệu anti-cheat!');
-            load();
-          } catch (e) { alert('Lỗi: ' + (e.message || 'Không xóa được')); }
-        }} className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-600 hover:bg-red-100 transition">
-          <AlertTriangle size={14} /> Xóa tất cả data
-        </button>
-      </div>
+        <div className="flex items-center gap-2">
+          <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Làm mới
+          </button>
+          <button onClick={async () => {
+            if (!confirm('Xóa toàn bộ dữ liệu Anti-Cheat?\n(security_logs + bot_detected + security_detail)')) return;
+            if (!confirm('XÁC NHẬN LẦN 2: Hành động này không thể hoàn tác!')) return;
+            try {
+              await api.delete('/admin/security/clear-all');
+              alert('Đã xóa toàn bộ dữ liệu anti-cheat!');
+              load();
+            } catch (e) { alert('Lỗi: ' + (e.message || 'Không xóa được')); }
+          }} className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-600 hover:bg-red-100 transition">
+            <AlertTriangle size={14} /> Xóa tất cả data
+          </button>
+        </div>
 
       </div>
 
