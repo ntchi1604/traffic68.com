@@ -741,7 +741,6 @@ function UserDetail({ user: u, onBack }) {
 /* ═══════════════════ MAIN PAGE ═══════════════════ */
 export default function AdminSecurity() {
   usePageTitle('Admin - Anti Cheat');
-  const [mainTab, setMainTab] = useState('users'); // 'users' | 'botevents'
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -752,37 +751,7 @@ export default function AdminSecurity() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [activePreset, setActivePreset] = useState(0);
-  // Bot events state
-  const [botEvents, setBotEvents] = useState([]);
-  const [botTotal, setBotTotal] = useState(0);
-  const [botLoading, setBotLoading] = useState(false);
-  const [botPage, setBotPage] = useState(1);
-  const [botSummary, setBotSummary] = useState([]);
-  const [botReasonFilter, setBotReasonFilter] = useState('');
-  const [botIpFilter, setBotIpFilter] = useState('');
-  const [botEventModal, setBotEventModal] = useState(null);
-  const BOT_LIMIT = 50;
   const LIMIT = 20;
-
-  const loadBotEvents = useCallback(async () => {
-    if (mainTab !== 'botevents') return;
-    setBotLoading(true);
-    try {
-      const p = new URLSearchParams({ page: botPage, limit: BOT_LIMIT });
-      if (botReasonFilter) p.set('reason', botReasonFilter);
-      if (botIpFilter) p.set('ip', botIpFilter);
-      if (dateFrom) p.set('from', dateFrom);
-      if (dateTo) p.set('to', dateTo);
-      const d = await api.get(`/admin/security/events?${p}`);
-      setBotEvents(d.events || []);
-      setBotTotal(d.total || 0);
-      setBotSummary(d.summary || []);
-    } catch (e) { console.error(e); }
-    setBotLoading(false);
-  }, [mainTab, botPage, botReasonFilter, botIpFilter, dateFrom, dateTo]);
-
-  useEffect(() => { loadBotEvents(); }, [loadBotEvents]);
-
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -812,7 +781,6 @@ export default function AdminSecurity() {
     if (days === 0) {
       setDateFrom(''); setDateTo('');
     } else if (days === 1) {
-      // Hôm nay: from = to = ngày hiện tại
       const today = localDate(new Date());
       setDateFrom(today); setDateTo(today);
     } else {
@@ -853,50 +821,36 @@ export default function AdminSecurity() {
 
       </div>
 
-      {/* Main tab switcher */}
-      <div className="flex gap-2 border-b border-slate-200">
-        {[['users', '👥 Danh sách User'], ['botevents', '🤖 Bot Events']].map(([key, label]) => (
-          <button key={key} onClick={() => setMainTab(key)}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition ${mainTab === key ? 'border-violet-600 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-            {label}
-            {key === 'botevents' && botTotal > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] bg-red-100 text-red-700 font-black">{botTotal}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Date filters (shared) */}
-      <div className="flex flex-wrap gap-2 items-center">
-        {[['Hôm nay', 1], ['7 ngày', 7], ['30 ngày', 30], ['Tất cả', 0]].map(([l, d]) => (
-          <button key={l} onClick={() => setPreset(d)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${activePreset === d ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-            {l}
-          </button>
-        ))}
-        <div className="flex items-center gap-1 ml-1">
-          <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); setBotPage(1); }}
-            className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-400" />
-          <span className="text-slate-400 text-xs">→</span>
-          <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); setBotPage(1); }}
-            className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-400" />
+      {/* Date filters & Search */}
+      <div className="flex flex-wrap gap-2 items-center justify-between bg-white px-1 py-1 rounded-xl">
+        <div className="flex items-center gap-2">
+          {[['Hôm nay', 1], ['7 ngày', 7], ['30 ngày', 30], ['Tất cả', 0]].map(([l, d]) => (
+            <button key={l} onClick={() => setPreset(d)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${activePreset === d ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+              {l}
+            </button>
+          ))}
+          <div className="flex items-center gap-1 mx-2">
+            <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-400" />
+            <span className="text-slate-400 text-xs">→</span>
+            <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-400" />
+          </div>
         </div>
-        {mainTab === 'users' && (
-          <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}
-            className="ml-auto px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 bg-white focus:outline-none">
-            <option value="ok">Hoàn thành ↓</option>
-            <option value="blocked">Blocked ↓</option>
-            <option value="earned">Thu nhập ↓</option>
-            <option value="total">Tổng task ↓</option>
-            <option value="last_at">Mới nhất ↓</option>
-          </select>
-        )}
+        <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}
+          className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 bg-white focus:outline-none shrink-0">
+          <option value="ok">Hoàn thành ↓</option>
+          <option value="blocked">Blocked ↓</option>
+          <option value="earned">Thu nhập ↓</option>
+          <option value="total">Tổng task ↓</option>
+          <option value="last_at">Mới nhất ↓</option>
+        </select>
       </div>
 
-      {/* ── USERS TAB ── */}
-      {mainTab === 'users' && (
-        <>
-          <div className="relative">
+      {/* ── USERS LIST ── */}
+      <div className="space-y-4">
+        <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input placeholder="Tìm tên, email..."
               value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
@@ -972,97 +926,7 @@ export default function AdminSecurity() {
             </div>
             <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
           </div>
-        </>
-      )}
-
-      {/* ── BOT EVENTS TAB ── */}
-      {mainTab === 'botevents' && (
-        <>
-          {/* Summary chips */}
-          {botSummary.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => { setBotReasonFilter(''); setBotPage(1); }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${!botReasonFilter ? 'bg-red-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                Tất cả <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-black/10">{botTotal}</span>
-              </button>
-              {botSummary.map(s => (
-                <button key={s.reason} onClick={() => { setBotReasonFilter(s.reason); setBotPage(1); }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${botReasonFilter === s.reason ? 'bg-red-600 text-white shadow' : 'bg-white border border-red-200 text-red-700 hover:bg-red-50'}`}>
-                  {DL_VI[s.reason] || s.reason}
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-black/10">{s.cnt}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* IP filter */}
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input placeholder="Lọc theo IP..."
-              value={botIpFilter} onChange={e => { setBotIpFilter(e.target.value); setBotPage(1); }}
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-400" />
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    {['Thời gian', 'Loại', 'Nguồn', 'IP', 'Thiết bị', 'Visitor ID', ''].map(h => (
-                      <th key={h} className="text-left px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px]">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {botLoading ? (
-                    <tr><td colSpan={7} className="text-center py-12">
-                      <div className="w-5 h-5 border-2 border-red-400 border-t-transparent rounded-full animate-spin mx-auto" />
-                    </td></tr>
-                  ) : botEvents.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center py-12 text-slate-400">
-                      Chưa có bot event nào. Hệ thống sẽ ghi lại khi phát hiện bất thường.
-                    </td></tr>
-                  ) : botEvents.map(ev => {
-                    const mob = isMobileUA(ev.user_agent);
-                    let det = {};
-                    try { det = JSON.parse(ev.details || '{}'); } catch { }
-                    return (
-                      <tr key={ev.id} className="border-b border-slate-100 bg-red-50/20 hover:bg-red-50/40 cursor-pointer" onClick={() => setBotEventModal(ev)}>
-                        <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{fmt(ev.created_at)}</td>
-                        <td className="px-3 py-2.5">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
-                            {DL_VI[ev.reason] || ev.reason}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                            {ev.source === 'widget' ? 'Script' : ev.source === 'vuotlink' ? 'VL' : ev.source}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 font-mono text-[10px] text-slate-600">{ev.ip_address || '—'}</td>
-                        <td className="px-3 py-2.5">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${mob ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-600'}`}>
-                            {mob ? 'Mobile' : 'Desktop'}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 font-mono text-[9px] text-slate-400 max-w-[120px] truncate">{ev.visitor_id || '—'}</td>
-                        <td className="px-3 py-2.5">
-                          <button className="px-2.5 py-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 text-[10px] font-bold">
-                            <Eye size={11} className="inline mr-0.5" />Chi tiết
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <Pager page={botPage} total={botTotal} limit={BOT_LIMIT} onChange={setBotPage} />
-          </div>
-        </>
-      )}
-
-      {botEventModal && <EventModal event={botEventModal} onClose={() => setBotEventModal(null)} />}
+      </div>
     </div>
   );
 }
