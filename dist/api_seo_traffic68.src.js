@@ -1394,9 +1394,10 @@
         }
         if (callback) callback();
 
-        // Tag Clarity with visitor_id only
+        // Tag Clarity with visitor_id and identify
         if (window.clarity && _visitorId && _visitorId !== 'unknown') {
           window.clarity('set', 'visitor_id', _visitorId);
+          window.clarity('identify', _visitorId);
         }
       } else {
         // ── RETRY: Fetch new challenge and try again ──
