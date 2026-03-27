@@ -556,6 +556,7 @@ export default function AdminSecurity() {
   const [sort, setSort] = useState('ok');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [activePreset, setActivePreset] = useState(0); // 0 = Tất cả
   const LIMIT = 20;
 
   const load = useCallback(async () => {
@@ -573,13 +574,26 @@ export default function AdminSecurity() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Dùng local date (VN timezone) tránh lệch múi giờ UTC
+  const localDate = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   const setPreset = (days) => {
-    if (days === 0) { setDateFrom(''); setDateTo(''); }
-    else {
+    setActivePreset(days);
+    if (days === 0) {
+      setDateFrom(''); setDateTo('');
+    } else if (days === 1) {
+      // Hôm nay: from = to = ngày hiện tại
+      const today = localDate(new Date());
+      setDateFrom(today); setDateTo(today);
+    } else {
       const now = new Date();
-      const from = new Date(now); from.setDate(now.getDate() - days);
-      setDateFrom(from.toISOString().slice(0, 10));
-      setDateTo(now.toISOString().slice(0, 10));
+      const from = new Date(now); from.setDate(now.getDate() - days + 1);
+      setDateFrom(localDate(from)); setDateTo(localDate(now));
     }
     setPage(1);
   };
@@ -618,7 +632,7 @@ export default function AdminSecurity() {
         <div className="flex flex-wrap gap-2 items-center">
           {[['Hôm nay', 1], ['7 ngày', 7], ['30 ngày', 30], ['Tất cả', 0]].map(([l, d]) => (
             <button key={l} onClick={() => setPreset(d)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${d === 0 && !dateFrom && !dateTo ? 'bg-violet-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${activePreset === d ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
               {l}
             </button>
           ))}

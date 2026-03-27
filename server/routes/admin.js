@@ -2,6 +2,10 @@ const express = require('express');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
+// VN timezone helper
+const localDateStr = (d = new Date()) =>
+  d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+
 // Lazy-load web3pay to avoid crashing if ethers is not installed
 let _web3pay = null;
 function getWeb3Pay() {
@@ -58,15 +62,15 @@ router.get('/overview', async (req, res) => {
   const [rawStats] = await pool.execute(chartSql, chartParams);
 
   const statsMap = {};
-  rawStats.forEach(r => { statsMap[r.date instanceof Date ? r.date.toISOString().slice(0, 10) : r.date] = r; });
+  rawStats.forEach(r => { statsMap[r.date instanceof Date ? localDateStr(r.date) : r.date] = r; });
 
   const dailyStats = [];
-  const startStr = fromDate || (rawStats.length ? (rawStats[0].date instanceof Date ? rawStats[0].date.toISOString().slice(0, 10) : rawStats[0].date) : new Date().toISOString().slice(0, 10));
-  const endStr = toDate || new Date().toISOString().slice(0, 10);
-  const start = new Date(startStr);
-  const end = new Date(endStr);
+  const startStr = fromDate || (rawStats.length ? (rawStats[0].date instanceof Date ? localDateStr(rawStats[0].date) : rawStats[0].date) : localDateStr());
+  const endStr = toDate || localDateStr();
+  const start = new Date(startStr + 'T00:00:00+07:00');
+  const end   = new Date(endStr   + 'T00:00:00+07:00');
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const key = d.toISOString().slice(0, 10);
+    const key = localDateStr(d);
     dailyStats.push(statsMap[key] || { date: key, count: 0, total: 0 });
   }
 

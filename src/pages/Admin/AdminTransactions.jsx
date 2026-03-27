@@ -22,19 +22,15 @@ const STATUS_MAP = {
   failed: { label: 'Từ chối', cls: 'bg-red-100 text-red-700' },
 };
 
-/* Date helper */
-const today = () => new Date().toISOString().slice(0, 10);
-const daysAgo = (n) => {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-};
+/* Date helpers — dùng locale máy, tính động */
+const localDate = (d = new Date()) => d.toLocaleDateString('en-CA');
+const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return localDate(d); };
 
 const PRESETS = [
-  { label: 'Hôm nay', from: today(), to: today() },
-  { label: '7 ngày', from: daysAgo(7), to: today() },
-  { label: '30 ngày', from: daysAgo(30), to: today() },
-  { label: 'Tất cả', from: '', to: '' },
+  { label: 'Hôm nay',  getRange: () => ({ from: localDate(), to: localDate() }) },
+  { label: '7 ngày',   getRange: () => ({ from: daysAgo(6),  to: localDate() }) },
+  { label: '30 ngày',  getRange: () => ({ from: daysAgo(29), to: localDate() }) },
+  { label: 'Tất cả',   getRange: () => ({ from: '', to: '' }) },
 ];
 
 /* ── Reject Modal ── */
@@ -127,8 +123,9 @@ export default function AdminTransactions() {
   };
 
   const applyPreset = (p) => {
-    setFromDate(p.from);
-    setToDate(p.to);
+    const r = p.getRange();
+    setFromDate(r.from);
+    setToDate(r.to);
   };
 
   const pendingCount = transactions.filter(t => t.status === 'pending').length;
@@ -185,14 +182,17 @@ export default function AdminTransactions() {
 
           {/* Presets */}
           <div className="flex gap-1.5">
-            {PRESETS.map(p => (
-              <button key={p.label} onClick={() => applyPreset(p)}
-                className={`px-3 py-2 text-xs font-bold rounded-lg transition ${fromDate === p.from && toDate === p.to
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
-                {p.label}
-              </button>
-            ))}
+            {PRESETS.map(p => {
+              const r = p.getRange();
+              return (
+                <button key={p.label} onClick={() => applyPreset(p)}
+                  className={`px-3 py-2 text-xs font-bold rounded-lg transition ${fromDate === r.from && toDate === r.to
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                  {p.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 

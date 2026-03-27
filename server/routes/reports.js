@@ -2,6 +2,10 @@ const express = require('express');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
+// Dùng timezone VN để tránh lệch ngày khi dùng new Date() trên server
+const localDateStr = (d = new Date()) =>
+  d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }); // en-CA = YYYY-MM-DD
+
 const router = express.Router();
 router.use(authMiddleware);
 
@@ -15,7 +19,7 @@ router.get('/overview', async (req, res) => {
   const [mw] = await pool.execute("SELECT balance FROM wallets WHERE user_id = ? AND type = 'main'", [req.userId]);
   const [cw] = await pool.execute("SELECT balance FROM wallets WHERE user_id = ? AND type = 'commission'", [req.userId]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateStr();
   const [todayTraffic] = await pool.execute(
     `SELECT COALESCE(SUM(views), 0) as views, COALESCE(SUM(clicks), 0) as clicks FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ? AND tl.date = ?`,
     [req.userId, today]
@@ -55,9 +59,9 @@ router.get('/traffic', async (req, res) => {
   if (from && to) { fromDate = from; toDate = to; }
   else {
     const days = period === '30d' ? 30 : period === '90d' ? 90 : 7;
-    toDate = new Date().toISOString().slice(0, 10);
+    toDate = localDateStr();
     const f = new Date(); f.setDate(f.getDate() - days);
-    fromDate = f.toISOString().slice(0, 10);
+    fromDate = localDateStr(f);
   }
 
   let data;
@@ -122,7 +126,7 @@ router.get('/tasks', async (req, res) => {
 
     const days = period === '30d' ? 30 : period === '90d' ? 90 : 7;
     const from = new Date(); from.setDate(from.getDate() - days);
-    const fromDate = from.toISOString().slice(0, 10);
+    const fromDate = localDateStr(from);
 
     const [check] = await pool.execute(
       'SELECT id FROM campaigns WHERE id = ? AND user_id = ?',

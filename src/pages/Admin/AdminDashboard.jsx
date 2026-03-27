@@ -21,19 +21,17 @@ function StatCard({ icon: Icon, label, value, color, bg, badge }) {
 
 import { formatMoney as fmt, fmtDateTime } from '../../lib/format';
 
-/* Date helpers */
-const today = () => new Date().toISOString().slice(0, 10);
-const daysAgo = (n) => {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-};
+/* Date helpers — dùng timezone VN, tính động mỗi lần gọi */
+const localDate = (d = new Date()) =>
+  d.toLocaleDateString('en-CA'); // en-CA = YYYY-MM-DD dùng locale máy client
+const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return localDate(d); };
 
+// Tính động khi cần dùng (tránh thiếu ngày khi để tab mở lâu)
 const PRESETS = [
-  { label: 'Hôm nay', from: today(), to: today() },
-  { label: '7 ngày', from: daysAgo(7), to: today() },
-  { label: '30 ngày', from: daysAgo(30), to: today() },
-  { label: 'Tất cả', from: '', to: '' },
+  { label: 'Hôm nay',  getRange: () => ({ from: localDate(), to: localDate() }) },
+  { label: '7 ngày',   getRange: () => ({ from: daysAgo(6),  to: localDate() }) },
+  { label: '30 ngày',  getRange: () => ({ from: daysAgo(29), to: localDate() }) },
+  { label: 'Tất cả',   getRange: () => ({ from: '', to: '' }) },
 ];
 
 const TX_TYPE_LABEL = {
@@ -67,8 +65,9 @@ export default function AdminDashboard() {
   useEffect(() => { fetchData(); }, [fromDate, toDate]);
 
   const applyPreset = (p) => {
-    setFromDate(p.from);
-    setToDate(p.to);
+    const range = p.getRange();
+    setFromDate(range.from);
+    setToDate(range.to);
   };
 
   if (loading && !data) {
