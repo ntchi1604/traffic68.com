@@ -37,6 +37,7 @@ import ScriptGenerator from './pages/Script/ScriptGenerator';
 import UserPricing from './pages/Dashboard/UserPricing';
 import UserReferral from './pages/General/UserReferral';
 import BuyerSupport from './pages/Campaigns/BuyerSupport';
+import BuyerApi from './pages/Campaigns/BuyerApi';
 
 /* ── Worker (shortlink) pages ── */
 import WorkerDashboardLayout from './components/WorkerDashboardLayout';
@@ -134,6 +135,7 @@ function Layout() {
           <Route path="pricing" element={<UserPricing />} />
           <Route path="referral" element={<UserReferral />} />
           <Route path="profile" element={<UserProfileAndAccountSettings />} />
+          <Route path="api" element={<BuyerApi />} />
         </Route>
 
         {/* ═══ WORKER Dashboard ═══ */}

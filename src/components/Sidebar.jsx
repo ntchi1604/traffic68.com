@@ -17,6 +17,7 @@ import {
   HelpCircle,
   DollarSign,
   Gift,
+  Terminal,
 } from 'lucide-react';
 
 const linkBase =
@@ -176,6 +177,11 @@ export default function Sidebar({ isOpen, onClose }) {
               className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
               <Code2 className="w-5 h-5" />
               Script Nút Lấy Mã
+            </NavLink>
+            <NavLink to="/buyer/dashboard/api"
+              className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
+              <Terminal className="w-5 h-5" />
+              Buyer API
             </NavLink>
           </div>
         </nav>
