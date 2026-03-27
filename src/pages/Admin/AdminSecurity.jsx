@@ -29,7 +29,7 @@ const ST = {
 
 const DL_VI = {
   headless_or_webdriver: 'Headless / Webdriver',
-  creepjs_bot: 'CreepJS Bot',
+  Fingerprint_bot: 'Fingerprint Bot',
   ip_rate_limit: 'Rate limit IP',
   bot_ua: 'UA Bot',
 };
@@ -146,7 +146,7 @@ function EventModal({ event: ev, onClose }) {
 
   // Build check flags from available data only
   const flags = [];
-  if (det.bot === true) flags.push('CreepJS Bot');
+  if (det.bot === true) flags.push('Fingerprint Bot');
   if (det.webdriver) flags.push('Webdriver');
   if (det.selenium) flags.push('Selenium');
   if (det.cdc) flags.push('CDP');
@@ -246,6 +246,10 @@ function UserDetail({ user: u, onBack }) {
   const [modal, setModal] = useState(null);
   const [eventModal, setEventModal] = useState(null);
   const [banned, setBanned] = useState(u.status === 'banned');
+  // IP detail
+  const [selectedIp, setSelectedIp] = useState(null);
+  const [ipDetail, setIpDetail] = useState(null);
+  const [ipLoading, setIpLoading] = useState(false);
   const LIMIT = 50;
 
   useEffect(() => {
@@ -269,6 +273,14 @@ function UserDetail({ user: u, onBack }) {
     if (!confirm(banned ? `Mở ban cho ${u.name || u.email}?` : `Ban tài khoản ${u.name || u.email}?`)) return;
     try { await api.post(`/admin/security/user/${u.id}/ban`, { action }); setBanned(!banned); }
     catch (e) { alert('Lỗi: ' + e.message); }
+  };
+
+  const loadIp = async (ip) => {
+    if (selectedIp === ip) { setSelectedIp(null); setIpDetail(null); return; }
+    setSelectedIp(ip); setIpLoading(true); setIpDetail(null);
+    try { const d = await api.get(`/admin/security/ip/${ip}`); setIpDetail(d); }
+    catch (e) { setIpDetail(null); }
+    setIpLoading(false);
   };
 
   return (
@@ -314,8 +326,8 @@ function UserDetail({ user: u, onBack }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
-        {[['tasks', `Tasks (${taskTotal})`], ['events', `Bot events (${eventTotal || u.events})`]].map(([k, l]) => (
+      <div className="flex gap-2 flex-wrap">
+        {[['tasks', `Tasks (${taskTotal})`], ['events', `Bot events (${eventTotal || u.events})`], ['ips', `IPs (${(u.ips || []).length})`]].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition ${tab === k ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
             {l}
@@ -430,219 +442,111 @@ function UserDetail({ user: u, onBack }) {
         </div>
       )}
 
+      {/* IPs Tab */}
+      {tab === 'ips' && (
+        <div className="space-y-3">
+          {(u.ips || []).map(ip => (
+            <div key={ip} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <button onClick={() => loadIp(ip)}
+                className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition text-left ${selectedIp === ip ? 'bg-violet-50' : ''}`}>
+                <code className="font-mono text-sm font-bold text-slate-700 flex-1">{ip}</code>
+                {ipLoading && selectedIp === ip
+                  ? <div className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                  : <ChevronRight size={14} className={`text-slate-400 transition-transform ${selectedIp === ip ? 'rotate-90' : ''}`} />}
+              </button>
+              {selectedIp === ip && (
+                <div className="border-t border-slate-100 px-4 py-4">
+                  {ipLoading ? (
+                    <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" /></div>
+                  ) : ipDetail ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                          ipDetail.riskLevel === 'high' ? 'bg-red-100 text-red-700' :
+                          ipDetail.riskLevel === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>Risk: {ipDetail.riskScore}/100 · {ipDetail.riskLevel === 'high' ? 'Cao' : ipDetail.riskLevel === 'medium' ? 'Trung bình' : 'Thấp'}</span>
+                        {(ipDetail.risks || []).map((r, i) => (
+                          <span key={i} className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            r.severity === 'high' ? 'bg-red-50 text-red-700' :
+                            r.severity === 'medium' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'
+                          }`}>{r.label}</span>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {/* Geo */}
+                        <div className="bg-slate-50 rounded-xl p-3">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Thông tin IP</p>
+                          {ipDetail.geo ? (
+                            <div className="space-y-1.5 text-[10px]">
+                              {[['Quốc gia', ipDetail.geo.country], ['Thành phố', [ipDetail.geo.city, ipDetail.geo.region].filter(Boolean).join(', ')], ['ISP', ipDetail.geo.isp]]
+                                .map(([k, v]) => v && (
+                                  <div key={k} className="flex justify-between">
+                                    <span className="text-slate-400">{k}</span>
+                                    <span className="font-semibold text-slate-700 text-right max-w-[60%] truncate">{v}</span>
+                                  </div>
+                              ))}
+                              <div className="flex gap-1 mt-1.5 flex-wrap">
+                                {ipDetail.geo.proxy && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700">VPN/Proxy</span>}
+                                {ipDetail.geo.hosting && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700">Datacenter</span>}
+                                {ipDetail.geo.mobile && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-100 text-cyan-700">Mobile</span>}
+                                {!ipDetail.geo.proxy && !ipDetail.geo.hosting && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">Residential</span>}
+                              </div>
+                            </div>
+                          ) : <p className="text-[10px] text-slate-400">Không có dữ liệu</p>}
+                        </div>
+                        {/* Workers */}
+                        <div className="bg-slate-50 rounded-xl p-3">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Workers dùng IP này ({(ipDetail.workers || []).length})</p>
+                          {(ipDetail.workers || []).map(w => (
+                            <div key={w.id} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-bold text-slate-700 truncate">{w.name || 'N/A'}</p>
+                                <p className="text-[9px] text-slate-400 truncate">{w.email}</p>
+                              </div>
+                              <div className="text-right shrink-0 ml-2">
+                                <p className="text-[10px] font-bold text-slate-600">{w.task_count} tasks</p>
+                                {w.status === 'banned' && <span className="text-[8px] font-bold text-red-600">BAN</span>}
+                              </div>
+                            </div>
+                          ))}
+                          {!(ipDetail.workers || []).length && <p className="text-[10px] text-slate-400">Chỉ user này</p>}
+                        </div>
+                        {/* Daily */}
+                        <div className="bg-slate-50 rounded-xl p-3">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">7 ngày gần đây</p>
+                          {(ipDetail.dailyBreakdown || []).slice(0, 7).map((d, i) => (
+                            <div key={i} className="flex items-center justify-between py-1 border-b border-slate-100 last:border-0">
+                              <span className="text-[10px] text-slate-500">{new Date(d.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-slate-700">{d.tasks} tasks</span>
+                                <span className="text-[10px] text-emerald-600">{d.completed} OK</span>
+                              </div>
+                            </div>
+                          ))}
+                          {!(ipDetail.dailyBreakdown || []).length && <p className="text-[10px] text-slate-400">Không có dữ liệu</p>}
+                        </div>
+                      </div>
+                    </div>
+                  ) : <p className="text-xs text-slate-400 text-center py-2">Không tải được dữ liệu IP</p>}
+                </div>
+              )}
+            </div>
+          ))}
+          {!(u.ips || []).length && <p className="text-xs text-slate-400 text-center py-6">Không có IP nào được ghi nhận</p>}
+        </div>
+      )}
+
       {modal && <TaskModal task={modal} onClose={() => setModal(null)} />}
       {eventModal && <EventModal event={eventModal} onClose={() => setEventModal(null)} />}
     </div>
   );
 }
 
-/* ─── IP Analysis ─── */
-function IPAnalysis() {
-  const [ips, setIps] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [summary, setSummary] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [sort, setSort] = useState('tasks');
-  const [days, setDays] = useState(7);
-  const [page, setPage] = useState(1);
-  const [expandedIp, setExpandedIp] = useState(null);
-  const [ipDetail, setIpDetail] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const LIMIT = 30;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const d = await api.get(`/admin/security/ips?sort=${sort}&days=${days}&page=${page}&limit=${LIMIT}`);
-      setIps(d.ips || []); setTotal(d.total || 0); setSummary(d.summary || {});
-    } catch (e) { console.error(e); }
-    setLoading(false);
-  }, [sort, days, page]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const toggleDetail = async (ipAddr) => {
-    if (expandedIp === ipAddr) { setExpandedIp(null); setIpDetail(null); return; }
-    setExpandedIp(ipAddr); setDetailLoading(true);
-    try { const d = await api.get(`/admin/security/ip/${ipAddr}`); setIpDetail(d); }
-    catch (e) { setIpDetail(null); }
-    setDetailLoading(false);
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          ['IP duy nhất', summary.total_ips || 0, 'text-blue-600'],
-          ['Tổng tasks', summary.total_tasks || 0, 'text-slate-800'],
-          ['Bot detected', summary.total_bots || 0, 'text-red-600'],
-          ['Workers', summary.total_workers || 0, 'text-emerald-600'],
-        ].map(([l, v, c]) => (
-          <div key={l} className="bg-white rounded-xl border border-slate-200 p-3 text-center">
-            <p className="text-[9px] text-slate-400 font-bold uppercase">{l}</p>
-            <p className={`text-xl font-black ${c}`}>{Number(v).toLocaleString('vi-VN')}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-2 items-center">
-        {[['7 ngày', 7], ['14 ngày', 14], ['30 ngày', 30]].map(([l, d]) => (
-          <button key={d} onClick={() => { setDays(d); setPage(1); }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${days === d ? 'bg-violet-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-            {l}
-          </button>
-        ))}
-        <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}
-          className="ml-auto px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 bg-white">
-          <option value="tasks">Tasks nhiều nhất</option>
-          <option value="blocked">Blocked nhiều nhất</option>
-          <option value="workers">Nhiều worker</option>
-          <option value="incomplete">Tỷ lệ thất bại cao</option>
-        </select>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                {['IP', 'Tasks', 'OK', 'Hết hạn', 'Bot', 'Workers', 'Devices', 'Thất bại %', 'Hoạt động'].map(h => (
-                  <th key={h} className={`px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px] ${h === 'IP' || h === 'Hoạt động' ? 'text-left' : 'text-center'}`}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={9} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
-              ) : ips.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-10 text-slate-400">Chưa có dữ liệu</td></tr>
-              ) : ips.map(ip => {
-                const danger = ip.blocked > 0 || ip.unique_workers > 2;
-                const isExpanded = expandedIp === ip.ip_address;
-                return (
-                  <React.Fragment key={ip.ip_address}>
-                    <tr onClick={() => toggleDetail(ip.ip_address)}
-                      className={`border-b cursor-pointer ${danger ? 'bg-red-50/30 border-red-100' : 'border-slate-100'} ${isExpanded ? 'bg-violet-50/50' : 'hover:bg-slate-50/50'}`}>
-                      <td className="px-3 py-2.5 font-mono text-[11px] text-slate-700 font-bold">
-                        <span className="underline decoration-dotted">{ip.ip_address}</span>
-                      </td>
-                      <td className="px-3 py-2.5 text-center font-bold text-slate-700">{ip.total_tasks}</td>
-                      <td className="px-3 py-2.5 text-center text-emerald-600 font-bold">{ip.completed}</td>
-                      <td className="px-3 py-2.5 text-center text-slate-400">{ip.expired}</td>
-                      <td className="px-3 py-2.5 text-center">
-                        {ip.bot_detected > 0
-                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{ip.bot_detected}</span>
-                          : <span className="text-slate-300">0</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        {ip.unique_workers > 1
-                          ? <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ip.unique_workers > 2 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{ip.unique_workers}</span>
-                          : <span className="text-slate-400">1</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-center text-slate-500">{ip.unique_devices}</td>
-                      <td className="px-3 py-2.5 text-center">
-                        {ip.incomplete_rate > 50 ? <span className="font-bold text-red-600">{ip.incomplete_rate}%</span>
-                          : ip.incomplete_rate > 20 ? <span className="font-bold text-amber-600">{ip.incomplete_rate}%</span>
-                            : <span className="text-slate-400">{ip.incomplete_rate}%</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{ago(ip.last_seen)}</td>
-                    </tr>
-                    {isExpanded && (
-                      <tr>
-                        <td colSpan={9} className="px-4 py-4 bg-slate-50/80 border-b border-slate-200">
-                          {detailLoading ? (
-                            <div className="flex justify-center py-4">
-                              <div className="w-5 h-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-                            </div>
-                          ) : ipDetail ? (
-                            <div className="space-y-3">
-                              <div className="flex items-center gap-3 flex-wrap">
-                                <div className={`px-3 py-1.5 rounded-lg text-xs font-bold ${ipDetail.riskLevel === 'high' ? 'bg-red-100 text-red-700' :
-                                    ipDetail.riskLevel === 'medium' ? 'bg-amber-100 text-amber-700' :
-                                      'bg-emerald-100 text-emerald-700'
-                                  }`}>
-                                  Risk: {ipDetail.riskScore}/100 ({ipDetail.riskLevel === 'high' ? 'Cao' : ipDetail.riskLevel === 'medium' ? 'Trung bình' : 'Thấp'})
-                                </div>
-                                {(ipDetail.risks || []).map((r, i) => (
-                                  <span key={i} className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.severity === 'high' ? 'bg-red-50 text-red-700' :
-                                      r.severity === 'medium' ? 'bg-amber-50 text-amber-700' :
-                                        'bg-blue-50 text-blue-700'
-                                    }`}>{r.label}</span>
-                                ))}
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div className="bg-white rounded-xl border border-slate-200 p-3">
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Workers ({(ipDetail.workers || []).length})</p>
-                                  {(ipDetail.workers || []).map(w => (
-                                    <div key={w.id} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
-                                      <div className="min-w-0">
-                                        <p className="text-[11px] font-bold text-slate-700 truncate">{w.name || 'N/A'}</p>
-                                        <p className="text-[9px] text-slate-400 truncate">{w.email}</p>
-                                      </div>
-                                      <div className="text-right shrink-0 ml-2">
-                                        <p className="text-[10px] font-bold text-slate-600">{w.task_count} tasks</p>
-                                        {w.status === 'banned' && <span className="text-[8px] font-bold text-red-600">BAN</span>}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                                <div className="bg-white rounded-xl border border-slate-200 p-3">
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Thông tin IP</p>
-                                  {ipDetail.geo ? (
-                                    <div className="space-y-1.5 text-[10px]">
-                                      {[
-                                        ['Quốc gia', ipDetail.geo.country],
-                                        ['Thành phố', [ipDetail.geo.city, ipDetail.geo.region].filter(Boolean).join(', ')],
-                                        ['ISP', ipDetail.geo.isp],
-                                      ].map(([k, v]) => v && (
-                                        <div key={k} className="flex justify-between">
-                                          <span className="text-slate-400">{k}</span>
-                                          <span className="font-semibold text-slate-700 text-right max-w-[60%] truncate">{v}</span>
-                                        </div>
-                                      ))}
-                                      <div className="flex gap-1.5 mt-1.5 flex-wrap">
-                                        {ipDetail.geo.proxy && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700">VPN/Proxy</span>}
-                                        {ipDetail.geo.hosting && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700">Datacenter</span>}
-                                        {ipDetail.geo.mobile && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-100 text-cyan-700">Mobile</span>}
-                                        {!ipDetail.geo.proxy && !ipDetail.geo.hosting && <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">Residential</span>}
-                                      </div>
-                                    </div>
-                                  ) : <p className="text-[10px] text-slate-400">Không có dữ liệu</p>}
-                                </div>
-                                <div className="bg-white rounded-xl border border-slate-200 p-3">
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">7 ngày gần đây</p>
-                                  {(ipDetail.dailyBreakdown || []).slice(0, 7).map((d, i) => (
-                                    <div key={i} className="flex items-center justify-between py-1 border-b border-slate-50 last:border-0">
-                                      <span className="text-[10px] text-slate-500">{new Date(d.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}</span>
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-bold text-slate-700">{d.tasks} tasks</span>
-                                        <span className="text-[10px] text-emerald-600">{d.completed} OK</span>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          ) : <p className="text-center text-slate-400 text-xs">Không tải được dữ liệu</p>}
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
-      </div>
-    </div>
-  );
-}
 
 /* ═══════════════════ MAIN PAGE ═══════════════════ */
 export default function AdminSecurity() {
   usePageTitle('Admin - Anti Cheat');
-  const [mainTab, setMainTab] = useState('users');
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -689,7 +593,7 @@ export default function AdminSecurity() {
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Shield size={20} className="text-violet-600" /> Anti Cheat
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">{total} user · CreepJS + Automation detection</p>
+          <p className="text-xs text-slate-500 mt-0.5">{total} user · Fingerprint + Automation detection</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
@@ -710,18 +614,7 @@ export default function AdminSecurity() {
 
       </div>
 
-      <div className="flex gap-2">
-        {[['users', 'Users'], ['ips', 'Phân tích IP']].map(([k, l]) => (
-          <button key={k} onClick={() => setMainTab(k)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${mainTab === k ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {mainTab === 'ips' && <IPAnalysis />}
-
-      {mainTab === 'users' && <>
+      <>
         <div className="flex flex-wrap gap-2 items-center">
           {[['Hôm nay', 1], ['7 ngày', 7], ['30 ngày', 30], ['Tất cả', 0]].map(([l, d]) => (
             <button key={l} onClick={() => setPreset(d)}
@@ -822,7 +715,8 @@ export default function AdminSecurity() {
           </div>
           <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
         </div>
-      </>}
+      </>
+
     </div>
   );
 }
