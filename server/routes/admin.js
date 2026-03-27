@@ -1417,7 +1417,8 @@ router.get('/referrals/:type', async (req, res) => {
     const pool = getPool();
     const type = req.params.type; // 'buyers' or 'workers'
     const serviceType = type === 'workers' ? 'shortlink' : 'traffic';
-    const { search } = req.query;
+    const { search, page = 1, limit = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
 
     let where = 'r.service_type = ?';
     const params = [serviceType];
@@ -1426,7 +1427,10 @@ router.get('/referrals/:type', async (req, res) => {
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    // Get ALL users with their ref count (including 0)
+    const [countRow] = await pool.execute(
+      `SELECT COUNT(*) as c FROM users r WHERE ${where}`, params
+    );
+
     const [referrers] = await pool.execute(
       `SELECT r.id, r.name, r.email, r.referral_code, r.service_type, r.referred_by,
        (SELECT COUNT(*) FROM users WHERE referred_by = r.id) as ref_count,
@@ -1434,7 +1438,8 @@ router.get('/referrals/:type', async (req, res) => {
        (SELECT email FROM users WHERE id = r.referred_by) as referred_by_email
        FROM users r
        WHERE ${where}
-       ORDER BY ref_count DESC, r.created_at DESC LIMIT 200`,
+       ORDER BY ref_count DESC, r.created_at DESC
+       LIMIT ${Number(limit)} OFFSET ${offset}`,
       params
     );
 
@@ -1449,6 +1454,9 @@ router.get('/referrals/:type', async (req, res) => {
 
     res.json({
       referrers,
+      total: countRow[0].c,
+      page: Number(page),
+      limit: Number(limit),
       totalReferrers: totalReferrers[0].c,
       totalReferred: totalReferred[0].c,
     });

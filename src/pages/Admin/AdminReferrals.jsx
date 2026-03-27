@@ -1,17 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, ChevronDown, ChevronRight, Save, Check, Users, UserPlus, X } from 'lucide-react';
+import { Search, Save, Check, Users, UserPlus, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
+
+const LIMIT = 20;
 
 export default function AdminReferrals({ type = 'buyers' }) {
   const label = type === 'workers' ? 'Worker' : 'Buyer';
   usePageTitle('Admin - Referral');
   const toast = useToast();
 
-  const [data, setData] = useState({ referrers: [], totalReferred: 0, totalReferrers: 0 });
+  const [data, setData] = useState({ referrers: [], totalReferred: 0, totalReferrers: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [commission, setCommission] = useState('');
   const [commSaving, setCommSaving] = useState(false);
   const [commSaved, setCommSaved] = useState(false);
@@ -43,14 +46,16 @@ export default function AdminReferrals({ type = 'buyers' }) {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ page, limit: LIMIT });
       if (search) params.set('search', search);
       const d = await api.get(`/admin/referrals/${type}?${params}`);
       setData(d);
     } catch { }
     setLoading(false);
-  }, [type, search]);
+  }, [type, search, page]);
 
+  // Reset về trang 1 khi search thay đổi
+  useEffect(() => { setPage(1); }, [search, type]);
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const openDetail = async (user) => {
@@ -68,6 +73,8 @@ export default function AdminReferrals({ type = 'buyers' }) {
   };
 
   const closeDetail = () => { setSelectedUser(null); setReferredList([]); };
+
+  const totalPages = Math.max(1, Math.ceil((data.total || 0) / LIMIT));
 
   return (
     <div className="space-y-6">
@@ -120,7 +127,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
         />
       </div>
 
-      {/* User list table */}
+      {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
@@ -181,13 +188,58 @@ export default function AdminReferrals({ type = 'buyers' }) {
             </table>
           </div>
         )}
+
+        {/* Pagination */}
+        {!loading && data.total > LIMIT && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50">
+            <p className="text-xs text-slate-500">
+              Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages}
+              <span className="ml-2 text-slate-400">({data.total} người dùng)</span>
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-1.5 rounded-lg border border-slate-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition"
+              >
+                <ChevronLeft size={15} className="text-slate-600" />
+              </button>
+              {/* Page numbers */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                .reduce((acc, p, i, arr) => {
+                  if (i > 0 && arr[i - 1] !== p - 1) acc.push('...');
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) => p === '...' ? (
+                  <span key={`dots-${i}`} className="px-1 text-slate-400 text-xs">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-orange-500 text-white' : 'hover:bg-white border border-slate-200 text-slate-600'}`}
+                  >
+                    {p}
+                  </button>
+                ))
+              }
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-1.5 rounded-lg border border-slate-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition"
+              >
+                <ChevronRight size={15} className="text-slate-600" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Detail Modal */}
       {selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={closeDetail}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
               <div>
                 <h3 className="text-lg font-black text-slate-900">{selectedUser.name || selectedUser.email}</h3>
@@ -203,7 +255,6 @@ export default function AdminReferrals({ type = 'buyers' }) {
               </button>
             </div>
 
-            {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Users size={16} className="text-green-600" />
