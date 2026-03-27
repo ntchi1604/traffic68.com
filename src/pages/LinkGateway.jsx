@@ -1190,11 +1190,12 @@ function CurveChallenge({ onPass, onClose }) {
         const spd = Math.sqrt((x - state.lastPos.x) ** 2 + (y - state.lastPos.y) ** 2) / dt;
         state.speedBuf = state.speedBuf || [];
         state.speedBuf.push(spd);
-        if (state.speedBuf.length > 8) state.speedBuf.shift();
-        if (state.speedBuf.length === 8) {
-          const avg = state.speedBuf.reduce((a, b) => a + b, 0) / 8;
-          const variance = state.speedBuf.reduce((a, s) => a + (s - avg) ** 2, 0) / 8;
-          if (variance < 0.0005 && avg > 0.05) {
+        if (state.speedBuf.length > 12) state.speedBuf.shift();
+        if (state.speedBuf.length === 12) {
+          const avg = state.speedBuf.reduce((a, b) => a + b, 0) / 12;
+          const variance = state.speedBuf.reduce((a, s) => a + (s - avg) ** 2, 0) / 12;
+          // Chỉ reset nếu tốc độ hoàn toàn đều tuyệt đối (bot) và đang di chuyển
+          if (variance < 0.00008 && avg > 0.08) {
             state.progress = 0; setProgress(0); state.speedBuf = []; return;
           }
         }
@@ -1205,12 +1206,12 @@ function CurveChallenge({ onPass, onClose }) {
       const current = state.progress;
       const sample = state.samples[current] || state.samples[state.samples.length - 1];
       const dx = x - sample.x, dy = y - sample.y;
-      if (Math.sqrt(dx * dx + dy * dy) < 36) {
+      if (Math.sqrt(dx * dx + dy * dy) < 52) {
         state.progress = Math.min(current + 1, state.samples.length);
         setProgress(Math.round((state.progress / state.samples.length) * 100));
-        if (state.progress >= Math.floor(state.samples.length * 0.85) && !state.passed) {
+        if (state.progress >= Math.floor(state.samples.length * 0.75) && !state.passed) {
           const elapsed = now - (state.dragStartTime || now);
-          if (elapsed < 1200) { state.progress = 0; setProgress(0); state.speedBuf = []; return; }
+          if (elapsed < 800) { state.progress = 0; setProgress(0); state.speedBuf = []; return; }
           state.passed = true;
           setPassed(true);
           setTimeout(() => onPassRef.current(), 900);
