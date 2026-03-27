@@ -966,6 +966,7 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
       pending: pendingTasks[0].cnt,
       remainingDailyViews: Math.max(0, Number(remRows[0].total_daily) - Number(remRows[0].today_done)),
       balance: walletMap.earning || 0,
+      commissionBalance: walletMap.commission || 0,
       chart,
       recent,
     });
@@ -1027,33 +1028,56 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
     const uid = req.userId;
     const days = Math.min(90, Math.max(7, parseInt(req.query.days) || 7));
 
+    // Bao gồm cả gateway link tasks (giống worker/stats)
+    const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
+    const wlIds = wLinks.map(w => w.id);
+    const wlCondition = wlIds.length > 0
+      ? `(worker_id = ? OR worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
+      : `worker_id = ?`;
+    const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
+
     const [daily] = await pool.execute(
-      `SELECT DATE(completed_at) as date, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earnings
-       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-       GROUP BY DATE(completed_at) ORDER BY date DESC`,
-      [uid, days]
+      `SELECT DATE(completed_at) as date,
+              COUNT(*) as tasks,
+              COALESCE(SUM(earning), 0) as earnings
+       FROM vuot_link_tasks
+       WHERE ${wlCondition} AND status = 'completed'
+         AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+       GROUP BY DATE(completed_at)
+       ORDER BY date DESC`,
+      [...wlParams, days]
     );
 
     const [summary] = await pool.execute(
-      `SELECT COALESCE(SUM(earning),0) as total, COUNT(*) as tasks
-       FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
-      [uid, days]
+      `SELECT COALESCE(SUM(earning), 0) as total, COUNT(*) as tasks
+       FROM vuot_link_tasks
+       WHERE ${wlCondition} AND status = 'completed'
+         AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
+      [...wlParams, days]
     );
 
     const [todayR] = await pool.execute(
-      `SELECT COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND DATE(completed_at) = CURDATE()`,
-      [uid]
+      `SELECT COALESCE(SUM(earning), 0) as earn, COUNT(*) as tasks
+       FROM vuot_link_tasks
+       WHERE ${wlCondition} AND status = 'completed' AND DATE(completed_at) = CURDATE()`,
+      wlParams
     );
 
     res.json({
       daily,
-      summary: { total: Number(summary[0].total), tasks: summary[0].tasks, avgDaily: daily.length > 0 ? Math.round(Number(summary[0].total) / daily.length) : 0 },
+      summary: {
+        total: Number(summary[0].total),
+        tasks: Number(summary[0].tasks),
+        avgDaily: daily.length > 0 ? Math.round(Number(summary[0].total) / daily.length) : 0,
+      },
       today: Number(todayR[0].earn),
+      todayTasks: Number(todayR[0].tasks),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // GET /api/vuot-link/worker/balance
 router.get('/worker/balance', authMiddleware, async (req, res) => {

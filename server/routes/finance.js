@@ -51,36 +51,46 @@ router.post('/deposits', async (req, res) => {
 // ── GET /api/transactions ──
 router.get('/transactions', async (req, res) => {
   const pool = getPool();
-  const { type, period, scope } = req.query;
+  const { type, period, scope, page = 1, limit = 20 } = req.query;
+  const offset = (Number(page) - 1) * Number(limit);
 
   // Strict separation: buyer sees only 'main', worker sees only 'earning'
   const walletType = scope === 'worker' ? 'earning' : 'main';
 
+  let countSql = `SELECT COUNT(*) as c FROM transactions WHERE user_id = ? AND wallet_type = ?`;
   let sql = `SELECT * FROM transactions WHERE user_id = ? AND wallet_type = ?`;
   const params = [req.userId, walletType];
 
   if (type && type !== 'all') {
     if (type === 'commission') {
       // Special case: show commission wallet instead
+      countSql = `SELECT COUNT(*) as c FROM transactions WHERE user_id = ? AND wallet_type = 'commission'`;
       sql = `SELECT * FROM transactions WHERE user_id = ? AND wallet_type = 'commission'`;
       params.length = 0;
       params.push(req.userId);
     } else {
-      sql += ' AND type = ?'; params.push(type);
+      countSql += ' AND type = ?';
+      sql += ' AND type = ?';
+      params.push(type);
     }
   }
 
   if (period && period !== 'all') {
     const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 0;
-    if (days > 0) { sql += ` AND created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`; }
+    if (days > 0) {
+      countSql += ` AND created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`;
+      sql += ` AND created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`;
+    }
   }
 
-  sql += ' ORDER BY created_at DESC LIMIT 100';
+  const [countRows] = await pool.execute(countSql, params);
+  const total = countRows[0].c;
+
+  sql += ` ORDER BY created_at DESC LIMIT ${Number(limit)} OFFSET ${offset}`;
   const [transactions] = await pool.execute(sql, params);
 
   // For worker scope, enrich earning transactions with keyword + campaign name
   if (scope === 'worker' && transactions.length > 0) {
-    // Extract task IDs from notes like "xxx #123" or "task #123"
     const taskMap = {};
     transactions.forEach(t => {
       const match = (t.note || '').match(/#(\d+)\s*$/);
@@ -107,7 +117,7 @@ router.get('/transactions', async (req, res) => {
     }
   }
 
-  res.json({ transactions });
+  res.json({ transactions, total, page: Number(page), limit: Number(limit) });
 });
 
 // ── POST /api/finance/transfer ── (Commission → Main/Earning)
@@ -231,11 +241,18 @@ router.post('/withdraw', async (req, res) => {
 router.get('/withdrawals', async (req, res) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.execute(
-      `SELECT * FROM transactions WHERE user_id = ? AND type = 'withdraw' AND wallet_type = 'earning' ORDER BY created_at DESC LIMIT 50`,
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+    const [countR] = await pool.execute(
+      `SELECT COUNT(*) as c FROM transactions WHERE user_id = ? AND type = 'withdraw' AND wallet_type = 'earning'`,
       [req.userId]
     );
-    res.json({ withdrawals: rows });
+    const [rows] = await pool.execute(
+      `SELECT * FROM transactions WHERE user_id = ? AND type = 'withdraw' AND wallet_type = 'earning'
+       ORDER BY created_at DESC LIMIT ${Number(limit)} OFFSET ${offset}`,
+      [req.userId]
+    );
+    res.json({ withdrawals: rows, total: countR[0].c, page: Number(page), limit: Number(limit) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

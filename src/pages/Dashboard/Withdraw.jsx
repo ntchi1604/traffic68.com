@@ -21,6 +21,9 @@ export default function Withdraw() {
   const [balance, setBalance] = useState(0);
   const [commission, setCommission] = useState(0);
   const [withdrawals, setWithdrawals] = useState([]);
+  const [wdTotal, setWdTotal] = useState(0);
+  const [wdPage, setWdPage] = useState(1);
+  const WD_LIMIT = 5;
   const [loading, setLoading] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [bankEnabled, setBankEnabled] = useState(true);
@@ -37,9 +40,15 @@ export default function Withdraw() {
     }).catch(() => { });
   };
 
+  const fetchWithdrawals = (p = 1) => {
+    api.get(`/finance/withdrawals?page=${p}&limit=${WD_LIMIT}`)
+      .then(d => { setWithdrawals(d.withdrawals || []); setWdTotal(d.total || 0); setWdPage(p); })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     fetchBalance();
-    api.get('/finance/withdrawals').then(d => setWithdrawals(d.withdrawals || [])).catch(() => { });
+    fetchWithdrawals(1);
     // Fetch withdraw method settings
     api.get('/admin/settings/site').then(d => {
       const c = d.config || {};
@@ -74,8 +83,7 @@ export default function Withdraw() {
     try {
       const d = await api.post('/finance/transfer', { amount: commission, targetWallet: 'earning' });
       toast.success(d.message);
-      fetchBalance();
-      api.get('/finance/withdrawals').then(res => setWithdrawals(res.withdrawals || [])).catch(() => { });
+      fetchWithdrawals(1);
     } catch (err) {
       toast.error(err.response?.data?.error || err.message || 'Lỗi chuyển tiền');
     } finally {
@@ -101,7 +109,8 @@ export default function Withdraw() {
       setAmount('');
       setTrafficSource('');
       fetchBalance();
-      api.get('/finance/withdrawals').then(res => setWithdrawals(res.withdrawals || [])).catch(() => { });
+      fetchBalance();
+      fetchWithdrawals(1);
     } catch (err) {
       toast.error(err.response?.data?.error || err.message || 'Có lỗi xảy ra');
     }
@@ -273,8 +282,7 @@ export default function Withdraw() {
             <div className="space-y-3">
               {withdrawals.length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-4">Chưa có lịch sử rút tiền</p>
-              ) : withdrawals.slice(0, 5).map(w => {
-                // Check for TxHash in note
+              ) : withdrawals.map(w => {
                 const txMatch = (w.note || '').match(/TxHash:\s*(0x[a-fA-F0-9]+)/);
                 const txHash = txMatch ? txMatch[1] : null;
                 return (
@@ -301,6 +309,18 @@ export default function Withdraw() {
                 );
               })}
             </div>
+            {/* Pagination lịch sử rút */}
+            {wdTotal > WD_LIMIT && (
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                <span className="text-[10px] text-slate-400">{wdPage}/{Math.ceil(wdTotal / WD_LIMIT)} trang</span>
+                <div className="flex gap-1">
+                  <button onClick={() => fetchWithdrawals(wdPage - 1)} disabled={wdPage === 1}
+                    className="px-2 py-1 text-[10px] font-bold rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">‹</button>
+                  <button onClick={() => fetchWithdrawals(wdPage + 1)} disabled={wdPage >= Math.ceil(wdTotal / WD_LIMIT)}
+                    className="px-2 py-1 text-[10px] font-bold rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">›</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
