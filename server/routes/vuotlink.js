@@ -56,19 +56,21 @@ setInterval(() => {
 
 
 /* ═══════════════════════════════════════════════════════════
-   STEP 1: GET /challenge (anti-replay token + optional slug session)
-   If ?slug=xxx is provided, server looks up the worker_link
-   and stores worker_link_id in the challenge session (server-side).
-   Client never sends worker_link_id directly.
+   STEP 1: GET /challenge (anti-replay token + optional slug/ref session)
+   If ?slug=xxx  → gateway link mode (worker_link_id bound server-side)
+   If ?ref=xxx   → ref link mode (refWorkerId bound server-side)
+                   xxx có thể là username hoặc numeric user id của worker
+   Client never sends these IDs directly.
 ═══════════════════════════════════════════════════════════ */
 router.get('/challenge', async (req, res) => {
   const ua = req.headers['user-agent'] || '';
   if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
 
-  // If slug is provided, look up worker_link and bind to this challenge session
-  // Slug MUST be valid — if provided but not found, reject the request
   let workerLinkId = null;
+  let refWorkerId = null;
+
+  // ── Gateway slug mode: ?slug=xxx ──
   const slug = (req.query.slug || '').trim();
   if (slug) {
     try {
@@ -88,10 +90,33 @@ router.get('/challenge', async (req, res) => {
     }
   }
 
+  // ── Ref link mode: ?ref=<referral_code> ──
+  // Dùng referral_code (6 ký tự random, VD: "AB3X9K") thay vì username/id
+  // → URL ?ref=AB3X9K không lộ danh tính worker
+  const refParam = (req.query.ref || '').trim().toUpperCase();
+  if (!slug && refParam) {
+    try {
+      const pool = getPool();
+      const [rows] = await pool.execute(
+        `SELECT id FROM users WHERE referral_code = ? AND status = 'active' AND role = 'worker' LIMIT 1`,
+        [refParam]
+      );
+      if (rows.length > 0) {
+        refWorkerId = rows[0].id;
+        console.log(`[VuotLink] Ref link: ref=${refParam} → refWorkerId=${refWorkerId}`);
+      } else {
+        // Ref không tồn tại → bỏ qua, không reject
+        console.log(`[VuotLink] Ref not found: ref=${refParam}`);
+      }
+    } catch (e) {
+      console.error('[VuotLink] Challenge ref lookup error:', e.message);
+    }
+  }
+
   const challengeId = crypto.randomBytes(16).toString('hex');
   const prefix = crypto.randomBytes(8).toString('hex');
   const difficulty = 4;
-  challenges[challengeId] = { createdAt: Date.now(), used: false, ip, prefix, difficulty, workerLinkId };
+  challenges[challengeId] = { createdAt: Date.now(), used: false, ip, prefix, difficulty, workerLinkId, refWorkerId };
   res.json({ c: challengeId, p: prefix, d: difficulty });
 });
 
@@ -341,8 +366,9 @@ async function _handleTaskPost(req, res) {
   // Task expires after 10 minutes — code cannot be used after expiry
   const expirySeconds = 600;
 
-  // Use worker_link_id from challenge session (server-side), NOT from client body
+  // Use worker_link_id and refWorkerId from challenge session (server-side), NOT from client body
   const workerLinkId = ch.workerLinkId || null;
+  const refWorkerId = ch.refWorkerId || null;
 
   // Build security_detail JSON — include analyzed result + creepJS
   const secObj = { detectionLog, isMobile: /Mobi|Android|iPhone|iPad|iPod/i.test(ua) };
@@ -357,8 +383,8 @@ async function _handleTaskPost(req, res) {
   const securityDetail = JSON.stringify(secObj).substring(0, 10000);
 
   const [result] = await pool.execute(
-    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id, security_detail) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?)`,
-    [campaign.id, req.userId || null, selectedKeyword, selectedUrl, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId, securityDetail]
+    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id, ref_worker_id, security_detail) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?, ?)`,
+    [campaign.id, req.userId || null, selectedKeyword, selectedUrl, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId, refWorkerId, securityDetail]
   );
 
   console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, keyword: ${selectedKeyword}, waitTime: ${waitTime}s`);
@@ -642,7 +668,32 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     } catch (e) { console.error('[VuotLink] Gateway link pay error:', e.message); }
   }
 
-  // Worker referral commission — pay referrer when worker earns
+  // ── Ref link mode: cộng earning cho worker ref ──
+  // Áp dụng khi task được tạo qua ?ref=username (không phải slug/gateway)
+  if (!paidWorkerId && task.ref_worker_id && earning > 0) {
+    try {
+      // Lấy % hoa hồng ref từ site_settings (tái dùng referral_commission_worker)
+      const [refCommSetting] = await pool.execute(
+        "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_worker'"
+      );
+      const refCommPct = Number(refCommSetting[0]?.setting_value || 0);
+      const refEarning = refCommPct > 0 ? Math.floor(earning * refCommPct / 100) : 0;
+      if (refEarning > 0) {
+        paidWorkerId = task.ref_worker_id; // set để trigger referral bên dưới
+        await ensureWalletCredit(pool, task.ref_worker_id, 'earning', refEarning);
+        const refTxCode = 'RL-' + Date.now();
+        await pool.execute(
+          `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+           VALUES (?, 'earning', 'earning', 'ref_link', ?, 'completed', ?, ?)`,
+          [task.ref_worker_id, refEarning, refTxCode,
+           `Hoa hong ref ${refCommPct}% - ${task.keyword || 'Vượt link'} #${task.id} (${earning} đ)`]
+        );
+        console.log(`[VuotLink] Ref earning: paid ${refEarning} to ref_worker_id=${task.ref_worker_id} (${refCommPct}% of ${earning})`);
+      }
+    } catch (e) { console.error('[VuotLink] Ref link earning error:', e.message); }
+  }
+
+  // ── Hoa hồng referral: cộng % cho người đã ref paidWorker ──
   if (paidWorkerId && earning > 0) {
     try {
       console.log(`[Commission] Checking referral for worker=${paidWorkerId}, earning=${earning}`);
