@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { Menu, X, ChevronDown } from 'lucide-react';
+import { Menu, X, ChevronDown, LayoutDashboard } from 'lucide-react';
+import { isLoggedIn, getUser } from '../lib/api';
 
 const links = [
   { label: 'Trang chủ', to: '/' },
@@ -13,6 +14,16 @@ const links = [
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const loggedIn = isLoggedIn();
+  const user = getUser();
+
+  // Xác định đường dẫn dashboard theo role
+  const dashboardPath = (() => {
+    if (!user) return '/dashboard';
+    if (user.role === 'admin') return '/admin';
+    if (user.role === 'worker' || user.service_type === 'shortlink') return '/worker/dashboard';
+    return '/dashboard';
+  })();
 
   return (
     <nav className="sticky top-0 z-50 bg-gray-50 border-b border-gray-200/80 shadow-sm">
@@ -43,20 +54,34 @@ export default function Navbar() {
 
         {/* Desktop Auth + CTA */}
         <div className="hidden lg:flex items-center gap-1">
-          <Link to="/dang-nhap" className="text-[13px] font-semibold text-slate-500 hover:text-blue-700 transition-colors px-2">
-            Đăng nhập
-          </Link>
-          <span className="text-gray-300 text-sm">/</span>
-          <Link to="/dang-ky" className="text-[13px] font-semibold text-slate-500 hover:text-blue-700 transition-colors px-2">
-            Đăng ký
-          </Link>
-          <Link
-            to="/dang-ky"
-            id="nav-cta-btn"
-            className="orange-btn text-white text-sm font-bold px-6 py-2 rounded-md shadow ml-3"
-          >
-            NHẬN TƯ VẤN NGAY
-          </Link>
+          {loggedIn ? (
+            // Đã đăng nhập → hiện nút Dashboard
+            <Link
+              to={dashboardPath}
+              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold px-5 py-2 rounded-md shadow transition-colors"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard
+            </Link>
+          ) : (
+            // Chưa đăng nhập → hiện đăng nhập / đăng ký
+            <>
+              <Link to="/dang-nhap" className="text-[13px] font-semibold text-slate-500 hover:text-blue-700 transition-colors px-2">
+                Đăng nhập
+              </Link>
+              <span className="text-gray-300 text-sm">/</span>
+              <Link to="/dang-ky" className="text-[13px] font-semibold text-slate-500 hover:text-blue-700 transition-colors px-2">
+                Đăng ký
+              </Link>
+              <Link
+                to="/dang-ky"
+                id="nav-cta-btn"
+                className="orange-btn text-white text-sm font-bold px-6 py-2 rounded-md shadow ml-3"
+              >
+                NHẬN TƯ VẤN NGAY
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile toggle */}
@@ -85,13 +110,26 @@ export default function Navbar() {
             </NavLink>
           ))}
           <div className="pt-3 space-y-2 border-t border-gray-100 mt-2">
-            <div className="flex gap-3">
-              <Link to="/dang-nhap" onClick={() => setOpen(false)} className="flex-1 text-center text-sm font-medium text-slate-600 border border-gray-200 py-2.5 rounded-xl hover:border-orange-400 transition-colors">Đăng nhập</Link>
-              <Link to="/dang-ky" onClick={() => setOpen(false)} className="flex-1 text-center text-sm font-medium text-slate-600 border border-gray-200 py-2.5 rounded-xl hover:border-orange-400 transition-colors">Đăng ký</Link>
-            </div>
-            <Link to="/dang-ky" onClick={() => setOpen(false)} className="block orange-btn text-white text-sm font-bold px-5 py-3 rounded-xl text-center shadow-md">
-              NHẬN TƯ VẤN NGAY
-            </Link>
+            {loggedIn ? (
+              <Link
+                to={dashboardPath}
+                onClick={() => setOpen(false)}
+                className="flex items-center justify-center gap-2 w-full orange-btn text-white text-sm font-bold px-5 py-3 rounded-xl text-center shadow-md"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Vào Dashboard
+              </Link>
+            ) : (
+              <>
+                <div className="flex gap-3">
+                  <Link to="/dang-nhap" onClick={() => setOpen(false)} className="flex-1 text-center text-sm font-medium text-slate-600 border border-gray-200 py-2.5 rounded-xl hover:border-orange-400 transition-colors">Đăng nhập</Link>
+                  <Link to="/dang-ky" onClick={() => setOpen(false)} className="flex-1 text-center text-sm font-medium text-slate-600 border border-gray-200 py-2.5 rounded-xl hover:border-orange-400 transition-colors">Đăng ký</Link>
+                </div>
+                <Link to="/dang-ky" onClick={() => setOpen(false)} className="block orange-btn text-white text-sm font-bold px-5 py-3 rounded-xl text-center shadow-md">
+                  NHẬN TƯ VẤN NGAY
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}
