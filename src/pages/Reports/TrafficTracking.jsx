@@ -73,42 +73,42 @@ function CampaignDetailModal({ campaign: c, onClose }) {
       api.get(`/reports/tasks?campaignId=${c.id}&period=${mRange}`),
     ]).then(([tr, tk]) => {
       const rows = tr.traffic || [];
-      const bd   = tr.byDevice || [];
+      const bd = tr.byDevice || [];
       const totalClicks = rows.reduce((s, t) => s + Number(t.clicks || 0), 0);
-      const totalViews  = rows.reduce((s, t) => s + Number(t.views  || 0), 0);
-      const uniqueIps   = rows.reduce((s, t) => s + Number(t.unique_ips || 0), 0);
-      const mobile  = bd.find(x => x.name === 'Mobile')?.value  || 0;
+      const totalViews = rows.reduce((s, t) => s + Number(t.views || 0), 0);
+      const uniqueIps = rows.reduce((s, t) => s + Number(t.unique_ips || 0), 0);
+      const mobile = bd.find(x => x.name === 'Mobile')?.value || 0;
       const desktop = bd.find(x => x.name === 'Desktop')?.value || 0;
-      const tablet  = bd.find(x => x.name === 'Tablet')?.value  || 0;
+      const tablet = bd.find(x => x.name === 'Tablet')?.value || 0;
       setDetail({ totalClicks, totalViews, uniqueIps, mobile, desktop, tablet, rows });
       setTasks(tk.tasks || []);
     }).catch(console.error).finally(() => setFetchingTasks(false));
   }, [c, mRange]);
 
   if (!c) return null;
-  const done  = Number(c.views_done || 0);
+  const done = Number(c.views_done || 0);
   const total = Number(c.total_views || 1);
-  const pct   = Math.min(Math.round((done / total) * 100), 100);
+  const pct = Math.min(Math.round((done / total) * 100), 100);
   const spent = done * Number(c.cpc || 0);
-  const eff   = detail?.totalViews > 0 ? Math.round((detail.totalClicks / detail.totalViews) * 100) : 0;
+  const eff = detail?.totalViews > 0 ? Math.round((detail.totalClicks / detail.totalViews) * 100) : 0;
 
   const deviceData = [
     { name: 'Desktop', value: detail?.desktop || 0, color: '#3B82F6' },
-    { name: 'Mobile',  value: detail?.mobile  || 0, color: '#8B5CF6' },
-    { name: 'Tablet',  value: detail?.tablet  || 0, color: '#F59E0B' },
+    { name: 'Mobile', value: detail?.mobile || 0, color: '#8B5CF6' },
+    { name: 'Tablet', value: detail?.tablet || 0, color: '#F59E0B' },
   ].filter(d => d.value > 0);
 
   const dailyData = (detail?.rows || []).map(r => ({
     date: fmtDay(r.date),
     'Hoàn thành': Number(r.clicks || 0),
-    'Nhận task':  Number(r.views  || 0),
+    'Nhận task': Number(r.views || 0),
   }));
 
   const kpis = [
     { label: 'Hoàn thành', value: fmt(detail?.totalClicks || 0), sub: `/ ${fmt(detail?.totalViews || 0)} nhận task`, color: '#10B981', bg: '#ECFDF5' },
-    { label: 'Chi phí',    value: `${fmt(spent)} đ`,            sub: `CPC: ${fmt(c.cpc)} đ`,                       color: '#F97316', bg: '#FFF7ED' },
-    { label: 'Hiệu suất',  value: `${eff}%`,                    sub: 'hoàn thành / nhận task',                    color: '#3B82F6', bg: '#EFF6FF' },
-    { label: 'Unique IPs', value: fmt(detail?.uniqueIps || 0),  sub: 'IP khác nhau',                              color: '#8B5CF6', bg: '#F5F3FF' },
+    { label: 'Chi phí', value: `${fmt(spent)} đ`, sub: `CPC: ${fmt(c.cpc)} đ`, color: '#F97316', bg: '#FFF7ED' },
+    { label: 'Hiệu suất', value: `${eff}%`, sub: 'hoàn thành / nhận task', color: '#3B82F6', bg: '#EFF6FF' },
+    { label: 'Unique IPs', value: fmt(detail?.uniqueIps || 0), sub: 'IP khác nhau', color: '#8B5CF6', bg: '#F5F3FF' },
   ];
 
   const uaShort = ua => {
@@ -127,7 +127,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
     csvRows.push(['Tên', c.name]);
     csvRows.push(['URL', c.url]);
     csvRows.push(['Nguồn traffic', SOURCE_LABEL_MAP[c.traffic_type] || c.traffic_type || '']);
-    csvRows.push(['Từ khóa', (() => { try { const a = JSON.parse(c.keyword); if (Array.isArray(a)) return a.join(', '); } catch {} return c.keyword || ''; })() ]);
+    csvRows.push(['Từ khóa', (() => { try { const a = JSON.parse(c.keyword); if (Array.isArray(a)) return a.join(', '); } catch { } return c.keyword || ''; })()]);
     csvRows.push(['Thời gian xem', c.time_on_site ? `${c.time_on_site}s` : '']);
     csvRows.push(['CPC', `${c.cpc} đ`]);
     csvRows.push(['Ngân sách', `${c.budget} đ`]);
@@ -193,7 +193,8 @@ function CampaignDetailModal({ campaign: c, onClose }) {
             <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 10, padding: 3, gap: 2 }}>
               {PERIODS.map(p => (
                 <button key={p.key} onClick={() => setMRange(p.key)}
-                  style={{ padding: '5px 12px', borderRadius: 8, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
+                  style={{
+                    padding: '5px 12px', borderRadius: 8, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
                     background: mRange === p.key ? '#fff' : 'transparent',
                     color: mRange === p.key ? '#0f172a' : '#94a3b8',
                     boxShadow: mRange === p.key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
@@ -248,7 +249,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
                       <AreaChart data={dailyData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
                         <defs>
                           <linearGradient id="gDet" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%"   stopColor="#10B981" stopOpacity={0.3} />
+                            <stop offset="0%" stopColor="#10B981" stopOpacity={0.3} />
                             <stop offset="100%" stopColor="#10B981" stopOpacity={0.02} />
                           </linearGradient>
                         </defs>
@@ -257,7 +258,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
                         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={28} />
                         <Tooltip content={<CustomTooltip />} />
                         <Area type="monotone" dataKey="Hoàn thành" stroke="#10B981" fill="url(#gDet)" strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: '#10B981' }} />
-                        <Area type="monotone" dataKey="Nhận task"  stroke="#3B82F6" fill="none" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                        <Area type="monotone" dataKey="Nhận task" stroke="#3B82F6" fill="none" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -292,7 +293,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
             {(() => {
               const parseArr = (val) => {
                 if (!val) return [];
-                try { const a = JSON.parse(val); if (Array.isArray(a)) return a.filter(Boolean); } catch {}
+                try { const a = JSON.parse(val); if (Array.isArray(a)) return a.filter(Boolean); } catch { }
                 return val ? [val] : [];
               };
               const keywords = parseArr(c.keyword);
@@ -332,7 +333,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
                       <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>URL đích ({allUrls.length})</p>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {allUrls.map((url, i) => (
-                          <a key={i} href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', wordBreak: 'break-all', fontWeight: 500 }} onMouseEnter={e => e.target.style.textDecoration='underline'} onMouseLeave={e => e.target.style.textDecoration='none'}>
+                          <a key={i} href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', wordBreak: 'break-all', fontWeight: 500 }} onMouseEnter={e => e.target.style.textDecoration = 'underline'} onMouseLeave={e => e.target.style.textDecoration = 'none'}>
                             {i === 0 ? '🔗 ' : '↳ '}{url}
                           </a>
                         ))}
@@ -346,7 +347,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
                       <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Hình ảnh ({images.length})</p>
                       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(images.length, 3)}, 1fr)`, gap: 8 }}>
                         {images.map((img, i) => (
-                          <img key={i} src={img} alt="" style={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} onError={e => e.target.style.display='none'} />
+                          <img key={i} src={img} alt="" style={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} onError={e => e.target.style.display = 'none'} />
                         ))}
                       </div>
                     </div>
@@ -531,7 +532,7 @@ export default function TrafficTracking() {
           <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0"><CalendarDays size={18} className="text-blue-500" /></div>
           <div>
             <p className="text-xs font-semibold text-slate-500">Ngày có dữ liệu</p>
-            <p className="text-lg font-black text-slate-900 mt-0.5">{traffic.filter(t => t.views > 0).length} ngày</p>
+            <p className="text-lg font-black text-slate-900 mt-0.5">{traffic.filter(t => Number(t.clicks) > 0).length} ngày</p>
             <p className="text-xs text-blue-600 font-medium mt-0.5">/ {traffic.length} ngày trong kỳ</p>
           </div>
         </div>
@@ -542,7 +543,6 @@ export default function TrafficTracking() {
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-base font-bold text-slate-900">Lượt hoàn thành & Chi phí theo ngày</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Cột xanh = hoàn thành · Đường cam = chi phí (đ)</p>
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-500 inline-block" /> Hoàn thành</span>
@@ -568,12 +568,12 @@ export default function TrafficTracking() {
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <YAxis yAxisId="views" orientation="left"
                   tick={{ fontSize: 11, fill: '#3B82F6' }} axisLine={false} tickLine={false} width={36}
-                  tickFormatter={v => v >= 1000 ? `${Math.round(v/1000)}k` : v} />
+                  tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : v} />
                 <YAxis yAxisId="cost" orientation="right"
                   tick={{ fontSize: 11, fill: '#F97316' }} axisLine={false} tickLine={false} width={52}
-                  tickFormatter={v => v >= 1000 ? `${Math.round(v/1000)}k` : v} />
+                  tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : v} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar yAxisId="views" dataKey="Lượt hoàn thành" fill="url(#gViews)" radius={[4,4,0,0]} maxBarSize={36} />
+                <Bar yAxisId="views" dataKey="Lượt hoàn thành" fill="url(#gViews)" radius={[4, 4, 0, 0]} maxBarSize={36} />
                 <Line yAxisId="cost" type="monotone" dataKey="Chi phí" stroke="#F97316" strokeWidth={2.5}
                   dot={{ r: 3, fill: '#F97316', stroke: '#fff', strokeWidth: 2 }}
                   activeDot={{ r: 5, fill: '#F97316', stroke: '#fff', strokeWidth: 2 }} />
@@ -706,12 +706,12 @@ export default function TrafficTracking() {
             <div className="space-y-3">
               <div className="h-32">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={bySource.map(s => ({ name: SOURCE_LABELS[s.source] || s.source, views: s.views }))} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}>
+                  <BarChart data={bySource.map(s => ({ name: SOURCE_LABELS[s.source] || s.source, 'Hoàn thành': Number(s.clicks || 0) }))} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                     <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} />
                     <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={32} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="views" name="Lượt xem" radius={[6, 6, 0, 0]}>
+                    <Bar dataKey="Hoàn thành" name="Hoàn thành" radius={[6, 6, 0, 0]}>
                       {bySource.map((s, i) => <Cell key={i} fill={SOURCE_COLORS[s.source] || '#3B82F6'} />)}
                     </Bar>
                   </BarChart>
@@ -724,7 +724,7 @@ export default function TrafficTracking() {
                       <span className="w-2.5 h-2.5 rounded-full" style={{ background: SOURCE_COLORS[s.source] || '#3B82F6' }} />
                       <span className="text-sm text-slate-700 font-medium">{SOURCE_LABELS[s.source] || s.source}</span>
                     </div>
-                    <span className="text-xs font-semibold text-slate-700">{fmt(s.views)} views</span>
+                    <span className="text-xs font-semibold text-slate-700">{fmt(s.clicks || 0)} hoàn thành</span>
                   </div>
                 ))}
               </div>
@@ -773,7 +773,7 @@ export default function TrafficTracking() {
                   <td className="px-6 py-3 text-xs font-bold text-slate-600">Tổng cộng</td>
                   <td className="px-6 py-3 text-right text-xs font-black text-blue-600">{fmt(totalCompleted)}</td>
                   <td className="px-6 py-3 text-right text-xs font-black text-orange-500">{fmt(Math.round(totalCost))} đ</td>
-                  <td className="px-6 py-3 text-right text-xs font-bold text-slate-400">{fmt(traffic.reduce((s,t)=>s+Number(t.unique_ips||0),0))}</td>
+                  <td className="px-6 py-3 text-right text-xs font-bold text-slate-400">{fmt(traffic.reduce((s, t) => s + Number(t.unique_ips || 0), 0))}</td>
                 </tr>
               )}
             </tbody>
