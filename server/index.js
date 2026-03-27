@@ -83,6 +83,8 @@ app.use('/api/vuot-link', require('./routes/vuotlink'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/shortlink', require('./routes/shortlink'));
 app.use('/api/quicklink', require('./routes/quicklink'));
+app.use('/api/buyer',     require('./routes/buyer'));
+
 
 
 // ── 404 handler ──
