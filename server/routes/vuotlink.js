@@ -42,6 +42,20 @@ function verifyTaskToken(token, taskId, ip) {
   return token === signTask(taskId, ip);
 }
 
+// Generate HMAC challengeToken after human challenge is passed (binds taskId + IP + timestamp)
+function signChallengeToken(taskId, ip, ts) {
+  return crypto.createHmac('sha256', HMAC_SECRET).update(`cp|${taskId}|${ip}|${ts}`).digest('hex').substring(0, 32);
+}
+
+// In-memory store: taskId -> { token, ts, ip }  (expires 15 min)
+const challengePassedStore = {};
+setInterval(() => {
+  const now = Date.now();
+  Object.keys(challengePassedStore).forEach(k => {
+    if (now - challengePassedStore[k].ts > 900000) delete challengePassedStore[k];
+  });
+}, 60000);
+
 // Rate limit counters (in-memory, reset hourly)
 const ipTaskCount = {};
 setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 3600000);
@@ -446,6 +460,48 @@ async function _handleTaskPost(req, res) {
 /* PUT /task/:id/step - no-op (step tracking removed) */
 router.put('/task/:id/step', optionalAuth, (req, res) => res.json({ ok: true }));
 
+/* ═════════════════════════════════════════════════════════
+   POST /task/:id/challenge-passed
+   Called by frontend after user passes shake/curve challenge.
+   Validates _tk (task token) then issues a signed challengeToken
+   stored server-side. Without this token, /verify will be rejected.
+═════════════════════════════════════════════════════════ */
+router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const { _tk } = req.body || {};
+
+  // Verify the original task token (binds to IP)
+  if (!_tk || !verifyTaskToken(_tk, req.params.id, ip)) {
+    return res.status(403).json({ error: 'Invalid token' });
+  }
+
+  // Verify the task exists and is still pending
+  try {
+    const pool = getPool();
+    const [tasks] = await pool.execute(
+      'SELECT id, status, expires_at FROM vuot_link_tasks WHERE id = ?',
+      [req.params.id]
+    );
+    if (!tasks.length) return res.status(404).json({ error: 'Task không tồn tại' });
+    const task = tasks[0];
+    if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
+    if (task.status === 'expired') return res.status(410).json({ error: 'Task đã hết hạn' });
+    // Check expiry from DB
+    const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
+    if (expCheck[0]?.expired) return res.status(410).json({ error: 'Task đã hết hạn' });
+  } catch (e) {
+    console.error('[VuotLink] challenge-passed DB error:', e.message);
+    return res.status(500).json({ error: 'Lỗi server' });
+  }
+
+  const ts = Date.now();
+  const challengeToken = signChallengeToken(req.params.id, ip, ts);
+  challengePassedStore[req.params.id] = { token: challengeToken, ts, ip };
+
+  console.log(`[VuotLink] ✅ Challenge passed — task #${req.params.id}, IP: ${ip}`);
+  res.json({ challengeToken });
+});
+
 
 /* ═════════════════════════════════════════════════════════
    STEP 4: POST /task/:id/verify — verify code & complete
@@ -455,13 +511,29 @@ router.put('/task/:id/step', optionalAuth, (req, res) => res.json({ ok: true }))
 ═════════════════════════════════════════════════════════ */
 router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   const pool = getPool();
-  const { code, _tk } = req.body;
+  const { code, _tk, challengeToken } = req.body;
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
 
-  // Anti-cheat: verify task token
+  // Anti-cheat: verify task token (binds to IP)
   if (!_tk || !verifyTaskToken(_tk, req.params.id, ip)) {
     return res.status(403).json({ error: 'Invalid token' });
   }
+
+  // Anti-cheat: verify human challenge was completed server-side
+  const taskIdStr = String(req.params.id);
+  const cpEntry = challengePassedStore[taskIdStr];
+  if (!cpEntry) {
+    console.log(`[VuotLink] Verify blocked — no challenge-passed for task #${taskIdStr}, IP: ${ip}`);
+    logSecurityEvent('bypass_attempt_no_challenge', ip, req.headers['user-agent'] || '', null, { taskId: taskIdStr });
+    return res.status(403).json({ error: 'Bạn chưa hoàn thành bước xác minh người thật.' });
+  }
+  if (cpEntry.token !== challengeToken || cpEntry.ip !== ip) {
+    console.log(`[VuotLink] Verify blocked — bad challengeToken for task #${taskIdStr}, IP: ${ip}`);
+    logSecurityEvent('bypass_attempt_bad_token', ip, req.headers['user-agent'] || '', null, { taskId: taskIdStr });
+    return res.status(403).json({ error: 'Token xác minh không hợp lệ.' });
+  }
+  // Token valid — consume it (one-time use)
+  delete challengePassedStore[taskIdStr];
 
   if (!code || code.trim().length < 4) {
     return res.status(400).json({ error: 'Mã xác nhận không hợp lệ' });
@@ -578,32 +650,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     [timeOnSite, earning, ipCountry, task.id]
   );
 
-  // Log completed task to security_logs for admin review
-  try {
-    let secDetail = {};
-    try { secDetail = JSON.parse(task.security_detail || '{}'); } catch { }
-    logSecurityEvent('completed', task.ip_address, task.user_agent, task.visitor_id, {
-      taskId: task.id,
-      earning,
-      timeOnSite,
-      ipCountry,
-      campaignId: task.campaign_id,
-      workerId: task.worker_id,
-      ...secDetail,
-    });
-
-    // Chỉ log non_google_referrer khi task HOÀN THÀNH mà trước đó bị block referrer
-    // (user bypass được bước check hoặc referrer check xảy ra lúc completed)
-    if (secDetail.non_google_referrer === true) {
-      logSecurityEvent('non_google_referrer', task.ip_address, task.user_agent, task.visitor_id, {
-        taskId: task.id,
-        campaignId: task.campaign_id,
-        workerId: task.worker_id,
-        referrer: secDetail.bad_referrer || '',
-        note: 'Completed task with invalid referrer',
-      });
-    }
-  } catch { }
+  // (Không log mọi task completed — chỉ log bot bên dưới nếu bị phát hiện)
 
   // Count view + auto-complete
   await pool.execute('UPDATE campaigns SET views_done = COALESCE(views_done, 0) + 1 WHERE id = ?', [task.campaign_id]);
@@ -729,14 +776,31 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
 
   console.log(`[VuotLink] Task #${task.id} VERIFIED — code=${code}, earning=${earning}`);
 
-  // Log security event at completion
+  // Chỉ log security event khi phát hiện bot thực sự (không log phiên bình thường)
   try {
     let secDetail = {};
     try { secDetail = JSON.parse(task.security_detail || '{}'); } catch { }
     const flagged = (secDetail.assessments || []).some(a => a.flagged);
-    logSecurityEvent(flagged ? 'bot_behavior' : 'completed', task.ip_address, task.user_agent, task.visitor_id, {
-      ...secDetail, taskId: task.id, source: 'vuotlink', timeOnSite, earning,
-    });
+    const isBotTask = task.bot_detected == 1;
+    if (flagged || isBotTask) {
+      logSecurityEvent('bot_detected', task.ip_address, task.user_agent, task.visitor_id, {
+        taskId: task.id,
+        source: 'vuotlink',
+        campaignId: task.campaign_id,
+        timeOnSite,
+        earning,
+        ipCountry,
+        // Lý do phát hiện chi tiết
+        detectionLog: secDetail.detectionLog || [],
+        reasons: secDetail.reasons || [],
+        deviceScore: secDetail.deviceScore ?? null,
+        deviceType: secDetail.deviceType || null,
+        automationFlags: secDetail.detail?.automation || null,
+        canvasHash: secDetail.canvasHash || null,
+        audioHash: secDetail.audioHash || null,
+        creepSummary: secDetail.creepSummary || null,
+      });
+    }
   } catch (e) { }
 
   // Calculate remaining views for today (after this completion)

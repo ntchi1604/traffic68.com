@@ -174,6 +174,8 @@ export default function LinkGateway() {
 
   const [humanPassed, setHumanPassed] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
+  const [challengeToken, setChallengeToken] = useState(null);
+  const [challengeLoading, setChallengeLoading] = useState(false);
   const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '');
 
   // Set tab title
@@ -372,6 +374,31 @@ export default function LinkGateway() {
     setChangingTask(false);
   }, [fetchTask, slug, task, skippedCampaigns]);
 
+  // Called when shake/curve challenge passes — fetch server-side token
+  const handleChallengePass = useCallback(async () => {
+    setShowChallenge(false);
+    setChallengeLoading(true);
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API}/task/${task.id}/challenge-passed`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ _tk: task._tk }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
+      setChallengeToken(data.challengeToken);
+      setHumanPassed(true);
+    } catch (err) {
+      setShowError(true);
+      setError('Xác minh thất bại, vui lòng thử lại: ' + (err.message || ''));
+      setTimeout(() => setShowError(false), 5000);
+    } finally {
+      setChallengeLoading(false);
+    }
+  }, [task]);
+
   // Verify code
   const handleVerify = useCallback(async () => {
     if (!inputCode.trim() || inputCode.trim().length < 4) {
@@ -385,7 +412,7 @@ export default function LinkGateway() {
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API}/task/${task.id}/verify`, {
         method: 'POST', headers,
-        body: JSON.stringify({ code: inputCode.trim(), _tk: task._tk }),
+        body: JSON.stringify({ code: inputCode.trim(), _tk: task._tk, challengeToken }),
       });
       const data = await res.json();
 
@@ -825,8 +852,19 @@ export default function LinkGateway() {
 
       {showChallenge && !humanPassed && (
         isMobileDevice
-          ? <ShakeChallenge onPass={() => { setHumanPassed(true); setShowChallenge(false); }} onClose={() => setShowChallenge(false)} />
-          : <CurveChallenge onPass={() => { setHumanPassed(true); setShowChallenge(false); }} onClose={() => setShowChallenge(false)} />
+          ? <ShakeChallenge onPass={handleChallengePass} onClose={() => setShowChallenge(false)} />
+          : <CurveChallenge onPass={handleChallengePass} onClose={() => setShowChallenge(false)} />
+      )}
+
+      {challengeLoading && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(15,15,35,0.7)', backdropFilter: 'blur(8px)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
+        }}>
+          <div style={{ width: 52, height: 52, borderRadius: '50%', border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#22C55E', animation: 'spin 0.8s linear infinite' }} />
+          <p style={{ color: '#fff', fontWeight: 700, fontSize: 15, margin: 0 }}>Đang xác minh với máy chủ...</p>
+        </div>
       )}
 
       <style>{`
@@ -1131,7 +1169,6 @@ function CurveChallenge({ onPass, onClose }) {
     };
     animRef.current = requestAnimationFrame(draw);
 
-    // Fix: tính scale ratio vì canvas internal px ≠ CSS display px
     const getPos = (e) => {
       const rect = canvas.getBoundingClientRect();
       const scaleX = W / rect.width;
