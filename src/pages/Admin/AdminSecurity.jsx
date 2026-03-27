@@ -159,7 +159,7 @@ function TaskModal({ task: t, onClose }) {
           {/* CreepJS Fingerprint Summary */}
           {(sd.creepSummary || sd.canvasHash || sd.reasons?.length > 0) && (
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1.5">🔍 Fingerprint Analysis</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1.5">Fingerprint Analysis</p>
               <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
                 {sd.creepSummary && (
                   <>
@@ -551,17 +551,17 @@ function UserDetail({ user: u, onBack }) {
         const filtered = allIps.filter(row => {
           if (typeof row === 'string') return ipFilter === 'all';
           if (ipFilter === 'shared') return !!row.shared;
-          if (ipFilter === 'many')   return row.completed > 20;
-          if (ipFilter === 'bot')    return row.bots > 0;
+          if (ipFilter === 'many') return row.completed > 20;
+          if (ipFilter === 'bot') return row.bots > 0;
           return true;
         });
         const totalIpPages = Math.max(1, Math.ceil(filtered.length / IP_PER_PAGE));
         const pageIps = filtered.slice((ipPage - 1) * IP_PER_PAGE, ipPage * IP_PER_PAGE);
         const chips = [
-          { k: 'all',    l: 'Tất cả',     n: allIps.length },
+          { k: 'all', l: 'Tất cả', n: allIps.length },
           { k: 'shared', l: 'Dùng chung', n: allIps.filter(r => r.shared).length },
-          { k: 'many',   l: 'Nhiều task', n: allIps.filter(r => r.completed > 20).length },
-          { k: 'bot',    l: 'Có bot',     n: allIps.filter(r => r.bots > 0).length },
+          { k: 'many', l: 'Nhiều task', n: allIps.filter(r => r.completed > 20).length },
+          { k: 'bot', l: 'Có bot', n: allIps.filter(r => r.bots > 0).length },
         ];
         return (
           <div className="space-y-3">
@@ -729,7 +729,8 @@ function UserDetail({ user: u, onBack }) {
             </div>
           </div>
         );
-      })()}
+      })()}
+
       {modal && <TaskModal task={modal} onClose={() => setModal(null)} />}
       {eventModal && <EventModal event={eventModal} onClose={() => setEventModal(null)} />}
     </div>
@@ -851,81 +852,81 @@ export default function AdminSecurity() {
       {/* ── USERS LIST ── */}
       <div className="space-y-4">
         <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input placeholder="Tìm tên, email..."
-              value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-          </div>
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input placeholder="Tìm tên, email..."
+            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
+        </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    {['User', 'Tổng', 'OK', 'Bot', 'Cảnh báo', 'IP', 'Hoạt động', ''].map(h => (
-                      <th key={h} className={`px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px] ${['User', 'IP', 'Hoạt động'].includes(h) ? 'text-left' : 'text-center'}`}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr><td colSpan={8} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
-                  ) : users.length === 0 ? (
-                    <tr><td colSpan={8} className="text-center py-10 text-slate-400">Chưa có dữ liệu</td></tr>
-                  ) : users.map(u => {
-                    const danger = u.blocked > 0 || u.events > 0;
-                    return (
-                      <tr key={u.id} className={`border-b ${danger ? 'bg-red-50 border-red-100 hover:bg-red-50/70' : 'border-slate-100 hover:bg-slate-50/50'}`}>
-                        <td className="px-3 py-2.5">
-                          <div className="flex items-center gap-2">
-                            {u.avatar_url ? (
-                              <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
-                            ) : (
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${danger ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                {(u.name || '?')[0].toUpperCase()}
-                              </div>
-                            )}
-                            <div className="min-w-0">
-                              <p className="font-bold text-slate-800 truncate flex items-center gap-1">
-                                {u.name || 'N/A'}
-                                {u.status === 'banned' && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-600">BAN</span>}
-                              </p>
-                              <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {['User', 'Tổng', 'OK', 'Bot', 'Cảnh báo', 'IP', 'Hoạt động', ''].map(h => (
+                    <th key={h} className={`px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px] ${['User', 'IP', 'Hoạt động'].includes(h) ? 'text-left' : 'text-center'}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={8} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
+                ) : users.length === 0 ? (
+                  <tr><td colSpan={8} className="text-center py-10 text-slate-400">Chưa có dữ liệu</td></tr>
+                ) : users.map(u => {
+                  const danger = u.blocked > 0 || u.events > 0;
+                  return (
+                    <tr key={u.id} className={`border-b ${danger ? 'bg-red-50 border-red-100 hover:bg-red-50/70' : 'border-slate-100 hover:bg-slate-50/50'}`}>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-2">
+                          {u.avatar_url ? (
+                            <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${danger ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {(u.name || '?')[0].toUpperCase()}
                             </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-800 truncate flex items-center gap-1">
+                              {u.name || 'N/A'}
+                              {u.status === 'banned' && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-600">BAN</span>}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
                           </div>
-                        </td>
-                        <td className="px-3 py-2.5 text-center font-bold text-slate-700">{u.total}</td>
-                        <td className="px-3 py-2.5 text-center font-bold text-emerald-600">{u.ok}</td>
-                        <td className="px-3 py-2.5 text-center">
-                          {u.blocked > 0
-                            ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit mx-auto"><Bot size={9} />{u.blocked}</span>
-                            : <span className="text-slate-300">0</span>}
-                        </td>
-                        <td className="px-3 py-2.5 text-center">
-                          {u.events > 0
-                            ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">{u.events}</span>
-                            : <span className="text-slate-300">0</span>}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <div className="flex flex-wrap gap-0.5">
-                            {u.ips.slice(0, 2).map((ip, j) => <span key={j} className="font-mono text-[9px] text-slate-500 bg-slate-50 px-1 py-0.5 rounded">{ip}</span>)}
-                            {u.ips.length > 2 && <span className="text-[9px] text-slate-400">+{u.ips.length - 2}</span>}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{ago(u.last_at)}</td>
-                        <td className="px-3 py-2.5">
-                          <button onClick={() => setDetail(u)} className="px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 text-[10px] font-bold">
-                            <Eye size={11} className="inline mr-0.5" />Xem
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-center font-bold text-slate-700">{u.total}</td>
+                      <td className="px-3 py-2.5 text-center font-bold text-emerald-600">{u.ok}</td>
+                      <td className="px-3 py-2.5 text-center">
+                        {u.blocked > 0
+                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit mx-auto"><Bot size={9} />{u.blocked}</span>
+                          : <span className="text-slate-300">0</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {u.events > 0
+                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">{u.events}</span>
+                          : <span className="text-slate-300">0</span>}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-wrap gap-0.5">
+                          {u.ips.slice(0, 2).map((ip, j) => <span key={j} className="font-mono text-[9px] text-slate-500 bg-slate-50 px-1 py-0.5 rounded">{ip}</span>)}
+                          {u.ips.length > 2 && <span className="text-[9px] text-slate-400">+{u.ips.length - 2}</span>}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{ago(u.last_at)}</td>
+                      <td className="px-3 py-2.5">
+                        <button onClick={() => setDetail(u)} className="px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 text-[10px] font-bold">
+                          <Eye size={11} className="inline mr-0.5" />Xem
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
+          <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
+        </div>
       </div>
     </div>
   );
