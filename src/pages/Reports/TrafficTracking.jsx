@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar,
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell, BarChart,
 } from 'recharts';
 import {
   Eye, TrendingUp, TrendingDown, Wallet, CalendarDays,
@@ -25,13 +25,15 @@ const PERIODS = [
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px 16px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}>
-      <p style={{ fontWeight: 700, color: '#334155', marginBottom: 6, fontSize: 13 }}>{label}</p>
+    <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-xl space-y-1">
+      <p className="text-xs font-bold text-slate-500 mb-1">{label}</p>
       {payload.map(p => (
-        <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 2 }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', background: p.color, display: 'inline-block' }} />
-          <span style={{ color: '#64748b' }}>{p.name}:</span>
-          <span style={{ fontWeight: 700, color: '#1e293b' }}>{Number(p.value).toLocaleString('vi-VN')}</span>
+        <div key={p.dataKey} className="flex items-center gap-2 text-xs">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />
+          <span className="text-slate-500">{p.name}:</span>
+          <span className="font-bold text-slate-800">
+            {p.name === 'Chi phí' ? `${Number(p.value).toLocaleString('vi-VN')} đ` : Number(p.value).toLocaleString('vi-VN')}
+          </span>
         </div>
       ))}
     </div>
@@ -399,6 +401,7 @@ export default function TrafficTracking() {
   usePageTitle('Theo dõi lưu lượng');
   const [range, setRange] = useState('7d');
   const [traffic, setTraffic] = useState([]);
+  const [totalCost, setTotalCost] = useState(0);
   const [bySource, setBySource] = useState([]);
   const [byDevice, setByDevice] = useState([]);
   const [overview, setOverview] = useState({});
@@ -416,6 +419,7 @@ export default function TrafficTracking() {
       api.get('/campaigns'),
     ]).then(([tr, ov, cp]) => {
       setTraffic(tr.traffic || []);
+      setTotalCost(tr.totalCost || 0);
       setBySource(tr.bySource || []);
       setByDevice(tr.byDevice || []);
       setOverview(ov.overview || {});
@@ -432,7 +436,12 @@ export default function TrafficTracking() {
   const peakDay = traffic.reduce((best, t) => Number(t.clicks || 0) > Number(best?.clicks || 0) ? t : best, null);
   const trend = getTrend(traffic);
   const deviceTotal = byDevice.reduce((s, x) => s + x.value, 0);
-  const chartData = traffic.map(t => ({ date: fmtDay(t.date), 'Lượt xem': Number(t.clicks || 0) }));
+  const chartData = traffic.map(t => ({
+    date: fmtDay(t.date),
+    'Lượt hoàn thành': Number(t.clicks || 0),
+    'Chi phí': Math.round(Number(t.cost || 0)),
+  }));
+
 
   // Campaigns to show in progress: exclude completed > 24h
   const visibleCampaigns = campaigns.filter(c => {
@@ -443,9 +452,10 @@ export default function TrafficTracking() {
   });
 
   const kpis = [
-    { label: 'Tổng lượt xem', value: fmt(totalCompleted), sub: `đã hoàn thành trong ${range === '7d' ? '7' : range === '30d' ? '30' : '90'} ngày`, icon: Eye, color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
+    { label: 'Tổng hoàn thành', value: fmt(totalCompleted), sub: `trong ${range === '7d' ? '7' : range === '30d' ? '30' : '90'} ngày`, icon: Eye, color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
+    { label: 'Chi phí đã dùng', value: `${fmt(totalCost)} đ`, sub: 'Tổng chi phí traffic', icon: Wallet, color: '#F97316', bg: '#FFF7ED', border: '#FED7AA' },
     { label: 'Trung bình / ngày', value: fmt(avgPerDay), sub: 'hoàn thành/ngày', icon: BarChart2, color: '#8B5CF6', bg: '#F5F3FF', border: '#DDD6FE' },
-    { label: 'Chiến dịch đang chạy', value: overview.runningCampaigns || 0, sub: `/ ${overview.totalCampaigns || 0} chiến dịch`, icon: Zap, color: '#F97316', bg: '#FFF7ED', border: '#FED7AA' },
+    { label: 'Chiến dịch đang chạy', value: overview.runningCampaigns || 0, sub: `/ ${overview.totalCampaigns || 0} chiến dịch`, icon: Zap, color: '#10B981', bg: '#ECFDF5', border: '#A7F3D0' },
   ];
 
   if (loading) return (
@@ -527,33 +537,47 @@ export default function TrafficTracking() {
         </div>
       </div>
 
-      {/* Main Chart */}
+      {/* Main Chart — Dual axis */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Lượt xem theo ngày</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Biểu đồ lưu lượng truy cập link</p>
+            <h2 className="text-base font-bold text-slate-900">Lượt hoàn thành & Chi phí theo ngày</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Cột xanh = hoàn thành · Đường cam = chi phí (đ)</p>
           </div>
-          <span className="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full font-medium">Tổng {fmt(totalCompleted)} views</span>
+          <div className="flex items-center gap-3 text-xs text-slate-500">
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-500 inline-block" /> Hoàn thành</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-orange-500 inline-block" /> Chi phí</span>
+            <span className="text-slate-400 bg-slate-100 px-2 py-1 rounded-full font-medium">
+              Tổng: {fmt(totalCompleted)} views · {fmt(totalCost)} đ
+            </span>
+          </div>
         </div>
         {chartData.length === 0 ? (
           <div className="h-64 flex items-center justify-center text-slate-400 text-sm">Chưa có dữ liệu</div>
         ) : (
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+              <ComposedChart data={chartData} margin={{ left: 0, right: 20, top: 8, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gViews" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.9} />
+                    <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.5} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} width={36} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="views" orientation="left"
+                  tick={{ fontSize: 11, fill: '#3B82F6' }} axisLine={false} tickLine={false} width={36}
+                  tickFormatter={v => v >= 1000 ? `${Math.round(v/1000)}k` : v} />
+                <YAxis yAxisId="cost" orientation="right"
+                  tick={{ fontSize: 11, fill: '#F97316' }} axisLine={false} tickLine={false} width={52}
+                  tickFormatter={v => v >= 1000 ? `${Math.round(v/1000)}k` : v} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="Lượt xem" stroke="#3B82F6" fill="url(#gViews)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#3B82F6' }} />
-              </AreaChart>
+                <Bar yAxisId="views" dataKey="Lượt hoàn thành" fill="url(#gViews)" radius={[4,4,0,0]} maxBarSize={36} />
+                <Line yAxisId="cost" type="monotone" dataKey="Chi phí" stroke="#F97316" strokeWidth={2.5}
+                  dot={{ r: 3, fill: '#F97316', stroke: '#fff', strokeWidth: 2 }}
+                  activeDot={{ r: 5, fill: '#F97316', stroke: '#fff', strokeWidth: 2 }} />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         )}
@@ -719,16 +743,16 @@ export default function TrafficTracking() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Ngày</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Hoàn thành</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Unique IPs</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Ngày</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wide">Hoàn thành</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wide">Chi phí</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wide">Unique IPs</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {traffic.length === 0 ? (
-                <tr><td colSpan={3} className="px-6 py-10 text-center text-slate-400">Không có dữ liệu</td></tr>
+                <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-400">Không có dữ liệu</td></tr>
               ) : [...traffic].reverse().map(t => {
-                const rate = t.views > 0 ? Math.round((t.clicks / t.views) * 100) : 0;
                 const isPeak = peakDay && t.date === peakDay.date;
                 return (
                   <tr key={t.date} className={`hover:bg-slate-50 transition-colors ${isPeak ? 'bg-amber-50/50' : ''}`}>
@@ -738,11 +762,20 @@ export default function TrafficTracking() {
                         {isPeak && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">PEAK</span>}
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-right font-semibold text-emerald-600">{fmt(t.clicks)}</td>
-                    <td className="px-6 py-3 text-right text-slate-500">{fmt(t.unique_ips)}</td>
+                    <td className="px-6 py-3 text-right font-bold text-blue-600">{fmt(t.clicks)}</td>
+                    <td className="px-6 py-3 text-right font-semibold text-orange-500">{fmt(Math.round(t.cost || 0))} đ</td>
+                    <td className="px-6 py-3 text-right text-slate-400">{fmt(t.unique_ips)}</td>
                   </tr>
                 );
               })}
+              {traffic.length > 0 && (
+                <tr className="border-t-2 border-slate-200 bg-slate-50/60">
+                  <td className="px-6 py-3 text-xs font-bold text-slate-600">Tổng cộng</td>
+                  <td className="px-6 py-3 text-right text-xs font-black text-blue-600">{fmt(totalCompleted)}</td>
+                  <td className="px-6 py-3 text-right text-xs font-black text-orange-500">{fmt(Math.round(totalCost))} đ</td>
+                  <td className="px-6 py-3 text-right text-xs font-bold text-slate-400">{fmt(traffic.reduce((s,t)=>s+Number(t.unique_ips||0),0))}</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

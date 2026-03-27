@@ -63,15 +63,28 @@ router.get('/traffic', async (req, res) => {
   let data;
   if (campaignId) {
     [data] = await pool.execute(
-      `SELECT tl.date, tl.views, tl.clicks, tl.unique_ips, tl.source FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ? AND tl.campaign_id = ? AND tl.date BETWEEN ? AND ? ORDER BY tl.date ASC`,
+      `SELECT tl.date, tl.views, tl.clicks, tl.unique_ips, tl.source,
+              COALESCE(tl.clicks * c.cpc, 0) as cost
+       FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id
+       WHERE c.user_id = ? AND tl.campaign_id = ? AND tl.date BETWEEN ? AND ?
+       ORDER BY tl.date ASC`,
       [req.userId, campaignId, fromDate, toDate]
     );
   } else {
     [data] = await pool.execute(
-      `SELECT tl.date, SUM(tl.views) as views, SUM(tl.clicks) as clicks, SUM(tl.unique_ips) as unique_ips FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ? AND tl.date BETWEEN ? AND ? GROUP BY tl.date ORDER BY tl.date ASC`,
+      `SELECT tl.date,
+              SUM(tl.views) as views,
+              SUM(tl.clicks) as clicks,
+              SUM(tl.unique_ips) as unique_ips,
+              COALESCE(SUM(tl.clicks * c.cpc), 0) as cost
+       FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id
+       WHERE c.user_id = ? AND tl.date BETWEEN ? AND ?
+       GROUP BY tl.date ORDER BY tl.date ASC`,
       [req.userId, fromDate, toDate]
     );
   }
+
+  const totalCost = data.reduce((s, r) => s + Number(r.cost || 0), 0);
 
   const sourceWhere = campaignId
     ? `c.user_id = ? AND tl.campaign_id = ? AND tl.date BETWEEN ? AND ?`
@@ -96,8 +109,9 @@ router.get('/traffic', async (req, res) => {
     { name: 'Tablet',  value: Number(d.tablet  || 0), color: '#FACC15' },
   ].filter(x => x.value > 0);
 
-  res.json({ traffic: data, bySource, byDevice, period: { from: fromDate, to: toDate } });
+  res.json({ traffic: data, bySource, byDevice, totalCost, period: { from: fromDate, to: toDate } });
 });
+
 
 // ── GET /api/reports/tasks  (completed tasks for a campaign, for detail modal) ──
 router.get('/tasks', async (req, res) => {
