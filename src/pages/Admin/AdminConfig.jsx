@@ -41,6 +41,14 @@ const DEPOSIT_FIELDS = [
   { key: 'deposit_crypto_min_usdt', label: 'Nạp tối thiểu (USDT)', description: 'Số USDT tối thiểu cho mỗi đơn nạp', type: 'number', defaultValue: '1', min: 0 },
 ];
 
+// Web3 fields saved to DB (NOT including private key)
+const WEB3_DB_FIELDS = [
+  { key: 'web3_enabled', label: 'Bật Web3 Auto Payment', description: 'Tự động gửi USDT (BEP20) trên BSC Mainnet', type: 'toggle', defaultValue: 'false' },
+  { key: 'web3_vnd_rate', label: 'Tỷ giá (1 USDT = ? VNĐ)', description: 'Để trống = tự động lấy từ CoinGecko', type: 'number', defaultValue: '', min: 0 },
+  { key: 'web3_gas_limit', label: 'Gas Limit', description: 'Mặc định 100000. Thường không cần thay đổi', type: 'number', defaultValue: '', min: 21000 },
+  { key: 'web3_auto_approve', label: 'Tự động gửi khi duyệt', description: 'Khi admin duyệt rút crypto → tự động gửi USDT', type: 'toggle', defaultValue: 'false' },
+];
+
 const ALL_CONFIG_FIELDS = [...VUOTLINK_FIELDS, ...DEPOSIT_FIELDS, ...WITHDRAW_FIELDS, ...WEB3_DB_FIELDS];
 
 // LocalStorage key for private key
