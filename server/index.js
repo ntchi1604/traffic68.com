@@ -276,7 +276,7 @@ app.use((err, req, res, next) => {
       // Start crypto deposit watcher
       try {
         const web3pay = require('./lib/web3pay');
-        web3pay.startDepositWatcher(30000);
+        web3pay.startDepositWatcher(60000);
       } catch (e) { console.log('[DepositWatcher] Skipped:', e.message); }
     });
   } catch (err) {
