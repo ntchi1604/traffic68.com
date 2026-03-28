@@ -17,13 +17,17 @@ const parseJsonArray = (val) => {
 /* ── Keyword Stats Panel ── */
 function KeywordStats({ campaignId }) {
   const [stats, setStats] = useState(null);
+  const [daily, setDaily] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get(`/campaigns/${campaignId}/keyword-stats`)
-      .then(d => setStats(d.keywords || []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get(`/campaigns/${campaignId}/keyword-stats`),
+      api.get(`/reports/detailed?campaignId=${campaignId}&period=30d`)
+    ]).then(([st, dt]) => {
+      setStats(st.keywords || []);
+      setDaily(dt.detailed || []);
+    }).catch(console.error).finally(() => setLoading(false));
   }, [campaignId]);
 
   if (loading) return <div className="text-center py-4 text-xs text-slate-400">Đang tải...</div>;
@@ -54,36 +58,74 @@ function KeywordStats({ campaignId }) {
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-xs font-bold text-slate-500">Tổng: {totalAll} tasks · {totalCompleted} hoàn thành</p>
-        <button onClick={exportCSV}
-          className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition">
-          📥 Xuất CSV
-        </button>
+    <div className="flex flex-col lg:flex-row gap-4">
+      {/* Left: Overall stats */}
+      <div className="space-y-2 lg:w-1/3">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-xs font-bold text-slate-500">Tổng: {totalAll} tasks · {totalCompleted} hoàn thành</p>
+          <button onClick={exportCSV}
+            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition">
+            📥 Xuất CSV
+          </button>
+        </div>
+        <div className="max-h-[300px] overflow-y-auto pr-1 space-y-2">
+          {stats.map((kw, i) => {
+            const pct = totalAll > 0 ? Math.round(Number(kw.completed) / totalAll * 100) : 0;
+            return (
+              <div key={i} className="bg-slate-50 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-sm font-bold text-slate-800 truncate flex-1">{kw.keyword || '(trống)'}</p>
+                  <span className="text-xs font-bold text-emerald-600 ml-2">{Number(kw.completed)} view</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-1.5 mb-2">
+                  <div className="h-1.5 rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
+                  <span className="text-slate-500">Tổng: <b className="text-slate-700">{Number(kw.total)}</b></span>
+                  <span className="text-emerald-600">Hoàn thành: <b>{Number(kw.completed)}</b></span>
+                  <span className="text-amber-600">Đang chờ: <b>{Number(kw.pending)}</b></span>
+                  <span className="text-slate-500">Hết hạn: <b>{Number(kw.expired)}</b></span>
+                  {Number(kw.blocked) > 0 && <span className="text-red-600">Blocked: <b>{Number(kw.blocked)}</b></span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-      {stats.map((kw, i) => {
-        const pct = totalAll > 0 ? Math.round(Number(kw.completed) / totalAll * 100) : 0;
-        return (
-          <div key={i} className="bg-slate-50 rounded-xl p-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-sm font-bold text-slate-800 truncate flex-1">{kw.keyword || '(trống)'}</p>
-              <span className="text-xs font-bold text-emerald-600 ml-2">{Number(kw.completed)} view</span>
-            </div>
-            <div className="w-full bg-slate-200 rounded-full h-1.5 mb-2">
-              <div className="h-1.5 rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
-            </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
-              <span className="text-slate-500">Tổng: <b className="text-slate-700">{Number(kw.total)}</b></span>
-              <span className="text-emerald-600">Hoàn thành: <b>{Number(kw.completed)}</b></span>
-              <span className="text-amber-600">Đang chờ: <b>{Number(kw.pending)}</b></span>
-              <span className="text-slate-500">Hết hạn: <b>{Number(kw.expired)}</b></span>
-              {Number(kw.blocked) > 0 && <span className="text-red-600">Blocked: <b>{Number(kw.blocked)}</b></span>}
-              <span className="text-blue-600">Chi phí: <b>{fmt(Number(kw.cost))} đ</b></span>
-            </div>
-          </div>
-        );
-      })}
+
+      {/* Right: Daily Breakdowns */}
+      <div className="flex-1 bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
+        <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
+          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Chi tiết theo ngày & từ khoá</span>
+          <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">{daily.length} dòng</span>
+        </div>
+        <div className="overflow-x-auto overflow-y-auto max-h-[300px]">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-slate-50/80 sticky top-0 shadow-sm">
+              <tr>
+                <th className="px-4 py-2 font-semibold text-slate-500">Ngày</th>
+                <th className="px-4 py-2 font-semibold text-slate-500">Từ khoá</th>
+                <th className="px-4 py-2 font-semibold text-slate-500 text-right">Hoàn thành</th>
+                <th className="px-4 py-2 font-semibold text-slate-500 text-right">Chi phí</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {daily.length === 0 ? (
+                <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-400">Không có dữ liệu</td></tr>
+              ) : daily.map((d, i) => (
+                <tr key={i} className="hover:bg-slate-50">
+                  <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{d.date?.slice(0, 10)}</td>
+                  <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]">{d.keyword || '(Trống)'}</td>
+                  <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
+                    {d.completed} <span className="text-slate-400 font-medium text-[10px]">/ {d.total}</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-semibold text-slate-600">{fmt(d.cost)} đ</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

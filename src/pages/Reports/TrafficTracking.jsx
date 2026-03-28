@@ -61,6 +61,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
   const [mRange, setMRange] = useState('7d');
   const [detail, setDetail] = useState(null);
   const [tasks, setTasks] = useState([]);
+  const [dailyKws, setDailyKws] = useState([]);
   const [fetchingTasks, setFetchingTasks] = useState(false);
 
   useEffect(() => {
@@ -71,7 +72,8 @@ function CampaignDetailModal({ campaign: c, onClose }) {
     Promise.all([
       api.get(`/reports/traffic?campaignId=${c.id}&period=${mRange}`),
       api.get(`/reports/tasks?campaignId=${c.id}&period=${mRange}`),
-    ]).then(([tr, tk]) => {
+      api.get(`/reports/detailed?campaignId=${c.id}&period=${mRange}`)
+    ]).then(([tr, tk, dt]) => {
       const rows = tr.traffic || [];
       const bd = tr.byDevice || [];
       const totalClicks = rows.reduce((s, t) => s + Number(t.clicks || 0), 0);
@@ -82,6 +84,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
       const tablet = bd.find(x => x.name === 'Tablet')?.value || 0;
       setDetail({ totalClicks, totalViews, uniqueIps, mobile, desktop, tablet, rows });
       setTasks(tk.tasks || []);
+      setDailyKws(dt.detailed || []);
     }).catch(console.error).finally(() => setFetchingTasks(false));
   }, [c, mRange]);
 
@@ -356,6 +359,37 @@ function CampaignDetailModal({ campaign: c, onClose }) {
               );
             })()}
 
+            {/* Daily Keywords table */}
+            {dailyKws.length > 0 && (
+              <div style={{ borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', margin: 0 }}>Chi tiết theo ngày / từ khoá</p>
+                  <span style={{ fontSize: 11, color: '#94a3b8' }}>{dailyKws.length} dòng</span>
+                </div>
+                <div style={{ overflowX: 'auto', maxHeight: 240, overflowY: 'auto' }}>
+                  <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                    <thead style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+                      <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        {['Ngày', 'Từ khoá', 'Hoàn thành', 'Chi phí'].map(h => (
+                          <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Ngày' || h === 'Từ khoá' ? 'left' : 'right', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dailyKws.map((d, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                          <td style={{ padding: '7px 12px', color: '#475569', whiteSpace: 'nowrap', fontWeight: 600 }}>{d.date?.slice(0, 10)}</td>
+                          <td style={{ padding: '7px 12px', color: '#4338ca', fontWeight: 700, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.keyword}>{d.keyword || '(Trống)'}</td>
+                          <td style={{ padding: '7px 12px', color: '#059669', textAlign: 'right', fontWeight: 700 }}>{fmt(d.completed)} <span style={{ color: '#cbd5e1', fontWeight: 500 }}>/ {fmt(d.total)}</span></td>
+                          <td style={{ padding: '7px 12px', color: '#475569', textAlign: 'right', fontWeight: 600 }}>{fmt(d.cost)} đ</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Tasks table */}
             {tasks.length > 0 && (
               <div style={{ borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
@@ -417,15 +451,13 @@ export default function TrafficTracking() {
     setLoading(true);
     Promise.all([
       api.get(`/reports/traffic?period=${range}`),
-      api.get(`/reports/detailed?period=${range}`),
       api.get('/reports/overview'),
       api.get('/campaigns'),
-    ]).then(([tr, dt, ov, cp]) => {
+    ]).then(([tr, ov, cp]) => {
       setTraffic(tr.traffic || []);
       setTotalCost(tr.totalCost || 0);
       setBySource(tr.bySource || []);
       setByDevice(tr.byDevice || []);
-      setDetailed(dt.detailed || []);
       setOverview(ov.overview || {});
       setCampaigns(cp.campaigns || []);
     }).catch(console.error).finally(() => setLoading(false));
@@ -787,44 +819,6 @@ export default function TrafficTracking() {
           </table>
         </div>
       </div>
-
-      {/* Detailed Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <BarChart2 size={16} className="text-slate-500" />
-            <h3 className="text-sm font-bold text-slate-800">Chi tiết theo chiến dịch & từ khóa</h3>
-          </div>
-          <span className="text-xs text-slate-400">{detailed.length} dòng dữ liệu</span>
-        </div>
-        <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Ngày</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Chiến dịch</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Từ khóa</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wide">Hoàn thành</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wide">Chi phí</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {detailed.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-400">Không có dữ liệu</td></tr>
-              ) : detailed.map((d, i) => (
-                <tr key={i} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-3 text-slate-800 font-semibold">{fmtDate(d.date)}</td>
-                  <td className="px-6 py-3 text-slate-700 font-medium truncate max-w-[200px]" title={d.campaign_name}>{d.campaign_name}</td>
-                  <td className="px-6 py-3 text-indigo-700 font-bold truncate max-w-[150px]">{d.keyword || '(Trống)'}</td>
-                  <td className="px-6 py-3 text-right text-emerald-600 font-bold">{fmt(d.completed)} <span className="text-slate-400 text-xs font-medium">/ {fmt(d.total)} view</span></td>
-                  <td className="px-6 py-3 text-right text-slate-700 font-semibold">{fmt(d.cost)} đ</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       <CampaignDetailModal
         campaign={modalCamp}
         onClose={closeDetail}
