@@ -500,8 +500,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       return res.status(403).json({ error: 'Thiếu dữ liệu xác minh trỏ chuột.' });
     }
     const points = curveLog.slice(0, 50);
-    
-    // Check timing + speed variance
+
     const speeds = [];
     for (let i = 1; i < points.length; i++) {
       const p1 = points[i - 1], p2 = points[i];
@@ -509,8 +508,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       const dist = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
       speeds.push(dist / dt);
     }
-    
-    // Bot scripts often move at a perfectly constant speed
+
     if (speeds.length >= 5) {
       const avgSpd = speeds.reduce((a, b) => a + b, 0) / speeds.length;
       const spdVar = speeds.reduce((a, s) => a + (s - avgSpd) ** 2, 0) / speeds.length;
