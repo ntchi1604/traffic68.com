@@ -233,62 +233,66 @@ async function checkIncomingUSDT(depositAddress) {
     return [];
   }
 
-  if (lastCheckedBlock === 0) {
-    try {
-      const provider = getProvider();
-      const currentBlock = await provider.getBlockNumber();
-      lastCheckedBlock = currentBlock - 3000;
-      console.log(`[DepositWatcher] First run — starting from block ${lastCheckedBlock}`);
-    } catch {
-      lastCheckedBlock = 89000000;
-    }
+  let provider = getProvider();
+  let currentBlock;
+  try {
+    currentBlock = await provider.getBlockNumber();
+  } catch (e) {
+    rotateRpc();
+    console.error('[DepositWatcher] Cannot get block number:', e.message);
+    return [];
   }
 
-  const startBlock = lastCheckedBlock + 1;
-  const url = `https://api.etherscan.io/v2/api?chainid=56&module=account&action=tokentx` +
-    `&contractaddress=${USDT_ADDRESS}&address=${depositAddress}` +
-    `&startblock=${startBlock}&endblock=99999999&page=1&offset=50&sort=desc`;
+  // First run: only look back 200 blocks (~10 mins). After that, each poll scans ~20 blocks
+  if (lastCheckedBlock === 0) {
+    lastCheckedBlock = currentBlock - 200;
+    console.log(`[DepositWatcher] First run — starting from block ${lastCheckedBlock}`);
+  }
 
-  console.log(`[DepositWatcher] Checking BscScan for USDT transfers to ${depositAddress} (from block ${startBlock})`);
+  const fromBlock = lastCheckedBlock + 1;
+  if (fromBlock > currentBlock) return [];
+
+  // Should only be ~20 blocks per poll (60s interval, BSC ~3s/block)
+  const toBlock = currentBlock;
+  const range = toBlock - fromBlock + 1;
+
+  const transferTopic = ethers.id('Transfer(address,address,uint256)');
+  const toTopic = '0x' + '000000000000000000000000' + depositAddress.slice(2).toLowerCase();
+
+  console.log(`[DepositWatcher] Scanning blocks ${fromBlock}→${toBlock} (${range} blocks)`);
 
   try {
-    const resp = await fetch(url);
-    const data = await resp.json();
+    provider = getProvider();
+    const logs = await provider.getLogs({
+      address: USDT_ADDRESS,
+      topics: [transferTopic, null, toTopic],
+      fromBlock,
+      toBlock,
+    });
 
-    if (data.status !== '1' || !Array.isArray(data.result)) {
-      if (data.message === 'No transactions found') {
-        console.log('[DepositWatcher] No new transfers found');
-      } else {
-        console.log('[DepositWatcher] BscScan:', data.status, data.message, typeof data.result === 'string' ? data.result : '');
-      }
-      return [];
+    lastCheckedBlock = toBlock;
+
+    if (logs.length > 0) {
+      console.log(`[DepositWatcher] Found ${logs.length} USDT transfer(s)!`);
     }
 
-    const incoming = data.result.filter(tx =>
-      tx.to.toLowerCase() === depositAddress.toLowerCase()
-    );
-
-    if (incoming.length > 0) {
-      const maxBlock = Math.max(...incoming.map(tx => parseInt(tx.blockNumber)));
-      if (maxBlock > lastCheckedBlock) lastCheckedBlock = maxBlock;
-
-      console.log(`[DepositWatcher] Found ${incoming.length} incoming USDT transfer(s)!`);
-    }
-
-    return incoming.map(tx => {
-      const usdtAmount = Number(ethers.formatUnits(tx.value, parseInt(tx.tokenDecimal) || 18));
-      console.log(`[DepositWatcher] Transfer: ${usdtAmount} USDT from ${tx.from} (tx: ${tx.hash}, block: ${tx.blockNumber})`);
+    return logs.map(log => {
+      const fromAddr = ethers.getAddress('0x' + log.topics[1].slice(26));
+      const value = BigInt(log.data);
+      const usdtAmount = Number(ethers.formatUnits(value, 18));
+      console.log(`[DepositWatcher] Transfer: ${usdtAmount} USDT from ${fromAddr} (tx: ${log.transactionHash})`);
       return {
-        txHash: tx.hash,
-        from: ethers.getAddress(tx.from),
+        txHash: log.transactionHash,
+        from: fromAddr,
         to: depositAddress,
         usdtAmount,
-        blockNumber: parseInt(tx.blockNumber),
-        explorerUrl: `${BSC_EXPLORER}/tx/${tx.hash}`,
+        blockNumber: log.blockNumber,
+        explorerUrl: `${BSC_EXPLORER}/tx/${log.transactionHash}`,
       };
     });
   } catch (err) {
-    console.error('[DepositWatcher] BscScan API error:', err.message);
+    console.error('[DepositWatcher] getLogs error:', err.message);
+    rotateRpc();
     return [];
   }
 }
