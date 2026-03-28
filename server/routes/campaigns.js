@@ -44,17 +44,31 @@ router.post('/upload-image', upload.single('image'), async (req, res) => {
 
 
 router.get('/', async (req, res) => {
-  const pool = getPool();
-  const { status, search } = req.query;
-  let sql = 'SELECT * FROM campaigns WHERE user_id = ?';
-  const params = [req.userId];
+  try {
+    const pool = getPool();
+    const { status, search } = req.query;
 
-  if (status && status !== 'all') { sql += ' AND c.status = ?'; params.push(status); }
-  if (search) { sql += ' AND (c.name LIKE ? OR c.url LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
-  sql += ' ORDER BY c.created_at DESC';
+    const tz = 'Asia/Ho_Chi_Minh';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+    const dYes = new Date(); dYes.setDate(dYes.getDate() - 1);
+    const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(dYes);
 
-  const [campaigns] = await pool.execute(sql, params);
-  res.json({ campaigns });
+    let sql = `SELECT c.*,
+      COALESCE((SELECT clicks FROM traffic_logs tl WHERE tl.campaign_id = c.id AND tl.date = ?), 0) as views_today,
+      COALESCE((SELECT clicks FROM traffic_logs tl WHERE tl.campaign_id = c.id AND tl.date = ?), 0) as views_yesterday
+      FROM campaigns c WHERE c.user_id = ?`;
+    const params = [today, yesterday, req.userId];
+
+    if (status && status !== 'all') { sql += ' AND c.status = ?'; params.push(status); }
+    if (search) { sql += ' AND (c.name LIKE ? OR c.url LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+    sql += ' ORDER BY c.created_at DESC';
+
+    const [campaigns] = await pool.execute(sql, params);
+    res.json({ campaigns });
+  } catch (err) {
+    console.error('get campaigns error:', err);
+    res.status(500).json({ error: err.message, campaigns: [] });
+  }
 });
 
 
