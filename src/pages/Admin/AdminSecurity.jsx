@@ -362,6 +362,8 @@ function UserDetail({ user: u, onBack }) {
   const [modal, setModal] = useState(null);
   const [eventModal, setEventModal] = useState(null);
   const [banned, setBanned] = useState(u.status === 'banned');
+  const [taskFilter, setTaskFilter] = useState({ ip: '', visitorId: '', slug: '' });
+  const [taskFilterInput, setTaskFilterInput] = useState({ ip: '', visitorId: '', slug: '' });
   // IP detail
   const [selectedIp, setSelectedIp] = useState(null);
   const [ipDetail, setIpDetail] = useState(null);
@@ -375,10 +377,14 @@ function UserDetail({ user: u, onBack }) {
 
   useEffect(() => {
     setLoading(true);
-    api.get(`/admin/security/user/${u.id}/tasks?page=${taskPage}&limit=${LIMIT}`)
+    const p = new URLSearchParams({ page: taskPage, limit: LIMIT });
+    if (taskFilter.ip) p.set('ip', taskFilter.ip);
+    if (taskFilter.visitorId) p.set('visitorId', taskFilter.visitorId);
+    if (taskFilter.slug) p.set('slug', taskFilter.slug);
+    api.get(`/admin/security/user/${u.id}/tasks?${p}`)
       .then(d => { setTasks(d.tasks || []); setTaskTotal(d.total || 0); })
       .catch(console.error).finally(() => setLoading(false));
-  }, [u.id, taskPage]);
+  }, [u.id, taskPage, taskFilter]);
 
   // Load danh sách IP đầy đủ khi mở tab IPs
   useEffect(() => {
@@ -467,54 +473,89 @@ function UserDetail({ user: u, onBack }) {
 
       {/* Tasks Tab */}
       {tab === 'tasks' && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  {['Thời gian', 'Nguồn', 'Trạng thái', 'IP', 'Keyword', 'Earning', 'Bot', ''].map(h => (
-                    <th key={h} className="text-left px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px]">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={8} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
-                ) : tasks.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-10 text-slate-400">Không có task</td></tr>
-                ) : tasks.map(t => {
-                  const s = ST[t.status] || { l: t.status, c: 'bg-slate-100 text-slate-600' };
-                  return (
-                    <tr key={t.id} className={`border-b border-slate-100 hover:bg-slate-50/50 ${t.bot_detected ? 'bg-red-50/30' : ''}`}>
-                      <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{fmt(t.created_at)}</td>
-                      <td className="px-3 py-2.5">
-                        {t.worker_link_id
-                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-50 text-orange-700">GW</span>
-                          : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">VL</span>}
-                      </td>
-                      <td className="px-3 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${s.c}`}>{s.l}</span></td>
-                      <td className="px-3 py-2.5 font-mono text-slate-600 text-[10px]">{t.ip_address}</td>
-                      <td className="px-3 py-2.5 text-slate-700 max-w-[120px] truncate">{t.keyword || '—'}</td>
-                      <td className="px-3 py-2.5 font-bold text-emerald-700">{t.earning ? money(t.earning) : '—'}</td>
-                      <td className="px-3 py-2.5">
-                        {t.bot_detected
-                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit"><Bot size={9} />BOT</span>
-                          : t.status === 'completed'
-                            ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">✓</span>
-                            : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <button onClick={() => setModal(t)} className="px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 text-[10px] font-bold">
-                          <Eye size={11} className="inline mr-0.5" />Xem
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <div className="space-y-2">
+          {/* Filter bar */}
+          <div className="flex gap-2 flex-wrap items-center bg-white border border-slate-200 rounded-xl px-3 py-2">
+            {[
+              { key: 'ip', placeholder: 'Lọc theo IP...', icon: '🌐' },
+              { key: 'visitorId', placeholder: 'Lọc theo Visitor ID...', icon: '🔑' },
+              { key: 'slug', placeholder: 'Lọc theo slug link...', icon: '🔗' },
+            ].map(({ key, placeholder, icon }) => (
+              <div key={key} className="flex items-center gap-1.5 flex-1 min-w-[160px]">
+                <span className="text-[11px]">{icon}</span>
+                <input
+                  value={taskFilterInput[key]}
+                  onChange={e => setTaskFilterInput(f => ({ ...f, [key]: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter') { setTaskFilter({ ...taskFilterInput, [key]: taskFilterInput[key] }); setTaskPage(1); } }}
+                  placeholder={placeholder}
+                  className="flex-1 text-[11px] outline-none bg-transparent text-slate-700 placeholder-slate-300"
+                />
+                {taskFilterInput[key] && (
+                  <button onClick={() => { const f = { ...taskFilterInput, [key]: '' }; setTaskFilterInput(f); setTaskFilter(f); setTaskPage(1); }}
+                    className="text-slate-300 hover:text-slate-500 text-xs">✕</button>
+                )}
+              </div>
+            ))}
+            <button onClick={() => { setTaskFilter(taskFilterInput); setTaskPage(1); }}
+              className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-[10px] font-bold hover:bg-violet-700 shrink-0">
+              Lọc
+            </button>
+            {(taskFilter.ip || taskFilter.visitorId || taskFilter.slug) && (
+              <button onClick={() => { const empty = { ip: '', visitorId: '', slug: '' }; setTaskFilter(empty); setTaskFilterInput(empty); setTaskPage(1); }}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-500 text-[10px] font-bold hover:bg-slate-200 shrink-0">
+                Xóa lọc
+              </button>
+            )}
           </div>
-          <Pager page={taskPage} total={taskTotal} limit={LIMIT} onChange={setTaskPage} />
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    {['Thời gian', 'Nguồn', 'Trạng thái', 'IP', 'Keyword', 'Earning', 'Bot', ''].map(h => (
+                      <th key={h} className="text-left px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px]">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={8} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
+                  ) : tasks.length === 0 ? (
+                    <tr><td colSpan={8} className="text-center py-10 text-slate-400">Không có task{(taskFilter.ip || taskFilter.visitorId || taskFilter.slug) ? ' (không khớp bộ lọc)' : ''}</td></tr>
+                  ) : tasks.map(t => {
+                    const s = ST[t.status] || { l: t.status, c: 'bg-slate-100 text-slate-600' };
+                    return (
+                      <tr key={t.id} className={`border-b border-slate-100 hover:bg-slate-50/50 ${t.bot_detected ? 'bg-red-50/30' : ''}`}>
+                        <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{fmt(t.created_at)}</td>
+                        <td className="px-3 py-2.5">
+                          {t.worker_link_id
+                            ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-50 text-orange-700">GW{t.gateway_slug ? ` /${t.gateway_slug}` : ''}</span>
+                            : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">VL</span>}
+                        </td>
+                        <td className="px-3 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${s.c}`}>{s.l}</span></td>
+                        <td className="px-3 py-2.5 font-mono text-slate-600 text-[10px]">{t.ip_address}</td>
+                        <td className="px-3 py-2.5 text-slate-700 max-w-[120px] truncate">{t.keyword || '—'}</td>
+                        <td className="px-3 py-2.5 font-bold text-emerald-700">{t.earning ? money(t.earning) : '—'}</td>
+                        <td className="px-3 py-2.5">
+                          {t.bot_detected
+                            ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit"><Bot size={9} />BOT</span>
+                            : t.status === 'completed'
+                              ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">✓</span>
+                              : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <button onClick={() => setModal(t)} className="px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 text-[10px] font-bold">
+                            <Eye size={11} className="inline mr-0.5" />Xem
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pager page={taskPage} total={taskTotal} limit={LIMIT} onChange={setTaskPage} />
+          </div>
         </div>
       )}
 

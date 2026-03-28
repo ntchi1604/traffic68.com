@@ -625,11 +625,25 @@ router.get('/security/users', async (req, res) => {
 
     let searchWhere = '';
     if (search) {
-      searchWhere = ` AND (u.name LIKE ? OR u.email LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`);
+      const s = search.trim();
+      const isIp = /^[\d.:a-f]+$/i.test(s) && (s.includes('.') || s.includes(':'));
+      const isVisitorId = s.length > 20;
+      const isSlug = /^[a-z0-9_-]{3,20}$/.test(s) && !s.includes('@') && !isIp;
+      if (isIp) {
+        searchWhere = ` AND u.id IN (SELECT DISTINCT COALESCE(vt2.worker_id, wl2.worker_id) FROM vuot_link_tasks vt2 LEFT JOIN worker_links wl2 ON wl2.id = vt2.worker_link_id WHERE vt2.ip_address LIKE ?)`;
+        params.push(`%${s}%`);
+      } else if (isVisitorId) {
+        searchWhere = ` AND u.id IN (SELECT DISTINCT COALESCE(vt2.worker_id, wl2.worker_id) FROM vuot_link_tasks vt2 LEFT JOIN worker_links wl2 ON wl2.id = vt2.worker_link_id WHERE vt2.visitor_id = ?)`;
+        params.push(s);
+      } else if (isSlug) {
+        searchWhere = ` AND (u.name LIKE ? OR u.email LIKE ? OR u.id IN (SELECT worker_id FROM worker_links WHERE slug = ?))`;
+        params.push(`%${s}%`, `%${s}%`, s);
+      } else {
+        searchWhere = ` AND (u.name LIKE ? OR u.email LIKE ?)`;
+        params.push(`%${s}%`, `%${s}%`);
+      }
     }
 
-    
     let timeWhere = '';
     const timeParams = [];
     if (from) { timeWhere += ` AND vt.created_at >= ?`; timeParams.push(from); }
@@ -725,12 +739,22 @@ router.get('/security/user/:uid/tasks', async (req, res) => {
   try {
     const pool = getPool();
     const uid = req.params.uid;
-    const { page = 1, limit = 50 } = req.query;
+    const { page = 1, limit = 50, ip, visitorId, slug } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
+    const baseWhere = `(vt.worker_id = ? OR vt.worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))`;
+    const baseParams = [uid, uid];
+    let extraWhere = '';
+    const extraParams = [];
+    if (ip) { extraWhere += ` AND vt.ip_address LIKE ?`; extraParams.push(`%${ip.trim()}%`); }
+    if (visitorId) { extraWhere += ` AND vt.visitor_id = ?`; extraParams.push(visitorId.trim()); }
+    if (slug) { extraWhere += ` AND wl.slug = ?`; extraParams.push(slug.trim()); }
+
     const [cnt] = await pool.execute(
-      `SELECT COUNT(*) as total FROM vuot_link_tasks
-       WHERE worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?)`, [uid, uid]
+      `SELECT COUNT(*) as total FROM vuot_link_tasks vt
+       LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+       WHERE ${baseWhere}${extraWhere}`,
+      [...baseParams, ...extraParams]
     );
 
     const [rows] = await pool.execute(
@@ -743,10 +767,10 @@ router.get('/security/user/:uid/tasks', async (req, res) => {
        FROM vuot_link_tasks vt
        LEFT JOIN campaigns c ON c.id = vt.campaign_id
        LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
-       WHERE vt.worker_id = ? OR vt.worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?)
+       WHERE ${baseWhere}${extraWhere}
        ORDER BY vt.created_at DESC
        LIMIT ? OFFSET ?`,
-      [uid, uid, Number(limit), offset]
+      [...baseParams, ...extraParams, Number(limit), offset]
     );
 
     res.json({
