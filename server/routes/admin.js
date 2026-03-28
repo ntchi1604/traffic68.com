@@ -886,8 +886,9 @@ router.get('/security/user/:uid/events', async (req, res) => {
       `SELECT vt.id, 'vuotlink' as source,
               vt.ip_address, vt.user_agent, vt.visitor_id,
               vt.security_detail as details,
-              vt.created_at
+              vt.created_at, vt.target_url, wl.slug as gateway_slug
        FROM vuot_link_tasks vt
+       LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
        WHERE (vt.worker_id = ? OR vt.worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))
          AND vt.bot_detected = 1
          AND NOT EXISTS (

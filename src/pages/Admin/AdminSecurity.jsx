@@ -421,7 +421,7 @@ function UserDetail({ user: u, onBack }) {
         let linkVuot = '';
         try {
           const det = typeof ev.details === 'string' ? JSON.parse(ev.details || '{}') : (ev.details || {});
-          linkVuot = det.url || '';
+          linkVuot = ev.gateway_slug ? `/${ev.gateway_slug}` : (ev.target_url || det.url || '');
         } catch(e){}
         csv += `"${new Date(ev.created_at).toLocaleString('vi-VN')}","${source}","${device}","${ev.ip_address}","${ev.visitor_id || ''}","${linkVuot}"\n`;
       });

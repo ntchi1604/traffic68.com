@@ -23,7 +23,6 @@ async function ensureWalletCredit(pool, userId, walletType, amount) {
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
 const HMAC_SECRET = process.env.CHALLENGE_KEY || crypto.randomBytes(32).toString('hex');
 
-// Log security events to DB for admin visibility
 async function logSecurityEvent(reason, ip, ua, visitorId, extra) {
   try {
     const pool = getPool();
@@ -498,9 +497,6 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       const totals = shakes.map(s => Math.abs(s.ax || 0) + Math.abs(s.ay || 0) + Math.abs(s.az || 0));
       const avgTotal = totals.reduce((a, b) => a + b, 0) / totals.length;
       const forceVariance = totals.reduce((a, t) => a + (t - avgTotal) ** 2, 0) / totals.length;
-      
-      // Con người khi lắc thì lực (G) mỗi nhịp văng sẽ khác nhau khá nhiều
-      // Nếu forceVariance quá nhỏ (< 0.5) chứng tỏ thiết bị báo cáo lực lắc "đều tăm tắp" trên mọi nhịp -> 100% Bot giả lập array.
       if (forceVariance < 0.5 && totals.length >= 3) {
         logSecurityEvent('Cảm biến lực lắc giả lập (Bot)', ip, ua, dbTaskVisitorId, { shakeLog: shakes, forceVariance });
         return res.status(403).json({ error: 'Tín hiệu lực lắc không tự nhiên.' });
