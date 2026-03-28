@@ -977,8 +977,10 @@ function ShakeChallenge({ onPass, onClose }) {
         } catch (e) { return; }
       }
       const handler = (e) => {
-        if (Object.prototype.hasOwnProperty.call(e, 'isTrusted')) return;
-        if (!e.isTrusted) return;
+        if (!(e instanceof DeviceMotionEvent)) return;
+        // Chỉ chặn nếu trình duyệt xác nhận rõ ràng đây là event giả (isTrusted === false)
+        // Bỏ qua check ownProperty vì một số trình duyệt lưu thuộc tính này trực tiếp trên object.
+        if (e.isTrusted === false) return;
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
         const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
