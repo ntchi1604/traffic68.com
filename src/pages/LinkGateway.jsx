@@ -243,11 +243,15 @@ export default function LinkGateway() {
         const cached = sessionStorage.getItem(sessionKey);
         if (cached) {
           const parsed = JSON.parse(cached);
-          // Only use cache if task is still pending (not completed/expired)
+          // Only use cache if task is still pending and hasn't exceeded 12-14 mins locally
           if (parsed && parsed.id && !parsed._expired) {
-            setTask(parsed);
-            setLoading(false);
-            return;
+            if (!parsed._fetched_at || (Date.now() - parsed._fetched_at < 13 * 60 * 1000)) {
+              setTask(parsed);
+              setLoading(false);
+              return;
+            } else {
+              try { sessionStorage.removeItem(sessionKey); } catch { }
+            }
           }
         }
       } catch { }
@@ -322,8 +326,8 @@ export default function LinkGateway() {
       if (!taskRes.ok) throw new Error('Không thể lấy nhiệm vụ');
       const newTask = await taskRes.json();
       setTask(newTask);
-      // Save to sessionStorage
-      try { sessionStorage.setItem(sessionKey, JSON.stringify(newTask)); } catch { }
+      // Save to sessionStorage with timestamp to drop old tasks on reload
+      try { sessionStorage.setItem(sessionKey, JSON.stringify({ ...newTask, _fetched_at: Date.now() })); } catch { }
     } catch (err) {
       setError(err.message || 'Lỗi');
     } finally {
@@ -978,8 +982,6 @@ function ShakeChallenge({ onPass, onClose }) {
       }
       const handler = (e) => {
         if (!(e instanceof DeviceMotionEvent)) return;
-        // Chỉ chặn nếu trình duyệt xác nhận rõ ràng đây là event giả (isTrusted === false)
-        // Bỏ qua check ownProperty vì một số trình duyệt lưu thuộc tính này trực tiếp trên object.
         if (e.isTrusted === false) return;
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
