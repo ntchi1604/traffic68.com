@@ -404,6 +404,47 @@ function UserDetail({ user: u, onBack }) {
     }
   }, [tab, u.id, eventPage]);
 
+  const exportEvents = async () => {
+    if (!confirm('Xuất toàn bộ bot events của user này ra file CSV?')) return;
+    try {
+      setEventsLoading(true);
+      const d = await api.get(`/admin/security/user/${u.id}/events?page=1&limit=10000`);
+      const allEvents = d.events || [];
+      if (allEvents.length === 0) return alert('Không có dữ liệu');
+
+      const BOM = '\uFEFF';
+      let csv = BOM + 'Thời gian,Nguồn,Thiết bị,IP,Visitor ID,Link Vượt\n';
+      allEvents.forEach(ev => {
+        const mob = isMobileUA(ev.user_agent);
+        const source = ev.source === 'widget' ? 'Script' : ev.source === 'vuotlink' ? 'VL' : ev.source;
+        const device = mob ? 'Mobile' : 'Desktop';
+        let linkVuot = '';
+        try {
+          const det = typeof ev.details === 'string' ? JSON.parse(ev.details || '{}') : (ev.details || {});
+          linkVuot = det.url || '';
+        } catch(e){}
+        csv += `"${new Date(ev.created_at).toLocaleString('vi-VN')}","${source}","${device}","${ev.ip_address}","${ev.visitor_id || ''}","${linkVuot}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bot-events-${u.email.split('@')[0]}-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Lỗi xuất CSV: ' + e.message);
+    } finally {
+      if (tab === 'events') {
+        api.get(`/admin/security/user/${u.id}/events?page=${eventPage}&limit=${LIMIT}`).then(d => { setEvents(d.events || []); setEventTotal(d.total || 0); }).catch(console.error).finally(() => setEventsLoading(false));
+      } else {
+        setEventsLoading(false);
+      }
+    }
+  };
+
+
   const toggleBan = async () => {
     const action = banned ? 'unban' : 'ban';
     if (!confirm(banned ? `Mở ban cho ${u.name || u.email}?` : `Ban tài khoản ${u.name || u.email}?`)) return;
@@ -560,7 +601,14 @@ function UserDetail({ user: u, onBack }) {
 
       {/* Events Tab */}
       {tab === 'events' && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <button onClick={exportEvents} disabled={eventsLoading} 
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 text-[11px] font-bold rounded-lg transition shadow-sm disabled:opacity-50">
+              📥 Xuất CSV
+            </button>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -622,6 +670,7 @@ function UserDetail({ user: u, onBack }) {
             </table>
           </div>
           <Pager page={eventPage} total={eventTotal} limit={LIMIT} onChange={setEventPage} />
+        </div>
         </div>
       )}
 
