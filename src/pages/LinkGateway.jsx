@@ -982,7 +982,7 @@ function ShakeChallenge({ onPass, onClose }) {
       }
       const handler = (e) => {
         if (!(e instanceof DeviceMotionEvent)) return;
-        if (e.isTrusted === false) return;
+        if (!e.isTrusted) return;
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
         const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
