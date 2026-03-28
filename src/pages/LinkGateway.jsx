@@ -1102,17 +1102,13 @@ function _sampleBezier(pts, n = 120) {
 
 function CurveChallenge({ onPass, onClose }) {
   const canvasRef = useRef(null);
-  const stateRef = useRef({ points: [], progress: 0, isDragging: false, passed: false });
+  const stateRef = useRef({ points: [], progress: 0, isDragging: false, passed: false, curveLog: [] });
   const [progress, setProgress] = useState(0);
   const [passed, setPassed] = useState(false);
   const [started, setStarted] = useState(false);
   const animRef = useRef(null);
-  // Ref để giữ onPass hiện tại — không cần trong deps array của useEffect
   const onPassRef = useRef(onPass);
   useEffect(() => { onPassRef.current = onPass; });
-
-  // Generate random bezier curve points — ONLY via _genCurve (module-level)
-  // Không định nghĩa trong component để tránh tạo mới mỗi render
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1231,12 +1227,17 @@ function CurveChallenge({ onPass, onClose }) {
           const variance = state.speedBuf.reduce((a, s) => a + (s - avg) ** 2, 0) / 12;
           // Chỉ reset nếu tốc độ hoàn toàn đều tuyệt đối (bot) và đang di chuyển
           if (variance < 0.00008 && avg > 0.08) {
-            state.progress = 0; setProgress(0); state.speedBuf = []; return;
+            state.progress = 0; setProgress(0); state.speedBuf = []; state.curveLog = []; return;
           }
         }
       }
       state.lastMoveTime = now;
       state.lastPos = { x, y };
+
+      // Collect curve points for server verification (max 50 to save bandwidth)
+      if (state.curveLog.length < 50 && (state.curveLog.length === 0 || now - state.curveLog[state.curveLog.length - 1].t > 20)) {
+        state.curveLog.push({ x: +x.toFixed(1), y: +y.toFixed(1), t: now });
+      }
 
       const current = state.progress;
       const sample = state.samples[current] || state.samples[state.samples.length - 1];
@@ -1246,10 +1247,10 @@ function CurveChallenge({ onPass, onClose }) {
         setProgress(Math.round((state.progress / state.samples.length) * 100));
         if (state.progress >= Math.floor(state.samples.length * 0.75) && !state.passed) {
           const elapsed = now - (state.dragStartTime || now);
-          if (elapsed < 800) { state.progress = 0; setProgress(0); state.speedBuf = []; return; }
+          if (elapsed < 800) { state.progress = 0; setProgress(0); state.speedBuf = []; state.curveLog = []; return; }
           state.passed = true;
           setPassed(true);
-          setTimeout(() => onPassRef.current(), 900);
+          setTimeout(() => onPassRef.current(state.curveLog), 900);
         }
       }
     };
@@ -1259,6 +1260,7 @@ function CurveChallenge({ onPass, onClose }) {
       state.isDragging = true;
       state.dragStartTime = performance.now();
       state.speedBuf = [];
+      state.curveLog = [];
       state.lastMoveTime = null;
       state.lastPos = null;
       setStarted(true);

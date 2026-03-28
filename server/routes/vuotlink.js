@@ -492,6 +492,33 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
         return res.status(403).json({ error: 'Giá trị cảm biến ngoài phạm vi hợp lệ.' });
       }
     }
+  } else {
+    // Desktop: Curve Challenge Verification
+    // Tái sử dụng property shakeLog để nhận curveLog từ client
+    const curveLog = shakeLog;
+    if (!Array.isArray(curveLog) || curveLog.length < 10) {
+      return res.status(403).json({ error: 'Thiếu dữ liệu xác minh trỏ chuột.' });
+    }
+    const points = curveLog.slice(0, 50);
+    
+    // Check timing + speed variance
+    const speeds = [];
+    for (let i = 1; i < points.length; i++) {
+      const p1 = points[i - 1], p2 = points[i];
+      const dt = Math.max(p2.t - p1.t, 1);
+      const dist = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+      speeds.push(dist / dt);
+    }
+    
+    // Bot scripts often move at a perfectly constant speed
+    if (speeds.length >= 5) {
+      const avgSpd = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+      const spdVar = speeds.reduce((a, s) => a + (s - avgSpd) ** 2, 0) / speeds.length;
+      if (spdVar < 0.0001 && avgSpd > 0.05) {
+        logSecurityEvent('Trỏ chuột di chuyển đều tuyệt đối (bot curve)', ip, ua, null, { curveLog: points, spdVar });
+        return res.status(403).json({ error: 'Chuyển động chuột bất thường.' });
+      }
+    }
   }
 
   try {
