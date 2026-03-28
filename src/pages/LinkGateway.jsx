@@ -968,8 +968,10 @@ function ShakeChallenge({ onPass, onClose }) {
   const [shakeCount, setShakeCount] = useState(0);
   const [flashing, setFlashing] = useState(false);
   const [passed, setPassed] = useState(false);
+  const [fakeDetected, setFakeDetected] = useState(false);
   const lastShakeRef = useRef(0);
   const shakeLogRef = useRef([]);
+  const intervalLogRef = useRef([]);
   const TARGET = 3;
 
   useEffect(() => {
@@ -989,6 +991,14 @@ function ShakeChallenge({ onPass, onClose }) {
         const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
         if (ax === ay && ay === az) return;
         const now = Date.now();
+
+        // Track raw interval between ALL events (not just shakes) để phát hiện fixed-interval
+        if (intervalLogRef.current.length > 0) {
+          intervalLogRef.current.push(now - intervalLogRef.current[intervalLogRef.current.length - 1]);
+        } else {
+          intervalLogRef.current.push(now);
+        }
+
         if (total > 32 && now - lastShakeRef.current > 500) {
           lastShakeRef.current = now;
           shakeLogRef.current.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
@@ -997,8 +1007,29 @@ function ShakeChallenge({ onPass, onClose }) {
           setShakeCount(prev => {
             const next = prev + 1;
             if (next >= TARGET) {
+              const log = shakeLogRef.current.slice(-TARGET);
+
+              // ── Frontend emulator detection ──
+              // 1. az = 0 tuyệt đối trên tất cả shake events
+              const allAzZero = log.every(s => s.az === 0);
+              // 2. Tần suất event cảm biến đều tuyệt đối (fixed setInterval)
+              const ivals = intervalLogRef.current.slice(1); // bỏ entry đầu là timestamp tuyệt đối
+              let fixedInterval = false;
+              if (ivals.length >= 5) {
+                const avg = ivals.reduce((a, b) => a + b, 0) / ivals.length;
+                const variance = ivals.reduce((a, v) => a + (v - avg) ** 2, 0) / ivals.length;
+                fixedInterval = variance < 5 && avg > 0; // < 5ms variance = cực kỳ đều
+              }
+              // 3. ax hoặc ay cũng = 0 hoàn toàn (chỉ 1 trục có giá trị - emulator thường vậy)
+              const allAxZero = log.every(s => s.ax === 0);
+
+              if (allAzZero || fixedInterval || allAxZero) {
+                setFakeDetected(true);
+                return next; // không call onPass
+              }
+
               setPassed(true);
-              setTimeout(() => onPass(shakeLogRef.current.slice(-TARGET)), 800);
+              setTimeout(() => onPass(log), 800);
             }
             return next;
           });
@@ -1027,6 +1058,13 @@ function ShakeChallenge({ onPass, onClose }) {
           <div style={{ fontSize: 72, marginBottom: 16 }}>✅</div>
           <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 8px' }}>Xác minh thành công!</h2>
           <p style={{ fontSize: 16, opacity: 0.9 }}>Đang mở ô nhập mã...</p>
+        </div>
+      ) : fakeDetected ? (
+        <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
+          <div style={{ fontSize: 72, marginBottom: 16 }}>🚫</div>
+          <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 12px', color: '#fca5a5' }}>Phát hiện giả lập!</h2>
+          <p style={{ fontSize: 14, opacity: 0.8, margin: '0 0 24px' }}>Cảm biến điện thoại cho thấy thiết bị không hợp lệ.<br/>Vui lòng dùng thiết bị thật.</p>
+          <button onClick={onClose} style={{ padding: '10px 24px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>Đóng</button>
         </div>
       ) : (
         <div style={{ textAlign: 'center', color: '#fff' }}>

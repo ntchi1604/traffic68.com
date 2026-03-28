@@ -483,7 +483,6 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
 
   const isMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
   if (isMobile) {
-    // ── Emulator UA detection ──
     const EMULATOR_UA = /bluestacks|bstk|nox|ldplayer|memu|andy|genymotion|android.*x86_64|android.*x86;|com\.vphone|goldfish|ranchu/i;
     if (EMULATOR_UA.test(ua)) {
       logSecurityEvent('Giả lập Android (Emulator UA)', ip, ua, dbTaskVisitorId, { ua });
@@ -495,7 +494,6 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     }
     const shakes = shakeLog.slice(0, 10);
 
-    // ── Khoảng cách thời gian quá nhanh ──
     for (let i = 1; i < shakes.length; i++) {
       if ((shakes[i].t - shakes[i - 1].t) < 300) {
         return res.status(403).json({ error: 'Tín hiệu cảm biến bất thường (quá nhanh).' });
@@ -512,14 +510,12 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
         return res.status(403).json({ error: 'Tín hiệu lực lắc không tự nhiên.' });
       }
 
-      // ── Trục Z = 0 hoàn toàn (emulator không mô phỏng az) ──
       const allAzZero = shakes.every(s => (s.az || 0) === 0);
       if (allAzZero) {
         logSecurityEvent('Giả lập cảm biến (az=0 tuyệt đối)', ip, ua, dbTaskVisitorId, { shakeLog: shakes });
         return res.status(403).json({ error: 'Dữ liệu cảm biến không hợp lệ.' });
       }
 
-      // ── Tần suất event cảm biến đều tuyệt đối (emulator inject fixed interval) ──
       if (shakes.length >= 4) {
         const intervals = [];
         for (let i = 1; i < shakes.length; i++) intervals.push(shakes[i].t - shakes[i - 1].t);
