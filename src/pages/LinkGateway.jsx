@@ -968,8 +968,7 @@ function ShakeChallenge({ onPass, onClose }) {
   const [passed, setPassed] = useState(false);
   const [fakeDetected, setFakeDetected] = useState(false);
   const lastShakeRef = useRef(0);
-  const shakeLogRef = useRef([]);
-  const intervalLogRef = useRef([]);
+  const rawLogRef = useRef([]);
   const TARGET = 3;
 
   useEffect(() => {
@@ -989,34 +988,22 @@ function ShakeChallenge({ onPass, onClose }) {
         const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
         if (ax === ay && ay === az) return;
         const now = Date.now();
-
-        if (intervalLogRef.current.length > 0) {
-          intervalLogRef.current.push(now - intervalLogRef.current[intervalLogRef.current.length - 1]);
-        } else {
-          intervalLogRef.current.push(now);
-        }
+        rawLogRef.current.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
+        if (rawLogRef.current.length > 50) rawLogRef.current.shift();
 
         if (total > 32 && now - lastShakeRef.current > 500) {
           lastShakeRef.current = now;
-          shakeLogRef.current.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
           setFlashing(true);
           setTimeout(() => setFlashing(false), 300);
           setShakeCount(prev => {
             const next = prev + 1;
             if (next >= TARGET) {
-              const log = shakeLogRef.current.slice(-TARGET);
+              const log = [...rawLogRef.current];
 
               const allAzZero = log.every(s => s.az === 0);
-              const ivals = intervalLogRef.current.slice(1);
-              let fixedInterval = false;
-              if (ivals.length >= 5) {
-                const avg = ivals.reduce((a, b) => a + b, 0) / ivals.length;
-                const variance = ivals.reduce((a, v) => a + (v - avg) ** 2, 0) / ivals.length;
-                fixedInterval = variance < 5 && avg > 0;
-              }
               const allAxZero = log.every(s => s.ax === 0);
 
-              if (allAzZero || fixedInterval || allAxZero) {
+              if (allAzZero || allAxZero) {
                 setFakeDetected(true);
                 return next;
               }

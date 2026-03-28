@@ -487,59 +487,49 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     }
   } catch (_) { }
 
+  let detectedBotReason = null;
   const isMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
   if (isMobile) {
-    const EMULATOR_UA = /bluestacks|bstk|nox|ldplayer|memu|andy|genymotion|android.*x86_64|android.*x86;|com\.vphone|goldfish|ranchu/i;
-    if (EMULATOR_UA.test(ua)) {
-      logSecurityEvent('Giả lập Android (Emulator UA)', ip, ua, dbTaskVisitorId, { ua });
-      return res.status(403).json({ error: 'Thiết bị không được phép.' });
-    }
-
-    if (!Array.isArray(shakeLog) || shakeLog.length < 3) {
+    if (!Array.isArray(shakeLog) || shakeLog.length < 5) {
       return res.status(403).json({ error: 'Thiếu dữ liệu xác minh cảm biến.' });
     }
-    const shakes = shakeLog.slice(0, 10);
+    const EMULATOR_UA = /bluestacks|bstk|nox|ldplayer|memu|andy|genymotion|android.*x86_64|android.*x86;|com\.vphone|goldfish|ranchu/i;
+    
+    const rawEvents = shakeLog;
+    const intervals = [];
+    let zeroZCount = 0;
 
-    for (let i = 1; i < shakes.length; i++) {
-      if ((shakes[i].t - shakes[i - 1].t) < 300) {
-        return res.status(403).json({ error: 'Tín hiệu cảm biến bất thường (quá nhanh).' });
-      }
+    for (let i = 1; i < rawEvents.length; i++) {
+      intervals.push(rawEvents[i].t - rawEvents[i - 1].t);
+      if ((rawEvents[i].az || 0) === 0) zeroZCount++;
     }
 
-    if (shakes.length >= 3) {
-      // ── Phương sai lực lắc quá thấp (giá trị lặp đều) ──
-      const totals = shakes.map(s => Math.abs(s.ax || 0) + Math.abs(s.ay || 0) + Math.abs(s.az || 0));
-      const avgTotal = totals.reduce((a, b) => a + b, 0) / totals.length;
-      const forceVariance = totals.reduce((a, t) => a + (t - avgTotal) ** 2, 0) / totals.length;
-      if (forceVariance < 0.5 && totals.length >= 3) {
-        logSecurityEvent('Cảm biến lực lắc giả lập (Bot)', ip, ua, dbTaskVisitorId, { shakeLog: shakes, forceVariance });
-        return res.status(403).json({ error: 'Tín hiệu lực lắc không tự nhiên.' });
-      }
+    const totals = rawEvents.map(s => Math.abs(s.ax || 0) + Math.abs(s.ay || 0) + Math.abs(s.az || 0));
+    const maxTotal = Math.max(...totals);
+    const avgTotal = totals.reduce((a, b) => a + b, 0) / totals.length;
+    const forceVariance = totals.reduce((a, t) => a + (t - avgTotal) ** 2, 0) / totals.length;
 
-      const allAzZero = shakes.every(s => (s.az || 0) === 0);
-      if (allAzZero) {
-        logSecurityEvent('Giả lập cảm biến (az=0 tuyệt đối)', ip, ua, dbTaskVisitorId, { shakeLog: shakes });
-        return res.status(403).json({ error: 'Dữ liệu cảm biến không hợp lệ.' });
-      }
-
-      if (shakes.length >= 4) {
-        const intervals = [];
-        for (let i = 1; i < shakes.length; i++) intervals.push(shakes[i].t - shakes[i - 1].t);
-        const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-        const intervalVariance = intervals.reduce((a, v) => a + (v - avgInterval) ** 2, 0) / intervals.length;
-        if (intervalVariance < 10 && avgInterval > 0) {
-          logSecurityEvent('Giả lập cảm biến (tần suất cố định)', ip, ua, dbTaskVisitorId, { shakeLog: shakes, intervalVariance, avgInterval });
-          return res.status(403).json({ error: 'Tín hiệu cảm biến bất thường (đều tuyệt đối).' });
-        }
-      }
+    let intervalVariance = 0;
+    let avgInterval = 0;
+    if (intervals.length >= 10) {
+      avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      intervalVariance = intervals.reduce((a, v) => a + (v - avgInterval) ** 2, 0) / intervals.length;
     }
 
-    for (const s of shakes) {
-      const ax = s.ax || 0, ay = s.ay || 0, az = s.az || 0;
-      const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
-      if (total < 5 || total > 2000) {
-        return res.status(403).json({ error: 'Giá trị cảm biến ngoài phạm vi hợp lệ.' });
-      }
+    if (EMULATOR_UA.test(ua)) {
+      logSecurityEvent('Giả lập Android', ip, ua, dbTaskVisitorId, { ua });
+      detectedBotReason = 'Giả lập Android';
+    } else if (zeroZCount === rawEvents.length) {
+      logSecurityEvent('Giả lập cảm biến', ip, ua, dbTaskVisitorId, { shakeLog: rawEvents });
+      detectedBotReason = 'Dữ liệu cảm biến không hợp lệ';
+    } else if (intervals.length >= 10 && intervalVariance < 0.1 && avgInterval > 0) {
+      logSecurityEvent('Giả lập ADB/Macro', ip, ua, dbTaskVisitorId, { intervalVariance, avgInterval });
+      detectedBotReason = 'Tín hiệu cảm biến bất thường';
+    } else if (maxTotal < 15) {
+      detectedBotReason = 'Lực cảm biến thiếu';
+    } else if (forceVariance < 0.5 && rawEvents.length >= 5) {
+      logSecurityEvent('Cảm biến tĩnh lặp lại', ip, ua, dbTaskVisitorId, { forceVariance });
+      detectedBotReason = 'Tín hiệu lực quá đều tăm tắp';
     }
   } else {
     const curveLog = shakeLog;
@@ -560,10 +550,17 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       const avgSpd = speeds.reduce((a, b) => a + b, 0) / speeds.length;
       const spdVar = speeds.reduce((a, s) => a + (s - avgSpd) ** 2, 0) / speeds.length;
       if (spdVar < 0.0001 && avgSpd > 0.05) {
-        logSecurityEvent('Trỏ chuột di chuyển đều tuyệt đối (bot curve)', ip, ua, dbTaskVisitorId, { curveLog: points, spdVar });
-        return res.status(403).json({ error: 'Chuyển động chuột bất thường.' });
+        logSecurityEvent('Trỏ chuột di chuyển đều tuyệt đối', ip, ua, dbTaskVisitorId, { curveLog: points, spdVar });
+        detectedBotReason = 'Chuyển động chuột bất thường';
       }
     }
+  }
+
+  if (detectedBotReason) {
+    try {
+      const pool = getPool();
+      await pool.execute('UPDATE vuot_link_tasks SET bot_detected = 1 WHERE id = ?', [req.params.id]);
+    } catch(e) {}
   }
 
   const ts = Date.now();
@@ -636,17 +633,14 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     }
   }
 
-  // Verify code matches
   if (code.trim().toUpperCase() !== (task.code_given || '').toUpperCase()) {
     return res.status(400).json({ error: 'Mã xác nhận không đúng. Vui lòng kiểm tra lại.' });
   }
 
-  // Code correct! → Complete task, count as 1 view
   const [campaigns] = await pool.execute('SELECT cpc, budget, total_views, user_id, traffic_type, time_on_site, version, name, discount_applied FROM campaigns WHERE id = ?', [task.campaign_id]);
   if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
   const campaign = campaigns[0];
 
-  // ── Buyer CPC: look up from pricing_tiers, apply discount if campaign was created with discount ──
   let buyerCpc = campaign.cpc || 0;
   try {
     const duration = (campaign.time_on_site || '60').split('-')[0] + 's';
@@ -708,30 +702,38 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     if (geo && geo.country) ipCountry = geo.country;
   } catch (_) { }
 
+  const isBotUser = task.bot_detected === 1 || Boolean(task.security_detail?.includes('flagged'));
+  if (isBotUser) {
+    buyerCpc = 0;
+    earning = 0;
+  }
+
   await pool.execute(
     `UPDATE vuot_link_tasks SET status = 'completed', completed_at = NOW(), time_on_site = ?, earning = ?, ip_country = ? WHERE id = ?`,
     [timeOnSite, earning, ipCountry, task.id]
   );
 
-  await pool.execute('UPDATE campaigns SET views_done = COALESCE(views_done, 0) + 1 WHERE id = ?', [task.campaign_id]);
-  await pool.execute(
-    `UPDATE campaigns SET status = 'completed' WHERE id = ? AND views_done >= total_views AND status != 'completed'`,
-    [task.campaign_id]
-  );
-
-  const ua = (task.user_agent || '').toLowerCase();
-  const isTablet = /ipad|tablet|kindle|playbook|silk|(android(?!.*mobile))/i.test(ua);
-  const isMobile = !isTablet && /mobile|android|iphone|ipod|blackberry|windows phone/i.test(ua);
-  const deviceCol = isTablet ? 'tablet_views' : isMobile ? 'mobile_views' : 'desktop_views';
-
-  const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = CURDATE()', [task.campaign_id]);
-  if (logs.length > 0) {
-    await pool.execute(`UPDATE traffic_logs SET clicks = COALESCE(clicks, 0) + 1, views = COALESCE(views, 0) + 1, ${deviceCol} = COALESCE(${deviceCol}, 0) + 1 WHERE id = ?`, [logs[0].id]);
-  } else {
+  if (!isBotUser) {
+    await pool.execute('UPDATE campaigns SET views_done = COALESCE(views_done, 0) + 1 WHERE id = ?', [task.campaign_id]);
     await pool.execute(
-      `INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source, ${deviceCol}) VALUES (?, CURDATE(), 1, 1, 1, ?, 1)`,
-      [task.campaign_id, campaign.traffic_type || 'google_search']
+      `UPDATE campaigns SET status = 'completed' WHERE id = ? AND views_done >= total_views AND status != 'completed'`,
+      [task.campaign_id]
     );
+
+    const ua = (task.user_agent || '').toLowerCase();
+    const isTablet = /ipad|tablet|kindle|playbook|silk|(android(?!.*mobile))/i.test(ua);
+    const isMobile = !isTablet && /mobile|android|iphone|ipod|blackberry|windows phone/i.test(ua);
+    const deviceCol = isTablet ? 'tablet_views' : isMobile ? 'mobile_views' : 'desktop_views';
+
+    const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = CURDATE()', [task.campaign_id]);
+    if (logs.length > 0) {
+      await pool.execute(`UPDATE traffic_logs SET clicks = COALESCE(clicks, 0) + 1, views = COALESCE(views, 0) + 1, ${deviceCol} = COALESCE(${deviceCol}, 0) + 1 WHERE id = ?`, [logs[0].id]);
+    } else {
+      await pool.execute(
+        `INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source, ${deviceCol}) VALUES (?, CURDATE(), 1, 1, 1, ?, 1)`,
+        [task.campaign_id, campaign.traffic_type || 'google_search']
+      );
+    }
   }
 
   // ── Trừ tiền buyer (theo giá set) ──
@@ -746,7 +748,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
 
   // ── Cộng tiền worker (theo giá set) ──
   let paidWorkerId = null;
-  if (task.worker_id && !task.worker_link_id) {
+  if (task.worker_id && !task.worker_link_id && earning > 0) {
     paidWorkerId = task.worker_id;
     await ensureWalletCredit(pool, task.worker_id, 'earning', earning);
     const refCode = 'VL-' + Date.now();
@@ -767,14 +769,19 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
         destinationUrl = wl.destination_url;
         gatewaySlug = wl.slug || null;
         paidWorkerId = wl.worker_id;
-        await ensureWalletCredit(pool, wl.worker_id, 'earning', earning);
-        await pool.execute('UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?', [earning, wl.id]);
-        const refCode = 'GL-' + Date.now();
-        await pool.execute(
-          `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
-           VALUES (?, 'earning', 'earning', 'gateway_link', ?, 'completed', ?, ?)`,
-          [wl.worker_id, earning, refCode, `${task.keyword || 'Gateway link'} - ${campaign.name} #${task.id}`]
-        );
+        
+        if (earning > 0) {
+          await ensureWalletCredit(pool, wl.worker_id, 'earning', earning);
+          await pool.execute('UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?', [earning, wl.id]);
+          const refCode = 'GL-' + Date.now();
+          await pool.execute(
+            `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+             VALUES (?, 'earning', 'earning', 'gateway_link', ?, 'completed', ?, ?)`,
+            [wl.worker_id, earning, refCode, `${task.keyword || 'Gateway link'} - ${campaign.name} #${task.id}`]
+          );
+        } else {
+          await pool.execute('UPDATE worker_links SET completed_count = completed_count + 1 WHERE id = ?', [wl.id]);
+        }
       }
     } catch (e) { console.error('[VuotLink] Gateway link pay error:', e.message); }
   }
