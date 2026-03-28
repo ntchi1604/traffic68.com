@@ -270,17 +270,19 @@ async function checkIncomingUSDT(depositAddress, lookbackBlocks = 2000) {
       lastCheckedBlock = toBlock;
       fromBlock = toBlock + 1;
     } catch (err) {
-      if (err.message?.includes('rate limit') || err.code === 'BAD_DATA') {
+      const msg = (err.message || '').toLowerCase();
+      if (msg.includes('limit') || msg.includes('-32005') || err.code === 'BAD_DATA' || err.code === 'UNKNOWN_ERROR') {
         rotateRpc();
         console.log('[DepositWatcher] Rate limited, rotated RPC. Will retry next poll.');
-        break; // Stop this cycle, resume from lastCheckedBlock next time
+        break;
       }
       console.error('[DepositWatcher] getLogs error:', err.message);
+      rotateRpc();
       break;
     }
 
-    // Small delay between chunks to avoid rate limiting
-    if (fromBlock <= currentBlock) await new Promise(r => setTimeout(r, 300));
+    // Delay between chunks to avoid rate limiting
+    if (fromBlock <= currentBlock) await new Promise(r => setTimeout(r, 1500));
   }
 
   if (allLogs.length > 0) {
