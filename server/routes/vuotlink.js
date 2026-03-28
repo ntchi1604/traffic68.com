@@ -487,7 +487,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     }
   } catch (_) { }
 
-  console.log('[DEBUG ADB SHAKE] shakeLog received:', JSON.stringify(shakeLog));
+  // console.log('[DEBUG ADB SHAKE] shakeLog received:', JSON.stringify(shakeLog));
 
   let detectedBotReason = null;
   const isMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
@@ -518,9 +518,27 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       intervalVariance = intervals.reduce((a, v) => a + (v - avgInterval) ** 2, 0) / intervals.length;
     }
 
+    const deltaY = rawEvents.map(e => (e.ay || 0) - (e.ax || 0));
+    const avgDeltaY = deltaY.reduce((a, b) => a + b, 0) / deltaY.length;
+    const varDeltaY = deltaY.reduce((a, v) => a + (v - avgDeltaY) ** 2, 0) / deltaY.length;
+
+    let identicalFrames = 0;
+    for (let i = 1; i < rawEvents.length; i++) {
+      if (rawEvents[i].ax === rawEvents[i - 1].ax && rawEvents[i].ay === rawEvents[i - 1].ay && rawEvents[i].az === rawEvents[i - 1].az) {
+        identicalFrames++;
+      }
+    }
+    const identicalRatio = identicalFrames / rawEvents.length;
+
     if (EMULATOR_UA.test(ua)) {
       logSecurityEvent('Giả lập Android', ip, ua, dbTaskVisitorId, { ua });
       detectedBotReason = 'Giả lập Android';
+    } else if (varDeltaY < 1) {   // Real shakes heavily twist XYZ vectors independently, never linear
+      logSecurityEvent('Cảm biến nhân tạo (Trục X/Y song song tuyệt đối)', ip, ua, dbTaskVisitorId, { varDeltaY });
+      detectedBotReason = 'Dữ liệu cảm biến không tự nhiên';
+    } else if (identicalRatio > 0.25 && totals.length > 10) { // Real ADC hardware guarantees high frequency noise, floats won't be perfectly identical 25%+ of time
+      logSecurityEvent('Giả lập cảm biến (Lặp khung hình ADC ảo)', ip, ua, dbTaskVisitorId, { identicalRatio });
+      detectedBotReason = 'Can thiệp cảm biến';
     } else if (zeroZCount === rawEvents.length) {
       logSecurityEvent('Giả lập cảm biến', ip, ua, dbTaskVisitorId, { shakeLog: rawEvents });
       detectedBotReason = 'Dữ liệu cảm biến không hợp lệ';
