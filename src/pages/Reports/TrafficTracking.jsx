@@ -666,7 +666,6 @@ export default function TrafficTracking() {
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Chiến dịch</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Trạng thái</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Tiến độ</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Nay/Qua</th>
                 <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Tổng Views</th>
                 <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Ngân sách</th>
                 <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Chi tiết</th>
@@ -703,11 +702,9 @@ export default function TrafficTracking() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right whitespace-nowrap">
-                        <span className="font-bold text-blue-600">{fmt(c.views_today || 0)}</span> <span className="text-slate-400 text-xs">/ {fmt(c.views_yesterday || 0)}</span>
-                      </td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap">
                         <span className="font-semibold text-slate-800">{fmt(done)}</span>
                         <span className="text-slate-400 text-xs">/{fmt(total)}</span>
+                        <p className="text-[10px] font-semibold text-slate-400 mt-1.5 uppercase">Max {fmt(c.daily_views)}/ngày</p>
                       </td>
                       <td className="px-6 py-4 text-right font-semibold text-slate-800">{fmt(c.budget)} đ</td>
                       <td className="px-6 py-4 text-center">

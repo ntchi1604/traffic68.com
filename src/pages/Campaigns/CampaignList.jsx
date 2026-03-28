@@ -446,7 +446,6 @@ export default function CampaignList() {
                 <tr>
                   <th className="px-5 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest">Chiến dịch</th>
                   <th className="px-5 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Trạng thái</th>
-                  <th className="px-5 py-4 text-right text-[11px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Nay / Qua</th>
                   <th className="px-5 py-4 text-right text-[11px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Tổng tiến độ</th>
                   <th className="px-5 py-4 text-right text-[11px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Ngân sách</th>
                   <th className="px-5 py-4 text-center text-[11px] font-bold text-slate-500 uppercase tracking-widest w-24">Hành động</th>
@@ -485,12 +484,7 @@ export default function CampaignList() {
                           {badge.label}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-right align-top pt-5 whitespace-nowrap">
-                        <div className="flex flex-col items-end">
-                          <p className="text-sm font-black text-blue-600">{fmt(c.views_today || 0)} <span className="text-slate-400 font-medium text-xs">/ {fmt(c.views_yesterday || 0)}</span></p>
-                          <p className="text-[10px] font-semibold text-slate-400 mt-1 uppercase">Max {fmt(c.daily_views)}/ngày</p>
-                        </div>
-                      </td>
+
                       <td className="px-5 py-4 text-right align-top pt-5">
                         <div className="flex flex-col items-end w-36 ml-auto">
                           <div className="flex justify-between w-full mb-1.5">
@@ -500,6 +494,7 @@ export default function CampaignList() {
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                             <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: barColor }} />
                           </div>
+                          <p className="text-[10px] font-semibold text-slate-400 mt-1.5 uppercase">Max {fmt(c.daily_views)}/ngày</p>
                         </div>
                       </td>
                       <td className="px-5 py-4 text-right align-top pt-5 whitespace-nowrap">
