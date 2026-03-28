@@ -133,16 +133,23 @@ function getDeviceData() {
     automation.selenium = !!(document.__selenium_unwrapped || document.__webdriver_evaluate || window._Selenium_IDE_Recorder);
   } catch (e) { }
 
+  // Detect extension overriding Event.prototype.isTrusted
+  try {
+    const desc = Object.getOwnPropertyDescriptor(Event.prototype, 'isTrusted');
+    const isNative = desc && typeof desc.get === 'function' &&
+      (desc.get.toString().includes('[native code]') || desc.get.toString().includes('function get isTrusted'));
+    automation.eventTampered = !isNative;
+  } catch (e) {
+    automation.eventTampered = false;
+  }
+
   return {
     automation,
     behavior: {
-      // Click latency (mousedown → mouseup duration)
       clicks: _clickEvents.slice(-10),
-      // Scroll speed
       scroll: _scrollDist > 0 ? { totalDistance: Math.round(_scrollDist), timeMs: Math.round(_scrollTime) } : null,
     },
     sensor: {
-      // DeviceMotion samples (mobile anti-detect detection)
       motion: _motionSamples.length >= 3 ? { samples: _motionSamples } : null,
     },
   };

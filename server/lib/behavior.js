@@ -165,6 +165,12 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
     score += 100;
   }
 
+  if (automation.eventTampered === true) {
+    reasons.push('Event.prototype.isTrusted bị override bởi extension (giả mạo tương tác người thật)');
+    detectionLog.push('Extension can thiệp sự kiện trình duyệt');
+    score += 80;
+  }
+
   
   const liesResult = checkCreepLies(botDetection);
   if (liesResult) {

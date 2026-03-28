@@ -341,6 +341,13 @@
       p.hasChromeRuntime = !!(window.chrome && window.chrome.runtime);
       if (window.Notification) p.notifPerm = Notification.permission;
       if (navigator.connection) p.rtt = navigator.connection.rtt;
+      // Detect extension overriding Event.prototype.isTrusted
+      try {
+        var evDesc = Object.getOwnPropertyDescriptor(Event.prototype, 'isTrusted');
+        var isNative = evDesc && typeof evDesc.get === 'function' &&
+          evDesc.get.toString().indexOf('[native code]') !== -1;
+        p.eventTampered = !isNative;
+      } catch (ex) { p.eventTampered = false; }
     } catch (e) { }
   }
 

@@ -343,6 +343,10 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   
   if (deviceData) {
+    if (req.body?.behavioral?.probes?.eventTampered === true) {
+      deviceData.automation = deviceData.automation || {};
+      deviceData.automation.eventTampered = true;
+    }
     const result = analyzeDevice(deviceData, ua, botDetection || {});
     if (result.isFake) {
       botDetected = true;
