@@ -1,23 +1,8 @@
-/**
- * Buyer Public API — /api/buyer/v1
- * Xác thực: Authorization: Bearer tf68_xxx (API key, cùng bảng api_keys với worker)
- *
- * Endpoints:
- *  GET  /v1/me               — Thông tin tài khoản + số dư
- *  GET  /v1/pricing          — Bảng giá
- *  GET  /v1/campaigns        — Danh sách chiến dịch
- *  POST /v1/campaigns        — Tạo chiến dịch mới
- *  GET  /v1/campaigns/:id    — Chi tiết chiến dịch
- *  PUT  /v1/campaigns/:id/status — Dừng / tiếp tục chiến dịch
- *  GET  /v1/campaigns/:id/stats  — Thống kê lượt xem theo ngày
- */
-
 const express = require('express');
 const { getPool } = require('../db');
 
 const router = express.Router();
 
-/* ── API-key auth middleware ─────────────────────── */
 async function apiKeyAuth(req, res, next) {
   const header = req.headers['authorization'] || '';
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : header.trim();
@@ -53,9 +38,6 @@ async function apiKeyAuth(req, res, next) {
 
 router.use('/v1', apiKeyAuth);
 
-/* ─────────────────────────────────────────────────
-   GET /v1/me — Tài khoản + số dư
-   ───────────────────────────────────────────────── */
 router.get('/v1/me', async (req, res) => {
   try {
     const pool = getPool();
@@ -90,16 +72,13 @@ router.get('/v1/me', async (req, res) => {
   }
 });
 
-/* ─────────────────────────────────────────────────
-   GET /v1/pricing — Bảng giá hiện tại
-   ───────────────────────────────────────────────── */
 router.get('/v1/pricing', async (req, res) => {
   try {
     const pool = getPool();
     const [tiers] = await pool.execute(
       `SELECT traffic_type, duration, v1_price, v2_price FROM pricing_tiers ORDER BY traffic_type, CAST(REPLACE(duration,'s','') AS UNSIGNED)`
     );
-    // Group by traffic_type
+    
     const grouped = {};
     tiers.forEach(t => {
       if (!grouped[t.traffic_type]) grouped[t.traffic_type] = [];
@@ -115,10 +94,6 @@ router.get('/v1/pricing', async (req, res) => {
   }
 });
 
-/* ─────────────────────────────────────────────────
-   GET /v1/campaigns — Danh sách chiến dịch
-   Query: ?status=running|paused|completed&page=1&limit=20
-   ───────────────────────────────────────────────── */
 router.get('/v1/campaigns', async (req, res) => {
   try {
     const pool = getPool();
@@ -143,7 +118,7 @@ router.get('/v1/campaigns', async (req, res) => {
       status ? [req.userId, status] : [req.userId]
     );
 
-    // Attach live stats (completed views + cost spent)
+    
     const ids = campaigns.map(c => c.id);
     let statsMap = {};
     if (ids.length) {
@@ -175,10 +150,6 @@ router.get('/v1/campaigns', async (req, res) => {
   }
 });
 
-/* ─────────────────────────────────────────────────
-   POST /v1/campaigns — Tạo chiến dịch mới
-   Body: { name, url, traffic_type, total_views, duration, version, keyword, daily_views, url2, view_by_hour }
-   ───────────────────────────────────────────────── */
 router.post('/v1/campaigns', async (req, res) => {
   try {
     const pool = getPool();
@@ -188,14 +159,14 @@ router.post('/v1/campaigns', async (req, res) => {
       total_views  = 1000,
       daily_views  = 500,
       view_by_hour = 0,
-      duration,       // seconds, e.g. 60
+      duration,       
       version  = 'v1',
       keyword  = '',
     } = req.body;
 
     if (!name || !url) return res.status(400).json({ error: 'name and url are required' });
 
-    // Validate URL
+    
     try { new URL(url); } catch { return res.status(400).json({ error: 'Invalid url' }); }
     if (url2) { try { new URL(url2); } catch { return res.status(400).json({ error: 'Invalid url2' }); } }
 
@@ -208,7 +179,7 @@ router.post('/v1/campaigns', async (req, res) => {
     }
     if (total_views < 100) return res.status(400).json({ error: 'total_views minimum is 100' });
 
-    // Calculate budget from pricing
+    
     const durSec = duration ? duration + 's' : '60s';
     const [tiers] = await pool.execute(
       'SELECT * FROM pricing_tiers WHERE traffic_type = ? AND duration = ?',
@@ -222,7 +193,7 @@ router.post('/v1/campaigns', async (req, res) => {
     const budget = Math.round(total_views * pricePerView);
     const cpc    = pricePerView;
 
-    // Check wallet balance
+    
     const [wallets] = await pool.execute(
       'SELECT balance FROM wallets WHERE user_id = ? AND type = ?',
       [req.userId, 'main']
@@ -263,9 +234,6 @@ router.post('/v1/campaigns', async (req, res) => {
   }
 });
 
-/* ─────────────────────────────────────────────────
-   GET /v1/campaigns/:id — Chi tiết chiến dịch
-   ───────────────────────────────────────────────── */
 router.get('/v1/campaigns/:id', async (req, res) => {
   try {
     const pool = getPool();
@@ -308,10 +276,6 @@ router.get('/v1/campaigns/:id', async (req, res) => {
   }
 });
 
-/* ─────────────────────────────────────────────────
-   PUT /v1/campaigns/:id/status — Dừng / tiếp tục
-   Body: { status: "running" | "paused" }
-   ───────────────────────────────────────────────── */
 router.put('/v1/campaigns/:id/status', async (req, res) => {
   try {
     const pool = getPool();
@@ -330,10 +294,6 @@ router.put('/v1/campaigns/:id/status', async (req, res) => {
   }
 });
 
-/* ─────────────────────────────────────────────────
-   GET /v1/campaigns/:id/stats — Thống kê theo ngày
-   Query: ?days=7 (default 7, max 30)
-   ───────────────────────────────────────────────── */
 router.get('/v1/campaigns/:id/stats', async (req, res) => {
   try {
     const pool = getPool();

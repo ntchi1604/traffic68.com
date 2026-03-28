@@ -48,7 +48,7 @@ function verifySessionToken(token, ip, ua) {
   const [tsStr, hmac] = token.split('.');
   const ts = parseInt(tsStr);
   if (isNaN(ts)) return false;
-  if (Math.abs(Math.floor(Date.now() / 1000) - ts) > 600) return false; // 10 minutes
+  if (Math.abs(Math.floor(Date.now() / 1000) - ts) > 600) return false; 
   const expected = crypto.createHmac('sha256', HMAC_SECRET).update(`${ip}|${ua}|${ts}`).digest('hex').substring(0, 16);
   return hmac === expected;
 }
@@ -100,7 +100,7 @@ router.get('/public/:token', async (req, res) => {
 
   const pageUrl = req.query.pageUrl || '';
 
-  // Auto-save website_url from the page where embed script runs
+  
   if (pageUrl && !widgets[0].website_url) {
     try {
       const origin = new URL(decodeURIComponent(pageUrl)).origin;
@@ -111,7 +111,7 @@ router.get('/public/:token', async (req, res) => {
 
   if (pageUrl) {
     try {
-      const normalize = (u) => decodeURIComponent(u).replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').toLowerCase();
+      const normalize = (u) => decodeURIComponent(u).replace(/^https?:\/\
       const normalPage = normalize(pageUrl);
 
       const [campaigns] = await pool.execute(
@@ -149,7 +149,7 @@ router.get('/public/:token', async (req, res) => {
     overrides.waitTime = campaignInfo.waitTime;
   }
 
-  // Check captcha setting
+  
   let captchaEnabled = true;
   try {
     const [settings] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'captcha_enabled'");
@@ -174,8 +174,8 @@ router.get('/public/:token', async (req, res) => {
     resp.targetPage = campaignInfo.targetPage || '';
   }
 
-  // V1: Even if no campaign matched this URL, check if there's an active V1 task
-  // (user navigated to internal link during V1 flow)
+  
+  
   if (!resp.version) {
     try {
       const [v1Tasks] = await pool.execute(
@@ -225,7 +225,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
   const { visitorId, pageReferrer } = req.body || {};
-  // Sanitize visitorId — 'unknown' is the default/fallback, treat as empty
+  
   const cleanVisitorId = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const [tasks] = await pool.execute(
     `SELECT vt.id, vt.status as task_status, c.traffic_type FROM vuot_link_tasks vt
@@ -242,10 +242,10 @@ router.post('/public/:token/check-session', async (req, res) => {
     return res.status(404).json({ hasSession: false });
   }
 
-  // ── Enforce Google referrer CHỄ khi campaign rõ ràng là google_search ──
+  
   const task = tasks[0];
   if (task.traffic_type === 'google_search' && !['step2', 'step3'].includes(task.task_status)) {
-    const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
+    const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\
     const clientRef = pageReferrer || '';
     if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
       console.log(`[Widget] check-session BLOCKED: Non-Google referrer — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
@@ -253,7 +253,7 @@ router.post('/public/:token/check-session', async (req, res) => {
     }
   }
 
-  // ── Reload = reset phiên làm việc (giữ task, tính lại thời gian) ──
+  
   try {
     await pool.execute(
       `UPDATE vuot_link_tasks SET created_at = NOW(), expires_at = DATE_ADD(NOW(), INTERVAL 600 SECOND) WHERE id = ?`,
@@ -263,7 +263,6 @@ router.post('/public/:token/check-session', async (req, res) => {
 
   res.json({ hasSession: true });
 });
-
 
 router.get('/public/:token/challenge', (req, res) => {
   const ua = req.headers['user-agent'] || '';
@@ -310,7 +309,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   const { challengeId, _ck, visitorId, deviceData, botDetection, hcaptchaToken, pageReferrer } = req.body || {};
 
-  // ── Verify hCaptcha ──
+  
   const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
   if (hcaptchaToken && !['skip', 'error', 'render-error', 'disabled'].includes(hcaptchaToken)) {
     try {
@@ -326,7 +325,7 @@ router.post('/public/:token/get-code', async (req, res) => {
       }
     } catch (e) {
       console.error(`[Widget] hCaptcha verify error:`, e.message);
-      // Allow on error (don't block if hCaptcha service is down)
+      
     }
   }
 
@@ -342,7 +341,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   const v1Phase = req.body?.v1Phase || 0;
   ch.used = true;
 
-  // ── Bot detection: headless/webdriver + CreepJS bot flag (full v2) ──
+  
   if (deviceData) {
     const result = analyzeDevice(deviceData, ua, botDetection || {});
     if (result.isFake) {
@@ -355,9 +354,9 @@ router.post('/public/:token/get-code', async (req, res) => {
     detectionLog.push('creepjs_bot');
   }
 
-  // ── Save security_detail + log security event (admin dashboard) ──
+  
   if (botDetected && detectionLog.length > 0) {
-    // Log vào security_logs để admin thấy được
+    
     logSecurityEvent('Phát hiện Bot (widget)', ip, ua, visitorId || null, {
       detectionLog,
       canvasHash: botDetection?.canvasHash || null,
@@ -366,7 +365,7 @@ router.post('/public/:token/get-code', async (req, res) => {
       totalLies: botDetection?.totalLies || 0,
       lieNames: (botDetection?.lieNames || []).slice(0, 5),
     });
-    // Cập nhật task nếu tìm thấy
+    
     try {
       const [activeTasks] = await pool.execute(
         `SELECT id FROM vuot_link_tasks WHERE (ip_address = ? OR (visitor_id = ? AND visitor_id IS NOT NULL AND visitor_id != '')) AND status IN ('pending','step1','step2','step3') AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
@@ -399,7 +398,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   );
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
-  // Match by IP or visitorId
+  
   const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const [tasks] = await pool.execute(
     `SELECT vt.*, c.url as campaign_url, c.time_on_site, c.version, c.target_page, c.traffic_type FROM vuot_link_tasks vt
@@ -417,11 +416,11 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   const task = tasks[0];
   const campVersion = task.version || 0;
-  // v1Phase already declared above (line 328)
+  
 
-  // ── Enforce Google referrer CHỄ khi campaign rõ ràng là google_search ──
+  
   if (task.traffic_type === 'google_search' && v1Phase !== 2) {
-    const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
+    const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\
     const clientRef = pageReferrer || '';
     if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
       console.log(`[Widget] BLOCKED: Non-Google referrer for search campaign — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
@@ -450,14 +449,14 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Phát hiện gian lận!', remaining });
   }
 
-  // ── V1: Multi-step flow ──
+  
   if (campVersion === 1) {
     if (v1Phase !== 2) {
-      // Phase 1 done → tell widget to show step 2 (visit internal link + wait)
+      
       if (task.status !== 'step2') {
         await pool.execute("UPDATE vuot_link_tasks SET status = 'step2' WHERE id = ?", [task.id]);
       }
-      const v1Wait = Math.floor(Math.random() * 16) + 20; // 20-35s
+      const v1Wait = Math.floor(Math.random() * 16) + 20; 
       console.log(`[Widget] V1 phase 1 done — IP: ${ip}, task: #${task.id}, next wait: ${v1Wait}s`);
       return res.json({
         v1_step2: true,
@@ -466,8 +465,8 @@ router.post('/public/:token/get-code', async (req, res) => {
       });
     }
 
-    // Phase 2: Check extra wait time has passed (at least 20s after step2 was set)
-    const v1ExtraRequired = requiredSeconds + 20; // minimum total elapsed
+    
+    const v1ExtraRequired = requiredSeconds + 20; 
     if (elapsedSeconds < v1ExtraRequired) {
       const remaining = v1ExtraRequired - elapsedSeconds;
       console.log(`[Widget] V1 phase 2 TOO EARLY — IP: ${ip}, task: #${task.id}, elapsed: ${elapsedSeconds}s < required: ${v1ExtraRequired}s`);
@@ -499,7 +498,6 @@ router.use(authMiddleware);
 
 const MAX_WIDGETS_PER_USER = 10;
 
-/* GET / — list all widgets for user */
 router.get('/', async (req, res) => {
   const pool = getPool();
   const [widgets] = await pool.execute('SELECT * FROM widgets WHERE user_id = ? ORDER BY created_at DESC', [req.userId]);
@@ -512,12 +510,11 @@ router.get('/', async (req, res) => {
   });
 });
 
-/* POST / — create a new widget */
 router.post('/', async (req, res) => {
   const pool = getPool();
   const { name, config, website_url } = req.body;
 
-  // Check limit
+  
   const [existing] = await pool.execute('SELECT COUNT(*) as cnt FROM widgets WHERE user_id = ?', [req.userId]);
   if (existing[0].cnt >= MAX_WIDGETS_PER_USER) {
     return res.status(400).json({ error: `Tối đa ${MAX_WIDGETS_PER_USER} widget. Xoá widget cũ trước khi tạo mới.` });
@@ -542,7 +539,6 @@ router.post('/', async (req, res) => {
   });
 });
 
-/* GET /my — list ALL widgets for this user (returns array) */
 router.get('/my', async (req, res) => {
   const pool = getPool();
   const [rows] = await pool.execute('SELECT * FROM widgets WHERE user_id = ? ORDER BY created_at ASC', [req.userId]);
@@ -556,7 +552,6 @@ router.get('/my', async (req, res) => {
   res.json({ widgets });
 });
 
-/* PUT /:id — update a specific widget by ID */
 router.put('/:id', async (req, res) => {
   const pool = getPool();
   const [existing] = await pool.execute('SELECT * FROM widgets WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
@@ -582,7 +577,6 @@ router.put('/:id', async (req, res) => {
   });
 });
 
-/* DELETE /:id — remove a widget */
 router.delete('/:id', async (req, res) => {
   const pool = getPool();
   const [result] = await pool.execute('DELETE FROM widgets WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);

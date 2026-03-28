@@ -166,7 +166,6 @@ async function _handleTaskPost(req, res) {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
   ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
   if (ipTaskCount[ip] > 30) {
-    console.log(`[VuotLink] IP rate limit: ${ip}, count: ${ipTaskCount[ip]}`);
     return res.status(429).json({ error: 'Quá nhiều yêu cầu. Thử lại sau.' });
   }
 
@@ -518,18 +517,14 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     return res.status(403).json({ error: 'Invalid token' });
   }
 
-  // Anti-cheat: verify human challenge was completed server-side
   const taskIdStr = String(req.params.id);
   const cpEntry = challengePassedStore[taskIdStr];
   if (!cpEntry) {
-    console.log(`[VuotLink] Verify blocked — no challenge-passed for task #${taskIdStr}, IP: ${ip}`);
     return res.status(403).json({ error: 'Bạn chưa hoàn thành bước xác minh người thật.' });
   }
   if (cpEntry.token !== challengeToken || cpEntry.ip !== ip) {
-    console.log(`[VuotLink] Verify blocked — bad challengeToken for task #${taskIdStr}, IP: ${ip}`);
     return res.status(403).json({ error: 'Token xác minh không hợp lệ.' });
   }
-  // Token valid — consume it (one-time use)
   delete challengePassedStore[taskIdStr];
 
   if (!code || code.trim().length < 4) {
@@ -542,26 +537,21 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
   if (task.status === 'expired') return res.status(410).json({ error: 'Task đã hết hạn. Vui lòng lấy nhiệm vụ mới.' });
 
-  // Accept task in any non-terminal status
   const validStatuses = ['pending', 'step1', 'step2', 'step3'];
   if (!validStatuses.includes(task.status)) {
     return res.status(403).json({ error: 'Trạng thái task không hợp lệ: ' + task.status });
   }
-  // Auto-advance to step3 if needed (widget may not have been triggered)
   if (task.status !== 'step3') {
     await pool.execute("UPDATE vuot_link_tasks SET status = 'step3' WHERE id = ?", [task.id]);
   }
 
-  // Anti-cheat: IP hoac visitor_id phai match
   const { visitorId: verifyVid } = req.body || {};
   const ipOk = task.ip_address && task.ip_address === ip;
   const vidOk = task.visitor_id && verifyVid && task.visitor_id === verifyVid;
   if (!ipOk && !vidOk) {
-    console.log(`[VuotLink] Verify IP/VID mismatch - task IP: ${task.ip_address}, req IP: ${ip}`);
     return res.status(403).json({ error: 'Phien khong hop le' });
   }
 
-  // Check expiry
   if (task.expires_at) {
     const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
     if (expCheck[0]?.expired) {

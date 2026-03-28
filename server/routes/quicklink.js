@@ -5,7 +5,6 @@ const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
-/* ── helpers ─────────────────────────────────── */
 function genSlug(len = 7) {
   const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
   let s = '';
@@ -18,25 +17,20 @@ function genApiKey() {
   return 'tf68_' + crypto.randomBytes(24).toString('hex');
 }
 
-/* ════════════════════════════════════════════════
-   QUICKLINK — GET /st?api=API_KEY&url=DEST_URL
-   Tự tạo shortlink rồi redirect đến trang vượt link.
-   Nếu URL đã có shortlink thì redirect luôn (không tạo mới).
-   ════════════════════════════════════════════════ */
 router.get('/st', async (req, res) => {
   try {
     const { api, url } = req.query;
 
-    // 1. Validate params
+    
     if (!api) return res.status(400).json({ error: 'Thiếu API key. Sử dụng: /st?api=YOUR_API_KEY&url=YOUR_URL' });
     if (!url) return res.status(400).json({ error: 'Thiếu URL đích. Sử dụng: /st?api=YOUR_API_KEY&url=YOUR_URL' });
 
-    // Basic URL validation
+    
     let destUrl = url;
-    if (!/^https?:\/\//i.test(destUrl)) destUrl = 'https://' + destUrl;
+    if (!/^https?:\/\
     try { new URL(destUrl); } catch { return res.status(400).json({ error: 'URL không hợp lệ' }); }
 
-    // 2. Validate API key + check user not banned
+    
     const pool = getPool();
     const [keyRows] = await pool.execute(
       'SELECT ak.id, ak.user_id FROM api_keys ak JOIN users u ON u.id = ak.user_id WHERE ak.api_key = ? AND ak.active = 1 AND u.status = \'active\'',
@@ -47,10 +41,10 @@ router.get('/st', async (req, res) => {
     const userId = keyRows[0].user_id;
     const apiKeyId = keyRows[0].id;
 
-    // Update usage stats
+    
     pool.execute('UPDATE api_keys SET last_used_at = NOW(), request_count = request_count + 1 WHERE id = ?', [apiKeyId]);
 
-    // 3. Check if this user already has a shortlink for this URL
+    
     const [existing] = await pool.query(
       'SELECT slug FROM worker_links WHERE worker_id = ? AND destination_url = ? AND hidden = 0 LIMIT 1',
       [userId, destUrl]
@@ -58,10 +52,10 @@ router.get('/st', async (req, res) => {
 
     let slug;
     if (existing.length) {
-      // Reuse existing shortlink
+      
       slug = existing[0].slug;
     } else {
-      // Create new shortlink
+      
       for (let i = 0; i < 10; i++) {
         const s = genSlug(7);
         const [dup] = await pool.execute('SELECT id FROM worker_links WHERE slug = ?', [s]);
@@ -75,7 +69,7 @@ router.get('/st', async (req, res) => {
       );
     }
 
-    // 4. Redirect to gateway page
+    
     const host = req.headers['x-forwarded-host'] || req.headers['host'] || 'traffic68.com';
     const proto = req.headers['x-forwarded-proto'] || req.protocol;
     res.redirect(302, `${proto}://${host}/vuot-link/${slug}`);
@@ -85,7 +79,6 @@ router.get('/st', async (req, res) => {
   }
 });
 
-/* ── API-key auth middleware ───────────────────── */
 async function apiKeyAuth(req, res, next) {
   const header = req.headers['authorization'] || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : header;
@@ -99,7 +92,7 @@ async function apiKeyAuth(req, res, next) {
     );
     if (!rows.length) return res.status(401).json({ error: 'Invalid or revoked API key, or account suspended' });
 
-    // Update last_used
+    
     pool.execute('UPDATE api_keys SET last_used_at = NOW(), request_count = request_count + 1 WHERE id = ?', [rows[0].id]);
 
     req.userId = rows[0].user_id;
@@ -111,11 +104,6 @@ async function apiKeyAuth(req, res, next) {
   }
 }
 
-/* ════════════════════════════════════════════════
-   API KEY MANAGEMENT — 1 key per user, can regenerate
-   ════════════════════════════════════════════════ */
-
-// ── GET /api/quicklink/key — get my API key (single) ──
 router.get('/key', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
@@ -130,11 +118,10 @@ router.get('/key', authMiddleware, async (req, res) => {
   }
 });
 
-// ── POST /api/quicklink/key — create key (if none exists) ──
 router.post('/key', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
-    // Check if already has one
+    
     const [existing] = await pool.execute(
       'SELECT id FROM api_keys WHERE user_id = ? AND active = 1',
       [req.userId]
@@ -153,13 +140,12 @@ router.post('/key', authMiddleware, async (req, res) => {
   }
 });
 
-// ── PUT /api/quicklink/key — regenerate key ──
 router.put('/key', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
-    // Delete old key(s)
+    
     await pool.execute('DELETE FROM api_keys WHERE user_id = ?', [req.userId]);
-    // Create new
+    
     const apiKey = genApiKey();
     const [result] = await pool.execute(
       'INSERT INTO api_keys (user_id, api_key) VALUES (?, ?)',
@@ -172,12 +158,6 @@ router.put('/key', authMiddleware, async (req, res) => {
   }
 });
 
-
-/* ════════════════════════════════════════════════
-   QUICKLINK PUBLIC API (API-key auth) — READ ONLY
-   ════════════════════════════════════════════════ */
-
-// ── GET /api/quicklink/v1/links — list my links ──
 router.get('/v1/links', apiKeyAuth, async (req, res) => {
   try {
     const pool = getPool();
@@ -213,7 +193,6 @@ router.get('/v1/links', apiKeyAuth, async (req, res) => {
   }
 });
 
-// ── GET /api/quicklink/v1/links/:id — single link stats ──
 router.get('/v1/links/:id', apiKeyAuth, async (req, res) => {
   try {
     const pool = getPool();
@@ -238,8 +217,6 @@ router.get('/v1/links/:id', apiKeyAuth, async (req, res) => {
   }
 });
 
-
-// ── GET /api/quicklink/v1/stats — overall stats ──
 router.get('/v1/stats', apiKeyAuth, async (req, res) => {
   try {
     const pool = getPool();
@@ -257,16 +234,11 @@ router.get('/v1/stats', apiKeyAuth, async (req, res) => {
   }
 });
 
-/* ════════════════════════════════════════════════
-   DEVELOPER API — GET /api/quicklink/api
-   Simple GET-based API (like 4mmo.net)
-   Usage: /api/quicklink/api?api=YOUR_KEY&url=DEST_URL&alias=CUSTOM_ALIAS&format=text
-   ════════════════════════════════════════════════ */
 router.get('/api', async (req, res) => {
   try {
     const { api, url, alias, format } = req.query;
 
-    // Validate params
+    
     if (!api) {
       if (format === 'text') return res.send('');
       return res.status(400).json({ status: 'error', message: 'Thiếu API key. Sử dụng: ?api=YOUR_API_KEY&url=YOUR_URL' });
@@ -276,15 +248,15 @@ router.get('/api', async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Thiếu URL đích. Sử dụng: ?api=YOUR_API_KEY&url=YOUR_URL' });
     }
 
-    // Validate URL
+    
     let destUrl = url;
-    if (!/^https?:\/\//i.test(destUrl)) destUrl = 'https://' + destUrl;
+    if (!/^https?:\/\
     try { new URL(destUrl); } catch {
       if (format === 'text') return res.send('');
       return res.status(400).json({ status: 'error', message: 'URL không hợp lệ' });
     }
 
-    // Validate API key
+    
     const pool = getPool();
     const [keyRows] = await pool.execute(
       "SELECT ak.id, ak.user_id FROM api_keys ak JOIN users u ON u.id = ak.user_id WHERE ak.api_key = ? AND ak.active = 1 AND u.status = 'active'",
@@ -298,10 +270,10 @@ router.get('/api', async (req, res) => {
     const userId = keyRows[0].user_id;
     const apiKeyId = keyRows[0].id;
 
-    // Update usage stats
+    
     pool.execute('UPDATE api_keys SET last_used_at = NOW(), request_count = request_count + 1 WHERE id = ?', [apiKeyId]);
 
-    // Check custom alias
+    
     let slug;
     if (alias && alias.trim()) {
       const customSlug = alias.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
@@ -309,11 +281,11 @@ router.get('/api', async (req, res) => {
         if (format === 'text') return res.send('');
         return res.status(400).json({ status: 'error', message: 'Alias phải từ 2-20 ký tự (chỉ a-z, 0-9, -, _)' });
       }
-      // Check if alias already taken
+      
       const [dupAlias] = await pool.execute('SELECT id, worker_id FROM worker_links WHERE slug = ?', [customSlug]);
       if (dupAlias.length) {
         if (dupAlias[0].worker_id === userId) {
-          // Same user, reuse
+          
           slug = customSlug;
         } else {
           if (format === 'text') return res.send('');
@@ -324,7 +296,7 @@ router.get('/api', async (req, res) => {
       }
     }
 
-    // Check if user already has a link for this URL (and no custom alias)
+    
     if (!slug) {
       const [existing] = await pool.execute(
         'SELECT slug FROM worker_links WHERE worker_id = ? AND destination_url = ? AND hidden = 0 LIMIT 1',
@@ -335,7 +307,7 @@ router.get('/api', async (req, res) => {
       }
     }
 
-    // Create new link if needed
+    
     if (!slug) {
       for (let i = 0; i < 10; i++) {
         const s = genSlug(7);
@@ -348,7 +320,7 @@ router.get('/api', async (req, res) => {
       }
     }
 
-    // Check if link already exists in DB (to avoid duplicate insert)
+    
     const [existCheck] = await pool.execute('SELECT id FROM worker_links WHERE slug = ? AND worker_id = ?', [slug, userId]);
     if (!existCheck.length) {
       await pool.execute(
@@ -357,7 +329,7 @@ router.get('/api', async (req, res) => {
       );
     }
 
-    // Build shortened URL
+    
     const host = req.headers['x-forwarded-host'] || req.headers['host'] || 'traffic68.com';
     const proto = req.headers['x-forwarded-proto'] || req.protocol;
     const shortenedUrl = `${proto}://${host}/vuot-link/${slug}`;

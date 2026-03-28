@@ -2,11 +2,11 @@ const express = require('express');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
-// VN timezone helper
+
 const localDateStr = (d = new Date()) =>
   d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
 
-// Lazy-load web3pay to avoid crashing if ethers is not installed
+
 let _web3pay = null;
 function getWeb3Pay() {
   if (!_web3pay) {
@@ -19,7 +19,7 @@ function getWeb3Pay() {
 const router = express.Router();
 router.use(authMiddleware);
 
-// Admin guard middleware
+
 router.use(async (req, res, next) => {
   const pool = getPool();
   const [users] = await pool.execute('SELECT role FROM users WHERE id = ?', [req.userId]);
@@ -29,7 +29,7 @@ router.use(async (req, res, next) => {
   next();
 });
 
-// ── GET /api/admin/overview ──
+
 router.get('/overview', async (req, res) => {
   const pool = getPool();
   const { fromDate, toDate } = req.query;
@@ -50,7 +50,7 @@ router.get('/overview', async (req, res) => {
   const [pt] = await pool.execute("SELECT COUNT(*) as c FROM support_tickets WHERE status = 'open'");
   const [nuw] = await pool.execute("SELECT COUNT(*) as c FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
 
-  // Daily stats
+  
   let chartSql, chartParams;
   if (fromDate || toDate) {
     chartSql = `SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE 1=1${dateCondition} GROUP BY DATE(created_at) ORDER BY date ASC`;
@@ -84,7 +84,7 @@ router.get('/overview', async (req, res) => {
   });
 });
 
-// ── GET /api/admin/users ──
+
 router.get('/users', async (req, res) => {
   const pool = getPool();
   const { search, role, service_type, page = 1, limit = 20 } = req.query;
@@ -131,7 +131,7 @@ router.get('/users', async (req, res) => {
   res.json({ users, total: totalRows[0].total, page: Number(page), limit: Number(limit) });
 });
 
-// ── PUT /api/admin/users/:id ──
+
 router.put('/users/:id', async (req, res) => {
   const pool = getPool();
   const { role, status, name, email } = req.body;
@@ -143,28 +143,28 @@ router.put('/users/:id', async (req, res) => {
   res.json({ message: 'Cập nhật thành công', user: users[0] });
 });
 
-// ── DELETE /api/admin/users/:id ──
+
 router.delete('/users/:id', async (req, res) => {
   const pool = getPool();
   const uid = req.params.id;
   if (Number(uid) === req.userId) return res.status(400).json({ error: 'Không thể xóa chính mình' });
 
   try {
-    // 1. Get user's worker_links IDs
+    
     const [wlRows] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
     const wlIds = wlRows.map(r => r.id);
 
-    // 2. Delete vuot_link_tasks (direct + via gateway links)
+    
     if (wlIds.length > 0) {
       const ph = wlIds.map(() => '?').join(',');
       await pool.execute(`DELETE FROM vuot_link_tasks WHERE worker_link_id IN (${ph})`, wlIds);
     }
     await pool.execute('DELETE FROM vuot_link_tasks WHERE worker_id = ?', [uid]);
 
-    // 3. Delete worker_links (gateway links)
+    
     await pool.execute('DELETE FROM worker_links WHERE worker_id = ?', [uid]);
 
-    // 4. Delete campaigns + related data
+    
     const [campRows] = await pool.execute('SELECT id FROM campaigns WHERE user_id = ?', [uid]);
     if (campRows.length > 0) {
       const cph = campRows.map(() => '?').join(',');
@@ -173,7 +173,7 @@ router.delete('/users/:id', async (req, res) => {
       await pool.execute(`DELETE FROM campaigns WHERE user_id = ?`, [uid]);
     }
 
-    // 5. Delete other user data
+    
     await pool.execute('DELETE FROM transactions WHERE user_id = ?', [uid]);
     await pool.execute('DELETE FROM wallets WHERE user_id = ?', [uid]);
     await pool.execute('DELETE FROM widgets WHERE user_id = ?', [uid]);
@@ -181,7 +181,7 @@ router.delete('/users/:id', async (req, res) => {
     await pool.execute('DELETE FROM notifications WHERE user_id = ?', [uid]);
     await pool.execute('DELETE FROM support_tickets WHERE user_id = ?', [uid]);
 
-    // 6. Finally delete user
+    
     await pool.execute('DELETE FROM users WHERE id = ?', [uid]);
 
     res.json({ message: 'Đã xóa người dùng và toàn bộ dữ liệu' });
@@ -191,7 +191,7 @@ router.delete('/users/:id', async (req, res) => {
   }
 });
 
-// ── POST /api/admin/users/:id/balance ──
+
 router.post('/users/:id/balance', async (req, res) => {
   const pool = getPool();
   const { amount, type, walletType, note } = req.body;
@@ -231,7 +231,7 @@ router.post('/users/:id/balance', async (req, res) => {
   res.json({ message: `Đã ${type === 'add' ? 'cộng' : 'trừ'} ${numAmount.toLocaleString('vi-VN')} đ`, newBalance, refCode });
 });
 
-// ── GET /api/admin/campaigns ──
+
 router.get('/campaigns', async (req, res) => {
   const pool = getPool();
   const { search, status, page = 1, limit = 20 } = req.query;
@@ -246,14 +246,14 @@ router.get('/campaigns', async (req, res) => {
   res.json({ campaigns });
 });
 
-// ── PUT /api/admin/campaigns/:id ──
+
 router.put('/campaigns/:id', async (req, res) => {
   try {
     const pool = getPool();
     const { status, name, url, url2, keyword, dailyViews, viewByHour, image1_url, image2_url, totalViews, budget, cpc, trafficType, version, timeOnSite, targetPage } = req.body;
     const n = (v) => v === undefined ? null : v;
 
-    // If only status is provided (legacy quick-update)
+    
     if (status && Object.keys(req.body).length === 1) {
       await pool.execute('UPDATE campaigns SET status = ? WHERE id = ?', [status, req.params.id]);
       return res.json({ message: 'Đã cập nhật trạng thái' });
@@ -275,7 +275,7 @@ router.put('/campaigns/:id', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/transactions ──
+
 router.get('/transactions', async (req, res) => {
   const pool = getPool();
   const { type, status, fromDate, toDate, page = 1, limit = 50 } = req.query;
@@ -297,7 +297,7 @@ router.get('/transactions', async (req, res) => {
   const sql = `SELECT t.*, u.name as user_name, u.email as user_email FROM transactions t LEFT JOIN users u ON t.user_id = u.id ${baseWhere} ORDER BY t.created_at DESC LIMIT ? OFFSET ?`;
   const [transactions] = await pool.execute(sql, [...params, Number(limit), offset]);
 
-  // Summary totals (uses same filters but no LIMIT — always count completed transactions)
+  
   const [depRows] = await pool.execute(
     `SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t WHERE t.status = 'completed' AND t.type IN ('deposit','earning','commission','refund')${filterCondition}`,
     filterParams
@@ -311,7 +311,7 @@ router.get('/transactions', async (req, res) => {
 });
 
 
-// ── PUT /api/admin/transactions/:id/approve ──
+
 router.put('/transactions/:id/approve', async (req, res) => {
   const pool = getPool();
   const conn = await pool.getConnection();
@@ -329,7 +329,7 @@ router.put('/transactions/:id/approve', async (req, res) => {
       return res.status(400).json({ error: 'Giao dịch này đã được xử lý' });
     }
 
-    // 1. Mark transaction completed + credit depositor
+    
     await conn.execute("UPDATE transactions SET status = 'completed' WHERE id = ?", [req.params.id]);
     await conn.execute(
       'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
@@ -342,9 +342,9 @@ router.put('/transactions/:id/approve', async (req, res) => {
       [tx.user_id, 'Nạp tiền thành công ✓', `Đơn nạp ${fmt} VND (Mã: ${tx.ref_code}) đã được admin duyệt. Tiền đã vào ví!`, 'success', 'buyer']
     );
 
-    // 2. Referral commission: if this is a deposit to 'main' wallet (buyer top-up)
+    
     if ((tx.wallet_type || 'main') === 'main' && tx.type === 'deposit') {
-      // Find who referred this user
+      
       const [depositorRows] = await conn.execute(
         'SELECT referred_by FROM users WHERE id = ?',
         [tx.user_id]
@@ -352,7 +352,7 @@ router.put('/transactions/:id/approve', async (req, res) => {
       const referrerId = depositorRows[0]?.referred_by;
 
       if (referrerId) {
-        // Get commission % from site_settings
+        
         const [settingRows] = await conn.execute(
           "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_buyer'",
           []
@@ -363,7 +363,7 @@ router.put('/transactions/:id/approve', async (req, res) => {
           const commAmount = Math.floor(tx.amount * commPct / 100);
 
           if (commAmount > 0) {
-            // Credit referrer's commission wallet
+            
             const [wRes] = await conn.execute(
               'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = "commission"',
               [commAmount, referrerId]
@@ -404,7 +404,7 @@ router.put('/transactions/:id/approve', async (req, res) => {
 });
 
 
-// ── PUT /api/admin/transactions/:id/reject ──
+
 router.put('/transactions/:id/reject', async (req, res) => {
   try {
     const pool = getPool();
@@ -428,14 +428,14 @@ router.put('/transactions/:id/reject', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/tickets ──
+
 router.get('/tickets', async (req, res) => {
   const pool = getPool();
   const [tickets] = await pool.execute(`SELECT st.*, u.name as user_name, u.email as user_email FROM support_tickets st LEFT JOIN users u ON st.user_id = u.id ORDER BY st.created_at DESC LIMIT 50`);
   res.json({ tickets });
 });
 
-// ── PUT /api/admin/tickets/:id ──
+
 router.put('/tickets/:id', async (req, res) => {
   const pool = getPool();
   const { status, reply } = req.body;
@@ -453,7 +453,7 @@ router.put('/tickets/:id', async (req, res) => {
   res.json({ message: 'Đã cập nhật ticket' });
 });
 
-// ── PUT /api/admin/settings/info ──
+
 router.put('/settings/info', async (req, res) => {
   try {
     const pool = getPool();
@@ -476,7 +476,7 @@ router.put('/settings/info', async (req, res) => {
   }
 });
 
-// ── PUT /api/admin/settings/password ──
+
 router.put('/settings/password', async (req, res) => {
   try {
     const pool = getPool();
@@ -498,7 +498,7 @@ router.put('/settings/password', async (req, res) => {
   }
 });
 
-// ── GET /admin/pricing ──
+
 router.get('/pricing', async (req, res) => {
   try {
     const pool = getPool();
@@ -509,7 +509,7 @@ router.get('/pricing', async (req, res) => {
   }
 });
 
-// ── PUT /admin/pricing/:id ──
+
 router.put('/pricing/:id', async (req, res) => {
   try {
     const pool = getPool();
@@ -524,7 +524,7 @@ router.put('/pricing/:id', async (req, res) => {
   }
 });
 
-// ── GET /admin/worker-pricing ──
+
 router.get('/worker-pricing', async (req, res) => {
   try {
     const pool = getPool();
@@ -535,7 +535,7 @@ router.get('/worker-pricing', async (req, res) => {
   }
 });
 
-// ── PUT /admin/worker-pricing/:id ──
+
 router.put('/worker-pricing/:id', async (req, res) => {
   try {
     const pool = getPool();
@@ -550,7 +550,7 @@ router.put('/worker-pricing/:id', async (req, res) => {
   }
 });
 
-// ── GET /admin/settings/site ──
+
 router.get('/settings/site', async (req, res) => {
   try {
     const pool = getPool();
@@ -563,7 +563,7 @@ router.get('/settings/site', async (req, res) => {
   }
 });
 
-// ── PUT /admin/settings/site ──
+
 router.put('/settings/site', async (req, res) => {
   try {
     const pool = getPool();
@@ -580,11 +580,9 @@ router.put('/settings/site', async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// ANTI CHEAT — Rebuilt
-// ═══════════════════════════════════════════════════════════
 
-// Ensure table exists
+
+
 router.get('/security/init', async (req, res) => {
   try {
     const pool = getPool();
@@ -604,11 +602,11 @@ router.get('/security/init', async (req, res) => {
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-// ── Ban / Unban user ──
+
 router.post('/security/user/:uid/ban', async (req, res) => {
   try {
     const pool = getPool();
-    const { action } = req.body; // 'ban' or 'unban'
+    const { action } = req.body; 
     const status = action === 'ban' ? 'banned' : 'active';
     await pool.execute('UPDATE users SET status = ? WHERE id = ?', [status, req.params.uid]);
     res.json({ ok: true, status });
@@ -617,7 +615,7 @@ router.post('/security/user/:uid/ban', async (req, res) => {
   }
 });
 
-// ── 1. User list (ALL users, with task stats) ──
+
 router.get('/security/users', async (req, res) => {
   try {
     const pool = getPool();
@@ -631,22 +629,22 @@ router.get('/security/users', async (req, res) => {
       params.push(`%${search}%`, `%${search}%`);
     }
 
-    // Time filter on tasks
+    
     let timeWhere = '';
     const timeParams = [];
     if (from) { timeWhere += ` AND vt.created_at >= ?`; timeParams.push(from); }
     if (to) { timeWhere += ` AND vt.created_at <= ?`; timeParams.push(to + ' 23:59:59'); }
 
-    // Count all users
+    
     const [cnt] = await pool.execute(
       `SELECT COUNT(*) as total FROM users u WHERE 1=1${searchWhere}`, params
     );
 
-    // Sort mapping
+    
     const sortMap = { ok: 'ok', blocked: 'blocked', earned: 'earned', total: 'total', last_at: 'last_at' };
     const orderCol = sortMap[sort] || 'ok';
 
-    // Main query — users LEFT JOIN tasks (direct + via gateway links)
+    
     const [rows] = await pool.execute(
       `SELECT
          u.id as worker_id,
@@ -671,11 +669,11 @@ router.get('/security/users', async (req, res) => {
       [...timeParams, ...params, Number(limit), offset]
     );
 
-    // Security events count per worker (separate simple query)
+    
     const ids = rows.map(r => r.worker_id).filter(Boolean);
     const secMap = {};
     if (ids.length > 0) {
-      // Count events for each user based on their IPs (from direct tasks + gateway links)
+      
       for (const uid of ids) {
         try {
           const [ipRows] = await pool.execute(
@@ -722,7 +720,7 @@ router.get('/security/users', async (req, res) => {
   }
 });
 
-// ── 2. Tasks for a specific user ──
+
 router.get('/security/user/:uid/tasks', async (req, res) => {
   try {
     const pool = getPool();
@@ -767,13 +765,13 @@ router.get('/security/user/:uid/tasks', async (req, res) => {
   }
 });
 
-// ── 2b. IPs for a user — enriched with stats (tasks, completed, shared workers) ──
+
 router.get('/security/user/:uid/ips', async (req, res) => {
   try {
     const pool = getPool();
     const uid = req.params.uid;
 
-    // Lấy tất cả IP của user này kèm stats tasks
+    
     const [ipStats] = await pool.execute(
       `SELECT
          ip_address,
@@ -791,7 +789,7 @@ router.get('/security/user/:uid/ips', async (req, res) => {
 
     if (!ipStats.length) return res.json({ ips: [] });
 
-    // Kiểm tra IP nào dùng chung với worker khác
+    
     const ipList = ipStats.map(r => r.ip_address);
     const ph = ipList.map(() => '?').join(',');
     const [sharedRows] = await pool.execute(
@@ -832,7 +830,7 @@ router.get('/security/user/:uid/ips', async (req, res) => {
 });
 
 
-// ── 3. Security events for a user (paginated) ──
+
 router.get('/security/user/:uid/events', async (req, res) => {
   try {
     const pool = getPool();
@@ -868,7 +866,7 @@ router.get('/security/user/:uid/events', async (req, res) => {
 
 
 
-// Keep existing detail endpoint for backward compat
+
 router.get('/security/:id', async (req, res) => {
   try {
     const pool = getPool();
@@ -885,7 +883,7 @@ router.get('/security/:id', async (req, res) => {
 
 
 
-// ── DELETE /api/admin/security/clear-all — Xóa toàn bộ data anti-cheat ──
+
 router.delete('/security/clear-all', async (req, res) => {
   try {
     const pool = getPool();
@@ -902,14 +900,14 @@ router.delete('/security/clear-all', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/security/ip/:ip — IP Evaluation ──
+
 router.get('/security/ip/:ip', async (req, res) => {
 
   try {
     const pool = getPool();
     const ip = req.params.ip;
 
-    // 1. Tasks from this IP (last 7 days)
+    
     const [taskStats] = await pool.execute(
       `SELECT COUNT(*) as total,
        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
@@ -923,7 +921,7 @@ router.get('/security/ip/:ip', async (req, res) => {
       [ip]
     );
 
-    // 2. Daily breakdown
+    
     const [dailyBreakdown] = await pool.execute(
       `SELECT DATE(created_at) as date, COUNT(*) as tasks,
        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
@@ -932,7 +930,7 @@ router.get('/security/ip/:ip', async (req, res) => {
       [ip]
     );
 
-    // 3. Workers using this IP (direct + gateway links, via UNION)
+    
     const [workers] = await pool.execute(
       `SELECT u.id, u.name, u.email, u.status, SUM(x.cnt) as task_count
        FROM (
@@ -954,7 +952,7 @@ router.get('/security/ip/:ip', async (req, res) => {
     );
 
 
-    // 4. Security events for this IP
+    
     const [secEvents] = await pool.execute(
       `SELECT COUNT(*) as total,
        SUM(CASE WHEN reason IN ('creep_detected','automation_probes','mouse_bot','bot_ua','ip_rate_limit','bot_behavior') THEN 1 ELSE 0 END) as blocked,
@@ -963,13 +961,13 @@ router.get('/security/ip/:ip', async (req, res) => {
       [ip]
     );
 
-    // 5. All-time stats
+    
     const [allTime] = await pool.execute(
       `SELECT COUNT(*) as total, MIN(created_at) as first_seen FROM vuot_link_tasks WHERE ip_address = ?`,
       [ip]
     );
 
-    // 6. VPN/Proxy check via ip-api.com (free, no key needed)
+    
     let geoData = null;
     try {
       const https = require('http');
@@ -986,13 +984,13 @@ router.get('/security/ip/:ip', async (req, res) => {
       }
     } catch { }
 
-    // Calculate risk score
+    
     const stats = taskStats[0];
     const sec = secEvents[0];
     let riskScore = 0;
     const risks = [];
 
-    // Multiple workers same IP
+    
     if (stats.unique_workers > 3) {
       riskScore += 25;
       risks.push({ type: 'multi_worker', label: `${stats.unique_workers} worker dùng chung IP`, severity: 'high' });
@@ -1001,7 +999,7 @@ router.get('/security/ip/:ip', async (req, res) => {
       risks.push({ type: 'multi_worker', label: `${stats.unique_workers} worker dùng chung IP`, severity: 'medium' });
     }
 
-    // High task volume
+    
     if (stats.total > 50) {
       riskScore += 20;
       risks.push({ type: 'high_volume', label: `${stats.total} tasks trong 7 ngày`, severity: 'high' });
@@ -1010,7 +1008,7 @@ router.get('/security/ip/:ip', async (req, res) => {
       risks.push({ type: 'high_volume', label: `${stats.total} tasks trong 7 ngày`, severity: 'medium' });
     }
 
-    // Bot detections
+    
     if (sec.blocked > 0) {
       riskScore += 30;
       risks.push({ type: 'blocked', label: `${sec.blocked} lần bị chặn`, severity: 'high' });
@@ -1020,7 +1018,7 @@ router.get('/security/ip/:ip', async (req, res) => {
       risks.push({ type: 'suspicious', label: `${sec.suspicious} sự kiện đáng ngờ`, severity: 'medium' });
     }
 
-    // VPN/Proxy/Hosting
+    
     if (geoData) {
       if (geoData.proxy) {
         riskScore += 30;
@@ -1035,7 +1033,7 @@ router.get('/security/ip/:ip', async (req, res) => {
       }
     }
 
-    // Low completion rate
+    
     if (stats.total > 5) {
       const completionRate = stats.completed / stats.total;
       if (completionRate < 0.3) {
@@ -1083,12 +1081,12 @@ router.get('/security/ip/:ip', async (req, res) => {
 });
 
 
-// ── GET /api/admin/worker-tasks ──
+
 router.get('/worker-tasks', async (req, res) => {
   try {
     const pool = getPool();
 
-    // Auto-expire stale tasks before listing
+    
     await pool.execute(
       `UPDATE vuot_link_tasks SET status = 'expired'
        WHERE status IN ('pending','step1','step2','step3')
@@ -1133,7 +1131,7 @@ router.get('/worker-tasks', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/worker-withdrawals ──
+
 router.get('/worker-withdrawals', async (req, res) => {
   try {
     const pool = getPool();
@@ -1160,10 +1158,10 @@ router.get('/worker-withdrawals', async (req, res) => {
 });
 
 
-// ── PUT /api/admin/worker-withdrawals/bulk ──
+
 router.put('/worker-withdrawals/bulk', async (req, res) => {
   const pool = getPool();
-  const { action, ids, privateKey } = req.body; // 'approve' or 'reject', array of ids
+  const { action, ids, privateKey } = req.body; 
   if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'Hành động không hợp lệ' });
   if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'Danh sách trống' });
 
@@ -1190,23 +1188,23 @@ router.put('/worker-withdrawals/bulk', async (req, res) => {
       const tx = txs[0];
       const isCrypto = (tx.note || '').includes('[Crypto]');
 
-      // Nếu là Crypto và đang bật Auto-Approve -> Tách riêng ra để thanh toán nền
+      
       if (isWeb3Active && isCrypto) {
         cryptoIdsToPay.push(tx.id);
         processedIds.push(id);
         continue; 
       }
 
-      // Xử lý tiêu chuẩn (Tiền mặt, hoặc Crypto nhưng tắt Auto-Approve, hoặc là hành động Reject)
+      
       const newStatus = action === 'approve' ? 'completed' : 'rejected';
       await conn.execute('UPDATE transactions SET status = ? WHERE id = ?', [newStatus, tx.id]);
 
       if (action === 'reject') {
-        // Hoàn lại tiền vào ví earning
+        
         await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [tx.amount, tx.user_id, 'earning']);
       }
 
-      // Thông báo cho user
+      
       const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
       await conn.execute(
         `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
@@ -1223,13 +1221,13 @@ router.put('/worker-withdrawals/bulk', async (req, res) => {
     await conn.commit();
     conn.release();
 
-    // Trả về kết quả ngay lập tức
+    
     res.json({ 
       message: `Đã xử lý ${processedIds.length} yêu cầu${cryptoIdsToPay.length > 0 ? ` (${cryptoIdsToPay.length} lệnh Crypto đang chuyển ngầm)` : ''}`, 
       ids: processedIds 
     });
 
-    // Chạy thanh toán Crypto ngầm trong Background (nếu có)
+    
     if (cryptoIdsToPay.length > 0) {
       (async () => {
         for (const cryptoId of cryptoIdsToPay) {
@@ -1238,7 +1236,7 @@ router.put('/worker-withdrawals/bulk', async (req, res) => {
           } catch (e) {
             console.error(`[Web3 Auto-Pay Bulk] Lỗi gửi Crypto ID ${cryptoId}:`, e.message);
           }
-          // Chờ 2 giây giữa mỗi lệnh chuyển tiền mạng lưới
+          
           await new Promise(r => setTimeout(r, 2000));
         }
       })();
@@ -1252,14 +1250,14 @@ router.put('/worker-withdrawals/bulk', async (req, res) => {
   }
 });
 
-// ── PUT /api/admin/worker-withdrawals/:id ──
+
 router.put('/worker-withdrawals/:id', async (req, res) => {
   const pool = getPool();
-  const { action } = req.body; // 'approve' or 'reject'
+  const { action } = req.body; 
   if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'Invalid action' });
 
   try {
-    // ── Check if this is an auto-approve Crypto request ──
+    
     if (action === 'approve') {
       const [txsCheck] = await pool.execute('SELECT note FROM transactions WHERE id = ?', [req.params.id]);
       if (txsCheck.length > 0 && (txsCheck[0].note || '').includes('[Crypto]')) {
@@ -1270,15 +1268,15 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
 
           if (!pk) return res.status(400).json({ error: 'Bạn đang bật tự động gửi USDT, vui lòng nhập Private Key trong tab Web3 để tiếp tục.' });
           
-          // Delegate entirely to Web3 Pay module
-          // It expects a 'pending' transaction and handles its own DB commits and notifications
+          
+          
           const result = await getWeb3Pay().processAutoPayment(Number(req.params.id), pk);
           return res.json({ message: 'Đã chuyển Crypto thành công và duyệt hoàn tất', result });
         }
       }
     }
 
-    // ── Standard Processing (Fiat, or Crypto when auto-approve is FALSE) ──
+    
     const conn = await pool.getConnection();
     await conn.beginTransaction();
 
@@ -1291,11 +1289,11 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
     await conn.execute('UPDATE transactions SET status = ? WHERE id = ?', [newStatus, tx.id]);
 
     if (action === 'reject') {
-      // Refund back to earning wallet
+      
       await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [tx.amount, tx.user_id, 'earning']);
     }
 
-    // Notify user
+    
     const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
     await conn.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
@@ -1318,11 +1316,9 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// WEB3 AUTO-PAYMENT — USDT BEP20
-// ═══════════════════════════════════════════════════════════
 
-// ── POST /api/admin/web3/status — Hot wallet info (privateKey from client) ──
+
+
 router.post('/web3/status', async (req, res) => {
   try {
     const config = await getWeb3Pay().getPaymentSettings();
@@ -1358,7 +1354,7 @@ router.post('/web3/status', async (req, res) => {
   }
 });
 
-// ── POST /api/admin/web3/pay/:id — Manual Web3 payment (privateKey from client) ──
+
 router.post('/web3/pay/:id', async (req, res) => {
   try {
     let pk = (req.body.privateKey || '').trim();
@@ -1373,7 +1369,7 @@ router.post('/web3/pay/:id', async (req, res) => {
   }
 });
 
-// ── POST /api/admin/web3/batch-pay — Pay all pending (privateKey from client) ──
+
 router.post('/web3/batch-pay', async (req, res) => {
   try {
     let pk = (req.body.privateKey || '').trim();
@@ -1408,7 +1404,7 @@ router.post('/web3/batch-pay', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/web3/payments — Web3 payment history ──
+
 router.get('/web3/payments', async (req, res) => {
   try {
     const pool = getPool();
@@ -1435,7 +1431,7 @@ router.get('/web3/payments', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/web3/convert — Preview VND to USDT conversion ──
+
 router.get('/web3/convert', async (req, res) => {
   try {
     const { amount } = req.query;
@@ -1452,11 +1448,11 @@ router.get('/web3/convert', async (req, res) => {
 });
 
 
-// ── GET /api/admin/referrals/:type ──
+
 router.get('/referrals/:type', async (req, res) => {
   try {
     const pool = getPool();
-    const type = req.params.type; // 'buyers' or 'workers'
+    const type = req.params.type; 
     const serviceType = type === 'workers' ? 'shortlink' : 'traffic';
     const { search, page = 1, limit = 20 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
@@ -1506,7 +1502,7 @@ router.get('/referrals/:type', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/referrals/:type/:userId ── get referred users for a specific user
+
 router.get('/referrals/:type/:userId', async (req, res) => {
   try {
     const pool = getPool();
@@ -1521,18 +1517,15 @@ router.get('/referrals/:type/:userId', async (req, res) => {
 });
 
 
-// ═══════════════════════════════════════════════════════════
-// ANTI-CHEAT V2 — Advanced Detection Endpoints
-// ═══════════════════════════════════════════════════════════
 
-// ── GET /api/admin/security/canvas-clusters — Common Canvas Hash Analysis ──
-// Tìm các nhóm máy có chung Canvas fingerprint → same physical machine farm
+
+
 router.get('/security/canvas-clusters', async (req, res) => {
   try {
     const pool = getPool();
     const { days = 30, minCount = 3 } = req.query;
 
-    // Extract canvas hash from security_detail JSON in vuot_link_tasks
+    
     const [rows] = await pool.execute(
       `SELECT
          JSON_UNQUOTE(JSON_EXTRACT(security_detail, '$.canvas.hash1')) as canvas_hash,
@@ -1574,15 +1567,13 @@ router.get('/security/canvas-clusters', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/security/delayed-ban-audit — Delayed Ban Audit ──
-// Chiến thuật "Thả dây dài, câu cá lớn":
-// Tìm users có earnings nhưng từ sessions bị đánh dấu bot → Từ chối thanh toán
+
 router.get('/security/delayed-ban-audit', async (req, res) => {
   try {
     const pool = getPool();
-    const { threshold = 3 } = req.query; // Minimum bot detections to flag
+    const { threshold = 3 } = req.query; 
 
-    // Find workers who have pending withdrawals + significant bot activity
+    
     const [suspects] = await pool.execute(
       `SELECT
          u.id,
@@ -1607,7 +1598,7 @@ router.get('/security/delayed-ban-audit', async (req, res) => {
       [Number(threshold)]
     );
 
-    // Also get their detection reasons summary
+    
     const result = [];
     for (const row of suspects) {
       const [detectionTypes] = await pool.execute(
@@ -1651,7 +1642,7 @@ router.get('/security/delayed-ban-audit', async (req, res) => {
       });
     }
 
-    // Summary stats
+    
     const highRisk = result.filter(r => r.riskScore >= 50);
     const totalSuspiciousEarning = result.reduce((s, r) => s + r.suspiciousEarning, 0);
     const totalPendingBalance = result.filter(r => r.pendingWithdrawals > 0).reduce((s, r) => s + r.pendingBalance, 0);
@@ -1671,7 +1662,7 @@ router.get('/security/delayed-ban-audit', async (req, res) => {
   }
 });
 
-// ── POST /api/admin/security/batch-ban — Batch ban multiple users ──
+
 router.post('/security/batch-ban', async (req, res) => {
   try {
     const pool = getPool();
@@ -1682,12 +1673,12 @@ router.post('/security/batch-ban', async (req, res) => {
 
     const results = [];
     for (const uid of userIds) {
-      if (Number(uid) === req.userId) continue; // Skip self
+      if (Number(uid) === req.userId) continue; 
       try {
-        // 1. Ban user
+        
         await pool.execute("UPDATE users SET status = 'banned' WHERE id = ?", [uid]);
 
-        // 2. Optionally reject pending withdrawals (Delayed Ban enforcement)
+        
         let rejectedWithdrawals = 0;
         if (rejectWithdrawals) {
           const [txs] = await pool.execute(
@@ -1696,12 +1687,12 @@ router.post('/security/batch-ban', async (req, res) => {
           );
           for (const tx of txs) {
             await pool.execute("UPDATE transactions SET status = 'rejected', note = 'Từ chối tự động - tài khoản gian lận' WHERE id = ?", [tx.id]);
-            // DO NOT refund earnings back — those are fraudulent earnings
+            
             rejectedWithdrawals++;
           }
         }
 
-        // 3. Notify user
+        
         await pool.execute(
           `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
           [uid, 'Tài khoản bị khóa', 'Tài khoản của bạn đã bị khóa do vi phạm điều khoản sử dụng.', 'error', 'worker']
@@ -1724,8 +1715,7 @@ router.post('/security/batch-ban', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/security/fingerprint-clusters — AudioContext Hash Clustering ──
-// Tìm các tài khoản có chung AudioContext fingerprint (same hardware farm)
+
 router.get('/security/fingerprint-clusters', async (req, res) => {
   try {
     const pool = getPool();
@@ -1757,4 +1747,3 @@ router.get('/security/fingerprint-clusters', async (req, res) => {
 });
 
 module.exports = router;
-

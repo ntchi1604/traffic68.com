@@ -8,7 +8,7 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
-// ── Multer config for campaign images ──
+
 const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'campaigns');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 }, 
   fileFilter: (req, file, cb) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     const ext = path.extname(file.originalname).toLowerCase();
@@ -31,7 +31,7 @@ const upload = multer({
   },
 });
 
-// ── POST /api/campaigns/upload-image ──
+
 router.post('/upload-image', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Chưa chọn file ảnh' });
@@ -42,7 +42,7 @@ router.post('/upload-image', upload.single('image'), async (req, res) => {
   }
 });
 
-// ── GET /api/campaigns ──
+
 router.get('/', async (req, res) => {
   const pool = getPool();
   const { status, search } = req.query;
@@ -57,7 +57,7 @@ router.get('/', async (req, res) => {
   res.json({ campaigns });
 });
 
-// ── POST /api/campaigns ──
+
 router.post('/', async (req, res) => {
   try {
     const pool = getPool();
@@ -74,7 +74,7 @@ router.post('/', async (req, res) => {
 
     if (!name || !url) return res.status(400).json({ error: 'Tên và URL chiến dịch là bắt buộc' });
 
-    // ── Calculate real budget from DB pricing ──
+    
     let realBudget = budget || 0;
     let useDiscount = false;
     try {
@@ -106,7 +106,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: `Số dư ví không đủ. Cần ${realBudget} VNĐ, hiện có ${wallets[0]?.balance || 0} VNĐ` });
     }
 
-    // Calculate CPC (buyer cost per view) from pricing
+    
     const calculatedCpc = _totalViews > 0 ? Math.round(realBudget / _totalViews) : (cpc || 0);
 
     const [result] = await pool.execute(
@@ -114,7 +114,7 @@ router.post('/', async (req, res) => {
       [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0]
     );
 
-    // Tiền KHÔNG trừ ngay — sẽ trừ dần mỗi khi worker hoàn thành task
+    
 
     await pool.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
@@ -129,7 +129,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ── GET /api/campaigns/:id ──
+
 router.get('/:id', async (req, res) => {
   const pool = getPool();
   const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
@@ -137,7 +137,7 @@ router.get('/:id', async (req, res) => {
   res.json({ campaign: campaigns[0] });
 });
 
-// ── GET /api/campaigns/:id/keyword-stats ──
+
 router.get('/:id/keyword-stats', async (req, res) => {
   try {
     const pool = getPool();
@@ -165,7 +165,7 @@ router.get('/:id/keyword-stats', async (req, res) => {
   }
 });
 
-// ── PUT /api/campaigns/:id ──
+
 router.put('/:id', async (req, res) => {
   try {
     const pool = getPool();
@@ -175,7 +175,7 @@ router.put('/:id', async (req, res) => {
     const { name, url, url2, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, targetPage, timeOnSite, status, image1_url, image2_url } = req.body;
     const n = (v) => v === undefined ? null : v;
 
-    // Delete old images if new ones provided
+    
     const oldImage1 = existing[0].image1_url;
     const oldImage2 = existing[0].image2_url;
     if (image1_url !== undefined && oldImage1 && oldImage1 !== image1_url) {
@@ -200,13 +200,13 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// ── PUT /api/campaigns/:id/status ──
+
 router.put('/:id/status', async (req, res) => {
   const pool = getPool();
   const { status } = req.body;
   if (!['running', 'paused', 'completed'].includes(status)) return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
 
-  // Auto-delete image when campaign is completed
+  
   if (status === 'completed') {
     const [rows] = await pool.execute('SELECT image1_url FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
     if (rows[0]?.image1_url) {
@@ -221,7 +221,7 @@ router.put('/:id/status', async (req, res) => {
   res.json({ message: 'Đã cập nhật trạng thái' });
 });
 
-// ── DELETE /api/campaigns/:id ──
+
 router.delete('/:id', async (req, res) => {
   const pool = getPool();
   const [result] = await pool.execute('DELETE FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);

@@ -5,7 +5,6 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
-// ── POST /api/support/tickets ──
 router.post('/tickets', async (req, res) => {
   const { subject, description, priority, role } = req.body;
   if (!subject) return res.status(400).json({ error: 'Chủ đề là bắt buộc' });
@@ -28,7 +27,6 @@ router.post('/tickets', async (req, res) => {
   res.status(201).json({ message: 'Gửi yêu cầu hỗ trợ thành công', ticketId: result.insertId });
 });
 
-// ── GET /api/support/tickets ──
 router.get('/tickets', async (req, res) => {
   const pool = getPool();
   const { role } = req.query;

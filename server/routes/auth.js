@@ -6,7 +6,6 @@ const { authMiddleware, JWT_SECRET } = require('../middleware/auth');
 
 const router = express.Router();
 
-// ── hCaptcha verification ──
 const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
 
 async function verifyHCaptcha(token) {
@@ -28,12 +27,11 @@ async function verifyHCaptcha(token) {
   }
 }
 
-// ── POST /api/auth/register ──
 router.post('/register', async (req, res) => {
   try {
     const { email, password, name, username, phone, referralCode, captchaToken, service } = req.body;
 
-    // Verify hCaptcha
+    
     const captchaValid = await verifyHCaptcha(captchaToken);
     if (!captchaValid) {
       return res.status(400).json({ error: 'Xác nhận captcha không hợp lệ. Vui lòng thử lại.' });
@@ -48,13 +46,13 @@ router.post('/register', async (req, res) => {
 
     const pool = getPool();
 
-    // Check existing email
+    
     const [existing] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
     if (existing.length > 0) {
       return res.status(409).json({ error: 'Email đã được đăng ký' });
     }
 
-    // Check existing username
+    
     if (username) {
       const [existingUser] = await pool.execute("SELECT id FROM users WHERE username = ?", [username]);
       if (existingUser.length > 0) {
@@ -62,7 +60,7 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    // Handle referral
+    
     let referredBy = null;
     if (referralCode) {
       const [referrer] = await pool.execute('SELECT id FROM users WHERE referral_code = ?', [referralCode]);
@@ -82,18 +80,18 @@ router.post('/register', async (req, res) => {
 
     const userId = result.insertId;
 
-    // Create wallets
+    
     await pool.execute('INSERT INTO wallets (user_id, type, balance) VALUES (?, ?, ?)', [userId, 'main', 0]);
     await pool.execute('INSERT INTO wallets (user_id, type, balance) VALUES (?, ?, ?)', [userId, 'commission', 0]);
     await pool.execute('INSERT INTO wallets (user_id, type, balance) VALUES (?, ?, ?)', [userId, 'earning', 0]);
 
-    // Welcome notification
+    
     await pool.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
       [userId, 'Chào mừng bạn!', 'Tài khoản của bạn đã được tạo thành công. Hãy bắt đầu tạo chiến dịch đầu tiên!', 'success', 'all']
     );
 
-    // Generate token
+    
     const token = jwt.sign({ userId, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
 
     res.status(201).json({
@@ -107,7 +105,6 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// ── GET /api/auth/referrer/:code ──
 router.get('/referrer/:code', async (req, res) => {
   try {
     const pool = getPool();
@@ -121,11 +118,10 @@ router.get('/referrer/:code', async (req, res) => {
   }
 });
 
-// ── POST /api/auth/login ──
 router.post('/login', async (req, res) => {
   const { email, password, remember, captchaToken } = req.body;
 
-  // Verify hCaptcha
+  
   const captchaValid = await verifyHCaptcha(captchaToken);
   if (!captchaValid) {
     return res.status(400).json({ error: 'Xác nhận captcha không hợp lệ. Vui lòng thử lại.' });
@@ -171,7 +167,6 @@ router.post('/login', async (req, res) => {
   });
 });
 
-// ── GET /api/auth/me ──
 router.get('/me', authMiddleware, async (req, res) => {
   const pool = getPool();
   const [users] = await pool.execute(
@@ -183,7 +178,6 @@ router.get('/me', authMiddleware, async (req, res) => {
   res.json({ user: users[0] });
 });
 
-// ── POST /api/auth/logout ──
 router.post('/logout', authMiddleware, (req, res) => {
   res.json({ message: 'Đăng xuất thành công' });
 });

@@ -4,19 +4,16 @@ const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
 
-// Init DB
 const { initDb, getPool } = require('./db');
 const { seed } = require('./db/seed');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// ── Middleware ──
 app.use(cors({ origin: true, credentials: true, allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Token'] }));
 app.use(express.json());
 app.use(morgan('dev'));
 
-// ── Prevent caching for API routes ──
 app.use('/api', (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.setHeader('Pragma', 'no-cache');
@@ -24,7 +21,6 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// ── Serve embed script & public assets ──
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   maxAge: '1h',
   setHeaders: (res, filePath) => {
@@ -35,15 +31,12 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
   },
 }));
 
-// ── Serve uploads (avatars, etc.) ──
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), { maxAge: '7d' }));
 
-// ── Health check ──
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// ── Public pricing API (no auth) ──
 app.get('/api/pricing', async (req, res) => {
   try {
     const { getPool } = require('./db');
@@ -58,7 +51,6 @@ app.get('/api/pricing', async (req, res) => {
   }
 });
 
-// ── Public worker pricing API (no auth) ──
 app.get('/api/worker-pricing', async (req, res) => {
   try {
     const { getPool } = require('./db');
@@ -70,7 +62,6 @@ app.get('/api/worker-pricing', async (req, res) => {
   }
 });
 
-// ── Routes ──
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/campaigns', require('./routes/campaigns'));
 app.use('/api/finance', require('./routes/finance'));
@@ -85,20 +76,15 @@ app.use('/api/shortlink', require('./routes/shortlink'));
 app.use('/api/quicklink', require('./routes/quicklink'));
 app.use('/api/buyer',     require('./routes/buyer'));
 
-
-
-// ── 404 handler ──
 app.use('/api', (req, res) => {
   res.status(404).json({ error: `API endpoint không tồn tại: ${req.method} ${req.originalUrl}` });
 });
 
-// ── Error handler ──
 app.use((err, req, res, next) => {
   console.error('❌ Server error:', err.message);
   res.status(500).json({ error: 'Lỗi máy chủ nội bộ' });
 });
 
-// ── Start ──
 (async () => {
   try {
     await initDb();
@@ -109,8 +95,8 @@ app.use((err, req, res, next) => {
       console.log('  ✅ Added security_detail column');
     } catch (e) { }
 
-    // worker_links: link locker where visitors complete a vượt link task to reach destination
-    // Use IF NOT EXISTS to preserve data on restart
+    
+    
     try {
       await pool.execute(`CREATE TABLE IF NOT EXISTS worker_links (
         id              INT PRIMARY KEY AUTO_INCREMENT,
@@ -127,22 +113,22 @@ app.use((err, req, res, next) => {
       console.log('  ✅ worker_links table ready');
     } catch (e) { console.error('  ⚠ worker_links:', e.message); }
 
-    // Track which gateway link triggered a task
+    
     try {
       await pool.execute(`ALTER TABLE vuot_link_tasks ADD COLUMN worker_link_id INT DEFAULT NULL`);
     } catch (e) { }
 
-    // Add hidden column to worker_links
+    
     try {
       await pool.execute(`ALTER TABLE worker_links ADD COLUMN hidden TINYINT(1) NOT NULL DEFAULT 0`);
     } catch (e) { }
 
-    // Add version column to campaigns (0 = default, 1 = multi-step with internal link)
+    
     try {
       await pool.execute(`ALTER TABLE campaigns ADD COLUMN version TINYINT NOT NULL DEFAULT 0`);
     } catch (e) { }
 
-    // api_keys: API key auth for quicklink API
+    
     try {
       await pool.execute(`CREATE TABLE IF NOT EXISTS api_keys (
         id             INT PRIMARY KEY AUTO_INCREMENT,
@@ -158,7 +144,7 @@ app.use((err, req, res, next) => {
       console.log('  ✅ api_keys table ready');
     } catch (e) { console.error('  ⚠ api_keys:', e.message); }
 
-    // worker_pricing_tiers: separate pricing for worker earnings (mirrors pricing_tiers structure)
+    
     try {
       await pool.execute(`CREATE TABLE IF NOT EXISTS worker_pricing_tiers (
         id             INT PRIMARY KEY AUTO_INCREMENT,
@@ -169,7 +155,7 @@ app.use((err, req, res, next) => {
         updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY unique_tier (traffic_type, duration)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-      // Seed from pricing_tiers if worker_pricing_tiers is empty
+      
       const [wptCount] = await pool.execute('SELECT COUNT(*) as c FROM worker_pricing_tiers');
       if (wptCount[0].c === 0) {
         const [buyerTiers] = await pool.execute('SELECT traffic_type, duration, v1_price, v2_price FROM pricing_tiers');
@@ -185,7 +171,7 @@ app.use((err, req, res, next) => {
       }
     } catch (e) { console.error('  ⚠ worker_pricing_tiers:', e.message); }
 
-    // Backfill missing wallets for existing users
+    
     try {
       for (const wType of ['main', 'earning', 'commission']) {
         const [result] = await pool.execute(
@@ -198,7 +184,7 @@ app.use((err, req, res, next) => {
       }
     } catch (e) { console.error('  ⚠ Wallet backfill:', e.message); }
 
-    // Recalculate earning wallet balances from actual transactions (fix zero-balance bug)
+    
     try {
       const [fixed] = await pool.execute(
         `UPDATE wallets w SET w.balance = (
@@ -213,11 +199,11 @@ app.use((err, req, res, next) => {
       }
     } catch (e) { console.error('  ⚠ Earning balance recalc:', e.message); }
 
-    // support_tickets: add role + admin_reply columns
+    
     try { await pool.execute(`ALTER TABLE support_tickets ADD COLUMN role VARCHAR(10) DEFAULT 'worker'`); } catch (e) { }
     try { await pool.execute(`ALTER TABLE support_tickets ADD COLUMN admin_reply TEXT DEFAULT NULL`); } catch (e) { }
 
-    // web3_payments: track Web3 auto-payment transactions
+    
     try {
       await pool.execute(`CREATE TABLE IF NOT EXISTS web3_payments (
         id              INT PRIMARY KEY AUTO_INCREMENT,
@@ -243,7 +229,7 @@ app.use((err, req, res, next) => {
       console.log('  ✅ web3_payments table ready');
     } catch (e) { console.error('  ⚠ web3_payments:', e.message); }
 
-    // security_logs: anti-cheat bot detection events
+    
     try {
       await pool.execute(`CREATE TABLE IF NOT EXISTS security_logs (
         id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -271,7 +257,7 @@ app.use((err, req, res, next) => {
 ╚════════════════════════════════════════════╝
       `);
 
-      // ── Background job: expire stale tasks every 60s ──
+      
       setInterval(async () => {
         try {
           const { getPool } = require('./db');
@@ -284,7 +270,7 @@ app.use((err, req, res, next) => {
           if (result.affectedRows > 0) {
             console.log(`[Expiry] Expired ${result.affectedRows} stale tasks`);
           }
-        } catch (e) { /* silent */ }
+        } catch (e) {  }
       }, 60000);
     });
   } catch (err) {

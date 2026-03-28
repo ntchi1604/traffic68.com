@@ -2,14 +2,12 @@ const express = require('express');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
-// Dùng timezone VN để tránh lệch ngày khi dùng new Date() trên server
 const localDateStr = (d = new Date()) =>
-  d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }); // en-CA = YYYY-MM-DD
+  d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }); 
 
 const router = express.Router();
 router.use(authMiddleware);
 
-// ── GET /api/reports/overview ──
 router.get('/overview', async (req, res) => {
   const pool = getPool();
 
@@ -50,7 +48,6 @@ router.get('/overview', async (req, res) => {
   });
 });
 
-// ── GET /api/reports/traffic ──
 router.get('/traffic', async (req, res) => {
   const pool = getPool();
   const { campaignId, from, to, period } = req.query;
@@ -116,8 +113,6 @@ router.get('/traffic', async (req, res) => {
   res.json({ traffic: data, bySource, byDevice, totalCost, period: { from: fromDate, to: toDate } });
 });
 
-
-// ── GET /api/reports/tasks  (completed tasks for a campaign, for detail modal) ──
 router.get('/tasks', async (req, res) => {
   try {
     const pool = getPool();
@@ -136,7 +131,7 @@ router.get('/tasks', async (req, res) => {
 
     let tasks;
     try {
-      // Try with ip_country column (if migration has been run)
+      
       [tasks] = await pool.execute(
         `SELECT vlt.completed_at, vlt.ip_address, vlt.user_agent, vlt.ip_country, vlt.time_on_site
          FROM vuot_link_tasks vlt
@@ -145,7 +140,7 @@ router.get('/tasks', async (req, res) => {
         [campaignId, fromDate]
       );
     } catch (colErr) {
-      // Fallback: ip_country column doesn't exist yet
+      
       [tasks] = await pool.execute(
         `SELECT vlt.completed_at, vlt.ip_address, vlt.user_agent, NULL as ip_country, vlt.time_on_site
          FROM vuot_link_tasks vlt
@@ -161,6 +156,5 @@ router.get('/tasks', async (req, res) => {
     res.status(500).json({ error: 'Internal server error', tasks: [] });
   }
 });
-
 
 module.exports = router;

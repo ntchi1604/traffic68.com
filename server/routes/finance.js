@@ -5,7 +5,6 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
-// ── GET /api/wallets ──
 router.get('/', async (req, res) => {
   const pool = getPool();
   const [wallets] = await pool.execute('SELECT * FROM wallets WHERE user_id = ?', [req.userId]);
@@ -15,7 +14,6 @@ router.get('/', async (req, res) => {
   res.json({ wallets: result });
 });
 
-// ── POST /api/deposits ──
 router.post('/deposits', async (req, res) => {
   const pool = getPool();
   const { amount, method } = req.body;
@@ -48,13 +46,12 @@ router.post('/deposits', async (req, res) => {
   res.status(201).json({ message: 'Đơn nạp tiền đã gửi, đang chờ admin xác minh', refCode, status: 'pending' });
 });
 
-// ── GET /api/transactions ──
 router.get('/transactions', async (req, res) => {
   const pool = getPool();
   const { type, period, scope, page = 1, limit = 20 } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
 
-  // Strict separation: buyer sees only 'main', worker sees only 'earning'
+  
   const walletType = scope === 'worker' ? 'earning' : 'main';
 
   let countSql = `SELECT COUNT(*) as c FROM transactions WHERE user_id = ? AND wallet_type = ?`;
@@ -63,7 +60,7 @@ router.get('/transactions', async (req, res) => {
 
   if (type && type !== 'all') {
     if (type === 'commission') {
-      // Special case: show commission wallet instead
+      
       countSql = `SELECT COUNT(*) as c FROM transactions WHERE user_id = ? AND wallet_type = 'commission'`;
       sql = `SELECT * FROM transactions WHERE user_id = ? AND wallet_type = 'commission'`;
       params.length = 0;
@@ -89,7 +86,7 @@ router.get('/transactions', async (req, res) => {
   sql += ` ORDER BY created_at DESC LIMIT ${Number(limit)} OFFSET ${offset}`;
   const [transactions] = await pool.execute(sql, params);
 
-  // For worker scope, enrich earning transactions with keyword + campaign name
+  
   if (scope === 'worker' && transactions.length > 0) {
     const taskMap = {};
     transactions.forEach(t => {
@@ -120,7 +117,6 @@ router.get('/transactions', async (req, res) => {
   res.json({ transactions, total, page: Number(page), limit: Number(limit) });
 });
 
-// ── POST /api/finance/transfer ── (Commission → Main/Earning)
 router.post('/transfer', async (req, res) => {
   const pool = getPool();
   const { amount, targetWallet = 'main' } = req.body;
@@ -133,7 +129,7 @@ router.post('/transfer', async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // Check commission balance
+    
     const [wallets] = await conn.execute('SELECT balance FROM wallets WHERE user_id = ? AND type = ? FOR UPDATE', [req.userId, 'commission']);
     if (!wallets[0] || wallets[0].balance < num) {
       await conn.rollback();
@@ -141,12 +137,12 @@ router.post('/transfer', async (req, res) => {
       return res.status(400).json({ error: 'Số dư ví hoa hồng không đủ' });
     }
 
-    // Deduct from commission
+    
     await conn.execute('UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = ?', [num, req.userId, 'commission']);
-    // Add to target
+    
     await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [num, req.userId, targetWallet]);
 
-    // Transaction records
+    
     const ts = Date.now();
     const targetName = targetWallet === 'main' ? 'Ví Traffic' : 'Ví Thu Nhập';
     await conn.execute(
@@ -158,7 +154,7 @@ router.post('/transfer', async (req, res) => {
       [req.userId, targetWallet, 'deposit', 'transfer', num, 'completed', 'TRF-IN-' + ts, 'Nhận từ Ví Hoa Hồng']
     );
 
-    // Notification
+    
     const fmtAmount = new Intl.NumberFormat('vi-VN').format(num);
     await conn.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
@@ -175,7 +171,6 @@ router.post('/transfer', async (req, res) => {
   }
 });
 
-// ── POST /api/finance/withdraw ── (Worker earning → bank/crypto)
 router.post('/withdraw', async (req, res) => {
   const pool = getPool();
   const { amount, method, bankName, accountNumber, accountName, cryptoNetwork, cryptoAddress, trafficSource } = req.body;
@@ -185,7 +180,7 @@ router.post('/withdraw', async (req, res) => {
   if (!['bank', 'crypto'].includes(method)) return res.status(400).json({ error: 'Phương thức không hợp lệ' });
   if (!trafficSource || !trafficSource.trim()) return res.status(400).json({ error: 'Vui lòng nhập nguồn lưu lượng truy cập' });
 
-  // Check admin toggle
+  
   try {
     const [settings] = await pool.execute(
       "SELECT setting_value FROM site_settings WHERE setting_key = ?",
@@ -237,7 +232,6 @@ router.post('/withdraw', async (req, res) => {
   }
 });
 
-// ── GET /api/finance/withdrawals ──
 router.get('/withdrawals', async (req, res) => {
   try {
     const pool = getPool();
@@ -258,7 +252,6 @@ router.get('/withdrawals', async (req, res) => {
   }
 });
 
-// ── GET /api/finance/web3-payment/:txId ── Worker checks Web3 payment detail
 router.get('/web3-payment/:txId', async (req, res) => {
   try {
     const pool = getPool();

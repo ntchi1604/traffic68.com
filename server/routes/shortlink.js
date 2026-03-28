@@ -13,7 +13,6 @@ function genSlug(len = 7) {
   return s;
 }
 
-// ── GET /api/shortlink/info/:slug — public, used by frontend task page ──
 router.get('/info/:slug', async (req, res) => {
   try {
     const pool = getPool();
@@ -25,7 +24,7 @@ router.get('/info/:slug', async (req, res) => {
       [req.params.slug]
     );
     if (!rows.length) return res.status(404).json({ error: 'Link không tồn tại' });
-    // Count click
+    
     await pool.execute('UPDATE worker_links SET click_count = click_count + 1 WHERE id = ?', [rows[0].id]);
     res.json({ link: { slug: rows[0].slug, title: rows[0].title } });
   } catch (err) {
@@ -33,17 +32,16 @@ router.get('/info/:slug', async (req, res) => {
   }
 });
 
-// ── POST /api/shortlink/create — worker creates a gateway link ──
 router.post('/create', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
     const { destination_url, title } = req.body;
     if (!destination_url) return res.status(400).json({ error: 'Vui lòng nhập URL đích' });
 
-    // Basic URL validation
+    
     try { new URL(destination_url); } catch { return res.status(400).json({ error: 'URL không hợp lệ' }); }
 
-    // Generate unique slug
+    
     let slug;
     for (let i = 0; i < 10; i++) {
       const s = genSlug(7);
@@ -63,8 +61,6 @@ router.post('/create', authMiddleware, async (req, res) => {
   }
 });
 
-// ── GET /api/shortlink/links — worker's own links ──
-// ── GET /api/shortlink/links — worker's visible links ──
 router.get('/links', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
@@ -79,7 +75,6 @@ router.get('/links', authMiddleware, async (req, res) => {
   }
 });
 
-// ── GET /api/shortlink/links/hidden — worker's hidden links ──
 router.get('/links/hidden', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
@@ -94,7 +89,6 @@ router.get('/links/hidden', authMiddleware, async (req, res) => {
   }
 });
 
-// ── GET /api/shortlink/stats ──
 router.get('/stats', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
@@ -118,7 +112,6 @@ router.get('/stats', authMiddleware, async (req, res) => {
   }
 });
 
-// ── PUT /api/shortlink/links/:id/hide ──
 router.put('/links/:id/hide', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
@@ -129,7 +122,6 @@ router.put('/links/:id/hide', authMiddleware, async (req, res) => {
   }
 });
 
-// ── PUT /api/shortlink/links/:id/unhide ──
 router.put('/links/:id/unhide', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
@@ -140,7 +132,6 @@ router.put('/links/:id/unhide', authMiddleware, async (req, res) => {
   }
 });
 
-// ── DELETE /api/shortlink/links/:id ──
 router.delete('/links/:id', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();

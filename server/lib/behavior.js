@@ -1,14 +1,5 @@
-/**
- * behavior.js — Advanced bot detection engine v2
- *
- * Data sources:
- *   botDetection — từ CreepJS (canvas, audio, fonts, screen, hardware, headless/stealth, lies)
- *   deviceData   — từ client tự thu thập (automation flags, scroll speed, click latency, sensor)
- */
-
 const HEADLESS_UA = /HeadlessChrome|PhantomJS/i;
 
-// ─── Font vs OS mismatch ───
 const MACOS_FONTS = ['Helvetica Neue', 'Lucida Grande', 'Geneva', 'Monaco', 'SF Pro Display', '.SF NS'];
 const WIN_FONTS   = ['Segoe UI', 'Calibri', 'Consolas', 'Cambria', 'Tahoma', 'Verdana', 'Segoe Fluent Icons'];
 
@@ -131,12 +122,6 @@ function checkFakeSensor(deviceData, userAgent) {
   return null;
 }
 
-/**
- * Main device analysis function
- * @param {Object} deviceData   - Automation flags + behavioral signals
- * @param {string} userAgent    - Raw User-Agent string
- * @param {Object} botDetection - CreepJS extracted data
- */
 function analyzeDevice(deviceData, userAgent, botDetection) {
   if (!deviceData && !userAgent && !botDetection) {
     return { isFake: false, score: 0, reasons: [], detectionLog: [] };
@@ -146,28 +131,28 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
   const detectionLog = [];
   let score = 0;
 
-  // ── 1. Headless UA ──
+  
   if (HEADLESS_UA.test(userAgent || '')) {
     reasons.push('User-Agent là trình duyệt headless (HeadlessChrome / PhantomJS)');
     detectionLog.push('Trình duyệt headless / tự động hóa');
     score += 100;
   }
 
-  // ── 2. CreepJS: headless/stealth flags ──
+  
   if (botDetection?.headless || botDetection?.stealth) {
     reasons.push('CreepJS phát hiện chế độ headless hoặc stealth');
     detectionLog.push('Trình duyệt headless / tự động hóa');
     score += 100;
   }
 
-  // ── 3. CreepJS: workerScope lied ──
+  
   if (botDetection?.workerLied) {
     reasons.push('Worker scope bị giả mạo (CreepJS)');
     detectionLog.push('Trình duyệt headless / tự động hóa');
     score += 80;
   }
 
-  // ── 4. Client automation flags ──
+  
   const automation = deviceData?.automation || {};
   if (automation.webdriver || automation.selenium || automation.cdc) {
     const flags = [
@@ -180,7 +165,7 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
     score += 100;
   }
 
-  // ── 5. CreepJS API Lies ──
+  
   const liesResult = checkCreepLies(botDetection);
   if (liesResult) {
     reasons.push(liesResult);
@@ -188,7 +173,7 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
     score += botDetection?.totalLies >= 10 ? 70 : 40;
   }
 
-  // ── 6. Font vs OS mismatch ──
+  
   const fontMismatch = checkFontOsMismatch(botDetection?.fonts, userAgent);
   if (fontMismatch) {
     reasons.push(fontMismatch);
@@ -196,7 +181,7 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
     score += 35;
   }
 
-  // ── 7. Screen vs Window exact match ──
+  
   const screenMismatch = checkScreenWindowMismatch(botDetection?.screen, userAgent);
   if (screenMismatch) {
     reasons.push(screenMismatch);
@@ -204,7 +189,7 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
     score += 30;
   }
 
-  // ── 8. Hardware inconsistency ──
+  
   const hwMismatch = checkHardwareInconsistency(botDetection?.hardware);
   if (hwMismatch) {
     reasons.push(hwMismatch);
@@ -212,7 +197,7 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
     score += 25;
   }
 
-  // ── 9. Canvas noise ──
+  
   const canvasNoise = checkCanvasNoise(botDetection?.canvas);
   if (canvasNoise) {
     reasons.push(canvasNoise);
@@ -220,7 +205,7 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
     score += 60;
   }
 
-  // ── 10. Click latency ──
+  
   const clickAnomaly = checkClickLatency(deviceData);
   if (clickAnomaly) {
     reasons.push(clickAnomaly);
@@ -228,7 +213,7 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
     score += 40;
   }
 
-  // ── 11. Scroll speed ──
+  
   const scrollAnomaly = checkScrollSpeed(deviceData);
   if (scrollAnomaly) {
     reasons.push(scrollAnomaly);
@@ -236,7 +221,7 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
     score += 35;
   }
 
-  // ── 12. Fake sensor (mobile only) ──
+  
   const sensorAnomaly = checkFakeSensor(deviceData, userAgent);
   if (sensorAnomaly) {
     reasons.push(sensorAnomaly);
@@ -244,19 +229,19 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
     score += 50;
   }
 
-  // ── 13. Mobile UA nhưng không có touch ──
+  
   if (botDetection?.hardware?.maxTouchPoints === 0 && /mobile|android|iphone/i.test(userAgent || '')) {
     reasons.push('UA mobile nhưng không có cảm ứng (maxTouchPoints = 0)');
     score += 20;
   }
 
-  // ── 14. Timezone mismatch ──
+  
   if (botDetection?.timezoneLied) {
     reasons.push('Múi giờ bị giả mạo (CreepJS)');
     score += 20;
   }
 
-  // ── 15. WebGL lied ──
+  
   if (botDetection?.webglLied) {
     reasons.push('WebGL API bị giả mạo (CreepJS)');
     detectionLog.push('Fingerprint bị giả mạo');

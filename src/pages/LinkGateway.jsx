@@ -387,6 +387,19 @@ export default function LinkGateway() {
         body: JSON.stringify({ _tk: task._tk }),
       });
       const data = await res.json();
+
+      // Task hết hạn → tự động lấy task mới
+      if (res.status === 410) {
+        setTask(null);
+        setInputCode('');
+        setHumanPassed(false);
+        setChallengeToken(null);
+        setShowError(false);
+        try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
+        fetchTask(true);
+        return;
+      }
+
       if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
       setChallengeToken(data.challengeToken);
       setHumanPassed(true);
@@ -397,7 +410,7 @@ export default function LinkGateway() {
     } finally {
       setChallengeLoading(false);
     }
-  }, [task]);
+  }, [task, slug, fetchTask]);
 
   // Verify code
   const handleVerify = useCallback(async () => {
