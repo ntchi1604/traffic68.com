@@ -165,6 +165,24 @@ router.delete('/users/:id', async (req, res) => {
     const [wlRows] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
     const wlIds = wlRows.map(r => r.id);
 
+    // ── Trừ views_done cho các campaign trước khi xóa tasks ──
+    // Đếm task completed (không phải bot) theo campaign_id
+    let adjustQuery = `SELECT campaign_id, COUNT(*) as cnt FROM vuot_link_tasks WHERE worker_id = ? AND status = 'completed' AND bot_detected = 0 GROUP BY campaign_id`;
+    const [adjRows1] = await pool.execute(adjustQuery, [uid]);
+    if (wlIds.length > 0) {
+      const ph = wlIds.map(() => '?').join(',');
+      const [adjRows2] = await pool.execute(
+        `SELECT campaign_id, COUNT(*) as cnt FROM vuot_link_tasks WHERE worker_link_id IN (${ph}) AND status = 'completed' AND bot_detected = 0 GROUP BY campaign_id`, wlIds
+      );
+      adjRows2.forEach(r => {
+        const existing = adjRows1.find(x => x.campaign_id === r.campaign_id);
+        if (existing) existing.cnt += r.cnt;
+        else adjRows1.push(r);
+      });
+    }
+    for (const r of adjRows1) {
+      await pool.execute('UPDATE campaigns SET views_done = GREATEST(0, COALESCE(views_done, 0) - ?) WHERE id = ?', [r.cnt, r.campaign_id]);
+    }
 
     if (wlIds.length > 0) {
       const ph = wlIds.map(() => '?').join(',');
@@ -254,6 +272,25 @@ router.get('/campaigns', async (req, res) => {
   sql += ' ORDER BY c.created_at DESC LIMIT ? OFFSET ?';
   params.push(Number(limit), Number(offset));
   const [campaigns] = await pool.execute(sql, params);
+
+  // ── Auto-sync views_done cho các campaign trong kết quả ──
+  try {
+    const ids = campaigns.map(c => c.id);
+    if (ids.length > 0) {
+      const ph = ids.map(() => '?').join(',');
+      await pool.execute(
+        `UPDATE campaigns c SET views_done = (
+          SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
+        ) WHERE c.id IN (${ph}) AND c.views_done != (
+          SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
+        )`, ids
+      );
+      // Refetch to get corrected values
+      const [updated] = await pool.execute(sql, params);
+      return res.json({ campaigns: updated });
+    }
+  } catch (_) { /* ignore sync errors */ }
+
   res.json({ campaigns });
 });
 
@@ -287,9 +324,48 @@ router.put('/campaigns/:id', async (req, res) => {
 });
 
 
+router.post('/campaigns/:id/sync-views', async (req, res) => {
+  try {
+    const pool = getPool();
+    const cid = req.params.id;
+    
+    if (cid === 'all') {
+      // Sync tất cả campaigns
+      const [rows] = await pool.execute(
+        `SELECT c.id, c.views_done as old_views,
+                COALESCE((SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0), 0) as real_views
+         FROM campaigns c`
+      );
+      let fixed = 0;
+      for (const r of rows) {
+        if (Number(r.old_views) !== Number(r.real_views)) {
+          await pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [r.real_views, r.id]);
+          fixed++;
+        }
+      }
+      return res.json({ message: `Đã đồng bộ ${fixed}/${rows.length} chiến dịch`, fixed, total: rows.length });
+    }
+
+    // Sync 1 campaign
+    const [rows] = await pool.execute(
+      `SELECT COUNT(*) as real_views FROM vuot_link_tasks WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0`,
+      [cid]
+    );
+    const realViews = rows[0].real_views;
+    const [camp] = await pool.execute('SELECT views_done FROM campaigns WHERE id = ?', [cid]);
+    const oldViews = camp[0]?.views_done || 0;
+    
+    await pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, cid]);
+    res.json({ message: `Đã đồng bộ: ${oldViews} → ${realViews}`, oldViews, newViews: realViews });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/campaigns/:id/keyword-stats', async (req, res) => {
   try {
     const pool = getPool();
+    const cid = req.params.id;
     const [rows] = await pool.execute(
       `SELECT
          keyword,
@@ -303,8 +379,16 @@ router.get('/campaigns/:id/keyword-stats', async (req, res) => {
        WHERE campaign_id = ?
        GROUP BY keyword
        ORDER BY completed DESC`,
-      [req.params.id]
+      [cid]
     );
+
+    // ── Auto-sync views_done nếu chênh lệch ──
+    const realViews = rows.reduce((s, r) => s + Number(r.completed), 0);
+    const [camp] = await pool.execute('SELECT views_done FROM campaigns WHERE id = ?', [cid]);
+    if (camp[0] && Number(camp[0].views_done) !== realViews) {
+      await pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, cid]);
+    }
+
     res.json({ keywords: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
