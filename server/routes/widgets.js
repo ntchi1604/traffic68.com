@@ -48,7 +48,7 @@ function verifySessionToken(token, ip, ua) {
   const [tsStr, hmac] = token.split('.');
   const ts = parseInt(tsStr);
   if (isNaN(ts)) return false;
-  if (Math.abs(Math.floor(Date.now() / 1000) - ts) > 600) return false; 
+  if (Math.abs(Math.floor(Date.now() / 1000) - ts) > 600) return false;
   const expected = crypto.createHmac('sha256', HMAC_SECRET).update(`${ip}|${ua}|${ts}`).digest('hex').substring(0, 16);
   return hmac === expected;
 }
@@ -100,7 +100,7 @@ router.get('/public/:token', async (req, res) => {
 
   const pageUrl = req.query.pageUrl || '';
 
-  
+
   if (pageUrl && !widgets[0].website_url) {
     try {
       const origin = new URL(decodeURIComponent(pageUrl)).origin;
@@ -149,7 +149,7 @@ router.get('/public/:token', async (req, res) => {
     overrides.waitTime = campaignInfo.waitTime;
   }
 
-  
+
   let captchaEnabled = true;
   try {
     const [settings] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'captcha_enabled'");
@@ -174,8 +174,8 @@ router.get('/public/:token', async (req, res) => {
     resp.targetPage = campaignInfo.targetPage || '';
   }
 
-  
-  
+
+
   if (!resp.version) {
     try {
       const [v1Tasks] = await pool.execute(
@@ -225,7 +225,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
   const { visitorId, pageReferrer } = req.body || {};
-  
+
   const cleanVisitorId = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const [tasks] = await pool.execute(
     `SELECT vt.id, vt.status as task_status, c.traffic_type FROM vuot_link_tasks vt
@@ -242,7 +242,7 @@ router.post('/public/:token/check-session', async (req, res) => {
     return res.status(404).json({ hasSession: false });
   }
 
-  
+
   const task = tasks[0];
   if (task.traffic_type === 'google_search' && !['step2', 'step3'].includes(task.task_status)) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
@@ -253,7 +253,7 @@ router.post('/public/:token/check-session', async (req, res) => {
     }
   }
 
-  
+
   try {
     await pool.execute(
       `UPDATE vuot_link_tasks SET created_at = NOW(), expires_at = DATE_ADD(NOW(), INTERVAL 600 SECOND) WHERE id = ?`,
@@ -309,9 +309,18 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Blocked' });
   }
 
-  
+  let isTrustedWorker = false;
+  if (req.userId) {
+    try {
+      const { getPool: _gp } = require('../db');
+      const [tRows] = await _gp().execute('SELECT trusted FROM users WHERE id = ?', [req.userId]);
+      isTrustedWorker = tRows[0]?.trusted === 1;
+    } catch (_) { }
+  }
+
+
   const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
-  if (hcaptchaToken && !['skip', 'error', 'render-error', 'disabled'].includes(hcaptchaToken)) {
+  if (!isTrustedWorker && hcaptchaToken && !['skip', 'error', 'render-error', 'disabled'].includes(hcaptchaToken)) {
     try {
       const hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
         method: 'POST',
@@ -325,7 +334,7 @@ router.post('/public/:token/get-code', async (req, res) => {
       }
     } catch (e) {
       console.error(`[Widget] hCaptcha verify error:`, e.message);
-      
+
     }
   }
 
@@ -341,7 +350,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   const v1Phase = req.body?.v1Phase || 0;
   ch.used = true;
 
-  
+
   if (deviceData) {
     if (req.body?.behavioral?.probes?.eventTampered === true) {
       deviceData.automation = deviceData.automation || {};
@@ -358,9 +367,9 @@ router.post('/public/:token/get-code', async (req, res) => {
     detectionLog.push('creepjs_bot');
   }
 
-  
+
   if (botDetected && detectionLog.length > 0) {
-    
+
     logSecurityEvent('Phát hiện Bot (widget)', ip, ua, visitorId || null, {
       detectionLog,
       canvasHash: botDetection?.canvasHash || null,
@@ -369,7 +378,7 @@ router.post('/public/:token/get-code', async (req, res) => {
       totalLies: botDetection?.totalLies || 0,
       lieNames: (botDetection?.lieNames || []).slice(0, 5),
     });
-    
+
     try {
       const [activeTasks] = await pool.execute(
         `SELECT id FROM vuot_link_tasks WHERE (ip_address = ? OR (visitor_id = ? AND visitor_id IS NOT NULL AND visitor_id != '')) AND status IN ('pending','step1','step2','step3') AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
@@ -402,7 +411,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   );
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
-  
+
   const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const [tasks] = await pool.execute(
     `SELECT vt.*, c.url as campaign_url, c.time_on_site, c.version, c.target_page, c.traffic_type FROM vuot_link_tasks vt
@@ -420,9 +429,9 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   const task = tasks[0];
   const campVersion = task.version || 0;
-  
 
-  
+
+
   if (task.traffic_type === 'google_search' && v1Phase !== 2) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
     const clientRef = pageReferrer || '';
@@ -431,7 +440,7 @@ router.post('/public/:token/get-code', async (req, res) => {
       await pool.execute(
         `UPDATE vuot_link_tasks SET security_detail = JSON_SET(COALESCE(security_detail,'{}'), '$.non_google_referrer', true, '$.bad_referrer', ?) WHERE id = ?`,
         [clientRef.substring(0, 500), task.id]
-      ).catch(() => {});
+      ).catch(() => { });
       return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.' });
     }
   }
@@ -453,14 +462,14 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Phát hiện gian lận!', remaining });
   }
 
-  
+
   if (campVersion === 1) {
     if (v1Phase !== 2) {
-      
+
       if (task.status !== 'step2') {
         await pool.execute("UPDATE vuot_link_tasks SET status = 'step2' WHERE id = ?", [task.id]);
       }
-      const v1Wait = Math.floor(Math.random() * 16) + 20; 
+      const v1Wait = Math.floor(Math.random() * 16) + 20;
       console.log(`[Widget] V1 phase 1 done — IP: ${ip}, task: #${task.id}, next wait: ${v1Wait}s`);
       return res.json({
         v1_step2: true,
@@ -469,8 +478,8 @@ router.post('/public/:token/get-code', async (req, res) => {
       });
     }
 
-    
-    const v1ExtraRequired = requiredSeconds + 20; 
+
+    const v1ExtraRequired = requiredSeconds + 20;
     if (elapsedSeconds < v1ExtraRequired) {
       const remaining = v1ExtraRequired - elapsedSeconds;
       console.log(`[Widget] V1 phase 2 TOO EARLY — IP: ${ip}, task: #${task.id}, elapsed: ${elapsedSeconds}s < required: ${v1ExtraRequired}s`);
@@ -518,7 +527,7 @@ router.post('/', async (req, res) => {
   const pool = getPool();
   const { name, config, website_url } = req.body;
 
-  
+
   const [existing] = await pool.execute('SELECT COUNT(*) as cnt FROM widgets WHERE user_id = ?', [req.userId]);
   if (existing[0].cnt >= MAX_WIDGETS_PER_USER) {
     return res.status(400).json({ error: `Tối đa ${MAX_WIDGETS_PER_USER} widget. Xoá widget cũ trước khi tạo mới.` });
