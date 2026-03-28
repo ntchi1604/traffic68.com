@@ -989,7 +989,7 @@ function ShakeChallenge({ onPass, onClose }) {
         const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
         if (ax === ay && ay === az) return;
         const now = Date.now();
-        if (total > 15 && now - lastShakeRef.current > 500) {
+        if (total > 32 && now - lastShakeRef.current > 500) {
           lastShakeRef.current = now;
           shakeLogRef.current.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
           setFlashing(true);
