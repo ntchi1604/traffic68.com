@@ -495,13 +495,15 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     }
 
     if (shakes.length >= 3) {
-      const diffs = [];
-      for (let i = 1; i < shakes.length; i++) diffs.push(shakes[i].t - shakes[i - 1].t);
-      const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
-      const variance = diffs.reduce((a, d) => a + (d - avgDiff) ** 2, 0) / diffs.length;
-      if (variance < 25 && diffs.length >= 2) {
-        logSecurityEvent('Cảm biến lắc đều đặn bất thường (bot setInterval)', ip, ua, dbTaskVisitorId, { shakeLog: shakes, variance });
-        return res.status(403).json({ error: 'Tín hiệu cảm biến không tự nhiên.' });
+      const totals = shakes.map(s => Math.abs(s.ax || 0) + Math.abs(s.ay || 0) + Math.abs(s.az || 0));
+      const avgTotal = totals.reduce((a, b) => a + b, 0) / totals.length;
+      const forceVariance = totals.reduce((a, t) => a + (t - avgTotal) ** 2, 0) / totals.length;
+      
+      // Con người khi lắc thì lực (G) mỗi nhịp văng sẽ khác nhau khá nhiều
+      // Nếu forceVariance quá nhỏ (< 0.5) chứng tỏ thiết bị báo cáo lực lắc "đều tăm tắp" trên mọi nhịp -> 100% Bot giả lập array.
+      if (forceVariance < 0.5 && totals.length >= 3) {
+        logSecurityEvent('Cảm biến lực lắc giả lập (Bot)', ip, ua, dbTaskVisitorId, { shakeLog: shakes, forceVariance });
+        return res.status(403).json({ error: 'Tín hiệu lực lắc không tự nhiên.' });
       }
     }
     for (const s of shakes) {
