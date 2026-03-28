@@ -974,17 +974,16 @@ function ShakeChallenge({ onPass, onClose }) {
         } catch (e) { return; }
       }
       const handler = (e) => {
-        if (!(e instanceof DeviceMotionEvent)) return;
-        // Check own property isTrusted — defeats prototype getter override
+        // Check own property isTrusted — native browser events set it as non-configurable, non-writable
         const ownDesc = Object.getOwnPropertyDescriptor(e, 'isTrusted');
-        const trusted = ownDesc ? ownDesc.value === true : (!e.isTrusted === false);
-        if (!trusted) return;
+        if (!ownDesc) return;                         // No own prop — user-created event
+        if (ownDesc.value !== true) return;           // Not trusted
+        if (ownDesc.configurable !== false) return;   // User faked it (attack scripts use configurable:true)
+        if (ownDesc.writable !== false) return;       // Must be exactly like native event
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
         const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
-        // Inline abs — immune to Math.abs override
         const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
-        // Raw values must actually be non-trivial (not all identical or all-zero tricks)
         if (ax === ay && ay === az) return;
         const now = Date.now();
         if (total > 15 && now - lastShakeRef.current > 500) {
