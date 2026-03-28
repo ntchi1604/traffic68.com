@@ -227,82 +227,63 @@ async function getDepositSettings() {
 
 let lastCheckedBlock = 0;
 
-async function checkIncomingUSDT(depositAddress, lookbackBlocks = 2000) {
+async function checkIncomingUSDT(depositAddress) {
   if (!depositAddress || !ethers.isAddress(depositAddress)) {
     console.log('[DepositWatcher] Invalid deposit address:', depositAddress);
     return [];
   }
 
-  const provider = getProvider();
-  let currentBlock;
+  // Use BscScan API — free, reliable, no rate limit for 1 req/min
+  const startBlock = lastCheckedBlock > 0 ? lastCheckedBlock + 1 : 0;
+  const url = `https://api.bscscan.com/api?module=account&action=tokentx` +
+    `&contractaddress=${USDT_ADDRESS}&address=${depositAddress}` +
+    `&startblock=${startBlock}&endblock=99999999&page=1&offset=50&sort=desc`;
+
+  console.log(`[DepositWatcher] Checking BscScan for USDT transfers to ${depositAddress} (from block ${startBlock})`);
+
   try {
-    currentBlock = await provider.getBlockNumber();
-  } catch (e) {
-    rotateRpc();
-    console.error('[DepositWatcher] Cannot get block number:', e.message);
-    return [];
-  }
+    const resp = await fetch(url);
+    const data = await resp.json();
 
-  if (lastCheckedBlock === 0) lastCheckedBlock = currentBlock - lookbackBlocks;
-
-  let fromBlock = lastCheckedBlock + 1;
-  if (fromBlock > currentBlock) return [];
-
-  const transferTopic = ethers.id('Transfer(address,address,uint256)');
-  const toTopic = '0x' + '000000000000000000000000' + depositAddress.slice(2).toLowerCase();
-
-  const allLogs = [];
-  const CHUNK = 500; // Small chunks to avoid rate limit
-
-  while (fromBlock <= currentBlock) {
-    const toBlock = Math.min(currentBlock, fromBlock + CHUNK - 1);
-    console.log(`[DepositWatcher] Scanning ${fromBlock}→${toBlock} (${toBlock - fromBlock + 1} blocks)`);
-
-    try {
-      const p = getProvider();
-      const logs = await p.getLogs({
-        address: USDT_ADDRESS,
-        topics: [transferTopic, null, toTopic],
-        fromBlock,
-        toBlock,
-      });
-      allLogs.push(...logs);
-      lastCheckedBlock = toBlock;
-      fromBlock = toBlock + 1;
-    } catch (err) {
-      const msg = (err.message || '').toLowerCase();
-      if (msg.includes('limit') || msg.includes('-32005') || err.code === 'BAD_DATA' || err.code === 'UNKNOWN_ERROR') {
-        rotateRpc();
-        console.log('[DepositWatcher] Rate limited, rotated RPC. Will retry next poll.');
-        break;
+    if (data.status !== '1' || !Array.isArray(data.result)) {
+      // status "0" with "No transactions found" is normal
+      if (data.message === 'No transactions found') {
+        console.log('[DepositWatcher] No new transfers found');
+      } else {
+        console.log('[DepositWatcher] BscScan response:', data.message || data.result);
       }
-      console.error('[DepositWatcher] getLogs error:', err.message);
-      rotateRpc();
-      break;
+      return [];
     }
 
-    // Delay between chunks to avoid rate limiting
-    if (fromBlock <= currentBlock) await new Promise(r => setTimeout(r, 1500));
-  }
+    // Filter only incoming transfers (to = depositAddress)
+    const incoming = data.result.filter(tx =>
+      tx.to.toLowerCase() === depositAddress.toLowerCase()
+    );
 
-  if (allLogs.length > 0) {
-    console.log(`[DepositWatcher] Found ${allLogs.length} USDT transfer(s)!`);
-  }
+    if (incoming.length > 0) {
+      // Update lastCheckedBlock to the highest block we've seen
+      const maxBlock = Math.max(...incoming.map(tx => parseInt(tx.blockNumber)));
+      if (maxBlock > lastCheckedBlock) lastCheckedBlock = maxBlock;
 
-  return allLogs.map(log => {
-    const fromAddr = ethers.getAddress('0x' + log.topics[1].slice(26));
-    const value = BigInt(log.data);
-    const usdtAmount = Number(ethers.formatUnits(value, 18));
-    console.log(`[DepositWatcher] Transfer: ${usdtAmount} USDT from ${fromAddr} (tx: ${log.transactionHash})`);
-    return {
-      txHash: log.transactionHash,
-      from: fromAddr,
-      to: depositAddress,
-      usdtAmount,
-      blockNumber: log.blockNumber,
-      explorerUrl: `${BSC_EXPLORER}/tx/${log.transactionHash}`,
-    };
-  });
+      console.log(`[DepositWatcher] Found ${incoming.length} incoming USDT transfer(s)!`);
+    }
+
+    return incoming.map(tx => {
+      const usdtAmount = Number(ethers.formatUnits(tx.value, parseInt(tx.tokenDecimal) || 18));
+      console.log(`[DepositWatcher] Transfer: ${usdtAmount} USDT from ${tx.from} (tx: ${tx.hash}, block: ${tx.blockNumber})`);
+      return {
+        txHash: tx.hash,
+        from: ethers.getAddress(tx.from),
+        to: depositAddress,
+        usdtAmount,
+        blockNumber: parseInt(tx.blockNumber),
+        explorerUrl: `${BSC_EXPLORER}/tx/${tx.hash}`,
+      };
+    });
+  } catch (err) {
+    console.error('[DepositWatcher] BscScan API error:', err.message);
+    return [];
+  }
 }
 
 async function processIncomingDeposits() {
