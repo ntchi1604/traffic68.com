@@ -530,7 +530,7 @@ function UserDetail({ user: u, onBack }) {
         {[
           ['Tổng', u.total, 'text-slate-800'],
           ['Hoàn thành', u.ok, 'text-emerald-600'],
-          ['Bot', u.blocked + (u.events || 0), 'text-red-600'],
+          ['Bot', u.events || 0, 'text-red-600'],
           ['Thu nhập', money(u.earned), 'text-emerald-600'],
         ].map(([l, v, c]) => (
           <div key={l} className="bg-white rounded-xl border border-slate-200 p-3 text-center">
@@ -1099,8 +1099,8 @@ export default function AdminSecurity() {
                       <td className="px-3 py-2.5 text-center font-bold text-slate-700">{u.total}</td>
                       <td className="px-3 py-2.5 text-center font-bold text-emerald-600">{u.ok}</td>
                       <td className="px-3 py-2.5 text-center">
-                        {(u.blocked + (u.events || 0)) > 0
-                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit mx-auto"><Bot size={9} />{u.blocked + (u.events || 0)}</span>
+                        {(u.events || 0) > 0
+                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit mx-auto"><Bot size={9} />{u.events || 0}</span>
                           : <span className="text-slate-300">0</span>}
                       </td>
                       <td className="px-3 py-2.5">
