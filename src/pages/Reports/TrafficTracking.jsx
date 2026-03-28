@@ -469,6 +469,7 @@ export default function TrafficTracking() {
   const [expandedId, setExpandedId] = useState(null);
   const [modalCamp, setModalCamp] = useState(null);
   const [pageCamp, setPageCamp] = useState(1);
+  const [campFilter, setCampFilter] = useState('running');
 
   useEffect(() => {
     setLoading(true);
@@ -501,8 +502,13 @@ export default function TrafficTracking() {
     'Chi phí': Math.round(Number(t.cost || 0)),
   }));
 
-
-  const visibleCampaigns = campaigns;
+  // Campaigns to show in progress: filter + pagination
+  const visibleCampaigns = campaigns.filter(c => {
+    const isDone = Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0;
+    const effStatus = (isDone || c.status === 'completed') ? 'completed' : c.status;
+    if (campFilter === 'all') return true;
+    return effStatus === campFilter;
+  });
   const pagedCamps = visibleCampaigns.slice((pageCamp - 1) * 10, pageCamp * 10);
 
   const kpis = [
@@ -635,15 +641,23 @@ export default function TrafficTracking() {
           </div>
         )}
       </div>
-
       {/* Campaign Progress */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-slate-100 gap-4">
           <div className="flex items-center gap-2">
             <Zap size={16} className="text-orange-500" />
-            <h3 className="text-sm font-bold text-slate-800">Tiến độ chiến dịch</h3>
+            <h3 className="text-sm font-bold text-slate-800">Tiến độ chiến dịch <span className="ml-1.5 px-2 py-0.5 bg-slate-100 rounded-full text-xs font-semibold text-slate-500">{visibleCampaigns.length}</span></h3>
           </div>
-          <span className="text-xs text-slate-400">{visibleCampaigns.length} chiến dịch</span>
+          <div className="flex bg-slate-50 border border-slate-100 p-1.5 rounded-xl gap-1 overflow-x-auto scroller-hide w-full sm:w-auto">
+            {[{id: 'all', label: 'Tất cả'}, {id: 'running', label: 'Đang chạy'}, {id: 'paused', label: 'Tạm dừng'}, {id: 'completed', label: 'Hoàn thành'}].map(f => (
+              <button 
+                key={f.id} 
+                onClick={() => { setCampFilter(f.id); setPageCamp(1); }} 
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap ${campFilter === f.id ? 'bg-white shadow-sm text-blue-600 ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}>
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
