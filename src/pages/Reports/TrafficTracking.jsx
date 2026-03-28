@@ -407,6 +407,7 @@ export default function TrafficTracking() {
   const [byDevice, setByDevice] = useState([]);
   const [overview, setOverview] = useState({});
   const [campaigns, setCampaigns] = useState([]);
+  const [detailed, setDetailed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [expandedId, setExpandedId] = useState(null);
@@ -416,13 +417,15 @@ export default function TrafficTracking() {
     setLoading(true);
     Promise.all([
       api.get(`/reports/traffic?period=${range}`),
+      api.get(`/reports/detailed?period=${range}`),
       api.get('/reports/overview'),
       api.get('/campaigns'),
-    ]).then(([tr, ov, cp]) => {
+    ]).then(([tr, dt, ov, cp]) => {
       setTraffic(tr.traffic || []);
       setTotalCost(tr.totalCost || 0);
       setBySource(tr.bySource || []);
       setByDevice(tr.byDevice || []);
+      setDetailed(dt.detailed || []);
       setOverview(ov.overview || {});
       setCampaigns(cp.campaigns || []);
     }).catch(console.error).finally(() => setLoading(false));
@@ -784,6 +787,44 @@ export default function TrafficTracking() {
           </table>
         </div>
       </div>
+
+      {/* Detailed Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <BarChart2 size={16} className="text-slate-500" />
+            <h3 className="text-sm font-bold text-slate-800">Chi tiết theo chiến dịch & từ khóa</h3>
+          </div>
+          <span className="text-xs text-slate-400">{detailed.length} dòng dữ liệu</span>
+        </div>
+        <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Ngày</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Chiến dịch</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Từ khóa</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wide">Hoàn thành</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wide">Chi phí</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {detailed.length === 0 ? (
+                <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-400">Không có dữ liệu</td></tr>
+              ) : detailed.map((d, i) => (
+                <tr key={i} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-3 text-slate-800 font-semibold">{fmtDate(d.date)}</td>
+                  <td className="px-6 py-3 text-slate-700 font-medium truncate max-w-[200px]" title={d.campaign_name}>{d.campaign_name}</td>
+                  <td className="px-6 py-3 text-indigo-700 font-bold truncate max-w-[150px]">{d.keyword || '(Trống)'}</td>
+                  <td className="px-6 py-3 text-right text-emerald-600 font-bold">{fmt(d.completed)} <span className="text-slate-400 text-xs font-medium">/ {fmt(d.total)} view</span></td>
+                  <td className="px-6 py-3 text-right text-slate-700 font-semibold">{fmt(d.cost)} đ</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <CampaignDetailModal
         campaign={modalCamp}
         onClose={closeDetail}

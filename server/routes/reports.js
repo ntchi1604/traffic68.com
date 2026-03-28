@@ -133,7 +133,7 @@ router.get('/tasks', async (req, res) => {
     try {
       
       [tasks] = await pool.execute(
-        `SELECT vlt.completed_at, vlt.ip_address, vlt.user_agent, vlt.ip_country, vlt.time_on_site
+        `SELECT vlt.completed_at, vlt.ip_address, vlt.user_agent, vlt.ip_country, vlt.time_on_site, vlt.keyword
          FROM vuot_link_tasks vlt
          WHERE vlt.campaign_id = ? AND vlt.status = 'completed' AND DATE(vlt.completed_at) >= ?
          ORDER BY vlt.completed_at DESC LIMIT 500`,
@@ -142,7 +142,7 @@ router.get('/tasks', async (req, res) => {
     } catch (colErr) {
       
       [tasks] = await pool.execute(
-        `SELECT vlt.completed_at, vlt.ip_address, vlt.user_agent, NULL as ip_country, vlt.time_on_site
+        `SELECT vlt.completed_at, vlt.ip_address, vlt.user_agent, NULL as ip_country, vlt.time_on_site, vlt.keyword
          FROM vuot_link_tasks vlt
          WHERE vlt.campaign_id = ? AND vlt.status = 'completed' AND DATE(vlt.completed_at) >= ?
          ORDER BY vlt.completed_at DESC LIMIT 500`,
@@ -154,6 +154,52 @@ router.get('/tasks', async (req, res) => {
   } catch (err) {
     console.error('reports/tasks error:', err.message);
     res.status(500).json({ error: 'Internal server error', tasks: [] });
+  }
+});
+
+router.get('/detailed', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { campaignId, period } = req.query;
+    const days = period === '30d' ? 30 : period === '90d' ? 90 : 7;
+    const from = new Date(); from.setDate(from.getDate() - days);
+    const fromDate = localDateStr(from);
+
+    let data;
+    if (campaignId) {
+      [data] = await pool.execute(
+        `SELECT DATE(vlt.created_at) as date, vlt.keyword,
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                COALESCE(SUM(earning), 0) as cost
+         FROM vuot_link_tasks vlt
+         JOIN campaigns c ON c.id = vlt.campaign_id
+         WHERE c.user_id = ? AND vlt.campaign_id = ? AND DATE(vlt.created_at) >= ?
+         GROUP BY date, vlt.keyword
+         ORDER BY date DESC, completed DESC`,
+        [req.userId, campaignId, fromDate]
+      );
+    } else {
+      [data] = await pool.execute(
+        `SELECT DATE(vlt.created_at) as date, c.name as campaign_name, vlt.keyword,
+                COUNT(*) as total,
+                SUM(CASE WHEN vlt.status = 'completed' THEN 1 ELSE 0 END) as completed,
+                COALESCE(SUM(vlt.earning), 0) as cost
+         FROM vuot_link_tasks vlt
+         JOIN campaigns c ON c.id = vlt.campaign_id
+         WHERE c.user_id = ? AND DATE(vlt.created_at) >= ?
+         GROUP BY date, c.id, vlt.keyword
+         ORDER BY date DESC, completed DESC LIMIT 1000`,
+        [req.userId, fromDate]
+      );
+    }
+    const safeData = data.map(r => ({
+      ...r, date: localDateStr(new Date(r.date))
+    }));
+    res.json({ detailed: safeData });
+  } catch (err) {
+    console.error('reports/detailed error:', err.message);
+    res.status(500).json({ error: 'Internal server error', detailed: [] });
   }
 });
 
