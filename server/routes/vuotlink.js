@@ -454,6 +454,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
   }
 
   let dbTaskVisitorId = null;
+  let task = null;
   try {
     const pool = getPool();
     const [tasks] = await pool.execute(
@@ -461,7 +462,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       [req.params.id]
     );
     if (!tasks.length) return res.status(404).json({ error: 'Task không tồn tại' });
-    const task = tasks[0];
+    task = tasks[0];
     if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
     if (task.status === 'expired') return res.status(410).json({ error: 'Task đã hết hạn' });
     const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
