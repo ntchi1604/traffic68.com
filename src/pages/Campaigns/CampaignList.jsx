@@ -376,114 +376,110 @@ export default function CampaignList() {
           </button>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {pagedList.map(c => {
-            const isDone = Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0;
-            const effStatus = isDone ? 'completed' : c.status;
-            const pct = Number(c.total_views) > 0
-              ? Math.min(Math.round(Number(c.views_done) / Number(c.total_views) * 100), 100)
-              : 0;
-            const badge = {
-              running:   { label: 'Đang chạy',  cls: 'bg-green-100 text-green-700',    dot: 'bg-green-500' },
-              paused:    { label: 'Tạm dừng',   cls: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-400' },
-              completed: { label: 'Hoàn thành', cls: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
-            }[effStatus] || { label: effStatus, cls: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' };
-            const barColor = effStatus === 'completed' ? '#10b981' : effStatus === 'running' ? '#3b82f6' : '#f59e0b';
-            const isExpanded = expandedId === c.id;
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto min-h-[300px]">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-5 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest">Chiến dịch</th>
+                  <th className="px-5 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Trạng thái</th>
+                  <th className="px-5 py-4 text-right text-[11px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Nay / Qua</th>
+                  <th className="px-5 py-4 text-right text-[11px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Tổng tiến độ</th>
+                  <th className="px-5 py-4 text-right text-[11px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Ngân sách</th>
+                  <th className="px-5 py-4 text-center text-[11px] font-bold text-slate-500 uppercase tracking-widest w-24">Hành động</th>
+                </tr>
+              </thead>
+              {pagedList.map(c => {
+                const isDone = Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0;
+                const effStatus = isDone ? 'completed' : c.status;
+                const pct = Number(c.total_views) > 0
+                  ? Math.min(Math.round(Number(c.views_done) / Number(c.total_views) * 100), 100)
+                  : 0;
+                const badge = {
+                  running:   { label: 'Đang chạy',  cls: 'bg-green-100 text-green-700 border-green-200',    dot: 'bg-green-500' },
+                  paused:    { label: 'Tạm dừng',   cls: 'bg-amber-100 text-amber-700 border-amber-200',    dot: 'bg-amber-400' },
+                  completed: { label: 'Hoàn thành', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+                }[effStatus] || { label: effStatus, cls: 'bg-slate-100 text-slate-600 border-slate-200', dot: 'bg-slate-400' };
+                const barColor = effStatus === 'completed' ? '#10b981' : effStatus === 'running' ? '#3b82f6' : '#f59e0b';
+                const isExpanded = expandedId === c.id;
 
-            return (
-              <div key={c.id} className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-shadow flex flex-col gap-4">
-
-                {/* Top */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-bold text-slate-900 text-base leading-tight truncate">{c.name}</h3>
-                    <p className="text-xs text-slate-400 mt-0.5 truncate">{c.url}</p>
-                  </div>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0 ${badge.cls}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${badge.dot} ${effStatus === 'running' ? 'animate-pulse' : ''}`} />
-                    {badge.label}
-                  </span>
-                </div>
-
-                {/* Config grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
-                  <div className="bg-slate-50 rounded-xl p-3">
-                    <p className="text-slate-400 font-medium mb-0.5">Nguồn traffic</p>
-                    <p className="text-slate-800 font-semibold">{SOURCE_LABEL[c.traffic_type] || c.traffic_type || '—'}</p>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl p-3">
-                    <p className="text-slate-400 font-medium mb-0.5">Từ khóa</p>
-                    <p className="text-slate-800 font-semibold truncate" title={c.keyword}>{c.keyword || '—'}</p>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl p-3">
-                    <p className="text-slate-400 font-medium mb-0.5">Nay / Qua</p>
-                    <p className="text-slate-800 font-semibold">
-                      <span className="text-blue-600">{fmt(c.views_today || 0)}</span> <span className="text-slate-400 font-normal">/ {fmt(c.views_yesterday || 0)}</span>
-                    </p>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl p-3">
-                    <p className="text-slate-400 font-medium mb-0.5">CPC</p>
-                    <p className="text-slate-800 font-semibold">{fmt(c.cpc)} đ</p>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl p-3">
-                    <p className="text-slate-400 font-medium mb-0.5">View/ngày</p>
-                    <p className="text-slate-800 font-semibold">{fmt(c.daily_views)}</p>
-                  </div>
-                </div>
-
-                {/* Progress */}
-                <div>
-                  <div className="flex justify-between text-xs text-slate-500 mb-1.5">
-                    <span>Tiến độ</span>
-                    <span className="font-bold text-slate-700">{pct}%</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5">
-                    <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: barColor }} />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                    <span>Ngân sách: {fmt(c.budget)} đ</span>
-                    <span>Tạo: {c.created_at ? new Date(c.created_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}</span>
-                  </div>
-                </div>
-
-                {/* Keyword stats toggle */}
-                <button
-                  onClick={() => setExpandedId(isExpanded ? null : c.id)}
-                  className="flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition"
-                >
-                  <BarChart3 size={13} />
-                  Chi tiết từ khóa
-                  {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                </button>
-                {isExpanded && <KeywordStats campaignId={c.id} />}
-
-                {/* Actions */}
-                {effStatus !== 'completed' && (
-                  <div className="flex gap-2 pt-1 border-t border-slate-100">
-                    <button
-                      onClick={() => setEditingCampaign(c)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
-                    >
-                      <Pencil size={13} /> Chỉnh sửa
-                    </button>
-                    <button
-                      onClick={() => handleToggle(c)}
-                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-xl transition ${
-                        c.status === 'running'
-                          ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
-                          : 'text-green-700 bg-green-50 hover:bg-green-100'
-                      }`}
-                    >
-                      {c.status === 'running'
-                        ? <><Pause size={13} /> Tạm dừng</>
-                        : <><Play size={13} /> Chạy lại</>}
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                return (
+                  <tbody key={c.id} className={`border-b border-slate-100 group hover:bg-slate-50/50 transition-colors ${isExpanded ? 'bg-slate-50/30' : 'bg-white'}`}>
+                    <tr>
+                      <td className="px-5 py-4">
+                        <div className="flex flex-col gap-1.5 max-w-[280px]">
+                          <p className="font-bold text-slate-900 leading-tight truncate" title={c.name}>{c.name}</p>
+                          <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-blue-500 hover:text-blue-700 hover:underline truncate" title={c.url}>{c.url}</a>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-[9px] font-bold text-indigo-700 uppercase tracking-wider">{SOURCE_LABEL[c.traffic_type] || c.traffic_type}</span>
+                            <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[10px] font-semibold text-slate-600 max-w-[150px] truncate" title={c.keyword}>{c.keyword || 'Không có từ khoá'}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 align-top pt-5">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wide font-bold border ${badge.cls} flex-shrink-0`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${badge.dot} ${effStatus === 'running' ? 'animate-pulse' : ''}`} />
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right align-top pt-5 whitespace-nowrap">
+                        <div className="flex flex-col items-end">
+                          <p className="text-sm font-black text-blue-600">{fmt(c.views_today || 0)} <span className="text-slate-400 font-medium text-xs">/ {fmt(c.views_yesterday || 0)}</span></p>
+                          <p className="text-[10px] font-semibold text-slate-400 mt-1 uppercase">Max {fmt(c.daily_views)}/ngày</p>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-right align-top pt-5">
+                        <div className="flex flex-col items-end w-36 ml-auto">
+                          <div className="flex justify-between w-full mb-1.5">
+                            <span className="text-[11px] font-bold text-slate-800">{fmt(c.views_done)}<span className="text-slate-400 font-medium">/{fmt(c.total_views)}</span></span>
+                            <span className="text-[11px] font-black" style={{color: barColor}}>{pct}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: barColor }} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-right align-top pt-5 whitespace-nowrap">
+                        <div className="flex flex-col items-end">
+                          <p className="text-sm font-black text-slate-800">{fmt(c.budget)} <span className="text-[10px] text-slate-500 font-bold position-relative -top-1">đ</span></p>
+                          <p className="text-[10px] font-semibold text-slate-500 mt-1">CPC: {fmt(c.cpc)} đ</p>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-center align-top pt-4">
+                        <div className="flex items-center justify-end gap-1.5 sm:opacity-50 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => setExpandedId(isExpanded ? null : c.id)} title="Thống kê từ khóa"
+                            className={`p-2 rounded-xl transition shadow-sm border ${isExpanded ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-blue-100' : 'bg-white border-slate-200 hover:bg-slate-50 hover:text-slate-800 text-slate-500'}`}>
+                            <BarChart3 size={15} />
+                          </button>
+                          {effStatus !== 'completed' && (
+                            <>
+                              <button onClick={() => setEditingCampaign(c)} title="Chỉnh sửa"
+                                className="p-2 bg-white border border-slate-200 shadow-sm hover:shadow hover:bg-slate-50 text-slate-600 rounded-xl transition">
+                                <Pencil size={15} />
+                              </button>
+                              <button onClick={() => handleToggle(c)} title={c.status === 'running' ? 'Tạm dừng' : 'Chạy lại'}
+                                className={`p-2 shadow-sm rounded-xl transition border ${c.status === 'running' ? 'bg-white border-slate-200 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-600 text-slate-500' : 'bg-white border-slate-200 hover:bg-green-50 hover:border-green-200 hover:text-green-600 text-slate-500'}`}>
+                                {c.status === 'running' ? <Pause size={15} /> : <Play size={15} />}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={6} className="p-0 border-t border-slate-100 bg-slate-50/80">
+                          <div className="p-5 overflow-hidden shadow-inner">
+                            <KeywordStats campaignId={c.id} />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                );
+              })}
+            </table>
+          </div>
         </div>
       )}
 
