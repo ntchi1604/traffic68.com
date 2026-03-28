@@ -943,7 +943,7 @@ export default function AdminSecurity() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {['User', 'Tổng', 'OK', 'Bot', 'Cảnh báo', 'IP', 'Hoạt động', ''].map(h => (
+                  {['User', 'Tổng', 'OK', 'Bot', 'IP', 'Hoạt động', ''].map(h => (
                     <th key={h} className={`px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px] ${['User', 'IP', 'Hoạt động'].includes(h) ? 'text-left' : 'text-center'}`}>{h}</th>
                   ))}
                 </tr>
@@ -978,13 +978,8 @@ export default function AdminSecurity() {
                       <td className="px-3 py-2.5 text-center font-bold text-slate-700">{u.total}</td>
                       <td className="px-3 py-2.5 text-center font-bold text-emerald-600">{u.ok}</td>
                       <td className="px-3 py-2.5 text-center">
-                        {u.blocked > 0
-                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit mx-auto"><Bot size={9} />{u.blocked}</span>
-                          : <span className="text-slate-300">0</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        {u.events > 0
-                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">{u.events}</span>
+                        {(u.blocked + (u.events || 0)) > 0
+                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit mx-auto"><Bot size={9} />{u.blocked + (u.events || 0)}</span>
                           : <span className="text-slate-300">0</span>}
                       </td>
                       <td className="px-3 py-2.5">
