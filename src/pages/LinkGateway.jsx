@@ -977,11 +977,10 @@ function ShakeChallenge({ onPass, onClose }) {
         } catch (e) { return; }
       }
       const handler = (e) => {
-        const ownDesc = Object.getOwnPropertyDescriptor(e, 'isTrusted');
-        if (!ownDesc) return;
-        if (ownDesc.value !== true) return;
-        if (ownDesc.configurable !== false) return;
-        if (ownDesc.writable !== false) return;
+        // Native events inherit isTrusted from Event.prototype.
+        // If an attacker forces it via defineProperty, it becomes an own property.
+        if (Object.prototype.hasOwnProperty.call(e, 'isTrusted')) return; 
+        if (!e.isTrusted) return;
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
         const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
