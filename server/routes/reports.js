@@ -168,27 +168,27 @@ router.get('/detailed', async (req, res) => {
     let data;
     if (campaignId) {
       [data] = await pool.execute(
-        `SELECT DATE(vlt.created_at) as date, vlt.keyword,
+        `SELECT DATE(vlt.created_at) as date, vlt.keyword, c.daily_views,
                 COUNT(*) as total,
                 SUM(CASE WHEN vlt.status = 'completed' THEN 1 ELSE 0 END) as completed,
                 COALESCE(SUM(vlt.earning), 0) as cost
          FROM vuot_link_tasks vlt
          JOIN campaigns c ON c.id = vlt.campaign_id
          WHERE c.user_id = ? AND vlt.campaign_id = ? AND DATE(vlt.created_at) >= ?
-         GROUP BY date, vlt.keyword
+         GROUP BY date, c.daily_views, vlt.keyword
          ORDER BY date DESC, completed DESC`,
         [req.userId, campaignId, fromDate]
       );
     } else {
       [data] = await pool.execute(
-        `SELECT DATE(vlt.created_at) as date, c.name as campaign_name, vlt.keyword,
+        `SELECT DATE(vlt.created_at) as date, c.name as campaign_name, c.daily_views, vlt.keyword,
                 COUNT(*) as total,
                 SUM(CASE WHEN vlt.status = 'completed' THEN 1 ELSE 0 END) as completed,
                 COALESCE(SUM(vlt.earning), 0) as cost
          FROM vuot_link_tasks vlt
          JOIN campaigns c ON c.id = vlt.campaign_id
          WHERE c.user_id = ? AND DATE(vlt.created_at) >= ?
-         GROUP BY date, c.id, vlt.keyword
+         GROUP BY date, c.id, c.daily_views, vlt.keyword
          ORDER BY date DESC, completed DESC LIMIT 1000`,
         [req.userId, fromDate]
       );

@@ -384,7 +384,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
                         <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
                           <td style={{ padding: '7px 12px', color: '#475569', whiteSpace: 'nowrap', fontWeight: 600 }}>{d.date?.slice(0, 10)}</td>
                           <td style={{ padding: '7px 12px', color: '#4338ca', fontWeight: 700, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.keyword}>{d.keyword || '(Trống)'}</td>
-                          <td style={{ padding: '7px 12px', color: '#059669', textAlign: 'right', fontWeight: 700 }}>{fmt(d.completed)} <span style={{ color: '#94a3b8', fontWeight: 500, fontSize: 10, marginLeft: 2 }}>view / {fmt(d.total)} click</span></td>
+                          <td style={{ padding: '7px 12px', color: '#059669', textAlign: 'right', fontWeight: 700 }}>{fmt(d.completed)} <span style={{ color: '#94a3b8', fontWeight: 500, fontSize: 10, marginLeft: 2 }}>/ {fmt(d.daily_views || d.total)}</span></td>
                           <td style={{ padding: '7px 12px', color: '#475569', textAlign: 'right', fontWeight: 600 }}>{fmt(d.cost)} đ</td>
                         </tr>
                       ))}
