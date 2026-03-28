@@ -874,7 +874,46 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     const flagged = (secDetail.assessments || []).some(a => a.flagged);
     const isBotTask = task.bot_detected == 1;
     if (flagged || isBotTask) {
-      logSecurityEvent('Phát hiện Bot', task.ip_address, task.user_agent, task.visitor_id, {
+      const DL_VI = {
+        headless_or_webdriver: 'Headless / Webdriver tự động',
+        Fingerprint_bot: 'Fingerprint Bot',
+        ip_rate_limit: 'Rate limit IP',
+        bot_ua: 'User-Agent Bot',
+        font_os_mismatch: 'Font/OS không khớp',
+        screen_window_mismatch: 'Screen=Window (Headless)',
+        hardware_inconsistency: 'Phần cứng bất thường',
+        canvas_noise_detected: 'Canvas Noise (Anti-detect browser)',
+        click_latency_anomaly: 'Click bất thường (Bot click)',
+        scroll_speed_bot: 'Cuộn quá nhanh (Bot)',
+        fake_sensor: 'Cảm biến giả (Desktop→Mobile)',
+        canvas_api_lied: 'Canvas API bị giả mạo',
+        audio_api_lied: 'Audio API bị giả mạo',
+        navigator_api_lied: 'Navigator bị giả mạo',
+        webgl_api_lied: 'WebGL bị giả mạo',
+        creepjs_bot: 'CreepJS phát hiện Bot',
+        creepjs_headless: 'CreepJS phát hiện Headless',
+        widget_bot_detected: 'Widget: Bot phát hiện',
+        widget_bot: 'Widget Bot',
+      };
+
+      const specificReasons = [];
+      if (secDetail.reasons && secDetail.reasons.length > 0) {
+        specificReasons.push(...secDetail.reasons.slice(0, 3));
+      }
+      if (secDetail.detectionLog && secDetail.detectionLog.length > 0) {
+        secDetail.detectionLog.slice(0, 3).forEach(key => {
+          const label = DL_VI[key] || key;
+          if (!specificReasons.some(r => r.toLowerCase().includes(label.toLowerCase()))) {
+            specificReasons.push(label);
+          }
+        });
+      }
+
+      const logReason = specificReasons.length > 0
+        ? specificReasons[0] + (specificReasons.length > 1 ? ` (+${specificReasons.length - 1} lý do)` : '')
+        : 'Phát hiện Bot';
+
+      logSecurityEvent(logReason, task.ip_address, task.user_agent, task.visitor_id, {
         taskId: task.id,
         source: 'vuotlink',
         campaignId: task.campaign_id,
@@ -884,9 +923,8 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
         timeOnSite,
         earning,
         ipCountry,
-        // Lý do phát hiện chi tiết
         detectionLog: secDetail.detectionLog || [],
-        reasons: secDetail.reasons || [],
+        reasons: specificReasons,
         deviceScore: secDetail.deviceScore ?? null,
         deviceType: secDetail.deviceType || null,
         automationFlags: secDetail.detail?.automation || null,
@@ -897,7 +935,6 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     }
   } catch (e) { }
 
-  // Calculate remaining views for today (after this completion)
   let remaining = 0;
   let maxViews = 2;
   try {
@@ -909,7 +946,6 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
       `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
       [ip]
     );
-    // Also count by visitor_id if available
     let vidDone = 0;
     if (task.visitor_id && task.visitor_id !== 'unknown') {
       const [vDone] = await pool.execute(
@@ -925,26 +961,11 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   res.json({ success: true, earning, destination_url: destinationUrl });
 });
 
-/* ═════════════════════════════════════════════════════════
-   Keep old /task/:id/complete for backward compat (redirect to verify)
-═════════════════════════════════════════════════════════ */
 router.post('/task/:id/complete', optionalAuth, async (req, res) => {
-  // Redirect old flow to verify
   req.body.code = req.body.code || '';
   return res.status(400).json({ error: 'Vui lòng sử dụng flow xác nhận mã mới.' });
 });
 
-/* ═════════════════════════════════════════════════════════
-   SECRET API — Tra cứu trang đích bằng keyword + image
-   Không cần login, chỉ cần SECRET_API_KEY
-   
-   POST /api/vuot-link/secret/lookup
-   Headers: x-api-key: <SECRET_API_KEY>
-   Body: { keyword: "...", image_url: "..." }
-   
-   GET  /api/vuot-link/secret/campaigns
-   Headers: x-api-key: <SECRET_API_KEY>
-═════════════════════════════════════════════════════════ */
 const SECRET_API_KEY = process.env.SECRET_API_KEY || 'CHANGE_ME_IN_ENV';
 
 function secretApiAuth(req, res, next) {
@@ -955,11 +976,9 @@ function secretApiAuth(req, res, next) {
   next();
 }
 
-// GET & POST /api/vuot-link/secret/lookup — Tìm campaign theo keyword + image → trả về URL dạng text
 async function _secretLookup(req, res) {
   try {
     const pool = getPool();
-    // Support cả GET (query) và POST (body)
     const keyword = req.query.keyword || (req.body || {}).keyword || '';
     let image_url = req.query.image_url || (req.body || {}).image_url || '';
 

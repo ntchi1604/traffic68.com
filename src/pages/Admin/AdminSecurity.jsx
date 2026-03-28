@@ -388,7 +388,10 @@ function Pager({ page, total, limit, onChange }) {
 }
 
 /* ─── User Detail View ─── */
-function UserDetail({ user: u, onBack }) {
+function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
+  const dateParams = (dateFrom || dateTo)
+    ? `&from=${dateFrom || ''}&to=${dateTo || ''}`
+    : '';
   const [tab, setTab] = useState('tasks');
   const [tasks, setTasks] = useState([]); const [taskTotal, setTaskTotal] = useState(0);
   const [events, setEvents] = useState([]); const [eventTotal, setEventTotal] = useState(0);
@@ -418,6 +421,8 @@ function UserDetail({ user: u, onBack }) {
     if (taskFilter.ip) p.set('ip', taskFilter.ip);
     if (taskFilter.visitorId) p.set('visitorId', taskFilter.visitorId);
     if (taskFilter.slug) p.set('slug', taskFilter.slug);
+    if (dateFrom) p.set('from', dateFrom);
+    if (dateTo) p.set('to', dateTo);
     api.get(`/admin/security/user/${u.id}/tasks?${p}`)
       .then(d => { setTasks(d.tasks || []); setTaskTotal(d.total || 0); })
       .catch(console.error).finally(() => setLoading(false));
@@ -435,7 +440,7 @@ function UserDetail({ user: u, onBack }) {
   useEffect(() => {
     if (tab === 'events') {
       setEventsLoading(true);
-      api.get(`/admin/security/user/${u.id}/events?page=${eventPage}&limit=${LIMIT}`)
+      api.get(`/admin/security/user/${u.id}/events?page=${eventPage}&limit=${LIMIT}${dateParams}`)
         .then(d => { setEvents(d.events || []); setEventTotal(d.total || 0); })
         .catch(console.error).finally(() => setEventsLoading(false));
     }
@@ -445,7 +450,7 @@ function UserDetail({ user: u, onBack }) {
     if (!confirm('Xuất toàn bộ bot events của user này ra file CSV?')) return;
     try {
       setEventsLoading(true);
-      const d = await api.get(`/admin/security/user/${u.id}/events?page=1&limit=10000`);
+      const d = await api.get(`/admin/security/user/${u.id}/events?page=1&limit=10000${dateParams}`);
       const allEvents = d.events || [];
       if (allEvents.length === 0) return alert('Không có dữ liệu');
 
@@ -993,7 +998,7 @@ export default function AdminSecurity() {
     setPage(1);
   };
 
-  if (detail) return <UserDetail user={detail} onBack={() => { setDetail(null); load(); }} />;
+  if (detail) return <UserDetail user={detail} dateFrom={dateFrom} dateTo={dateTo} onBack={() => { setDetail(null); load(); }} />;
 
   return (
     <div className="space-y-5">
