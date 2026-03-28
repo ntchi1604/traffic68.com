@@ -198,9 +198,9 @@ export default function AdminTransactions() {
 
         {/* Type + Status filters */}
         <div className="flex flex-wrap gap-4">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-semibold text-slate-500">Loại:</span>
-            {['all', 'deposit', 'withdraw', 'campaign', 'commission'].map(t => (
+            {['all', 'deposit', 'withdraw', 'campaign', 'earning', 'commission'].map(t => (
               <button key={t} onClick={() => setTypeFilter(t)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${typeFilter === t
                   ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
