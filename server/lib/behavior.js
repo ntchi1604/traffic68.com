@@ -170,7 +170,7 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
   if (automation.eventTampered === true) {
     reasons.push('Event.prototype.isTrusted bị override bởi extension (giả mạo tương tác người thật)');
     detectionLog.push('Extension can thiệp sự kiện trình duyệt');
-    score += 80;
+    score += 30;
   }
 
   
