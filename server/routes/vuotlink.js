@@ -483,10 +483,19 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
 
   const isMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
   if (isMobile) {
+    // ── Emulator UA detection ──
+    const EMULATOR_UA = /bluestacks|bstk|nox|ldplayer|memu|andy|genymotion|android.*x86_64|android.*x86;|com\.vphone|goldfish|ranchu/i;
+    if (EMULATOR_UA.test(ua)) {
+      logSecurityEvent('Giả lập Android (Emulator UA)', ip, ua, dbTaskVisitorId, { ua });
+      return res.status(403).json({ error: 'Thiết bị không được phép.' });
+    }
+
     if (!Array.isArray(shakeLog) || shakeLog.length < 3) {
       return res.status(403).json({ error: 'Thiếu dữ liệu xác minh cảm biến.' });
     }
     const shakes = shakeLog.slice(0, 10);
+
+    // ── Khoảng cách thời gian quá nhanh ──
     for (let i = 1; i < shakes.length; i++) {
       if ((shakes[i].t - shakes[i - 1].t) < 300) {
         return res.status(403).json({ error: 'Tín hiệu cảm biến bất thường (quá nhanh).' });
@@ -494,6 +503,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     }
 
     if (shakes.length >= 3) {
+      // ── Phương sai lực lắc quá thấp (giá trị lặp đều) ──
       const totals = shakes.map(s => Math.abs(s.ax || 0) + Math.abs(s.ay || 0) + Math.abs(s.az || 0));
       const avgTotal = totals.reduce((a, b) => a + b, 0) / totals.length;
       const forceVariance = totals.reduce((a, t) => a + (t - avgTotal) ** 2, 0) / totals.length;
@@ -501,7 +511,27 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
         logSecurityEvent('Cảm biến lực lắc giả lập (Bot)', ip, ua, dbTaskVisitorId, { shakeLog: shakes, forceVariance });
         return res.status(403).json({ error: 'Tín hiệu lực lắc không tự nhiên.' });
       }
+
+      // ── Trục Z = 0 hoàn toàn (emulator không mô phỏng az) ──
+      const allAzZero = shakes.every(s => (s.az || 0) === 0);
+      if (allAzZero) {
+        logSecurityEvent('Giả lập cảm biến (az=0 tuyệt đối)', ip, ua, dbTaskVisitorId, { shakeLog: shakes });
+        return res.status(403).json({ error: 'Dữ liệu cảm biến không hợp lệ.' });
+      }
+
+      // ── Tần suất event cảm biến đều tuyệt đối (emulator inject fixed interval) ──
+      if (shakes.length >= 4) {
+        const intervals = [];
+        for (let i = 1; i < shakes.length; i++) intervals.push(shakes[i].t - shakes[i - 1].t);
+        const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+        const intervalVariance = intervals.reduce((a, v) => a + (v - avgInterval) ** 2, 0) / intervals.length;
+        if (intervalVariance < 10 && avgInterval > 0) {
+          logSecurityEvent('Giả lập cảm biến (tần suất cố định)', ip, ua, dbTaskVisitorId, { shakeLog: shakes, intervalVariance, avgInterval });
+          return res.status(403).json({ error: 'Tín hiệu cảm biến bất thường (đều tuyệt đối).' });
+        }
+      }
     }
+
     for (const s of shakes) {
       const ax = s.ax || 0, ay = s.ay || 0, az = s.az || 0;
       const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
