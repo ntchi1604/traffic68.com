@@ -225,179 +225,113 @@ async function getDepositSettings() {
   return config;
 }
 
-let lastCheckedBlock = 0;
+let lastKnownBalance = null;
 
-async function checkIncomingUSDT(depositAddress) {
-  if (!depositAddress || !ethers.isAddress(depositAddress)) {
-    console.log('[DepositWatcher] Invalid deposit address:', depositAddress);
-    return [];
-  }
-
-  let provider = getProvider();
-  let currentBlock;
-  try {
-    currentBlock = await provider.getBlockNumber();
-  } catch (e) {
-    rotateRpc();
-    console.error('[DepositWatcher] Cannot get block number:', e.message);
-    return [];
-  }
-
-  // First run: only look back 200 blocks (~10 mins). After that, each poll scans ~20 blocks
-  if (lastCheckedBlock === 0) {
-    lastCheckedBlock = currentBlock - 200;
-    console.log(`[DepositWatcher] First run — starting from block ${lastCheckedBlock}`);
-  }
-
-  const fromBlock = lastCheckedBlock + 1;
-  if (fromBlock > currentBlock) return [];
-
-  // Should only be ~20 blocks per poll (60s interval, BSC ~3s/block)
-  const toBlock = currentBlock;
-  const range = toBlock - fromBlock + 1;
-
-  const transferTopic = ethers.id('Transfer(address,address,uint256)');
-  const toTopic = '0x' + '000000000000000000000000' + depositAddress.slice(2).toLowerCase();
-
-  console.log(`[DepositWatcher] Scanning blocks ${fromBlock}→${toBlock} (${range} blocks)`);
-
-  try {
-    provider = getProvider();
-    const logs = await provider.getLogs({
-      address: USDT_ADDRESS,
-      topics: [transferTopic, null, toTopic],
-      fromBlock,
-      toBlock,
-    });
-
-    lastCheckedBlock = toBlock;
-
-    if (logs.length > 0) {
-      console.log(`[DepositWatcher] Found ${logs.length} USDT transfer(s)!`);
-    }
-
-    return logs.map(log => {
-      const fromAddr = ethers.getAddress('0x' + log.topics[1].slice(26));
-      const value = BigInt(log.data);
-      const usdtAmount = Number(ethers.formatUnits(value, 18));
-      console.log(`[DepositWatcher] Transfer: ${usdtAmount} USDT from ${fromAddr} (tx: ${log.transactionHash})`);
-      return {
-        txHash: log.transactionHash,
-        from: fromAddr,
-        to: depositAddress,
-        usdtAmount,
-        blockNumber: log.blockNumber,
-        explorerUrl: `${BSC_EXPLORER}/tx/${log.transactionHash}`,
-      };
-    });
-  } catch (err) {
-    console.error('[DepositWatcher] getLogs error:', err.message);
-    rotateRpc();
-    return [];
-  }
+async function getUSDTBalance(address) {
+  const provider = getProvider();
+  const usdt = new ethers.Contract(USDT_ADDRESS, [
+    'function balanceOf(address) view returns (uint256)'
+  ], provider);
+  const bal = await usdt.balanceOf(address);
+  return Number(ethers.formatUnits(bal, 18));
 }
 
 async function processIncomingDeposits() {
   const pool = getPool();
   const config = await getDepositSettings();
 
-  if (config.deposit_crypto_enabled !== 'true' || config.deposit_crypto_auto !== 'true') {
-    return;
-  }
-  if (!config.deposit_crypto_address) {
-    console.log('[DepositWatcher] No deposit address configured!');
-    return;
-  }
+  if (config.deposit_crypto_enabled !== 'true' || config.deposit_crypto_auto !== 'true') return;
+  if (!config.deposit_crypto_address) return;
 
-  // Get pending crypto deposits
+  const depositAddress = config.deposit_crypto_address;
+
+  // Get pending crypto deposits (oldest first)
   const [pending] = await pool.execute(
     `SELECT * FROM transactions WHERE type = 'deposit' AND method = 'crypto' AND status = 'pending' AND wallet_type = 'main' ORDER BY created_at ASC`
   );
   if (pending.length === 0) return;
 
-  console.log(`[DepositWatcher] ${pending.length} pending crypto deposit(s). Checking BSC...`);
+  // Check current USDT balance (just 1 simple eth_call — never rate limited)
+  let currentBalance;
+  try {
+    currentBalance = await getUSDTBalance(depositAddress);
+  } catch (err) {
+    rotateRpc();
+    console.error('[DepositWatcher] Cannot read balance:', err.message);
+    return;
+  }
 
-  // Check for incoming USDT transfers
-  const transfers = await checkIncomingUSDT(config.deposit_crypto_address);
+  console.log(`[DepositWatcher] ${pending.length} pending | Balance: ${currentBalance} USDT (prev: ${lastKnownBalance ?? 'N/A'})`);
 
-  console.log(`[DepositWatcher] Found ${transfers.length} USDT transfer(s) on-chain`);
-  if (transfers.length === 0) return;
+  // First run — just record balance
+  if (lastKnownBalance === null) {
+    lastKnownBalance = currentBalance;
+    console.log('[DepositWatcher] First run — recorded starting balance');
+    return;
+  }
 
-  // Build a set of already-used tx hashes to avoid double-credit
-  const usedHashes = new Set();
-  const [existing] = await pool.execute(
-    `SELECT note FROM transactions WHERE type = 'deposit' AND method = 'crypto' AND status = 'completed' AND wallet_type = 'main' AND note LIKE '%TxHash:%'`
-  );
-  existing.forEach(r => {
-    const m = (r.note || '').match(/TxHash:\s*(0x[a-fA-F0-9]{64})/);
-    if (m) usedHashes.add(m[1].toLowerCase());
-  });
+  // No balance increase → no deposits
+  const delta = currentBalance - lastKnownBalance;
+  if (delta <= 0) return;
 
+  console.log(`[DepositWatcher] Balance increased by ${delta.toFixed(4)} USDT!`);
+
+  // Match the delta to the closest pending deposit
+  let bestMatch = null;
+  let bestDiff = Infinity;
   for (const tx of pending) {
-    // Extract expected USDT from note: [Crypto Deposit] Expected: X.XXXX USDT
     const match = (tx.note || '').match(/Expected:\s*([\d.]+)\s*USDT/);
-    if (!match) { console.log(`[DepositWatcher] Tx ${tx.id}: no expected USDT in note`); continue; }
+    if (!match) continue;
     const expectedUSDT = parseFloat(match[1]);
-
-    console.log(`[DepositWatcher] Tx ${tx.id}: expecting ${expectedUSDT} USDT`);
-
-    // Find the closest matching transfer (allow up to 0.05 USDT diff for fees)
-    let bestMatch = null;
-    let bestDiff = Infinity;
-    for (const t of transfers) {
-      if (usedHashes.has(t.txHash.toLowerCase())) continue;
-      const diff = Math.abs(t.usdtAmount - expectedUSDT);
-      if (diff <= 0.05 && diff < bestDiff) {
-        bestDiff = diff;
-        bestMatch = t;
-      }
-    }
-
-    if (bestMatch) {
-      console.log(`[DepositWatcher]   MATCHED: expected=${expectedUSDT} received=${bestMatch.usdtAmount} diff=${bestDiff.toFixed(4)} USDT`);
-    }
-    const matched = bestMatch;
-
-    if (!matched) { console.log(`[DepositWatcher] Tx ${tx.id}: no matching transfer found`); continue; }
-    usedHashes.add(matched.txHash.toLowerCase());
-
-    // Auto-approve this deposit
-    const conn = await pool.getConnection();
-    try {
-      await conn.beginTransaction();
-
-      // Mark transaction as completed
-      await conn.execute(
-        `UPDATE transactions SET status = 'completed',
-         note = CONCAT(note, ' | Confirmed | TxHash: ', ?, ' | Received: ', ?, ' USDT | Block: ', ?)
-         WHERE id = ? AND status = 'pending'`,
-        [matched.txHash, matched.usdtAmount, matched.blockNumber, tx.id]
-      );
-
-      // Credit buyer's main wallet
-      await conn.execute(
-        'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
-        [tx.amount, tx.user_id, 'main']
-      );
-
-      // Notify buyer
-      const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
-      await conn.execute(
-        `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
-        [tx.user_id, '✅ Nạp tiền Crypto thành công',
-        `Đã nhận ${matched.usdtAmount.toFixed(4)} USDT → +${fmtAmount} VNĐ vào Ví Traffic. TxHash: ${matched.txHash}`,
-          'success', 'buyer']
-      );
-
-      await conn.commit();
-      conn.release();
-      console.log(`[DepositWatcher] Auto-credited ${tx.amount} VND to user ${tx.user_id} (TxHash: ${matched.txHash})`);
-    } catch (err) {
-      await conn.rollback();
-      conn.release();
-      console.error('[DepositWatcher] Error processing deposit:', err.message);
+    const diff = Math.abs(delta - expectedUSDT);
+    if (diff <= 0.05 && diff < bestDiff) {
+      bestDiff = diff;
+      bestMatch = { tx, expectedUSDT };
     }
   }
+
+  if (!bestMatch) {
+    console.log(`[DepositWatcher] No pending deposit matches delta ${delta.toFixed(4)} USDT`);
+    lastKnownBalance = currentBalance;
+    return;
+  }
+
+  const { tx } = bestMatch;
+  console.log(`[DepositWatcher] MATCHED Tx ${tx.id}: expected=${bestMatch.expectedUSDT} delta=${delta.toFixed(4)} diff=${bestDiff.toFixed(4)}`);
+
+  // Auto-approve this deposit
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    await conn.execute(
+      `UPDATE transactions SET status = 'completed',
+       note = CONCAT(note, ' | Auto-confirmed | Received: ', ?, ' USDT')
+       WHERE id = ? AND status = 'pending'`,
+      [delta.toFixed(4), tx.id]
+    );
+
+    await conn.execute(
+      'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
+      [tx.amount, tx.user_id, 'main']
+    );
+
+    const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
+    await conn.execute(
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [tx.user_id, '✅ Nạp tiền thành công', `Đã nhận ${delta.toFixed(4)} USDT và cộng ${fmtAmount} VNĐ vào Ví Traffic.`, 'success', 'buyer']
+    );
+
+    await conn.commit();
+    console.log(`[DepositWatcher] ✅ Credited ${fmtAmount} VND to user ${tx.user_id}`);
+  } catch (err) {
+    await conn.rollback();
+    console.error('[DepositWatcher] DB error:', err.message);
+  } finally {
+    conn.release();
+  }
+
+  lastKnownBalance = currentBalance;
 }
 
 let depositWatcherInterval = null;
