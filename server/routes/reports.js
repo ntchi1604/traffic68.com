@@ -170,8 +170,8 @@ router.get('/detailed', async (req, res) => {
       [data] = await pool.execute(
         `SELECT DATE(vlt.created_at) as date, vlt.keyword,
                 COUNT(*) as total,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-                COALESCE(SUM(earning), 0) as cost
+                SUM(CASE WHEN vlt.status = 'completed' THEN 1 ELSE 0 END) as completed,
+                COALESCE(SUM(vlt.earning), 0) as cost
          FROM vuot_link_tasks vlt
          JOIN campaigns c ON c.id = vlt.campaign_id
          WHERE c.user_id = ? AND vlt.campaign_id = ? AND DATE(vlt.created_at) >= ?
