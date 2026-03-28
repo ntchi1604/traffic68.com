@@ -466,14 +466,48 @@ router.put('/task/:id/step', optionalAuth, (req, res) => res.json({ ok: true }))
 ═════════════════════════════════════════════════════════ */
 router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
-  const { _tk } = req.body || {};
+  const ua = req.headers['user-agent'] || '';
+  const { _tk, shakeLog } = req.body || {};
 
-  // Verify the original task token (binds to IP)
   if (!_tk || !verifyTaskToken(_tk, req.params.id, ip)) {
     return res.status(403).json({ error: 'Invalid token' });
   }
 
-  // Verify the task exists and is still pending
+  // Server-side shake verification for mobile devices
+  const isMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
+  if (isMobile) {
+    if (!Array.isArray(shakeLog) || shakeLog.length < 3) {
+      return res.status(403).json({ error: 'Thiếu dữ liệu xác minh cảm biến.' });
+    }
+    const shakes = shakeLog.slice(0, 10);
+    // 1. Minimum interval check (humans cant shake faster than 300ms)
+    for (let i = 1; i < shakes.length; i++) {
+      if ((shakes[i].t - shakes[i - 1].t) < 300) {
+        return res.status(403).json({ error: 'Tín hiệu cảm biến bất thường (quá nhanh).' });
+      }
+    }
+    // 2. Timing variance check (setInterval bots have near-zero variance)
+    if (shakes.length >= 3) {
+      const diffs = [];
+      for (let i = 1; i < shakes.length; i++) diffs.push(shakes[i].t - shakes[i - 1].t);
+      const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+      const variance = diffs.reduce((a, d) => a + (d - avgDiff) ** 2, 0) / diffs.length;
+      // setInterval(600) gives variance ~0-100, humans typically > 3000
+      if (variance < 800 && diffs.length >= 2) {
+        logSecurityEvent('Cảm biến lắc đều đặn bất thường (bot setInterval)', ip, ua, null, { shakeLog: shakes, variance });
+        return res.status(403).json({ error: 'Tín hiệu cảm biến không tự nhiên.' });
+      }
+    }
+    // 3. Physical plausibility: total acceleration must be real (5 < total < 500)
+    for (const s of shakes) {
+      const ax = s.ax || 0, ay = s.ay || 0, az = s.az || 0;
+      const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
+      if (total < 5 || total > 500) {
+        return res.status(403).json({ error: 'Giá trị cảm biến ngoài phạm vi hợp lệ.' });
+      }
+    }
+  }
+
   try {
     const pool = getPool();
     const [tasks] = await pool.execute(
@@ -484,7 +518,6 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     const task = tasks[0];
     if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
     if (task.status === 'expired') return res.status(410).json({ error: 'Task đã hết hạn' });
-    // Check expiry from DB
     const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
     if (expCheck[0]?.expired) return res.status(410).json({ error: 'Task đã hết hạn' });
   } catch (e) {
@@ -496,9 +529,10 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
   const challengeToken = signChallengeToken(req.params.id, ip, ts);
   challengePassedStore[req.params.id] = { token: challengeToken, ts, ip };
 
-  console.log(`[VuotLink] ✅ Challenge passed — task #${req.params.id}, IP: ${ip}`);
+  console.log(`[VuotLink] ✅ Challenge passed — task #${req.params.id}, IP: ${ip}, mobile: ${isMobile}`);
   res.json({ challengeToken });
 });
+
 
 
 /* ═════════════════════════════════════════════════════════

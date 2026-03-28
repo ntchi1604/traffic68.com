@@ -387,16 +387,18 @@ export default function LinkGateway() {
   }, [fetchTask, slug, task, skippedCampaigns]);
 
   // Called when shake/curve challenge passes — fetch server-side token
-  const handleChallengePass = useCallback(async () => {
+  const handleChallengePass = useCallback(async (shakeLog) => {
     setShowChallenge(false);
     setChallengeLoading(true);
     try {
       const headers = { 'Content-Type': 'application/json' };
       const token = localStorage.getItem('token');
       if (token) headers['Authorization'] = `Bearer ${token}`;
+      const body = { _tk: task._tk };
+      if (Array.isArray(shakeLog) && shakeLog.length >= 3) body.shakeLog = shakeLog;
       const res = await fetch(`${API}/task/${task.id}/challenge-passed`, {
         method: 'POST', headers,
-        body: JSON.stringify({ _tk: task._tk }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
 
@@ -963,6 +965,7 @@ function ShakeChallenge({ onPass, onClose }) {
   const [flashing, setFlashing] = useState(false);
   const [passed, setPassed] = useState(false);
   const lastShakeRef = useRef(0);
+  const shakeLogRef = useRef([]);
   const TARGET = 3;
 
   useEffect(() => {
@@ -974,12 +977,11 @@ function ShakeChallenge({ onPass, onClose }) {
         } catch (e) { return; }
       }
       const handler = (e) => {
-        // Check own property isTrusted — native browser events set it as non-configurable, non-writable
         const ownDesc = Object.getOwnPropertyDescriptor(e, 'isTrusted');
-        if (!ownDesc) return;                         // No own prop — user-created event
-        if (ownDesc.value !== true) return;           // Not trusted
-        if (ownDesc.configurable !== false) return;   // User faked it (attack scripts use configurable:true)
-        if (ownDesc.writable !== false) return;       // Must be exactly like native event
+        if (!ownDesc) return;
+        if (ownDesc.value !== true) return;
+        if (ownDesc.configurable !== false) return;
+        if (ownDesc.writable !== false) return;
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
         const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
@@ -988,13 +990,14 @@ function ShakeChallenge({ onPass, onClose }) {
         const now = Date.now();
         if (total > 15 && now - lastShakeRef.current > 500) {
           lastShakeRef.current = now;
+          shakeLogRef.current.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
           setFlashing(true);
           setTimeout(() => setFlashing(false), 300);
           setShakeCount(prev => {
             const next = prev + 1;
             if (next >= TARGET) {
               setPassed(true);
-              setTimeout(() => onPass(), 800);
+              setTimeout(() => onPass(shakeLogRef.current.slice(-TARGET)), 800);
             }
             return next;
           });
