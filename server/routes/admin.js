@@ -858,39 +858,62 @@ router.get('/security/user/:uid/ips', async (req, res) => {
 router.get('/security/user/:uid/events', async (req, res) => {
   try {
     const pool = getPool();
+    const uid = req.params.uid;
     const { page = 1, limit = 50 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
     const [ipRows] = await pool.execute(
       `SELECT DISTINCT ip_address FROM vuot_link_tasks
        WHERE worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?)`,
-      [req.params.uid, req.params.uid]
+      [uid, uid]
     );
     const ips = ipRows.map(r => r.ip_address).filter(Boolean);
-    if (!ips.length) return res.json({ events: [], total: 0, page: Number(page), limit: Number(limit) });
 
-    const ph = ips.map(() => '?').join(',');
-    const [countRows] = await pool.execute(
-      `SELECT COUNT(*) as total FROM security_logs WHERE ip_address IN (${ph}) AND reason != 'completed'`, ips
-    );
-    const total = countRows[0].total;
+    let allEvents = [];
 
-    const [rows] = await pool.execute(
-      `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at
-       FROM security_logs
-       WHERE ip_address IN (${ph}) AND reason != 'completed'
-       ORDER BY created_at DESC LIMIT ? OFFSET ?`, [...ips, Number(limit), offset]
+    if (ips.length) {
+      const ph = ips.map(() => '?').join(',');
+      const [logRows] = await pool.execute(
+        `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at
+         FROM security_logs
+         WHERE ip_address IN (${ph}) AND reason != 'completed'
+         ORDER BY created_at DESC LIMIT 500`, ips
+      );
+      allEvents.push(...logRows);
+    }
+
+    const [botTaskRows] = await pool.execute(
+      `SELECT vt.id, 'vuotlink' as source,
+              vt.ip_address, vt.user_agent, vt.visitor_id,
+              vt.security_detail as details,
+              vt.created_at
+       FROM vuot_link_tasks vt
+       WHERE (vt.worker_id = ? OR vt.worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))
+         AND vt.bot_detected = 1
+         AND NOT EXISTS (
+           SELECT 1 FROM security_logs sl
+           WHERE sl.ip_address = vt.ip_address
+             AND sl.reason LIKE '%Bot%'
+             AND ABS(TIMESTAMPDIFF(SECOND, sl.created_at, vt.created_at)) < 300
+         )
+       ORDER BY vt.created_at DESC LIMIT 200`,
+      [uid, uid]
     );
-    res.json({ events: rows, total, page: Number(page), limit: Number(limit) });
+
+    botTaskRows.forEach(r => {
+      allEvents.push({ ...r, reason: 'Phát hiện Bot (task)' });
+    });
+
+    allEvents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const total = allEvents.length;
+    const events = allEvents.slice(offset, offset + Number(limit));
+
+    res.json({ events, total, page: Number(page), limit: Number(limit) });
   } catch (err) {
     console.error('[AntiCheat] user events error:', err);
     res.status(500).json({ error: err.message });
   }
 });
-
-
-
-
 router.get('/security/:id', async (req, res) => {
   try {
     const pool = getPool();

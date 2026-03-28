@@ -933,7 +933,7 @@ export default function AdminSecurity() {
       <div className="space-y-4">
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input placeholder="Tìm tên, email..."
+          <input placeholder="Tìm tên, email, ip, visitor_id..."
             value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
         </div>
