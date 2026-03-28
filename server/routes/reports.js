@@ -55,7 +55,7 @@ router.get('/traffic', async (req, res) => {
   let fromDate, toDate;
   if (from && to) { fromDate = from; toDate = to; }
   else {
-    const days = period === '30d' ? 30 : period === '90d' ? 90 : 7;
+    const days = period === 'all' ? 3650 : period === '30d' ? 30 : period === '90d' ? 90 : 7;
     toDate = localDateStr();
     const f = new Date(); f.setDate(f.getDate() - days);
     fromDate = localDateStr(f);
@@ -119,7 +119,7 @@ router.get('/tasks', async (req, res) => {
     const { campaignId, period } = req.query;
     if (!campaignId) return res.status(400).json({ error: 'campaignId required' });
 
-    const days = period === '30d' ? 30 : period === '90d' ? 90 : 7;
+    const days = period === 'all' ? 3650 : period === '30d' ? 30 : period === '90d' ? 90 : 7;
     const from = new Date(); from.setDate(from.getDate() - days);
     const fromDate = localDateStr(from);
 
@@ -161,7 +161,7 @@ router.get('/detailed', async (req, res) => {
   try {
     const pool = getPool();
     const { campaignId, period } = req.query;
-    const days = period === '30d' ? 30 : period === '90d' ? 90 : 7;
+    const days = period === 'all' ? 3650 : period === '30d' ? 30 : period === '90d' ? 90 : 7;
     const from = new Date(); from.setDate(from.getDate() - days);
     const fromDate = localDateStr(from);
 

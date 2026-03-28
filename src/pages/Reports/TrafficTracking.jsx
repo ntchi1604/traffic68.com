@@ -18,6 +18,7 @@ const PERIODS = [
   { key: '7d', label: '7 ngày' },
   { key: '30d', label: '30 ngày' },
   { key: '90d', label: '90 ngày' },
+  { key: 'all', label: 'Toàn thời gian' }
 ];
 
 
@@ -58,7 +59,7 @@ function isWithin24h(dateStr) {
 const SOURCE_LABEL_MAP = { google_search: 'Google Search', social: 'Social', direct: 'Direct' };
 
 function CampaignDetailModal({ campaign: c, onClose }) {
-  const [mRange, setMRange] = useState('7d');
+  const [mRange, setMRange] = useState('all');
   const [detail, setDetail] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [dailyKws, setDailyKws] = useState([]);
@@ -197,11 +198,11 @@ function CampaignDetailModal({ campaign: c, onClose }) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             {/* Period selector */}
-            <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 10, padding: 3, gap: 2 }}>
+            <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 8, padding: 4 }}>
               {PERIODS.map(p => (
                 <button key={p.key} onClick={() => setMRange(p.key)}
                   style={{
-                    padding: '5px 12px', borderRadius: 8, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
+                    padding: '4px 10px', borderRadius: 6, border: 'none', fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
                     background: mRange === p.key ? '#fff' : 'transparent',
                     color: mRange === p.key ? '#0f172a' : '#94a3b8',
                     boxShadow: mRange === p.key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',

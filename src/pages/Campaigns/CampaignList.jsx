@@ -25,7 +25,7 @@ function KeywordStats({ campaignId }) {
   useEffect(() => {
     Promise.all([
       api.get(`/campaigns/${campaignId}/keyword-stats`),
-      api.get(`/reports/detailed?campaignId=${campaignId}&period=30d`)
+      api.get(`/reports/detailed?campaignId=${campaignId}&period=all`)
     ]).then(([st, dt]) => {
       setStats(st.keywords || []);
       setDaily(dt.detailed || []);
