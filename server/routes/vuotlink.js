@@ -472,7 +472,6 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     return res.status(500).json({ error: 'Lỗi server' });
   }
 
-  // ── Trusted worker: bỏ qua challenge hoàn toàn ──
   try {
     const pool = getPool();
     const workerId = req.userId;
@@ -494,7 +493,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       return res.status(403).json({ error: 'Thiếu dữ liệu xác minh cảm biến.' });
     }
     const EMULATOR_UA = /bluestacks|bstk|nox|ldplayer|memu|andy|genymotion|android.*x86_64|android.*x86;|com\.vphone|goldfish|ranchu/i;
-    
+
     const rawEvents = shakeLog;
     const intervals = [];
     let zeroZCount = 0;
@@ -560,7 +559,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     try {
       const pool = getPool();
       await pool.execute('UPDATE vuot_link_tasks SET bot_detected = 1 WHERE id = ?', [req.params.id]);
-    } catch(e) {}
+    } catch (e) { }
   }
 
   const ts = Date.now();
@@ -769,7 +768,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
         destinationUrl = wl.destination_url;
         gatewaySlug = wl.slug || null;
         paidWorkerId = wl.worker_id;
-        
+
         if (earning > 0) {
           await ensureWalletCredit(pool, wl.worker_id, 'earning', earning);
           await pool.execute('UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?', [earning, wl.id]);
