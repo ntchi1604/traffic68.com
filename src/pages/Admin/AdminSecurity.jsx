@@ -32,7 +32,6 @@ const DL_VI = {
   Fingerprint_bot: 'Fingerprint Bot',
   ip_rate_limit: 'Rate limit IP',
   bot_ua: 'UA Bot',
-  // V2 new detection types
   font_os_mismatch: 'Font/OS Mismatch',
   screen_window_mismatch: 'Screen=Window (Headless)',
   hardware_inconsistency: 'Phần cứng bất thường',
@@ -46,7 +45,6 @@ const DL_VI = {
   webgl_api_lied: 'WebGL bị giả mạo',
   creepjs_bot: 'CreepJS Bot',
   creepjs_headless: 'CreepJS Headless',
-  // Widget bot detection
   widget_bot_detected: 'Widget: Bot phát hiện',
   widget_bot: 'Widget Bot',
 };
@@ -324,7 +322,7 @@ function EventModal({ event: ev, onClose }) {
               <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
                 {ev.occurrences.map((occ, i) => {
                   let occDet = {};
-                  try { occDet = typeof occ.details === 'string' ? JSON.parse(occ.details || '{}') : (occ.details || {}); } catch {}
+                  try { occDet = typeof occ.details === 'string' ? JSON.parse(occ.details || '{}') : (occ.details || {}); } catch { }
                   const occReasons = occDet.reasons?.length > 0 ? occDet.reasons : (occDet.detectionLog || []);
                   return (
                     <div key={i} className="px-3 py-2 rounded-lg bg-red-50 border border-red-100">
@@ -466,7 +464,7 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
           const slug = ev.gateway_slug || det.gatewaySlug || null;
           const tUrl = ev.target_url || det.targetUrl || det.url || '';
           linkVuot = slug ? `https://traffic68.com/vuot-link/${slug}` : tUrl;
-        } catch(e){}
+        } catch (e) { }
         csv += `"${new Date(ev.created_at).toLocaleString('vi-VN')}","${source}","${device}","${ev.ip_address}","${ev.visitor_id || ''}","${linkVuot}"\n`;
       });
 
@@ -647,108 +645,108 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
       {tab === 'events' && (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <button onClick={exportEvents} disabled={eventsLoading} 
+            <button onClick={exportEvents} disabled={eventsLoading}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 text-[11px] font-bold rounded-lg transition shadow-sm disabled:opacity-50">
               📥 Xuất CSV
             </button>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  {['Thời gian', 'Lý do', 'Nguồn', 'Thiết bị', 'IP', 'Visitor ID', ''].map(h => (
-                    <th key={h} className="text-left px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px]">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {eventsLoading ? (
-                  <tr><td colSpan={7} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
-                ) : events.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-10 text-slate-400">Không có cảnh báo</td></tr>
-                ) : (() => {
-                  const groups = [];
-                  events.forEach(ev => {
-                    const last = groups[groups.length - 1];
-                    if (last && last.ip_address === ev.ip_address && last.visitor_id === ev.visitor_id) {
-                      last.occurrences.push(ev);
-                    } else {
-                      groups.push({ ...ev, occurrences: [ev] });
-                    }
-                  });
-
-                  return groups.map((evGroup, idx) => {
-                    // Lấy event gốc
-                    const rootEv = evGroup.occurrences[0];
-                    const mob = isMobileUA(rootEv.user_agent);
-                    const isGroup = evGroup.occurrences.length > 1;
-
-                    // Tổng hợp lý do chung
-                    const allReasons = [];
-                    const allSubReasons = [];
-                    evGroup.occurrences.forEach(occ => {
-                      if (!allReasons.includes(occ.reason)) allReasons.push(occ.reason);
-                      let det = {};
-                      try { det = typeof occ.details === 'string' ? JSON.parse(occ.details || '{}') : (occ.details || {}); } catch { }
-                      const sr = (det.reasons && det.reasons.length > 0) ? det.reasons : (det.detectionLog || []);
-                      sr.forEach(r => { if (!allSubReasons.includes(r)) allSubReasons.push(r); });
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    {['Thời gian', 'Lý do', 'Nguồn', 'Thiết bị', 'IP', 'Visitor ID', ''].map(h => (
+                      <th key={h} className="text-left px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px]">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {eventsLoading ? (
+                    <tr><td colSpan={7} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
+                  ) : events.length === 0 ? (
+                    <tr><td colSpan={7} className="text-center py-10 text-slate-400">Không có cảnh báo</td></tr>
+                  ) : (() => {
+                    const groups = [];
+                    events.forEach(ev => {
+                      const last = groups[groups.length - 1];
+                      if (last && last.ip_address === ev.ip_address && last.visitor_id === ev.visitor_id) {
+                        last.occurrences.push(ev);
+                      } else {
+                        groups.push({ ...ev, occurrences: [ev] });
+                      }
                     });
 
-                    return (
-                      <tr key={rootEv.id || `${rootEv.created_at}_${idx}`} className="border-b border-slate-100 bg-red-50/20 hover:bg-red-50/40">
-                        <td className="px-3 py-2.5 whitespace-nowrap">
-                          <span className="text-slate-500">{fmt(rootEv.created_at)}</span>
-                          {(rootEv.count > 1 || isGroup) && (
-                            <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-500 text-white">
-                              {isGroup ? `×${evGroup.occurrences.length}` : `×${rootEv.count}`}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 max-w-[220px]">
-                          <div className="flex flex-wrap gap-1 mb-1">
-                            {allReasons.slice(0, 2).map((r, ri) => (
-                              <span key={ri} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 block w-fit">{r}</span>
+                    return groups.map((evGroup, idx) => {
+                      // Lấy event gốc
+                      const rootEv = evGroup.occurrences[0];
+                      const mob = isMobileUA(rootEv.user_agent);
+                      const isGroup = evGroup.occurrences.length > 1;
+
+                      // Tổng hợp lý do chung
+                      const allReasons = [];
+                      const allSubReasons = [];
+                      evGroup.occurrences.forEach(occ => {
+                        if (!allReasons.includes(occ.reason)) allReasons.push(occ.reason);
+                        let det = {};
+                        try { det = typeof occ.details === 'string' ? JSON.parse(occ.details || '{}') : (occ.details || {}); } catch { }
+                        const sr = (det.reasons && det.reasons.length > 0) ? det.reasons : (det.detectionLog || []);
+                        sr.forEach(r => { if (!allSubReasons.includes(r)) allSubReasons.push(r); });
+                      });
+
+                      return (
+                        <tr key={rootEv.id || `${rootEv.created_at}_${idx}`} className="border-b border-slate-100 bg-red-50/20 hover:bg-red-50/40">
+                          <td className="px-3 py-2.5 whitespace-nowrap">
+                            <span className="text-slate-500">{fmt(rootEv.created_at)}</span>
+                            {(rootEv.count > 1 || isGroup) && (
+                              <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-500 text-white">
+                                {isGroup ? `×${evGroup.occurrences.length}` : `×${rootEv.count}`}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[220px]">
+                            <div className="flex flex-wrap gap-1 mb-1">
+                              {allReasons.slice(0, 2).map((r, ri) => (
+                                <span key={ri} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 block w-fit">{r}</span>
+                              ))}
+                              {allReasons.length > 2 && <span className="text-[9px] text-slate-400">+{allReasons.length - 2}</span>}
+                            </div>
+                            {allSubReasons.slice(0, 2).map((r, i) => (
+                              <span key={i} className="block text-[9px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 mb-0.5 leading-tight truncate max-w-full">
+                                ↳ {r}
+                              </span>
                             ))}
-                            {allReasons.length > 2 && <span className="text-[9px] text-slate-400">+{allReasons.length - 2}</span>}
-                          </div>
-                          {allSubReasons.slice(0, 2).map((r, i) => (
-                            <span key={i} className="block text-[9px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 mb-0.5 leading-tight truncate max-w-full">
-                              ↳ {r}
+                            {allSubReasons.length > 2 && (
+                              <span className="text-[9px] text-slate-400">+{allSubReasons.length - 2} lý do khác...</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${rootEv.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+                              {rootEv.source === 'widget' ? 'Script' : rootEv.source === 'vuotlink' ? 'VL' : rootEv.source}
                             </span>
-                          ))}
-                          {allSubReasons.length > 2 && (
-                            <span className="text-[9px] text-slate-400">+{allSubReasons.length - 2} lý do khác...</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${rootEv.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                            {rootEv.source === 'widget' ? 'Script' : rootEv.source === 'vuotlink' ? 'VL' : rootEv.source}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${mob ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-600'}`}>
-                            {mob ? 'Mobile' : 'Desktop'}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 font-mono text-slate-600 text-[10px]">{rootEv.ip_address}</td>
-                        <td className="px-3 py-2.5 font-mono text-slate-500 text-[10px] max-w-[80px] truncate">
-                          {rootEv.visitor_id ? rootEv.visitor_id.substring(0, 12) + '...' : '—'}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <button onClick={() => setEventModal(evGroup)} className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-[10px] font-bold">
-                            <Eye size={11} className="inline mr-0.5" />Xem
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  });
-                })()}
-              </tbody>
-            </table>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${mob ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-600'}`}>
+                              {mob ? 'Mobile' : 'Desktop'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-slate-600 text-[10px]">{rootEv.ip_address}</td>
+                          <td className="px-3 py-2.5 font-mono text-slate-500 text-[10px] max-w-[80px] truncate">
+                            {rootEv.visitor_id ? rootEv.visitor_id.substring(0, 12) + '...' : '—'}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <button onClick={() => setEventModal(evGroup)} className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-[10px] font-bold">
+                              <Eye size={11} className="inline mr-0.5" />Xem
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+            <Pager page={eventPage} total={eventTotal} limit={LIMIT} onChange={setEventPage} />
           </div>
-          <Pager page={eventPage} total={eventTotal} limit={LIMIT} onChange={setEventPage} />
-        </div>
         </div>
       )}
 

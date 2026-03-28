@@ -534,24 +534,24 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     const ext = { taskId: req.params.id, gatewaySlug: task.gatewaySlug };
 
     if (EMULATOR_UA.test(ua)) {
-      logSecurityEvent('Dùng trình duyệt của Giả lập (Bluestacks/Nox/LDPlayer...)', ip, ua, dbTaskVisitorId, { ua, ...ext });
+      logSecurityEvent('Dùng trình duyệt của Giả lập (Bluestacks/Nox/LDPlayer...)', ip, ua, dbTaskVisitorId, { ua, reasons: ['Giả lập Android (BlueStacks/Nox/LDPlayer)'], ...ext });
       detectedBotReason = 'Giả lập Android';
     } else if (varDeltaY < 1) {
-      logSecurityEvent('Dùng tool lắc cảm biến ảo (Trục X/Y song song)', ip, ua, dbTaskVisitorId, { varDeltaY, ...ext });
+      logSecurityEvent('Dùng tool lắc cảm biến ảo (Trục X/Y song song)', ip, ua, dbTaskVisitorId, { varDeltaY, reasons: ['Cảm biến X/Y song song - Tool lắc ảo', `Độ lệch trục Y: ${varDeltaY.toFixed(4)}`], ...ext });
       detectedBotReason = 'Dữ liệu cảm biến không tự nhiên';
     } else if (identicalRatio > 0.25 && totals.length > 10) {
-      logSecurityEvent('Dùng tool lắc tự động (Lỗi lặp khung hình PC)', ip, ua, dbTaskVisitorId, { identicalRatio, ...ext });
+      logSecurityEvent('Dùng tool lắc tự động (Lỗi lặp khung hình PC)', ip, ua, dbTaskVisitorId, { identicalRatio, reasons: ['Dữ liệu cảm biến bị lặp khung hình (Bot giả lập điện thoại)', `Tỷ lệ frame lặp: ${(identicalRatio * 100).toFixed(1)}%`], ...ext });
       detectedBotReason = 'Can thiệp cảm biến';
     } else if (zeroZCount === rawEvents.length) {
-      logSecurityEvent('Không có trọng lực Z (Dùng Tool trên Desktop)', ip, ua, dbTaskVisitorId, { shakeLog: rawEvents, ...ext });
+      logSecurityEvent('Không có trọng lực Z (Dùng Tool trên Desktop)', ip, ua, dbTaskVisitorId, { reasons: ['Không có dữ liệu trọng lực trục Z', 'Desktop giả lập cảm biến điện thoại'], ...ext });
       detectedBotReason = 'Dữ liệu cảm biến không hợp lệ';
     } else if (intervals.length >= 10 && intervalVariance < 0.1 && avgInterval > 0) {
-      logSecurityEvent('Dùng Tool Macro/Auto Click (Nhịp độ quá đều)', ip, ua, dbTaskVisitorId, { intervalVariance, avgInterval, ...ext });
+      logSecurityEvent('Dùng Tool Macro/Auto Click (Nhịp độ quá đều)', ip, ua, dbTaskVisitorId, { intervalVariance, avgInterval, reasons: ['Nhịp lắc quá đều - Macro/Auto-click', `Độ lệch nhịp: ${intervalVariance.toFixed(4)}, TB: ${avgInterval.toFixed(1)}ms`], ...ext });
       detectedBotReason = 'Tín hiệu cảm biến bất thường';
     } else if (maxTotal < 15) {
       detectedBotReason = 'Lực cảm biến thiếu';
     } else if (forceVariance < 0.5 && rawEvents.length >= 5) {
-      logSecurityEvent('Lắc bằng máy tĩnh / Điện thoại đặt cố định', ip, ua, dbTaskVisitorId, { forceVariance, ...ext });
+      logSecurityEvent('Lắc bằng máy tĩnh / Điện thoại đặt cố định', ip, ua, dbTaskVisitorId, { forceVariance, reasons: ['Lực cảm biến quá đều - máy đặt cố định hoặc robot', `Phương sai lực: ${forceVariance.toFixed(4)}`], ...ext });
       detectedBotReason = 'Tín hiệu lực quá đều tăm tắp';
     }
   } else {
@@ -573,7 +573,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       const avgSpd = speeds.reduce((a, b) => a + b, 0) / speeds.length;
       const spdVar = speeds.reduce((a, s) => a + (s - avgSpd) ** 2, 0) / speeds.length;
       if (spdVar < 0.0001 && avgSpd > 0.05) {
-        logSecurityEvent('Dùng Tool kéo chuột tự động (Auto Mouse)', ip, ua, dbTaskVisitorId, { curveLog: points, spdVar, taskId: req.params.id, gatewaySlug: task.gatewaySlug });
+        logSecurityEvent('Dùng Tool kéo chuột tự động (Auto Mouse)', ip, ua, dbTaskVisitorId, { spdVar, reasons: ['Chuyển động chuột tuyến tính - Auto Mouse/Bot', `Độ lệch tốc độ: ${spdVar.toFixed(6)}, TB: ${avgSpd.toFixed(2)} px/ms`], taskId: req.params.id, gatewaySlug: task.gatewaySlug });
         detectedBotReason = 'Chuyển động chuột bất thường';
       }
     }
