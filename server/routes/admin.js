@@ -287,6 +287,54 @@ router.put('/campaigns/:id', async (req, res) => {
 });
 
 
+router.get('/campaigns/:id/keyword-stats', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute(
+      `SELECT
+         keyword,
+         COUNT(*) as total,
+         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+         SUM(CASE WHEN status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) as pending,
+         SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) as expired,
+         SUM(CASE WHEN bot_detected = 1 THEN 1 ELSE 0 END) as blocked,
+         COALESCE(SUM(earning), 0) as cost
+       FROM vuot_link_tasks
+       WHERE campaign_id = ?
+       GROUP BY keyword
+       ORDER BY completed DESC`,
+      [req.params.id]
+    );
+    res.json({ keywords: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/campaigns/:id/detailed-stats', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [data] = await pool.execute(
+      `SELECT DATE(vlt.created_at) as date, vlt.keyword, c.daily_views,
+              COUNT(*) as total,
+              SUM(CASE WHEN vlt.status = 'completed' THEN 1 ELSE 0 END) as completed,
+              COALESCE(SUM(vlt.earning), 0) as cost
+       FROM vuot_link_tasks vlt
+       JOIN campaigns c ON c.id = vlt.campaign_id
+       WHERE vlt.campaign_id = ?
+       GROUP BY date, c.daily_views, vlt.keyword
+       ORDER BY date DESC, completed DESC`,
+      [req.params.id]
+    );
+    const safeData = data.map(r => ({
+      ...r, date: localDateStr(new Date(r.date))
+    }));
+    res.json({ detailed: safeData });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/transactions', async (req, res) => {
   const pool = getPool();
   const { type, status, fromDate, toDate, page = 1, limit = 50 } = req.query;

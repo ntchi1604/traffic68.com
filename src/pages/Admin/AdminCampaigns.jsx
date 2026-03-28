@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Search, Play, Pause, CheckCircle, ExternalLink, MoreVertical, Pencil, X, Plus, Trash2, Upload } from 'lucide-react';
+import { Search, Play, Pause, CheckCircle, ExternalLink, MoreVertical, Pencil, X, Plus, Trash2, Upload, BarChart3 } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
@@ -16,6 +16,143 @@ const parseJsonArray = (val) => {
   try { const a = JSON.parse(val); if (Array.isArray(a)) return a.length ? a : ['']; } catch { }
   return [val];
 };
+
+/* ── Keyword Stats Panel (admin version) ── */
+function KeywordStats({ campaignId }) {
+  const [stats, setStats] = useState(null);
+  const [daily, setDaily] = useState([]);
+  const [page, setPage] = useState(1);
+  const rowsPerPage = 10;
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.get(`/admin/campaigns/${campaignId}/keyword-stats`),
+      api.get(`/admin/campaigns/${campaignId}/detailed-stats`)
+    ]).then(([st, dt]) => {
+      setStats(st.keywords || []);
+      setDaily(dt.detailed || []);
+    }).catch(console.error).finally(() => setLoading(false));
+  }, [campaignId]);
+
+  if (loading) return <div className="text-center py-4 text-xs text-slate-400">Đang tải...</div>;
+  if (!stats || stats.length === 0) return <div className="text-center py-4 text-xs text-slate-400">Chưa có dữ liệu</div>;
+
+  const totalAll = stats.reduce((s, k) => s + Number(k.total), 0);
+  const totalCompleted = stats.reduce((s, k) => s + Number(k.completed), 0);
+  const totalPending = stats.reduce((s, k) => s + Number(k.pending), 0);
+  const totalExpired = stats.reduce((s, k) => s + Number(k.expired), 0);
+  const totalBlocked = stats.reduce((s, k) => s + Number(k.blocked), 0);
+  const totalCost = stats.reduce((s, k) => s + Number(k.cost), 0);
+
+  const exportCSV = () => {
+    const BOM = '\uFEFF';
+    let csv = BOM + 'Từ khóa,Tổng,Hoàn thành,Đang chờ,Hết hạn,Blocked,Chi phí (đ)\n';
+    stats.forEach(kw => {
+      csv += `"${kw.keyword || '(trống)'}",${kw.total},${kw.completed},${kw.pending},${kw.expired},${kw.blocked},${kw.cost}\n`;
+    });
+    csv += `\n"TỔNG CỘNG",${totalAll},${totalCompleted},${totalPending},${totalExpired},${totalBlocked},${totalCost}\n`;
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bao-cao-tu-khoa-${campaignId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-4">
+      {/* Left: Overall stats */}
+      <div className="space-y-2 lg:w-1/3">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-xs font-bold text-slate-500">Tổng: {totalAll} tasks · {totalCompleted} hoàn thành</p>
+          <button onClick={exportCSV}
+            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition">
+            📥 Xuất CSV
+          </button>
+        </div>
+        <div className="max-h-[300px] overflow-y-auto pr-1 space-y-2">
+          {stats.map((kw, i) => {
+            const pct = totalAll > 0 ? Math.round(Number(kw.completed) / totalAll * 100) : 0;
+            return (
+              <div key={i} className="bg-slate-50 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-sm font-bold text-slate-800 truncate flex-1">{kw.keyword || '(trống)'}</p>
+                  <span className="text-xs font-bold text-emerald-600 ml-2">{Number(kw.completed)} view</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-1.5 mb-2">
+                  <div className="h-1.5 rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
+                  <span className="text-slate-500">Tổng: <b className="text-slate-700">{Number(kw.total)}</b></span>
+                  <span className="text-emerald-600">Hoàn thành: <b>{Number(kw.completed)}</b></span>
+                  <span className="text-amber-600">Đang chờ: <b>{Number(kw.pending)}</b></span>
+                  <span className="text-slate-500">Hết hạn: <b>{Number(kw.expired)}</b></span>
+                  {Number(kw.blocked) > 0 && <span className="text-red-600">Blocked: <b>{Number(kw.blocked)}</b></span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Right: Daily Breakdowns */}
+      <div className="flex-1 bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
+        <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
+          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Chi tiết theo ngày & từ khoá</span>
+          <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">{daily.length} dòng</span>
+        </div>
+        <div className="overflow-x-auto overflow-y-auto max-h-[300px]">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-slate-50/80 sticky top-0 shadow-sm">
+              <tr>
+                <th className="px-4 py-2 font-semibold text-slate-500">Ngày</th>
+                <th className="px-4 py-2 font-semibold text-slate-500">Từ khoá</th>
+                <th className="px-4 py-2 font-semibold text-slate-500 text-right">Hoàn thành</th>
+                <th className="px-4 py-2 font-semibold text-slate-500 text-right">Chi phí</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {daily.length === 0 ? (
+                <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-400">Không có dữ liệu</td></tr>
+              ) : daily.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((d, i) => (
+                <tr key={i} className="hover:bg-slate-50">
+                  <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{d.date?.slice(0, 10)}</td>
+                  <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]" title={d.keyword}>{d.keyword || '(Trống)'}</td>
+                  <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
+                    {d.completed} <span className="text-slate-500 font-medium text-[10px] ml-0.5">/ {d.daily_views || d.total}</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-semibold text-slate-600">{fmt(d.cost)} đ</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {daily.length > rowsPerPage && (
+          <div className="bg-slate-50 border-t border-slate-200 px-4 py-2 flex items-center justify-between">
+            <span className="text-[10px] font-medium text-slate-500">Trang <b>{page}</b> / {Math.ceil(daily.length / rowsPerPage)}</span>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 hover:bg-slate-50 rounded shadow-sm text-slate-600 disabled:opacity-40 transition">
+                ‹ Trước
+              </button>
+              <button
+                onClick={() => setPage(p => Math.min(Math.ceil(daily.length / rowsPerPage), p + 1))}
+                disabled={page >= Math.ceil(daily.length / rowsPerPage)}
+                className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 hover:bg-slate-50 rounded shadow-sm text-slate-600 disabled:opacity-40 transition">
+                Sau ›
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /* ── Edit Modal ── */
 function EditCampaignModal({ campaign, onClose, onSaved }) {
@@ -210,6 +347,7 @@ export default function AdminCampaigns() {
   const [loading, setLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [editingCampaign, setEditingCampaign] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
   const [page, setPage] = useState(1);
   const menuRef = useRef(null);
   const LIMIT = 20;
@@ -296,11 +434,12 @@ export default function AdminCampaigns() {
                     <th className="px-5 py-3 text-center font-semibold text-slate-500">Hành động</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {paged.map(c => {
+                {paged.map(c => {
                     const st = STATUS_MAP[c.status] || { label: c.status, cls: 'bg-gray-100 text-gray-700' };
+                    const isExpanded = expandedId === c.id;
                     return (
-                      <tr key={c.id} className="hover:bg-slate-50/70">
+                      <tbody key={c.id} className={`border-b border-slate-100 group hover:bg-slate-50/50 transition-colors ${isExpanded ? 'bg-slate-50/30' : 'bg-white'}`}>
+                      <tr className="hover:bg-slate-50/70">
                         <td className="px-5 py-3">
                           <p className="font-semibold text-slate-800">{c.name}</p>
                           <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
@@ -318,7 +457,12 @@ export default function AdminCampaigns() {
                         </td>
                         <td className="px-5 py-3 text-xs text-slate-500">{new Date(c.created_at).toLocaleString('vi-VN')}</td>
                         <td className="px-5 py-3">
-                          <div className="relative flex justify-center" ref={openMenuId === c.id ? menuRef : null}>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button onClick={() => setExpandedId(isExpanded ? null : c.id)} title="Thống kê chi tiết"
+                              className={`p-1.5 rounded-lg transition shadow-sm border ${isExpanded ? 'bg-orange-50 border-orange-200 text-orange-700 shadow-orange-100' : 'bg-white border-slate-200 hover:bg-slate-50 hover:text-slate-800 text-slate-400'}`}>
+                              <BarChart3 size={15} />
+                            </button>
+                            <div className="relative" ref={openMenuId === c.id ? menuRef : null}>
                             <button
                               onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
                               className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
@@ -359,12 +503,22 @@ export default function AdminCampaigns() {
                                 )}
                               </div>
                             )}
+                            </div>
                           </div>
                         </td>
                       </tr>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={7} className="p-0 border-t border-slate-100 bg-slate-50/80">
+                            <div className="p-5 overflow-hidden shadow-inner">
+                              <KeywordStats campaignId={c.id} />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </tbody>
                     );
                   })}
-                </tbody>
               </table>
             </div>
 
@@ -372,63 +526,77 @@ export default function AdminCampaigns() {
             <div className="md:hidden divide-y divide-slate-100">
               {paged.map(c => {
                 const st = STATUS_MAP[c.status] || { label: c.status, cls: 'bg-gray-100 text-gray-700' };
+                const isExpanded = expandedId === c.id;
                 return (
-                  <div key={c.id} className="p-4 space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-bold text-slate-800 truncate">{c.name}</p>
-                        <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1 truncate">
-                          {c.url?.slice(0, 35)} <ExternalLink size={10} className="shrink-0" />
-                        </a>
+                  <div key={c.id} className="space-y-0">
+                    <div className="p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-slate-800 truncate">{c.name}</p>
+                          <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1 truncate">
+                            {c.url?.slice(0, 35)} <ExternalLink size={10} className="shrink-0" />
+                          </a>
+                        </div>
+                        <span className={`px-2 py-1 text-[10px] font-bold rounded-full shrink-0 ${st.cls}`}>{st.label}</span>
                       </div>
-                      <span className={`px-2 py-1 text-[10px] font-bold rounded-full shrink-0 ${st.cls}`}>{st.label}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
-                      <span className="font-medium text-slate-700">{c.user_name || '—'}</span>
-                      <span>·</span>
-                      <span className="text-slate-400">{c.user_email}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 text-xs">
-                        <span className="font-bold text-emerald-600">{fmt(c.budget)} đ</span>
-                        <span className="text-slate-500">{fmt(c.views_done)}/{fmt(c.total_views)} views</span>
-                        <span className="text-slate-400">{new Date(c.created_at).toLocaleDateString('vi-VN')}</span>
+                      <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <span className="font-medium text-slate-700">{c.user_name || '—'}</span>
+                        <span>·</span>
+                        <span className="text-slate-400">{c.user_email}</span>
                       </div>
-                      <div className="relative" ref={openMenuId === c.id ? menuRef : null}>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
-                          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
-                        >
-                          <MoreVertical size={16} />
-                        </button>
-                        {openMenuId === c.id && (
-                          <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[180px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
-                            <button onClick={() => { setOpenMenuId(null); setEditingCampaign(c); }}
-                              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 text-left">
-                              <Pencil size={14} className="text-blue-500" /> Sửa
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 text-xs">
+                          <span className="font-bold text-emerald-600">{fmt(c.budget)} đ</span>
+                          <span className="text-slate-500">{fmt(c.views_done)}/{fmt(c.total_views)} views</span>
+                          <span className="text-slate-400">{new Date(c.created_at).toLocaleDateString('vi-VN')}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => setExpandedId(isExpanded ? null : c.id)} title="Thống kê chi tiết"
+                            className={`p-1.5 rounded-lg transition border ${isExpanded ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+                            <BarChart3 size={14} />
+                          </button>
+                          <div className="relative" ref={openMenuId === c.id ? menuRef : null}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
+                            >
+                              <MoreVertical size={16} />
                             </button>
-                            {c.status !== 'running' && (
-                              <button onClick={() => updateStatus(c.id, 'running')}
-                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-green-50 text-left">
-                                <Play size={14} className="text-green-500" /> Chạy
-                              </button>
-                            )}
-                            {c.status === 'running' && (
-                              <button onClick={() => updateStatus(c.id, 'paused')}
-                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-amber-50 text-left">
-                                <Pause size={14} className="text-amber-500" /> Dừng
-                              </button>
-                            )}
-                            {c.status !== 'completed' && (
-                              <button onClick={() => updateStatus(c.id, 'completed')}
-                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 text-left">
-                                <CheckCircle size={14} className="text-blue-500" /> Xong
-                              </button>
+                            {openMenuId === c.id && (
+                              <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[180px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                                <button onClick={() => { setOpenMenuId(null); setEditingCampaign(c); }}
+                                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 text-left">
+                                  <Pencil size={14} className="text-blue-500" /> Sửa
+                                </button>
+                                {c.status !== 'running' && (
+                                  <button onClick={() => updateStatus(c.id, 'running')}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-green-50 text-left">
+                                    <Play size={14} className="text-green-500" /> Chạy
+                                  </button>
+                                )}
+                                {c.status === 'running' && (
+                                  <button onClick={() => updateStatus(c.id, 'paused')}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-amber-50 text-left">
+                                    <Pause size={14} className="text-amber-500" /> Dừng
+                                  </button>
+                                )}
+                                {c.status !== 'completed' && (
+                                  <button onClick={() => updateStatus(c.id, 'completed')}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 text-left">
+                                    <CheckCircle size={14} className="text-blue-500" /> Xong
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
+                        </div>
                       </div>
                     </div>
+                    {isExpanded && (
+                      <div className="border-t border-slate-100 bg-slate-50/80 p-4">
+                        <KeywordStats campaignId={c.id} />
+                      </div>
+                    )}
                   </div>
                 );
               })}
