@@ -245,7 +245,7 @@ async function checkIncomingUSDT(depositAddress) {
   }
 
   const startBlock = lastCheckedBlock + 1;
-  const url = `https://api.bscscan.com/api?module=account&action=tokentx` +
+  const url = `https://api.etherscan.io/v2/api?chainid=56&module=account&action=tokentx` +
     `&contractaddress=${USDT_ADDRESS}&address=${depositAddress}` +
     `&startblock=${startBlock}&endblock=99999999&page=1&offset=50&sort=desc`;
 
