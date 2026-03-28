@@ -955,9 +955,10 @@ export default function AdminSecurity() {
   const [page, setPage] = useState(1);
   const [detail, setDetail] = useState(null);
   const [sort, setSort] = useState('ok');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [activePreset, setActivePreset] = useState(0);
+  const _todayVN = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+  const [dateFrom, setDateFrom] = useState(_todayVN);
+  const [dateTo, setDateTo] = useState(_todayVN);
+  const [activePreset, setActivePreset] = useState(1);
   const LIMIT = 20;
 
   const load = useCallback(async () => {
