@@ -146,7 +146,6 @@ router.put('/users/:id', async (req, res) => {
 router.put('/users/:id/trusted', async (req, res) => {
   try {
     const pool = getPool();
-    await pool.execute(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trusted TINYINT(1) NOT NULL DEFAULT 0`).catch(() => {});
     const [rows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Không tìm thấy user' });
     const newVal = rows[0].trusted ? 0 : 1;
