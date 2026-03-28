@@ -531,24 +531,24 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     const identicalRatio = identicalFrames / rawEvents.length;
 
     if (EMULATOR_UA.test(ua)) {
-      logSecurityEvent('Giả lập Android', ip, ua, dbTaskVisitorId, { ua });
+      logSecurityEvent('Dùng trình duyệt của Giả lập (Bluestacks/Nox/LDPlayer...)', ip, ua, dbTaskVisitorId, { ua });
       detectedBotReason = 'Giả lập Android';
-    } else if (varDeltaY < 1) {   // Real shakes heavily twist XYZ vectors independently, never linear
-      logSecurityEvent('Cảm biến nhân tạo (Trục X/Y song song tuyệt đối)', ip, ua, dbTaskVisitorId, { varDeltaY });
+    } else if (varDeltaY < 1) {
+      logSecurityEvent('Dùng tool lắc cảm biến ảo (Trục X/Y song song)', ip, ua, dbTaskVisitorId, { varDeltaY });
       detectedBotReason = 'Dữ liệu cảm biến không tự nhiên';
-    } else if (identicalRatio > 0.25 && totals.length > 10) { // Real ADC hardware guarantees high frequency noise, floats won't be perfectly identical 25%+ of time
-      logSecurityEvent('Giả lập cảm biến (Lặp khung hình ADC ảo)', ip, ua, dbTaskVisitorId, { identicalRatio });
+    } else if (identicalRatio > 0.25 && totals.length > 10) {
+      logSecurityEvent('Dùng tool lắc tự động (Lỗi lặp khung hình PC)', ip, ua, dbTaskVisitorId, { identicalRatio });
       detectedBotReason = 'Can thiệp cảm biến';
     } else if (zeroZCount === rawEvents.length) {
-      logSecurityEvent('Giả lập cảm biến', ip, ua, dbTaskVisitorId, { shakeLog: rawEvents });
+      logSecurityEvent('Không có trọng lực Z (Dùng Tool trên Desktop)', ip, ua, dbTaskVisitorId, { shakeLog: rawEvents });
       detectedBotReason = 'Dữ liệu cảm biến không hợp lệ';
     } else if (intervals.length >= 10 && intervalVariance < 0.1 && avgInterval > 0) {
-      logSecurityEvent('Giả lập ADB/Macro', ip, ua, dbTaskVisitorId, { intervalVariance, avgInterval });
+      logSecurityEvent('Dùng Tool Macro/Auto Click (Nhịp độ quá đều)', ip, ua, dbTaskVisitorId, { intervalVariance, avgInterval });
       detectedBotReason = 'Tín hiệu cảm biến bất thường';
     } else if (maxTotal < 15) {
       detectedBotReason = 'Lực cảm biến thiếu';
     } else if (forceVariance < 0.5 && rawEvents.length >= 5) {
-      logSecurityEvent('Cảm biến tĩnh lặp lại', ip, ua, dbTaskVisitorId, { forceVariance });
+      logSecurityEvent('Lắc bằng máy tĩnh / Điện thoại đặt cố định', ip, ua, dbTaskVisitorId, { forceVariance });
       detectedBotReason = 'Tín hiệu lực quá đều tăm tắp';
     }
   } else {
@@ -570,7 +570,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       const avgSpd = speeds.reduce((a, b) => a + b, 0) / speeds.length;
       const spdVar = speeds.reduce((a, s) => a + (s - avgSpd) ** 2, 0) / speeds.length;
       if (spdVar < 0.0001 && avgSpd > 0.05) {
-        logSecurityEvent('Trỏ chuột di chuyển đều tuyệt đối', ip, ua, dbTaskVisitorId, { curveLog: points, spdVar });
+        logSecurityEvent('Dùng Tool kéo chuột tự động (Auto Mouse)', ip, ua, dbTaskVisitorId, { curveLog: points, spdVar });
         detectedBotReason = 'Chuyển động chuột bất thường';
       }
     }

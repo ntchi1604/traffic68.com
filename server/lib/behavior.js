@@ -110,7 +110,7 @@ function checkFakeSensor(deviceData, userAgent) {
   if (!Array.isArray(samples) || samples.length < 5) return null;
 
   const allZero = samples.every(s => s.x === 0 && s.y === 0 && s.z === 0);
-  if (allZero) return 'Cảm biến gia tốc toàn số 0 (giả lập thiết bị mobile)';
+  if (allZero) return 'Cảm biến gia tốc toàn số 0 (Dùng Giả lập Android)';
 
   if (samples.length >= 6) {
     const fmt = s => `${s.x.toFixed(1)},${s.y.toFixed(1)},${s.z.toFixed(1)}`;
@@ -118,7 +118,7 @@ function checkFakeSensor(deviceData, userAgent) {
     const second3 = samples.slice(3, 6).map(fmt).join('|');
     // Chỉ flag nếu lặp và không phải giá trị gần-0 (trường hợp nằm yên được chấp nhận)
     const nearZero = samples.every(s => Math.abs(s.x) < 1.5 && Math.abs(s.y) < 1.5 && Math.abs(s.z) < 1.5);
-    if (first3 === second3 && !nearZero) return 'Cảm biến lặp dữ liệu theo chu kỳ (giả lập sensor)';
+    if (first3 === second3 && !nearZero) return 'Dữ liệu cảm biến bị lặp khung hình (Bot giả lập điện thoại)';
   }
 
   return null;

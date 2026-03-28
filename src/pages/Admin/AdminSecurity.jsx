@@ -662,56 +662,83 @@ function UserDetail({ user: u, onBack }) {
                   <tr><td colSpan={7} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
                 ) : events.length === 0 ? (
                   <tr><td colSpan={7} className="text-center py-10 text-slate-400">Không có cảnh báo</td></tr>
-                ) : events.map(ev => {
-                  const mob = isMobileUA(ev.user_agent);
-                  let evDet = {};
-                  try { evDet = typeof ev.details === 'string' ? JSON.parse(ev.details || '{}') : (ev.details || {}); } catch { }
-                  const subReasons = (evDet.reasons && evDet.reasons.length > 0)
-                    ? evDet.reasons
-                    : (evDet.detectionLog || []);
-                  return (
-                    <tr key={ev.id || ev.created_at} className="border-b border-slate-100 bg-red-50/20 hover:bg-red-50/40">
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="text-slate-500">{fmt(ev.created_at)}</span>
-                        {ev.count > 1 && (
-                          <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-500 text-white">
-                            ×{ev.count}
+                ) : (() => {
+                  const groups = [];
+                  events.forEach(ev => {
+                    const last = groups[groups.length - 1];
+                    if (last && last.ip_address === ev.ip_address && last.visitor_id === ev.visitor_id) {
+                      last.occurrences.push(ev);
+                    } else {
+                      groups.push({ ...ev, occurrences: [ev] });
+                    }
+                  });
+
+                  return groups.map((evGroup, idx) => {
+                    // Lấy event gốc
+                    const rootEv = evGroup.occurrences[0];
+                    const mob = isMobileUA(rootEv.user_agent);
+                    const isGroup = evGroup.occurrences.length > 1;
+
+                    // Tổng hợp lý do chung
+                    const allReasons = [];
+                    const allSubReasons = [];
+                    evGroup.occurrences.forEach(occ => {
+                      if (!allReasons.includes(occ.reason)) allReasons.push(occ.reason);
+                      let det = {};
+                      try { det = typeof occ.details === 'string' ? JSON.parse(occ.details || '{}') : (occ.details || {}); } catch { }
+                      const sr = (det.reasons && det.reasons.length > 0) ? det.reasons : (det.detectionLog || []);
+                      sr.forEach(r => { if (!allSubReasons.includes(r)) allSubReasons.push(r); });
+                    });
+
+                    return (
+                      <tr key={rootEv.id || `${rootEv.created_at}_${idx}`} className="border-b border-slate-100 bg-red-50/20 hover:bg-red-50/40">
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <span className="text-slate-500">{fmt(rootEv.created_at)}</span>
+                          {(rootEv.count > 1 || isGroup) && (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-500 text-white">
+                              {isGroup ? `×${evGroup.occurrences.length}` : `×${rootEv.count}`}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 max-w-[220px]">
+                          <div className="flex flex-wrap gap-1 mb-1">
+                            {allReasons.slice(0, 2).map((r, ri) => (
+                              <span key={ri} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 block w-fit">{r}</span>
+                            ))}
+                            {allReasons.length > 2 && <span className="text-[9px] text-slate-400">+{allReasons.length - 2}</span>}
+                          </div>
+                          {allSubReasons.slice(0, 2).map((r, i) => (
+                            <span key={i} className="block text-[9px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 mb-0.5 leading-tight truncate max-w-full">
+                              ↳ {r}
+                            </span>
+                          ))}
+                          {allSubReasons.length > 2 && (
+                            <span className="text-[9px] text-slate-400">+{allSubReasons.length - 2} lý do khác...</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${rootEv.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+                            {rootEv.source === 'widget' ? 'Script' : rootEv.source === 'vuotlink' ? 'VL' : rootEv.source}
                           </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 max-w-[220px]">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 block w-fit mb-1">{ev.reason}</span>
-                        {subReasons.slice(0, 2).map((r, i) => (
-                          <span key={i} className="block text-[9px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 mb-0.5 leading-tight truncate max-w-full">
-                            ↳ {r}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${mob ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-600'}`}>
+                            {mob ? 'Mobile' : 'Desktop'}
                           </span>
-                        ))}
-                        {subReasons.length > 2 && (
-                          <span className="text-[9px] text-slate-400">+{subReasons.length - 2} lý do khác...</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                          {ev.source === 'widget' ? 'Script' : ev.source === 'vuotlink' ? 'VL' : ev.source}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${mob ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-600'}`}>
-                          {mob ? 'Mobile' : 'Desktop'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 font-mono text-slate-600 text-[10px]">{ev.ip_address}</td>
-                      <td className="px-3 py-2.5 font-mono text-slate-500 text-[10px] max-w-[80px] truncate">
-                        {ev.visitor_id ? ev.visitor_id.substring(0, 12) + '...' : '—'}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <button onClick={() => setEventModal(ev)} className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-[10px] font-bold">
-                          <Eye size={11} className="inline mr-0.5" />Xem
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td className="px-3 py-2.5 font-mono text-slate-600 text-[10px]">{rootEv.ip_address}</td>
+                        <td className="px-3 py-2.5 font-mono text-slate-500 text-[10px] max-w-[80px] truncate">
+                          {rootEv.visitor_id ? rootEv.visitor_id.substring(0, 12) + '...' : '—'}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <button onClick={() => setEventModal(evGroup)} className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-[10px] font-bold">
+                            <Eye size={11} className="inline mr-0.5" />Xem
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>
