@@ -468,6 +468,7 @@ export default function TrafficTracking() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [expandedId, setExpandedId] = useState(null);
   const [modalCamp, setModalCamp] = useState(null);
+  const [pageCamp, setPageCamp] = useState(1);
 
   useEffect(() => {
     setLoading(true);
@@ -501,13 +502,8 @@ export default function TrafficTracking() {
   }));
 
 
-  // Campaigns to show in progress: exclude completed > 24h
-  const visibleCampaigns = campaigns.filter(c => {
-    const isDone = Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0;
-    const effStatus = (isDone || c.status === 'completed') ? 'completed' : c.status;
-    if (effStatus !== 'completed') return true;
-    return isWithin24h(c.updated_at);
-  });
+  const visibleCampaigns = campaigns;
+  const pagedCamps = visibleCampaigns.slice((pageCamp - 1) * 10, pageCamp * 10);
 
   const kpis = [
     { label: 'Tổng hoàn thành', value: fmt(totalCompleted), sub: `trong ${range === '7d' ? '7' : range === '30d' ? '30' : '90'} ngày`, icon: Eye, color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
@@ -663,9 +659,9 @@ export default function TrafficTracking() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {visibleCampaigns.length === 0 ? (
+              {pagedCamps.length === 0 ? (
                 <tr><td colSpan={7} className="px-6 py-10 text-center text-slate-400">Chưa có chiến dịch nào</td></tr>
-              ) : visibleCampaigns.map(c => {
+              ) : pagedCamps.map(c => {
                 const done = Number(c.views_done || 0);
                 const total = Number(c.total_views || 1);
                 const isCompleted = done >= total || c.status === 'completed';
@@ -713,6 +709,15 @@ export default function TrafficTracking() {
             </tbody>
           </table>
         </div>
+        {visibleCampaigns.length > 10 && (
+          <div className="bg-slate-50 border-t border-slate-100 flex justify-between items-center px-6 py-3">
+            <span className="text-xs text-slate-500 font-medium">Trang <b className="text-slate-700">{pageCamp}</b> / {Math.ceil(visibleCampaigns.length / 10)}</span>
+            <div className="flex gap-2">
+              <button onClick={() => setPageCamp(p => Math.max(1, p - 1))} disabled={pageCamp === 1} className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg disabled:opacity-40 transition shadow-sm">‹ Trước</button>
+              <button onClick={() => setPageCamp(p => Math.min(Math.ceil(visibleCampaigns.length / 10), p + 1))} disabled={pageCamp >= Math.ceil(visibleCampaigns.length / 10)} className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg disabled:opacity-40 transition shadow-sm">Sau ›</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Device + Source */}
