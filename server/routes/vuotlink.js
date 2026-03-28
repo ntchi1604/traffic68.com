@@ -480,7 +480,9 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       for (let i = 1; i < shakes.length; i++) diffs.push(shakes[i].t - shakes[i - 1].t);
       const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
       const variance = diffs.reduce((a, d) => a + (d - avgDiff) ** 2, 0) / diffs.length;
-      if (variance < 800 && diffs.length >= 2) {
+      // setInterval bots give variance ~0. Humans can easily hit variance 200-800 for just 2 intervals.
+      // Lower threshold to 25 to only catch extremely precise mechanical timings.
+      if (variance < 25 && diffs.length >= 2) {
         logSecurityEvent('Cảm biến lắc đều đặn bất thường (bot setInterval)', ip, ua, null, { shakeLog: shakes, variance });
         return res.status(403).json({ error: 'Tín hiệu cảm biến không tự nhiên.' });
       }
@@ -488,7 +490,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     for (const s of shakes) {
       const ax = s.ax || 0, ay = s.ay || 0, az = s.az || 0;
       const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
-      if (total < 5 || total > 500) {
+      if (total < 5 || total > 2000) {
         return res.status(403).json({ error: 'Giá trị cảm biến ngoài phạm vi hợp lệ.' });
       }
     }
