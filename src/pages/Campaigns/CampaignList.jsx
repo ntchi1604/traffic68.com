@@ -117,9 +117,9 @@ function KeywordStats({ campaignId }) {
               ) : daily.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((d, i) => (
                 <tr key={i} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{d.date?.slice(0, 10)}</td>
-                  <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]">{d.keyword || '(Trống)'}</td>
+                  <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]" title={d.keyword}>{d.keyword || '(Trống)'}</td>
                   <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
-                    {d.completed} <span className="text-slate-400 font-medium text-[10px]">/ {d.total}</span>
+                    {d.completed} <span className="text-slate-500 font-medium text-[10px] ml-0.5">view / {d.total} click</span>
                   </td>
                   <td className="px-4 py-2.5 text-right font-semibold text-slate-600">{fmt(d.cost)} đ</td>
                 </tr>
