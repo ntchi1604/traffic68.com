@@ -10,7 +10,6 @@ import {
   AlertCircle, Loader2, WifiOff, Copy, Check, Lock, Unlock, RefreshCw, Clock,
 } from 'lucide-react';
 
-/* ─── CreepJS via iframe (chờ bắt buộc, không fallback) ─── */
 let _creepResult = null;
 let _creepVisitorId = 'unknown';
 let _creepDone = false;
@@ -18,7 +17,6 @@ let _creepResolvers = [];
 
 function _resolveCreep(result) {
   if (_creepDone) return;
-  // Chỉ resolve khi có visitorId thật HOẶC đã retry hết
   _creepResult = result;
   _creepDone = true;
   _creepResolvers.forEach(r => r(result));
@@ -26,7 +24,6 @@ function _resolveCreep(result) {
 }
 
 if (typeof window !== 'undefined') {
-  // Lắng nghe message từ iframe
   window.addEventListener('message', function handler(e) {
     if (!e.data || e.data.type !== 'creep-result') return;
     const d = e.data.data;
