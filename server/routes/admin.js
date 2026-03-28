@@ -874,10 +874,21 @@ router.get('/security/user/:uid/events', async (req, res) => {
     if (ips.length) {
       const ph = ips.map(() => '?').join(',');
       const [logRows] = await pool.execute(
-        `SELECT id, source, reason, ip_address, user_agent, visitor_id, details, created_at
-         FROM security_logs
-         WHERE ip_address IN (${ph}) AND reason != 'completed'
-         ORDER BY created_at DESC LIMIT 500`, ips
+        `SELECT sl.id, sl.source, sl.reason, sl.ip_address, sl.user_agent, sl.visitor_id,
+                sl.details, sl.created_at,
+                vt.target_url,
+                wl.slug as gateway_slug
+         FROM security_logs sl
+         LEFT JOIN vuot_link_tasks vt ON (
+           vt.ip_address = sl.ip_address
+           AND (vt.visitor_id = sl.visitor_id OR (vt.visitor_id IS NULL AND sl.visitor_id IS NULL))
+           AND ABS(TIMESTAMPDIFF(SECOND, vt.created_at, sl.created_at)) < 300
+           AND (vt.worker_id = ? OR vt.worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))
+         )
+         LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+         WHERE sl.ip_address IN (${ph}) AND sl.reason != 'completed'
+         ORDER BY sl.created_at DESC LIMIT 500`,
+        [uid, uid, ...ips]
       );
       allEvents.push(...logRows);
     }

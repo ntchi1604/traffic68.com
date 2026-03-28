@@ -423,7 +423,7 @@ function UserDetail({ user: u, onBack }) {
           const det = typeof ev.details === 'string' ? JSON.parse(ev.details || '{}') : (ev.details || {});
           const slug = ev.gateway_slug || det.gatewaySlug || null;
           const tUrl = ev.target_url || det.targetUrl || det.url || '';
-          linkVuot = slug ? `https://traffic68.com/g/${slug}` : tUrl;
+          linkVuot = slug ? `https://traffic68.com/vuot-link/${slug}` : tUrl;
         } catch(e){}
         csv += `"${new Date(ev.created_at).toLocaleString('vi-VN')}","${source}","${device}","${ev.ip_address}","${ev.visitor_id || ''}","${linkVuot}"\n`;
       });
