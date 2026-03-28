@@ -163,6 +163,30 @@ router.get('/public/:token', async (req, res) => {
         captchaEnabled = false;
       }
     } catch (e) { }
+
+    if (captchaEnabled) {
+      try {
+        const visitorId = req.query.v || req.query.visitorId || '';
+        const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
+        const [tasks] = await pool.execute(
+          `SELECT ref_worker_id, worker_id FROM vuot_link_tasks 
+           WHERE (ip_address = ? OR (visitor_id = ? AND visitor_id != '')) 
+             AND status IN ('pending', 'step1', 'step2', 'step3') 
+             AND expires_at > NOW() 
+           ORDER BY created_at DESC LIMIT 1`,
+          [ip, cleanVid]
+        );
+        if (tasks.length > 0) {
+          const targetCheckId = tasks[0].ref_worker_id || tasks[0].worker_id;
+          if (targetCheckId) {
+            const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
+            if (tRows.length > 0 && tRows[0].trusted === 1) {
+              captchaEnabled = false;
+            }
+          }
+        }
+      } catch (e) { }
+    }
   }
 
   const resp = { campaignFound: !!campaignInfo, captchaEnabled };
@@ -228,7 +252,7 @@ router.post('/public/:token/check-session', async (req, res) => {
 
   const cleanVisitorId = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const [tasks] = await pool.execute(
-    `SELECT vt.id, vt.status as task_status, c.traffic_type FROM vuot_link_tasks vt
+    `SELECT vt.id, vt.ref_worker_id, vt.worker_id, vt.status as task_status, c.traffic_type FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
      WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id != 'unknown'))
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
@@ -261,7 +285,16 @@ router.post('/public/:token/check-session', async (req, res) => {
     );
   } catch (e) { }
 
-  res.json({ hasSession: true });
+  let isTrustedWorker = false;
+  const targetCheckId = task.ref_worker_id || task.worker_id;
+  if (targetCheckId) {
+    try {
+      const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
+      if (tRows.length > 0 && tRows[0].trusted === 1) isTrustedWorker = true;
+    } catch (e) { }
+  }
+
+  res.json({ hasSession: true, trusted: isTrustedWorker });
 });
 
 router.get('/public/:token/challenge', (req, res) => {

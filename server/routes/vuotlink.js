@@ -67,14 +67,6 @@ setInterval(() => {
 }, 30000);
 
 
-
-/* ═══════════════════════════════════════════════════════════
-   STEP 1: GET /challenge (anti-replay token + optional slug/ref session)
-   If ?slug=xxx  → gateway link mode (worker_link_id bound server-side)
-   If ?ref=xxx   → ref link mode (refWorkerId bound server-side)
-                   xxx có thể là username hoặc numeric user id của worker
-   Client never sends these IDs directly.
-═══════════════════════════════════════════════════════════ */
 router.get('/challenge', async (req, res) => {
   const ua = req.headers['user-agent'] || '';
   if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
@@ -83,7 +75,6 @@ router.get('/challenge', async (req, res) => {
   let workerLinkId = null;
   let refWorkerId = null;
 
-  // ── Gateway slug mode: ?slug=xxx ──
   const slug = (req.query.slug || '').trim();
   if (slug) {
     try {
@@ -135,13 +126,7 @@ router.get('/challenge', async (req, res) => {
   res.json({ c: challengeId, p: prefix, d: difficulty });
 });
 
-/* ═════════════════════════════════════════════════════════
-   STEP 2: POST task — create session + generate code
-   - Stores IP, UA, random code in vuot_link_tasks
-   - Code will be shown on the target website embed script
-═════════════════════════════════════════════════════════ */
 router.post('/task', optionalAuth, (req, res) => {
-  // Hard 25s timeout — prevents Nginx 504 by responding before Nginx gives up
   const timeoutId = setTimeout(() => {
     if (!res.headersSent) {
       console.error('[VuotLink] ⏱ POST /task TIMED OUT after 25s');
@@ -393,7 +378,7 @@ async function _handleTaskPost(req, res) {
     try {
       const [usr] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
       if (usr.length && usr[0].trusted === 1) isTrustedWorker = true;
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // Track view (worker entered the page/claimed task)
@@ -611,7 +596,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     try {
       const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
       isTrustedWorker = tRows[0]?.trusted === 1;
-    } catch (_) {}
+    } catch (_) { }
   }
 
   if (!isTrustedWorker) {

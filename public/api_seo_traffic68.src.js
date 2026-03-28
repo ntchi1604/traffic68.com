@@ -1109,6 +1109,10 @@
       if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
       xhr.onload = function () {
         if (xhr.status === 200) {
+          try {
+            var resp = JSON.parse(xhr.responseText);
+            if (resp.trusted) _captchaEnabled = false;
+          } catch (e) { }
           _sessionVerified = true;
           _requireGoogle = false;
           callback(true);
@@ -1125,7 +1129,6 @@
     });
   }
 
-  /* ── Fetch challenge token (anti-replay — same as vuotlink) ── */
   var _domText = '', _domFontSize = 16, _glColor = [0, 0, 0];
 
   function fetchChallenge(callback) {
