@@ -366,7 +366,6 @@ module.exports = {
   processAutoPayment,
   BSC_EXPLORER,
   getDepositSettings,
-  checkIncomingUSDT,
   processIncomingDeposits,
   startDepositWatcher,
   stopDepositWatcher,
