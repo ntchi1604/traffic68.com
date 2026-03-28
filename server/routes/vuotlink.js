@@ -463,6 +463,25 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     return res.status(403).json({ error: 'Invalid token' });
   }
 
+  let dbTaskVisitorId = null;
+  try {
+    const pool = getPool();
+    const [tasks] = await pool.execute(
+      'SELECT id, status, expires_at, visitor_id FROM vuot_link_tasks WHERE id = ?',
+      [req.params.id]
+    );
+    if (!tasks.length) return res.status(404).json({ error: 'Task không tồn tại' });
+    const task = tasks[0];
+    if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
+    if (task.status === 'expired') return res.status(410).json({ error: 'Task đã hết hạn' });
+    const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
+    if (expCheck[0]?.expired) return res.status(410).json({ error: 'Task đã hết hạn' });
+    dbTaskVisitorId = task.visitor_id;
+  } catch (e) {
+    console.error('[VuotLink] challenge-passed DB error:', e.message);
+    return res.status(500).json({ error: 'Lỗi server' });
+  }
+
   const isMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
   if (isMobile) {
     if (!Array.isArray(shakeLog) || shakeLog.length < 3) {
@@ -481,7 +500,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
       const variance = diffs.reduce((a, d) => a + (d - avgDiff) ** 2, 0) / diffs.length;
       if (variance < 25 && diffs.length >= 2) {
-        logSecurityEvent('Cảm biến lắc đều đặn bất thường (bot setInterval)', ip, ua, null, { shakeLog: shakes, variance });
+        logSecurityEvent('Cảm biến lắc đều đặn bất thường (bot setInterval)', ip, ua, dbTaskVisitorId, { shakeLog: shakes, variance });
         return res.status(403).json({ error: 'Tín hiệu cảm biến không tự nhiên.' });
       }
     }
@@ -511,27 +530,10 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       const avgSpd = speeds.reduce((a, b) => a + b, 0) / speeds.length;
       const spdVar = speeds.reduce((a, s) => a + (s - avgSpd) ** 2, 0) / speeds.length;
       if (spdVar < 0.0001 && avgSpd > 0.05) {
-        logSecurityEvent('Trỏ chuột di chuyển đều tuyệt đối (bot curve)', ip, ua, null, { curveLog: points, spdVar });
+        logSecurityEvent('Trỏ chuột di chuyển đều tuyệt đối (bot curve)', ip, ua, dbTaskVisitorId, { curveLog: points, spdVar });
         return res.status(403).json({ error: 'Chuyển động chuột bất thường.' });
       }
     }
-  }
-
-  try {
-    const pool = getPool();
-    const [tasks] = await pool.execute(
-      'SELECT id, status, expires_at FROM vuot_link_tasks WHERE id = ?',
-      [req.params.id]
-    );
-    if (!tasks.length) return res.status(404).json({ error: 'Task không tồn tại' });
-    const task = tasks[0];
-    if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
-    if (task.status === 'expired') return res.status(410).json({ error: 'Task đã hết hạn' });
-    const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
-    if (expCheck[0]?.expired) return res.status(410).json({ error: 'Task đã hết hạn' });
-  } catch (e) {
-    console.error('[VuotLink] challenge-passed DB error:', e.message);
-    return res.status(500).json({ error: 'Lỗi server' });
   }
 
   const ts = Date.now();
