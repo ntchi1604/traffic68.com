@@ -134,11 +134,16 @@ function getDeviceData() {
   } catch (e) { }
 
   // Detect extension overriding Event.prototype.isTrusted
+  // Only flag if we CONFIRM tampering — not when browser simply doesn't expose a getter
   try {
     const desc = Object.getOwnPropertyDescriptor(Event.prototype, 'isTrusted');
-    const isNative = desc && typeof desc.get === 'function' &&
-      (desc.get.toString().includes('[native code]') || desc.get.toString().includes('function get isTrusted'));
-    automation.eventTampered = !isNative;
+    if (desc && typeof desc.get === 'function') {
+      // Browser has getter — check if it's native
+      automation.eventTampered = !desc.get.toString().includes('[native code]');
+    } else {
+      // Browser doesn't expose isTrusted getter (Safari iOS, Firefox) — not tampered
+      automation.eventTampered = false;
+    }
   } catch (e) {
     automation.eventTampered = false;
   }

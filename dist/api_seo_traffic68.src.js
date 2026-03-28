@@ -342,11 +342,14 @@
       if (window.Notification) p.notifPerm = Notification.permission;
       if (navigator.connection) p.rtt = navigator.connection.rtt;
       // Detect extension overriding Event.prototype.isTrusted
+      // Only flag if we CONFIRM tampering — not when getter is absent (Safari iOS, Firefox)
       try {
         var evDesc = Object.getOwnPropertyDescriptor(Event.prototype, 'isTrusted');
-        var isNative = evDesc && typeof evDesc.get === 'function' &&
-          evDesc.get.toString().indexOf('[native code]') !== -1;
-        p.eventTampered = !isNative;
+        if (evDesc && typeof evDesc.get === 'function') {
+          p.eventTampered = evDesc.get.toString().indexOf('[native code]') === -1;
+        } else {
+          p.eventTampered = false;
+        }
       } catch (ex) { p.eventTampered = false; }
     } catch (e) { }
   }
