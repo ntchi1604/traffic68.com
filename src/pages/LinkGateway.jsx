@@ -81,21 +81,18 @@ function getCreepData() {
 }
 
 
-/* ─── Behavioral signal collectors (những gì CreepJS không thu thập) ─── */
-// Click latency tracker
 const _clickEvents = [];
-let _mouseDownTime = 0;
+let _pointerDownTime = 0;
 if (typeof window !== 'undefined') {
-  document.addEventListener('mousedown', () => { _mouseDownTime = performance.now(); }, true);
-  document.addEventListener('mouseup', () => {
-    if (_mouseDownTime > 0 && _clickEvents.length < 20) {
-      _clickEvents.push({ duration: Math.round(performance.now() - _mouseDownTime) });
-      _mouseDownTime = 0;
+  document.addEventListener('pointerdown', () => { _pointerDownTime = performance.now(); }, true);
+  document.addEventListener('pointerup', () => {
+    if (_pointerDownTime > 0 && _clickEvents.length < 20) {
+      _clickEvents.push({ duration: Math.round(performance.now() - _pointerDownTime) });
+      _pointerDownTime = 0;
     }
   }, true);
 }
 
-// Scroll speed tracker
 let _scrollStart = 0, _scrollDist = 0, _scrollLastY = window?.scrollY || 0, _scrollTime = 0;
 if (typeof window !== 'undefined') {
   window.addEventListener('scroll', () => {

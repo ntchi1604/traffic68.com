@@ -929,14 +929,15 @@ router.get('/security/user/:uid/events', async (req, res) => {
 
     allEvents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    // ── Dedup: gộp events cùng IP + visitor_id + reason thành 1 dòng ──
+    // ── Dedup: gộp events cùng IP + visitor_id thành 1 dòng ──
     const groupMap = new Map();
     for (const ev of allEvents) {
-      const key = `${ev.ip_address}|${ev.visitor_id || ''}|${ev.reason || ''}`;
+      const key = `${ev.ip_address}|${ev.visitor_id || ''}`;
       if (groupMap.has(key)) {
         groupMap.get(key).occurrences.push({
           id: ev.id, created_at: ev.created_at, details: ev.details,
           target_url: ev.target_url, gateway_slug: ev.gateway_slug,
+          reason: ev.reason,
         });
         groupMap.get(key).count++;
       } else {
@@ -946,6 +947,7 @@ router.get('/security/user/:uid/events', async (req, res) => {
           occurrences: [{
             id: ev.id, created_at: ev.created_at, details: ev.details,
             target_url: ev.target_url, gateway_slug: ev.gateway_slug,
+            reason: ev.reason,
           }],
         });
       }

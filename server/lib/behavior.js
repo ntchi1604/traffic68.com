@@ -68,7 +68,10 @@ function checkCreepLies(botDetection) {
   return null;
 }
 
-function checkClickLatency(deviceData) {
+function checkClickLatency(deviceData, userAgent) {
+  const ua = (userAgent || '').toLowerCase();
+  const isMobile = /mobi|android|iphone|ipad/i.test(ua);
+
   const clicks = deviceData?.behavior?.clicks;
   if (!Array.isArray(clicks) || clicks.length < 3) return null;
 
@@ -79,7 +82,8 @@ function checkClickLatency(deviceData) {
   const variance = latencies.reduce((acc, d) => acc + Math.pow(d - avg, 2), 0) / latencies.length;
   const stdDev = Math.sqrt(variance);
 
-  if (avg < 10 && stdDev < 5)                      return 'Click quá nhanh (dưới 10ms, không thể là người thật)';
+  // Người dùng mobile thường bị dính dưới 10ms do OS biên dịch mousedown->mouseup từ màn cảm ứng
+  if (avg < 10 && stdDev < 5 && !isMobile)          return 'Click cực nhanh (dưới 10ms, Tool Desktop Auto Click)';
   if (avg > 0 && stdDev < 3 && latencies.length >= 5) return 'Thời gian click đều đặn bất thường (tự động hóa)';
 
   return null;
@@ -214,7 +218,7 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
   }
 
   
-  const clickAnomaly = checkClickLatency(deviceData);
+  const clickAnomaly = checkClickLatency(deviceData, userAgent);
   if (clickAnomaly) {
     reasons.push(clickAnomaly);
     detectionLog.push('Hành vi click bất thường');

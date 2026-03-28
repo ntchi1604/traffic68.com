@@ -457,7 +457,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
   try {
     const pool = getPool();
     const [tasks] = await pool.execute(
-      'SELECT id, status, expires_at, visitor_id FROM vuot_link_tasks WHERE id = ?',
+      'SELECT vt.id, vt.status, vt.expires_at, vt.visitor_id, wl.slug as gatewaySlug FROM vuot_link_tasks vt LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id WHERE vt.id = ?',
       [req.params.id]
     );
     if (!tasks.length) return res.status(404).json({ error: 'Task không tồn tại' });
@@ -530,25 +530,27 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     }
     const identicalRatio = identicalFrames / rawEvents.length;
 
+    const ext = { taskId: req.params.id, gatewaySlug: task.gatewaySlug };
+
     if (EMULATOR_UA.test(ua)) {
-      logSecurityEvent('Dùng trình duyệt của Giả lập (Bluestacks/Nox/LDPlayer...)', ip, ua, dbTaskVisitorId, { ua });
+      logSecurityEvent('Dùng trình duyệt của Giả lập (Bluestacks/Nox/LDPlayer...)', ip, ua, dbTaskVisitorId, { ua, ...ext });
       detectedBotReason = 'Giả lập Android';
     } else if (varDeltaY < 1) {
-      logSecurityEvent('Dùng tool lắc cảm biến ảo (Trục X/Y song song)', ip, ua, dbTaskVisitorId, { varDeltaY });
+      logSecurityEvent('Dùng tool lắc cảm biến ảo (Trục X/Y song song)', ip, ua, dbTaskVisitorId, { varDeltaY, ...ext });
       detectedBotReason = 'Dữ liệu cảm biến không tự nhiên';
     } else if (identicalRatio > 0.25 && totals.length > 10) {
-      logSecurityEvent('Dùng tool lắc tự động (Lỗi lặp khung hình PC)', ip, ua, dbTaskVisitorId, { identicalRatio });
+      logSecurityEvent('Dùng tool lắc tự động (Lỗi lặp khung hình PC)', ip, ua, dbTaskVisitorId, { identicalRatio, ...ext });
       detectedBotReason = 'Can thiệp cảm biến';
     } else if (zeroZCount === rawEvents.length) {
-      logSecurityEvent('Không có trọng lực Z (Dùng Tool trên Desktop)', ip, ua, dbTaskVisitorId, { shakeLog: rawEvents });
+      logSecurityEvent('Không có trọng lực Z (Dùng Tool trên Desktop)', ip, ua, dbTaskVisitorId, { shakeLog: rawEvents, ...ext });
       detectedBotReason = 'Dữ liệu cảm biến không hợp lệ';
     } else if (intervals.length >= 10 && intervalVariance < 0.1 && avgInterval > 0) {
-      logSecurityEvent('Dùng Tool Macro/Auto Click (Nhịp độ quá đều)', ip, ua, dbTaskVisitorId, { intervalVariance, avgInterval });
+      logSecurityEvent('Dùng Tool Macro/Auto Click (Nhịp độ quá đều)', ip, ua, dbTaskVisitorId, { intervalVariance, avgInterval, ...ext });
       detectedBotReason = 'Tín hiệu cảm biến bất thường';
     } else if (maxTotal < 15) {
       detectedBotReason = 'Lực cảm biến thiếu';
     } else if (forceVariance < 0.5 && rawEvents.length >= 5) {
-      logSecurityEvent('Lắc bằng máy tĩnh / Điện thoại đặt cố định', ip, ua, dbTaskVisitorId, { forceVariance });
+      logSecurityEvent('Lắc bằng máy tĩnh / Điện thoại đặt cố định', ip, ua, dbTaskVisitorId, { forceVariance, ...ext });
       detectedBotReason = 'Tín hiệu lực quá đều tăm tắp';
     }
   } else {
@@ -570,7 +572,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       const avgSpd = speeds.reduce((a, b) => a + b, 0) / speeds.length;
       const spdVar = speeds.reduce((a, s) => a + (s - avgSpd) ** 2, 0) / speeds.length;
       if (spdVar < 0.0001 && avgSpd > 0.05) {
-        logSecurityEvent('Dùng Tool kéo chuột tự động (Auto Mouse)', ip, ua, dbTaskVisitorId, { curveLog: points, spdVar });
+        logSecurityEvent('Dùng Tool kéo chuột tự động (Auto Mouse)', ip, ua, dbTaskVisitorId, { curveLog: points, spdVar, taskId: req.params.id, gatewaySlug: task.gatewaySlug });
         detectedBotReason = 'Chuyển động chuột bất thường';
       }
     }
