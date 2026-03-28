@@ -111,7 +111,7 @@ router.get('/public/:token', async (req, res) => {
 
   if (pageUrl) {
     try {
-      const normalize = (u) => decodeURIComponent(u).replace(/^https?:\/\
+      const normalize = (u) => decodeURIComponent(u).replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').toLowerCase();
       const normalPage = normalize(pageUrl);
 
       const [campaigns] = await pool.execute(
@@ -245,7 +245,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   
   const task = tasks[0];
   if (task.traffic_type === 'google_search' && !['step2', 'step3'].includes(task.task_status)) {
-    const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\
+    const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
     const clientRef = pageReferrer || '';
     if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
       console.log(`[Widget] check-session BLOCKED: Non-Google referrer — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
@@ -420,7 +420,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   
   if (task.traffic_type === 'google_search' && v1Phase !== 2) {
-    const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\
+    const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
     const clientRef = pageReferrer || '';
     if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
       console.log(`[Widget] BLOCKED: Non-Google referrer for search campaign — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);

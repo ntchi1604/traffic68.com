@@ -27,8 +27,7 @@ router.get('/st', async (req, res) => {
 
     
     let destUrl = url;
-    if (!/^https?:\/\
-    try { new URL(destUrl); } catch { return res.status(400).json({ error: 'URL không hợp lệ' }); }
+    if (!/^https?:\/\//i.test(destUrl)) destUrl = 'https://' + destUrl;
 
     
     const pool = getPool();
@@ -250,7 +249,7 @@ router.get('/api', async (req, res) => {
 
     
     let destUrl = url;
-    if (!/^https?:\/\
+    if (!/^https?:\/\//i.test(destUrl)) destUrl = 'https://' + destUrl;
     try { new URL(destUrl); } catch {
       if (format === 'text') return res.send('');
       return res.status(400).json({ status: 'error', message: 'URL không hợp lệ' });
