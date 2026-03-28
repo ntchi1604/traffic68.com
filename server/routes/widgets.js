@@ -309,16 +309,30 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Blocked' });
   }
 
+  const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
+  const [tasks] = await pool.execute(
+    `SELECT vt.*, c.url as campaign_url, c.time_on_site, c.version, c.target_page, c.traffic_type FROM vuot_link_tasks vt
+     JOIN campaigns c ON c.id = vt.campaign_id
+     WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id != 'unknown'))
+       AND vt.status IN ('pending', 'step1', 'step2', 'step3')
+       AND vt.expires_at > NOW()
+     ORDER BY vt.created_at DESC LIMIT 1`,
+    [ip, cleanVid]
+  );
+
+  if (tasks.length === 0) {
+    return res.status(404).json({ error: 'Không tìm thấy session.' });
+  }
+  const task = tasks[0];
+
   let isTrustedWorker = false;
-  if (req.userId) {
+  const targetCheckId = task.ref_worker_id || task.worker_id || req.userId;
+  if (targetCheckId) {
     try {
-      const { getPool: _gp } = require('../db');
-      const [tRows] = await _gp().execute('SELECT trusted FROM users WHERE id = ?', [req.userId]);
+      const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
       isTrustedWorker = tRows[0]?.trusted === 1;
     } catch (_) { }
   }
-
-
   const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
   if (!isTrustedWorker && hcaptchaToken && !['skip', 'error', 'render-error', 'disabled'].includes(hcaptchaToken)) {
     try {
@@ -412,22 +426,6 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
 
-  const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
-  const [tasks] = await pool.execute(
-    `SELECT vt.*, c.url as campaign_url, c.time_on_site, c.version, c.target_page, c.traffic_type FROM vuot_link_tasks vt
-     JOIN campaigns c ON c.id = vt.campaign_id
-     WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id != 'unknown'))
-       AND vt.status IN ('pending', 'step1', 'step2', 'step3')
-       AND vt.expires_at > NOW()
-     ORDER BY vt.created_at DESC LIMIT 1`,
-    [ip, cleanVid]
-  );
-
-  if (tasks.length === 0) {
-    return res.status(404).json({ error: 'Không tìm thấy session.' });
-  }
-
-  const task = tasks[0];
   const campVersion = task.version || 0;
 
 

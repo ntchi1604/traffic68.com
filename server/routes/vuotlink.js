@@ -89,11 +89,12 @@ router.get('/challenge', async (req, res) => {
     try {
       const pool = getPool();
       const [rows] = await pool.execute(
-        `SELECT wl.id FROM worker_links wl
+        `SELECT wl.id, wl.worker_id FROM worker_links wl
          JOIN users u ON u.id = wl.worker_id
          WHERE wl.slug = ? AND wl.hidden = 0 AND u.status = 'active'`, [slug]);
       if (rows.length > 0) {
         workerLinkId = rows[0].id;
+        refWorkerId = rows[0].worker_id;
       } else {
         return res.status(404).json({ error: 'Link không tồn tại' });
       }
@@ -387,11 +388,12 @@ async function _handleTaskPost(req, res) {
   );
 
   let isTrustedWorker = false;
-  if (req.userId) {
+  const targetCheckId = refWorkerId || req.userId;
+  if (targetCheckId) {
     try {
-      const [usr] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [req.userId]);
+      const [usr] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
       if (usr.length && usr[0].trusted === 1) isTrustedWorker = true;
-    } catch (_) { }
+    } catch (_) {}
   }
 
   // Track view (worker entered the page/claimed task)
@@ -594,12 +596,20 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     return res.status(403).json({ error: 'Invalid token' });
   }
 
+  if (!code || code.trim().length < 4) {
+    return res.status(400).json({ error: 'Mã xác nhận không hợp lệ' });
+  }
+  const [tasks] = await pool.execute('SELECT * FROM vuot_link_tasks WHERE id = ?', [req.params.id]);
+  if (tasks.length === 0) return res.status(404).json({ error: 'Task không tồn tại' });
+  const task = tasks[0];
+
   const taskIdStr = String(req.params.id);
 
   let isTrustedWorker = false;
-  if (req.userId) {
+  const targetCheckId = task.ref_worker_id || task.worker_id || req.userId;
+  if (targetCheckId) {
     try {
-      const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [req.userId]);
+      const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
       isTrustedWorker = tRows[0]?.trusted === 1;
     } catch (_) {}
   }
@@ -614,13 +624,6 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     }
     delete challengePassedStore[taskIdStr];
   }
-
-  if (!code || code.trim().length < 4) {
-    return res.status(400).json({ error: 'Mã xác nhận không hợp lệ' });
-  }
-  const [tasks] = await pool.execute('SELECT * FROM vuot_link_tasks WHERE id = ?', [req.params.id]);
-  if (tasks.length === 0) return res.status(404).json({ error: 'Task không tồn tại' });
-  const task = tasks[0];
 
   if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
   if (task.status === 'expired') return res.status(410).json({ error: 'Task đã hết hạn. Vui lòng lấy nhiệm vụ mới.' });
