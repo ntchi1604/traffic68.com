@@ -315,6 +315,43 @@ function EventModal({ event: ev, onClose }) {
             </div>
           )}
 
+          {/* Lịch sử tất cả lần xuất hiện */}
+          {ev.occurrences && ev.occurrences.length > 1 && (
+            <div>
+              <p className="text-[10px] font-bold text-red-400 uppercase mb-1.5">
+                🔁 Lịch sử xuất hiện ({ev.occurrences.length} lần)
+              </p>
+              <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                {ev.occurrences.map((occ, i) => {
+                  let occDet = {};
+                  try { occDet = typeof occ.details === 'string' ? JSON.parse(occ.details || '{}') : (occ.details || {}); } catch {}
+                  const occReasons = occDet.reasons?.length > 0 ? occDet.reasons : (occDet.detectionLog || []);
+                  return (
+                    <div key={i} className="px-3 py-2 rounded-lg bg-red-50 border border-red-100">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold text-red-700">#{i + 1} · {fmt(occ.created_at)}</span>
+                        {(occ.gateway_slug || occ.target_url) && (
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">
+                            {occ.gateway_slug ? `g/${occ.gateway_slug}` : (occ.target_url || '').slice(0, 30)}
+                          </span>
+                        )}
+                      </div>
+                      {occReasons.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {occReasons.map((r, j) => (
+                            <span key={j} className="text-[9px] font-mono bg-amber-50 text-amber-700 border border-amber-100 rounded px-1.5 py-0.5 leading-tight">
+                              ↳ {r}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Điểm rủi ro */}
           {det.deviceScore != null && (
             <div className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2">
@@ -633,8 +670,15 @@ function UserDetail({ user: u, onBack }) {
                     ? evDet.reasons
                     : (evDet.detectionLog || []);
                   return (
-                    <tr key={ev.id} className="border-b border-slate-100 bg-red-50/20 hover:bg-red-50/40">
-                      <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{fmt(ev.created_at)}</td>
+                    <tr key={ev.id || ev.created_at} className="border-b border-slate-100 bg-red-50/20 hover:bg-red-50/40">
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className="text-slate-500">{fmt(ev.created_at)}</span>
+                        {ev.count > 1 && (
+                          <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-500 text-white">
+                            ×{ev.count}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 max-w-[220px]">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 block w-fit mb-1">{ev.reason}</span>
                         {subReasons.slice(0, 2).map((r, i) => (

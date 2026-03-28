@@ -917,8 +917,33 @@ router.get('/security/user/:uid/events', async (req, res) => {
     });
 
     allEvents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    const total = allEvents.length;
-    const events = allEvents.slice(offset, offset + Number(limit));
+
+    // ── Dedup: gộp events cùng IP + visitor_id + reason thành 1 dòng ──
+    const groupMap = new Map();
+    for (const ev of allEvents) {
+      const key = `${ev.ip_address}|${ev.visitor_id || ''}|${ev.reason || ''}`;
+      if (groupMap.has(key)) {
+        groupMap.get(key).occurrences.push({
+          id: ev.id, created_at: ev.created_at, details: ev.details,
+          target_url: ev.target_url, gateway_slug: ev.gateway_slug,
+        });
+        groupMap.get(key).count++;
+      } else {
+        groupMap.set(key, {
+          ...ev,
+          count: 1,
+          occurrences: [{
+            id: ev.id, created_at: ev.created_at, details: ev.details,
+            target_url: ev.target_url, gateway_slug: ev.gateway_slug,
+          }],
+        });
+      }
+    }
+    const dedupedEvents = Array.from(groupMap.values());
+    dedupedEvents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    const total = dedupedEvents.length;
+    const events = dedupedEvents.slice(offset, offset + Number(limit));
 
     res.json({ events, total, page: Number(page), limit: Number(limit) });
   } catch (err) {
