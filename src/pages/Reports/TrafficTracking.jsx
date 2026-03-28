@@ -599,14 +599,15 @@ export default function TrafficTracking() {
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Chiến dịch</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Trạng thái</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Tiến độ</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Views</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Nay/Qua</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Tổng Views</th>
                 <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Ngân sách</th>
                 <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Chi tiết</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {visibleCampaigns.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-400">Chưa có chiến dịch nào</td></tr>
+                <tr><td colSpan={7} className="px-6 py-10 text-center text-slate-400">Chưa có chiến dịch nào</td></tr>
               ) : visibleCampaigns.map(c => {
                 const done = Number(c.views_done || 0);
                 const total = Number(c.total_views || 1);
@@ -634,7 +635,10 @@ export default function TrafficTracking() {
                           <span className="text-xs font-bold text-slate-600 flex-shrink-0">{pct}%</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                        <span className="font-bold text-blue-600">{fmt(c.views_today || 0)}</span> <span className="text-slate-400 text-xs">/ {fmt(c.views_yesterday || 0)}</span>
+                      </td>
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
                         <span className="font-semibold text-slate-800">{fmt(done)}</span>
                         <span className="text-slate-400 text-xs">/{fmt(total)}</span>
                       </td>

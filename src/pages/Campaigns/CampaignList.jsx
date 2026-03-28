@@ -407,14 +407,20 @@ export default function CampaignList() {
                 </div>
 
                 {/* Config grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
                   <div className="bg-slate-50 rounded-xl p-3">
                     <p className="text-slate-400 font-medium mb-0.5">Nguồn traffic</p>
                     <p className="text-slate-800 font-semibold">{SOURCE_LABEL[c.traffic_type] || c.traffic_type || '—'}</p>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-3">
                     <p className="text-slate-400 font-medium mb-0.5">Từ khóa</p>
-                    <p className="text-slate-800 font-semibold truncate">{c.keyword || '—'}</p>
+                    <p className="text-slate-800 font-semibold truncate" title={c.keyword}>{c.keyword || '—'}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-3">
+                    <p className="text-slate-400 font-medium mb-0.5">Nay / Qua</p>
+                    <p className="text-slate-800 font-semibold">
+                      <span className="text-blue-600">{fmt(c.views_today || 0)}</span> <span className="text-slate-400 font-normal">/ {fmt(c.views_yesterday || 0)}</span>
+                    </p>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-3">
                     <p className="text-slate-400 font-medium mb-0.5">CPC</p>

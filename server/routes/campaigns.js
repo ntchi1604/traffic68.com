@@ -49,9 +49,9 @@ router.get('/', async (req, res) => {
   let sql = 'SELECT * FROM campaigns WHERE user_id = ?';
   const params = [req.userId];
 
-  if (status && status !== 'all') { sql += ' AND status = ?'; params.push(status); }
-  if (search) { sql += ' AND (name LIKE ? OR url LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
-  sql += ' ORDER BY created_at DESC';
+  if (status && status !== 'all') { sql += ' AND c.status = ?'; params.push(status); }
+  if (search) { sql += ' AND (c.name LIKE ? OR c.url LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+  sql += ' ORDER BY c.created_at DESC';
 
   const [campaigns] = await pool.execute(sql, params);
   res.json({ campaigns });
