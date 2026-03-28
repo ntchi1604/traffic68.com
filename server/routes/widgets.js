@@ -302,12 +302,12 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Invalid session' });
   }
 
+  const { challengeId, _ck, visitorId, deviceData, botDetection, hcaptchaToken, pageReferrer } = req.body || {};
+
   if (BOT_UA.test(ua)) {
-    logSecurityEvent('Bot UA (widget)', ip, ua, null, {});
+    logSecurityEvent('Bot UA (widget)', ip, ua, visitorId || null, {});
     return res.status(403).json({ error: 'Blocked' });
   }
-
-  const { challengeId, _ck, visitorId, deviceData, botDetection, hcaptchaToken, pageReferrer } = req.body || {};
 
   
   const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
