@@ -985,7 +985,7 @@ function ShakeChallenge({ onPass, onClose }) {
         rawLogRef.current.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
         if (rawLogRef.current.length > 50) rawLogRef.current.shift();
 
-        if (total > 32 && now - lastShakeRef.current > 500) {
+        if (total > 26 && now - lastShakeRef.current > 500) {
           lastShakeRef.current = now;
           setFlashing(true);
           setTimeout(() => setFlashing(false), 300);
