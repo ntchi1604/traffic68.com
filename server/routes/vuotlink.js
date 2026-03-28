@@ -417,7 +417,6 @@ async function _handleTaskPost(req, res) {
         [campaign.user_id, `%${campaignDomain}%`]
       );
     } catch (_) { /* invalid URL, skip */ }
-    // Priority 2: Fallback to latest active widget for this user
     if (!wRows || wRows.length === 0) {
       [wRows] = await pool.execute(
         `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1`,
@@ -439,7 +438,6 @@ async function _handleTaskPost(req, res) {
     console.error('[VuotLink] Widget config error:', e.message);
   }
 
-  // Generate signed task token (binds to IP, cannot be forged)
   const _tk = signTask(result.insertId, ip);
 
   const isDirect = (campaign.traffic_type || 'google_search') === 'direct';
@@ -455,15 +453,7 @@ async function _handleTaskPost(req, res) {
   });
 }
 
-/* PUT /task/:id/step - no-op (step tracking removed) */
 router.put('/task/:id/step', optionalAuth, (req, res) => res.json({ ok: true }));
-
-/* ═════════════════════════════════════════════════════════
-   POST /task/:id/challenge-passed
-   Called by frontend after user passes shake/curve challenge.
-   Validates _tk (task token) then issues a signed challengeToken
-   stored server-side. Without this token, /verify will be rejected.
-═════════════════════════════════════════════════════════ */
 router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
   const ua = req.headers['user-agent'] || '';
@@ -473,32 +463,28 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     return res.status(403).json({ error: 'Invalid token' });
   }
 
-  // Server-side shake verification for mobile devices
   const isMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
   if (isMobile) {
     if (!Array.isArray(shakeLog) || shakeLog.length < 3) {
       return res.status(403).json({ error: 'Thiếu dữ liệu xác minh cảm biến.' });
     }
     const shakes = shakeLog.slice(0, 10);
-    // 1. Minimum interval check (humans cant shake faster than 300ms)
     for (let i = 1; i < shakes.length; i++) {
       if ((shakes[i].t - shakes[i - 1].t) < 300) {
         return res.status(403).json({ error: 'Tín hiệu cảm biến bất thường (quá nhanh).' });
       }
     }
-    // 2. Timing variance check (setInterval bots have near-zero variance)
+
     if (shakes.length >= 3) {
       const diffs = [];
       for (let i = 1; i < shakes.length; i++) diffs.push(shakes[i].t - shakes[i - 1].t);
       const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
       const variance = diffs.reduce((a, d) => a + (d - avgDiff) ** 2, 0) / diffs.length;
-      // setInterval(600) gives variance ~0-100, humans typically > 3000
       if (variance < 800 && diffs.length >= 2) {
         logSecurityEvent('Cảm biến lắc đều đặn bất thường (bot setInterval)', ip, ua, null, { shakeLog: shakes, variance });
         return res.status(403).json({ error: 'Tín hiệu cảm biến không tự nhiên.' });
       }
     }
-    // 3. Physical plausibility: total acceleration must be real (5 < total < 500)
     for (const s of shakes) {
       const ax = s.ax || 0, ay = s.ay || 0, az = s.az || 0;
       const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
@@ -529,24 +515,13 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
   const challengeToken = signChallengeToken(req.params.id, ip, ts);
   challengePassedStore[req.params.id] = { token: challengeToken, ts, ip };
 
-  console.log(`[VuotLink] ✅ Challenge passed — task #${req.params.id}, IP: ${ip}, mobile: ${isMobile}`);
   res.json({ challengeToken });
 });
 
-
-
-/* ═════════════════════════════════════════════════════════
-   STEP 4: POST /task/:id/verify — verify code & complete
-   - User enters code from target website
-   - Server verifies it matches code_given
-   - If correct → count as 1 view, pay worker
-═════════════════════════════════════════════════════════ */
 router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   const pool = getPool();
   const { code, _tk, challengeToken } = req.body;
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
-
-  // Anti-cheat: verify task token (binds to IP)
   if (!_tk || !verifyTaskToken(_tk, req.params.id, ip)) {
     return res.status(403).json({ error: 'Invalid token' });
   }
