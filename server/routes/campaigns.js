@@ -64,6 +64,24 @@ router.get('/', async (req, res) => {
     sql += ' ORDER BY c.created_at DESC';
 
     const [campaigns] = await pool.execute(sql, params);
+
+    // ── Auto-sync views_done ──
+    try {
+      const ids = campaigns.map(c => c.id);
+      if (ids.length > 0) {
+        const ph = ids.map(() => '?').join(',');
+        await pool.execute(
+          `UPDATE campaigns c SET views_done = (
+            SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
+          ) WHERE c.id IN (${ph}) AND c.views_done != (
+            SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
+          )`, ids
+        );
+        const [updated] = await pool.execute(sql, params);
+        return res.json({ campaigns: updated });
+      }
+    } catch (_) { }
+
     res.json({ campaigns });
   } catch (err) {
     console.error('get campaigns error:', err);
@@ -162,7 +180,7 @@ router.get('/:id/keyword-stats', async (req, res) => {
       `SELECT
          keyword,
          COUNT(*) as total,
-         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+         SUM(CASE WHEN status = 'completed' AND bot_detected = 0 THEN 1 ELSE 0 END) as completed,
          SUM(CASE WHEN status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) as pending,
          SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) as expired,
          SUM(CASE WHEN bot_detected = 1 THEN 1 ELSE 0 END) as blocked,
@@ -174,6 +192,14 @@ router.get('/:id/keyword-stats', async (req, res) => {
       [req.params.id]
     );
     res.json({ keywords: rows });
+
+    // ── Auto-sync views_done (fire-and-forget) ──
+    const realViews = rows.reduce((s, r) => s + Number(r.completed), 0);
+    pool.execute('SELECT views_done FROM campaigns WHERE id = ?', [req.params.id]).then(([c]) => {
+      if (c[0] && Number(c[0].views_done) !== realViews) {
+        pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, req.params.id]).catch(() => {});
+      }
+    }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

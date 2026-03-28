@@ -170,7 +170,7 @@ router.get('/detailed', async (req, res) => {
       [data] = await pool.execute(
         `SELECT DATE(vlt.created_at) as date, vlt.keyword, c.daily_views,
                 COUNT(*) as total,
-                SUM(CASE WHEN vlt.status = 'completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN vlt.status = 'completed' AND vlt.bot_detected = 0 THEN 1 ELSE 0 END) as completed,
                 COALESCE(SUM(vlt.earning), 0) as cost
          FROM vuot_link_tasks vlt
          JOIN campaigns c ON c.id = vlt.campaign_id
@@ -183,7 +183,7 @@ router.get('/detailed', async (req, res) => {
       [data] = await pool.execute(
         `SELECT DATE(vlt.created_at) as date, c.name as campaign_name, c.daily_views, vlt.keyword,
                 COUNT(*) as total,
-                SUM(CASE WHEN vlt.status = 'completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN vlt.status = 'completed' AND vlt.bot_detected = 0 THEN 1 ELSE 0 END) as completed,
                 COALESCE(SUM(vlt.earning), 0) as cost
          FROM vuot_link_tasks vlt
          JOIN campaigns c ON c.id = vlt.campaign_id
