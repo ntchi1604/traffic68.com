@@ -709,10 +709,20 @@ router.get('/security/users', async (req, res) => {
           const ips = ipRows.map(r => r.ip_address).filter(Boolean);
           if (ips.length > 0) {
             const ph = ips.map(() => '?').join(',');
-            const [cnt2] = await pool.execute(
-              `SELECT COUNT(*) as cnt FROM security_logs WHERE ip_address IN (${ph}) AND reason != 'completed'`, ips
+            const [dedupRows] = await pool.execute(
+              `SELECT COUNT(*) as cnt FROM (
+                SELECT ip_address, COALESCE(visitor_id, '') as vis_id
+                FROM security_logs
+                WHERE ip_address IN (${ph}) AND reason != 'completed'
+                UNION
+                SELECT ip_address, COALESCE(visitor_id, '') as vis_id
+                FROM vuot_link_tasks
+                WHERE (worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))
+                  AND bot_detected = 1
+              ) t`,
+              [...ips, uid, uid]
             );
-            if (cnt2[0].cnt > 0) secMap[uid] = Number(cnt2[0].cnt);
+            if (dedupRows[0].cnt > 0) secMap[uid] = Number(dedupRows[0].cnt);
           }
         } catch { }
       }
