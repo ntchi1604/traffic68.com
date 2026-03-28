@@ -75,9 +75,24 @@ router.post('/deposits', async (req, res) => {
       const customRate = config.web3_vnd_rate ? parseFloat(config.web3_vnd_rate) : null;
       const conversion = await w3.convertVndToUSDT(Number(amount), customRate);
 
-      // Add random 0.0001-0.0099 to make amount unique for matching
-      const uniqueOffset = (Math.floor(Math.random() * 99) + 1) / 10000;
-      const usdtAmount = Number((conversion.usdtAmount + uniqueOffset).toFixed(4));
+      // Add random 0.01-0.99 USDT offset to make amount unique for matching
+      // Check against existing pending deposits to ensure no collision
+      const [existingPending] = await pool.execute(
+        `SELECT note FROM transactions WHERE type='deposit' AND method='crypto' AND status='pending' AND wallet_type='main'`
+      );
+      const usedAmounts = new Set();
+      existingPending.forEach(r => {
+        const m = (r.note || '').match(/Expected:\s*([\d.]+)\s*USDT/);
+        if (m) usedAmounts.add(m[1]);
+      });
+
+      let usdtAmount;
+      let attempts = 0;
+      do {
+        const uniqueOffset = (Math.floor(Math.random() * 99) + 1) / 100; // 0.01 - 0.99
+        usdtAmount = Number((conversion.usdtAmount + uniqueOffset).toFixed(4));
+        attempts++;
+      } while (usedAmounts.has(String(usdtAmount)) && attempts < 20);
 
       const minUsdt = parseFloat(config.deposit_crypto_min_usdt) || 1;
       if (usdtAmount < minUsdt) return res.status(400).json({ error: `Tối thiểu ${minUsdt} USDT` });

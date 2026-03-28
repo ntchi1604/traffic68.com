@@ -233,8 +233,18 @@ async function checkIncomingUSDT(depositAddress) {
     return [];
   }
 
-  // Use BscScan API — free, reliable, no rate limit for 1 req/min
-  const startBlock = lastCheckedBlock > 0 ? lastCheckedBlock + 1 : 0;
+  if (lastCheckedBlock === 0) {
+    try {
+      const provider = getProvider();
+      const currentBlock = await provider.getBlockNumber();
+      lastCheckedBlock = currentBlock - 3000;
+      console.log(`[DepositWatcher] First run — starting from block ${lastCheckedBlock}`);
+    } catch {
+      lastCheckedBlock = 89000000;
+    }
+  }
+
+  const startBlock = lastCheckedBlock + 1;
   const url = `https://api.bscscan.com/api?module=account&action=tokentx` +
     `&contractaddress=${USDT_ADDRESS}&address=${depositAddress}` +
     `&startblock=${startBlock}&endblock=99999999&page=1&offset=50&sort=desc`;
@@ -246,22 +256,19 @@ async function checkIncomingUSDT(depositAddress) {
     const data = await resp.json();
 
     if (data.status !== '1' || !Array.isArray(data.result)) {
-      // status "0" with "No transactions found" is normal
       if (data.message === 'No transactions found') {
         console.log('[DepositWatcher] No new transfers found');
       } else {
-        console.log('[DepositWatcher] BscScan response:', data.message || data.result);
+        console.log('[DepositWatcher] BscScan:', data.status, data.message, typeof data.result === 'string' ? data.result : '');
       }
       return [];
     }
 
-    // Filter only incoming transfers (to = depositAddress)
     const incoming = data.result.filter(tx =>
       tx.to.toLowerCase() === depositAddress.toLowerCase()
     );
 
     if (incoming.length > 0) {
-      // Update lastCheckedBlock to the highest block we've seen
       const maxBlock = Math.max(...incoming.map(tx => parseInt(tx.blockNumber)));
       if (maxBlock > lastCheckedBlock) lastCheckedBlock = maxBlock;
 
@@ -328,16 +335,24 @@ async function processIncomingDeposits() {
     if (!match) { console.log(`[DepositWatcher] Tx ${tx.id}: no expected USDT in note`); continue; }
     const expectedUSDT = parseFloat(match[1]);
 
-    console.log(`[DepositWatcher] Tx ${tx.id}: expecting ${expectedUSDT} USDT, checking ${transfers.length} transfer(s)...`);
+    console.log(`[DepositWatcher] Tx ${tx.id}: expecting ${expectedUSDT} USDT`);
 
-    // Find a matching transfer (±5% tolerance)
-    const matched = transfers.find(t => {
-      if (usedHashes.has(t.txHash.toLowerCase())) return false;
+    // Find the closest matching transfer (allow up to 0.05 USDT diff for fees)
+    let bestMatch = null;
+    let bestDiff = Infinity;
+    for (const t of transfers) {
+      if (usedHashes.has(t.txHash.toLowerCase())) continue;
       const diff = Math.abs(t.usdtAmount - expectedUSDT);
-      const pct = diff / expectedUSDT;
-      console.log(`[DepositWatcher]   compare: expected=${expectedUSDT} received=${t.usdtAmount} diff=${pct.toFixed(4)} (${pct < 0.05 ? 'MATCH' : 'no match'})`);
-      return pct < 0.05; // 5% tolerance
-    });
+      if (diff <= 0.05 && diff < bestDiff) {
+        bestDiff = diff;
+        bestMatch = t;
+      }
+    }
+
+    if (bestMatch) {
+      console.log(`[DepositWatcher]   MATCHED: expected=${expectedUSDT} received=${bestMatch.usdtAmount} diff=${bestDiff.toFixed(4)} USDT`);
+    }
+    const matched = bestMatch;
 
     if (!matched) { console.log(`[DepositWatcher] Tx ${tx.id}: no matching transfer found`); continue; }
     usedHashes.add(matched.txHash.toLowerCase());
