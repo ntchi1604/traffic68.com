@@ -1071,12 +1071,11 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
     const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
 
     const [todayTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND DATE(completed_at) = CURDATE()`,
-
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND bot_detected = 0 AND DATE(completed_at) = CURDATE()`,
       wlParams
     );
     const [totalTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed'`,
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND bot_detected = 0`,
       wlParams
     );
     const [pendingTasks] = await pool.execute(
@@ -1093,7 +1092,7 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
     // 7 day chart
     const [chart] = await pool.execute(
       `SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn
-       FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+       FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND bot_detected = 0 AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
        GROUP BY DATE(completed_at) ORDER BY day`,
       wlParams
     );
@@ -1102,7 +1101,7 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
     const [recent] = await pool.execute(
       `SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at
        FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id
-       WHERE ${wlCondition.replace(/worker_id/g, 't.worker_id').replace(/worker_link_id/g, 't.worker_link_id')} ORDER BY t.created_at DESC LIMIT 10`,
+       WHERE ${wlCondition.replace(/worker_id/g, 't.worker_id').replace(/worker_link_id/g, 't.worker_link_id')} AND (t.bot_detected = 0 OR t.status != 'completed') ORDER BY t.created_at DESC LIMIT 10`,
       wlParams
     );
 
