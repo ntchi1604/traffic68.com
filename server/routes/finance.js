@@ -2,16 +2,57 @@ const express = require('express');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
+let _web3pay = null;
+function getWeb3Pay() {
+  if (!_web3pay) {
+    try { _web3pay = require('../lib/web3pay'); }
+    catch { _web3pay = null; }
+  }
+  return _web3pay;
+}
+
 const router = express.Router();
 router.use(authMiddleware);
 
 router.get('/', async (req, res) => {
   const pool = getPool();
   const [wallets] = await pool.execute('SELECT * FROM wallets WHERE user_id = ?', [req.userId]);
-
   const result = {};
   wallets.forEach((w) => { result[w.type] = { id: w.id, balance: w.balance }; });
   res.json({ wallets: result });
+});
+
+// ── Deposit config (public for buyers) ──
+router.get('/deposit-config', async (req, res) => {
+  try {
+    const w3 = getWeb3Pay();
+    const config = w3 ? await w3.getDepositSettings() : {};
+    let rate = config.web3_vnd_rate ? parseFloat(config.web3_vnd_rate) : null;
+    if (!rate) {
+      try {
+        const conversion = await w3.convertVndToUSDT(1000000);
+        rate = conversion.rate;
+      } catch { rate = 25500; }
+    }
+    res.json({
+      bank: {
+        enabled: config.deposit_bank_enabled === 'true',
+        bankName: config.deposit_bank_name || '',
+        accountNumber: config.deposit_bank_account || '',
+        accountHolder: config.deposit_bank_holder || '',
+        branch: config.deposit_bank_branch || '',
+      },
+      crypto: {
+        enabled: config.deposit_crypto_enabled === 'true',
+        address: config.deposit_crypto_address || '',
+        auto: config.deposit_crypto_auto === 'true',
+        minUsdt: parseFloat(config.deposit_crypto_min_usdt) || 1,
+      },
+      rate,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/deposits', async (req, res) => {
@@ -22,6 +63,54 @@ router.post('/deposits', async (req, res) => {
     return res.status(400).json({ error: 'Số tiền nạp phải lớn hơn 0' });
   }
 
+  // ── Crypto deposit ──
+  if (method === 'crypto') {
+    try {
+      const w3 = getWeb3Pay();
+      if (!w3) return res.status(400).json({ error: 'Hệ thống crypto chưa sẵn sàng' });
+      const config = await w3.getDepositSettings();
+      if (config.deposit_crypto_enabled !== 'true') return res.status(400).json({ error: 'Nạp crypto đang tắt' });
+      if (!config.deposit_crypto_address) return res.status(400).json({ error: 'Chưa cấu hình ví nhận' });
+
+      const customRate = config.web3_vnd_rate ? parseFloat(config.web3_vnd_rate) : null;
+      const conversion = await w3.convertVndToUSDT(Number(amount), customRate);
+
+      // Add random 0.0001-0.0099 to make amount unique for matching
+      const uniqueOffset = (Math.floor(Math.random() * 99) + 1) / 10000;
+      const usdtAmount = Number((conversion.usdtAmount + uniqueOffset).toFixed(4));
+
+      const minUsdt = parseFloat(config.deposit_crypto_min_usdt) || 1;
+      if (usdtAmount < minUsdt) return res.status(400).json({ error: `Tối thiểu ${minUsdt} USDT` });
+
+      const refCode = `CRYPTO-${Date.now()}-${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`;
+      const note = `[Crypto Deposit] Expected: ${usdtAmount} USDT | Rate: 1 USDT = ${conversion.rate} VND`;
+
+      await pool.execute(
+        `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [req.userId, 'main', 'deposit', 'crypto', amount, 'pending', refCode, note]
+      );
+
+      const fmt = new Intl.NumberFormat('vi-VN').format(amount);
+      await pool.execute(
+        `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+        [req.userId, '💰 Đơn nạp Crypto đang chờ', `Đơn nạp ${fmt} VND (${usdtAmount} USDT) đang chờ xác nhận. Gửi đúng số USDT đến ví nhận.`, 'info', 'buyer']
+      );
+
+      return res.status(201).json({
+        message: 'Đơn nạp crypto đã tạo — vui lòng chuyển USDT',
+        refCode,
+        usdtAmount,
+        depositAddress: config.deposit_crypto_address,
+        rate: conversion.rate,
+        status: 'pending',
+        auto: config.deposit_crypto_auto === 'true',
+      });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ── Bank / other methods ──
   const validMethods = ['bank_transfer', 'credit_card', 'momo', 'zalopay'];
   if (!validMethods.includes(method)) {
     return res.status(400).json({ error: 'Phương thức thanh toán không hợp lệ' });

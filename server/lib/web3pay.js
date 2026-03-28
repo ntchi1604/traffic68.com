@@ -192,6 +192,177 @@ async function processAutoPayment(txId, privateKey) {
   return { ...payResult, conversion, transactionId: txId };
 }
 
+/* ────────────────────────────────────────────────
+   DEPOSIT MONITORING — watch incoming USDT on BSC
+   ──────────────────────────────────────────────── */
+
+async function getDepositSettings() {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `SELECT setting_key, setting_value FROM site_settings
+     WHERE setting_key IN (
+       'deposit_crypto_enabled','deposit_crypto_address','deposit_crypto_auto',
+       'deposit_crypto_min_usdt','deposit_bank_enabled','deposit_bank_name',
+       'deposit_bank_account','deposit_bank_holder','deposit_bank_branch',
+       'web3_vnd_rate'
+     )`
+  );
+  const config = {};
+  rows.forEach(r => { config[r.setting_key] = r.setting_value; });
+  return config;
+}
+
+// Track last processed block to avoid re-scanning
+let lastCheckedBlock = 0;
+
+async function checkIncomingUSDT(depositAddress) {
+  if (!depositAddress || !ethers.isAddress(depositAddress)) return [];
+
+  const provider = getProvider();
+  const currentBlock = await provider.getBlockNumber();
+
+  // First run: start from 200 blocks ago (~10 mins on BSC)
+  if (lastCheckedBlock === 0) lastCheckedBlock = currentBlock - 200;
+
+  const fromBlock = lastCheckedBlock + 1;
+  if (fromBlock > currentBlock) return [];
+
+  // Max 1000 blocks per query (BSC limit)
+  const toBlock = Math.min(currentBlock, fromBlock + 999);
+
+  // Transfer(address indexed from, address indexed to, uint256 value)
+  const transferTopic = ethers.id('Transfer(address,address,uint256)');
+  const toTopic = ethers.zeroPadValue(depositAddress.toLowerCase(), 32);
+
+  try {
+    const logs = await provider.getLogs({
+      address: USDT_ADDRESS,
+      topics: [transferTopic, null, toTopic],
+      fromBlock,
+      toBlock,
+    });
+
+    lastCheckedBlock = toBlock;
+
+    return logs.map(log => {
+      const fromAddr = ethers.getAddress('0x' + log.topics[1].slice(26));
+      const value = BigInt(log.data);
+      const usdtAmount = Number(ethers.formatUnits(value, 18)); // USDT BEP20 = 18 decimals
+      return {
+        txHash: log.transactionHash,
+        from: fromAddr,
+        to: depositAddress,
+        usdtAmount,
+        blockNumber: log.blockNumber,
+        explorerUrl: `${BSC_EXPLORER}/tx/${log.transactionHash}`,
+      };
+    });
+  } catch (err) {
+    console.error('[DepositWatcher] Error checking logs:', err.message);
+    return [];
+  }
+}
+
+async function processIncomingDeposits() {
+  const pool = getPool();
+  const config = await getDepositSettings();
+
+  if (config.deposit_crypto_enabled !== 'true' || config.deposit_crypto_auto !== 'true') return;
+  if (!config.deposit_crypto_address) return;
+
+  // Get pending crypto deposits
+  const [pending] = await pool.execute(
+    `SELECT * FROM transactions WHERE type = 'deposit' AND method = 'crypto' AND status = 'pending' AND wallet_type = 'main' ORDER BY created_at ASC`
+  );
+  if (pending.length === 0) return;
+
+  // Check for incoming USDT transfers
+  const transfers = await checkIncomingUSDT(config.deposit_crypto_address);
+  if (transfers.length === 0) return;
+
+  // Build a set of already-used tx hashes to avoid double-credit
+  const usedHashes = new Set();
+  const [existing] = await pool.execute(
+    `SELECT note FROM transactions WHERE type = 'deposit' AND method = 'crypto' AND status = 'completed' AND wallet_type = 'main' AND note LIKE '%TxHash:%'`
+  );
+  existing.forEach(r => {
+    const m = (r.note || '').match(/TxHash:\s*(0x[a-fA-F0-9]{64})/);
+    if (m) usedHashes.add(m[1].toLowerCase());
+  });
+
+  for (const tx of pending) {
+    // Extract expected USDT from note: [Crypto Deposit] Expected: X.XXXX USDT
+    const match = (tx.note || '').match(/Expected:\s*([\d.]+)\s*USDT/);
+    if (!match) continue;
+    const expectedUSDT = parseFloat(match[1]);
+
+    // Find a matching transfer (±2% tolerance)
+    const matched = transfers.find(t => {
+      if (usedHashes.has(t.txHash.toLowerCase())) return false;
+      const diff = Math.abs(t.usdtAmount - expectedUSDT);
+      return diff / expectedUSDT < 0.02; // 2% tolerance
+    });
+
+    if (!matched) continue;
+    usedHashes.add(matched.txHash.toLowerCase());
+
+    // Auto-approve this deposit
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // Mark transaction as completed
+      await conn.execute(
+        `UPDATE transactions SET status = 'completed',
+         note = CONCAT(note, ' | Confirmed | TxHash: ', ?, ' | Received: ', ?, ' USDT | Block: ', ?)
+         WHERE id = ? AND status = 'pending'`,
+        [matched.txHash, matched.usdtAmount, matched.blockNumber, tx.id]
+      );
+
+      // Credit buyer's main wallet
+      await conn.execute(
+        'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
+        [tx.amount, tx.user_id, 'main']
+      );
+
+      // Notify buyer
+      const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
+      await conn.execute(
+        `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+        [tx.user_id, '✅ Nạp tiền Crypto thành công',
+          `Đã nhận ${matched.usdtAmount.toFixed(4)} USDT → +${fmtAmount} VNĐ vào Ví Traffic. TxHash: ${matched.txHash}`,
+          'success', 'buyer']
+      );
+
+      await conn.commit();
+      conn.release();
+      console.log(`[DepositWatcher] Auto-credited ${tx.amount} VND to user ${tx.user_id} (TxHash: ${matched.txHash})`);
+    } catch (err) {
+      await conn.rollback();
+      conn.release();
+      console.error('[DepositWatcher] Error processing deposit:', err.message);
+    }
+  }
+}
+
+let depositWatcherInterval = null;
+
+function startDepositWatcher(intervalMs = 30000) {
+  if (depositWatcherInterval) return;
+  console.log('[DepositWatcher] Started — polling every', intervalMs / 1000, 's');
+  depositWatcherInterval = setInterval(async () => {
+    try { await processIncomingDeposits(); } catch (e) {
+      console.error('[DepositWatcher] Poll error:', e.message);
+    }
+  }, intervalMs);
+  // Run once immediately
+  processIncomingDeposits().catch(e => console.error('[DepositWatcher] Initial poll error:', e.message));
+}
+
+function stopDepositWatcher() {
+  if (depositWatcherInterval) { clearInterval(depositWatcherInterval); depositWatcherInterval = null; }
+}
+
 module.exports = {
   getPaymentSettings,
   getHotWalletInfo,
@@ -199,4 +370,9 @@ module.exports = {
   convertVndToUSDT,
   processAutoPayment,
   BSC_EXPLORER,
+  getDepositSettings,
+  checkIncomingUSDT,
+  processIncomingDeposits,
+  startDepositWatcher,
+  stopDepositWatcher,
 };

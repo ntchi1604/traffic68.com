@@ -272,6 +272,12 @@ app.use((err, req, res, next) => {
           }
         } catch (e) {  }
       }, 60000);
+
+      // Start crypto deposit watcher
+      try {
+        const web3pay = require('./lib/web3pay');
+        web3pay.startDepositWatcher(30000);
+      } catch (e) { console.log('[DepositWatcher] Skipped:', e.message); }
     });
   } catch (err) {
     console.error('❌ Failed to start server:', err.message);

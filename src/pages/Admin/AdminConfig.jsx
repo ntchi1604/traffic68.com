@@ -29,15 +29,19 @@ const WITHDRAW_FIELDS = [
   { key: 'withdraw_crypto_enabled', label: 'Cho phép rút qua Crypto', description: 'Bật/tắt phương thức rút tiền qua ví tiền mã hóa (USDT BEP20)', type: 'toggle', defaultValue: 'true' },
 ];
 
-// Web3 fields saved to DB (NOT including private key)
-const WEB3_DB_FIELDS = [
-  { key: 'web3_enabled', label: 'Bật Web3 Auto Payment', description: 'Tự động gửi USDT (BEP20) trên BSC Mainnet', type: 'toggle', defaultValue: 'false' },
-  { key: 'web3_vnd_rate', label: 'Tỷ giá (1 USDT = ? VNĐ)', description: 'Để trống = tự động lấy từ CoinGecko', type: 'number', defaultValue: '', min: 0 },
-  { key: 'web3_gas_limit', label: 'Gas Limit', description: 'Mặc định 100000. Thường không cần thay đổi', type: 'number', defaultValue: '', min: 21000 },
-  { key: 'web3_auto_approve', label: 'Tự động gửi khi duyệt', description: 'Khi admin duyệt rút crypto → tự động gửi USDT', type: 'toggle', defaultValue: 'false' },
+const DEPOSIT_FIELDS = [
+  { key: 'deposit_bank_enabled', label: 'Cho phép nạp qua Ngân hàng', description: 'Bật/tắt phương thức nạp tiền qua chuyển khoản ngân hàng', type: 'toggle', defaultValue: 'false' },
+  { key: 'deposit_bank_name', label: 'Tên ngân hàng', description: 'VD: Techcombank, Vietcombank,...', type: 'text', defaultValue: '' },
+  { key: 'deposit_bank_account', label: 'Số tài khoản', description: 'Số tài khoản ngân hàng nhận tiền', type: 'text', defaultValue: '' },
+  { key: 'deposit_bank_holder', label: 'Chủ tài khoản', description: 'Tên chủ tài khoản ngân hàng', type: 'text', defaultValue: '' },
+  { key: 'deposit_bank_branch', label: 'Chi nhánh (tùy chọn)', description: 'Chi nhánh ngân hàng', type: 'text', defaultValue: '' },
+  { key: 'deposit_crypto_enabled', label: 'Cho phép nạp qua Crypto', description: 'Bật/tắt nạp tiền bằng USDT (BEP20)', type: 'toggle', defaultValue: 'false' },
+  { key: 'deposit_crypto_address', label: 'Địa chỉ ví nhận USDT', description: 'Ví BEP20 nhận tiền nạp (khác ví hot wallet rút tiền)', type: 'text', defaultValue: '' },
+  { key: 'deposit_crypto_auto', label: 'Tự động xác nhận nạp Crypto', description: 'Polling BSC mỗi 30s để phát hiện & tự động cộng tiền', type: 'toggle', defaultValue: 'false' },
+  { key: 'deposit_crypto_min_usdt', label: 'Nạp tối thiểu (USDT)', description: 'Số USDT tối thiểu cho mỗi đơn nạp', type: 'number', defaultValue: '1', min: 0 },
 ];
 
-const ALL_CONFIG_FIELDS = [...VUOTLINK_FIELDS, ...WITHDRAW_FIELDS, ...WEB3_DB_FIELDS];
+const ALL_CONFIG_FIELDS = [...VUOTLINK_FIELDS, ...DEPOSIT_FIELDS, ...WITHDRAW_FIELDS, ...WEB3_DB_FIELDS];
 
 // LocalStorage key for private key
 const PK_STORAGE_KEY = 'web3_hot_wallet_pk';
@@ -150,6 +154,12 @@ export default function AdminConfig() {
             className={`relative inline-flex w-14 h-7 rounded-full transition-colors duration-200 ${config[field.key] === 'true' ? 'bg-green-500' : 'bg-slate-300'}`}>
             <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-200 ${config[field.key] === 'true' ? 'translate-x-7' : 'translate-x-0'}`} />
           </button>
+        ) : field.type === 'text' ? (
+          <input type="text"
+            value={config[field.key] || ''}
+            onChange={e => updateField(field.key, e.target.value)}
+            placeholder={field.defaultValue || '...'}
+            className="w-48 px-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
         ) : (
           <input type={field.type} min={field.min} max={field.max}
             value={config[field.key] || ''}
@@ -194,11 +204,22 @@ export default function AdminConfig() {
         </div>
       </div>
 
+      {/* Deposit Settings */}
+      <div className="bg-white rounded-xl border border-blue-200 overflow-hidden">
+        <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200 flex items-center gap-2">
+          <Wallet size={16} className="text-blue-500" />
+          <h2 className="font-bold text-slate-800">Cài đặt Nạp tiền (Buyer)</h2>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {DEPOSIT_FIELDS.map(renderField)}
+        </div>
+      </div>
+
       {/* Withdraw Settings */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
           <Wallet size={16} className="text-green-500" />
-          <h2 className="font-bold text-slate-800">Cài đặt Rút tiền</h2>
+          <h2 className="font-bold text-slate-800">Cài đặt Rút tiền (Worker)</h2>
         </div>
         <div className="divide-y divide-slate-100">
           {WITHDRAW_FIELDS.map(renderField)}
