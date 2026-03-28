@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, BarChart,
+  ResponsiveContainer, PieChart, Pie, Cell, BarChart, AreaChart, Area
 } from 'recharts';
 import {
   Eye, TrendingUp, TrendingDown, Wallet, CalendarDays,
