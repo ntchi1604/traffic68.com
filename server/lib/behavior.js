@@ -39,8 +39,8 @@ function checkHardwareInconsistency(hardware) {
   const { cores, ram } = hardware;
   if (!cores || !ram) return null;
 
-  if (cores >= 16 && ram < 4) return `Cấu hình mâu thuẫn: ${cores} nhân CPU nhưng chỉ ${ram}GB RAM`;
-  if (cores >= 8  && ram <= 2) return `Cấu hình mâu thuẫn: ${cores} nhân CPU nhưng chỉ ${ram}GB RAM`;
+  if (cores >= 16 && ram < 2) return `Cấu hình mâu thuẫn: ${cores} nhân CPU nhưng chỉ ${ram}GB RAM`;
+  if (cores >= 32 && ram < 4) return `Cấu hình mâu thuẫn: ${cores} nhân CPU nhưng chỉ ${ram}GB RAM`;
 
   return null;
 }
@@ -116,7 +116,9 @@ function checkFakeSensor(deviceData, userAgent) {
     const fmt = s => `${s.x.toFixed(1)},${s.y.toFixed(1)},${s.z.toFixed(1)}`;
     const first3  = samples.slice(0, 3).map(fmt).join('|');
     const second3 = samples.slice(3, 6).map(fmt).join('|');
-    if (first3 === second3) return 'Cảm biến lặp dữ liệu theo chu kỳ (giả lập sensor)';
+    // Chỉ flag nếu lặp và không phải giá trị gần-0 (trường hợp nằm yên được chấp nhận)
+    const nearZero = samples.every(s => Math.abs(s.x) < 1.5 && Math.abs(s.y) < 1.5 && Math.abs(s.z) < 1.5);
+    if (first3 === second3 && !nearZero) return 'Cảm biến lặp dữ liệu theo chu kỳ (giả lập sensor)';
   }
 
   return null;
