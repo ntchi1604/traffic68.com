@@ -304,7 +304,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
 
   if (BOT_UA.test(ua)) {
-    logSecurityEvent('bot_ua', ip, ua, null, {});
+    logSecurityEvent('Bot UA (widget)', ip, ua, null, {});
     return res.status(403).json({ error: 'Blocked' });
   }
 
@@ -358,7 +358,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   // ── Save security_detail + log security event (admin dashboard) ──
   if (botDetected && detectionLog.length > 0) {
     // Log vào security_logs để admin thấy được
-    logSecurityEvent('widget_bot_detected', ip, ua, visitorId || null, {
+    logSecurityEvent('Phát hiện Bot (widget)', ip, ua, visitorId || null, {
       detectionLog,
       canvasHash: botDetection?.canvasHash || null,
       audioHash: botDetection?.audioHash || null,

@@ -300,6 +300,32 @@ function EventModal({ event: ev, onClose }) {
               </div>
             </div>
           )}
+
+          {det.reasons && det.reasons.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-amber-500 uppercase mb-1.5">Lý do phát hiện chi tiết</p>
+              <div className="space-y-1.5">
+                {det.reasons.map((r, i) => (
+                  <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
+                    <AlertTriangle size={11} className="text-amber-500 shrink-0 mt-0.5" />
+                    <span className="text-amber-800 text-[11px] font-medium leading-snug">{r}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Điểm rủi ro */}
+          {det.deviceScore != null && (
+            <div className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2">
+              <span className="text-[10px] text-slate-400 font-bold uppercase">Điểm bot</span>
+              <span className={`text-sm font-black ${det.deviceScore >= 80 ? 'text-red-600' : det.deviceScore >= 40 ? 'text-amber-600' : 'text-emerald-600'
+                }`}>
+                {det.deviceScore}/100
+                {det.deviceType && <span className="text-[10px] font-normal text-slate-400 ml-1">({det.deviceType})</span>}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="px-5 py-3 border-t">
@@ -511,11 +537,24 @@ function UserDetail({ user: u, onBack }) {
                   <tr><td colSpan={7} className="text-center py-10 text-slate-400">Không có cảnh báo</td></tr>
                 ) : events.map(ev => {
                   const mob = isMobileUA(ev.user_agent);
+                  let evDet = {};
+                  try { evDet = typeof ev.details === 'string' ? JSON.parse(ev.details || '{}') : (ev.details || {}); } catch { }
+                  const subReasons = (evDet.reasons && evDet.reasons.length > 0)
+                    ? evDet.reasons
+                    : (evDet.detectionLog || []);
                   return (
                     <tr key={ev.id} className="border-b border-slate-100 bg-red-50/20 hover:bg-red-50/40">
                       <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{fmt(ev.created_at)}</td>
-                      <td className="px-3 py-2.5">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{ev.reason}</span>
+                      <td className="px-3 py-2.5 max-w-[220px]">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 block w-fit mb-1">{ev.reason}</span>
+                        {subReasons.slice(0, 2).map((r, i) => (
+                          <span key={i} className="block text-[9px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 mb-0.5 leading-tight truncate max-w-full">
+                            ↳ {r}
+                          </span>
+                        ))}
+                        {subReasons.length > 2 && (
+                          <span className="text-[9px] text-slate-400">+{subReasons.length - 2} lý do khác...</span>
+                        )}
                       </td>
                       <td className="px-3 py-2.5">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ev.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>

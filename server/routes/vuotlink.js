@@ -166,8 +166,7 @@ async function _handleTaskPost(req, res) {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
   ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
   if (ipTaskCount[ip] > 30) {
-    console.log(`[VuotLink] IP rate limit: ${ip}`);
-    logSecurityEvent('ip_rate_limit', ip, ua, null, { count: ipTaskCount[ip] });
+    console.log(`[VuotLink] IP rate limit: ${ip}, count: ${ipTaskCount[ip]}`);
     return res.status(429).json({ error: 'Quá nhiều yêu cầu. Thử lại sau.' });
   }
 
@@ -311,7 +310,7 @@ async function _handleTaskPost(req, res) {
         `SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks WHERE status = 'completed' AND DATE(completed_at) = CURDATE() GROUP BY campaign_id`
       );
       console.log(`[VuotLink] NO CAMPAIGNS - DB time: ${JSON.stringify(dbTime[0])}, running: ${allCamps[0].total}, todayDone: ${JSON.stringify(todayDone)}`);
-    } catch(e) { console.log('[VuotLink] Debug error:', e.message); }
+    } catch (e) { console.log('[VuotLink] Debug error:', e.message); }
     return res.status(404).json(ERR);
   }
   const randomOffset = Math.floor(Math.random() * totalCampaigns);
@@ -524,12 +523,10 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   const cpEntry = challengePassedStore[taskIdStr];
   if (!cpEntry) {
     console.log(`[VuotLink] Verify blocked — no challenge-passed for task #${taskIdStr}, IP: ${ip}`);
-    logSecurityEvent('bypass_attempt_no_challenge', ip, req.headers['user-agent'] || '', null, { taskId: taskIdStr });
     return res.status(403).json({ error: 'Bạn chưa hoàn thành bước xác minh người thật.' });
   }
   if (cpEntry.token !== challengeToken || cpEntry.ip !== ip) {
     console.log(`[VuotLink] Verify blocked — bad challengeToken for task #${taskIdStr}, IP: ${ip}`);
-    logSecurityEvent('bypass_attempt_bad_token', ip, req.headers['user-agent'] || '', null, { taskId: taskIdStr });
     return res.status(403).json({ error: 'Token xác minh không hợp lệ.' });
   }
   // Token valid — consume it (one-time use)
@@ -650,16 +647,12 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     [timeOnSite, earning, ipCountry, task.id]
   );
 
-  // (Không log mọi task completed — chỉ log bot bên dưới nếu bị phát hiện)
-
-  // Count view + auto-complete
   await pool.execute('UPDATE campaigns SET views_done = COALESCE(views_done, 0) + 1 WHERE id = ?', [task.campaign_id]);
   await pool.execute(
     `UPDATE campaigns SET status = 'completed' WHERE id = ? AND views_done >= total_views AND status != 'completed'`,
     [task.campaign_id]
   );
 
-  // Traffic log — use CURDATE() to match VN timezone
   const ua = (task.user_agent || '').toLowerCase();
   const isTablet = /ipad|tablet|kindle|playbook|silk|(android(?!.*mobile))/i.test(ua);
   const isMobile = !isTablet && /mobile|android|iphone|ipod|blackberry|windows phone/i.test(ua);
@@ -736,7 +729,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
           `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
            VALUES (?, 'earning', 'earning', 'ref_link', ?, 'completed', ?, ?)`,
           [task.ref_worker_id, refEarning, refTxCode,
-           `Hoa hong ref ${refCommPct}% - ${task.keyword || 'Vượt link'} #${task.id} (${earning} đ)`]
+          `Hoa hong ref ${refCommPct}% - ${task.keyword || 'Vượt link'} #${task.id} (${earning} đ)`]
         );
         console.log(`[VuotLink] Ref earning: paid ${refEarning} to ref_worker_id=${task.ref_worker_id} (${refCommPct}% of ${earning})`);
       }
@@ -783,7 +776,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     const flagged = (secDetail.assessments || []).some(a => a.flagged);
     const isBotTask = task.bot_detected == 1;
     if (flagged || isBotTask) {
-      logSecurityEvent('bot_detected', task.ip_address, task.user_agent, task.visitor_id, {
+      logSecurityEvent('Phát hiện Bot', task.ip_address, task.user_agent, task.visitor_id, {
         taskId: task.id,
         source: 'vuotlink',
         campaignId: task.campaign_id,
