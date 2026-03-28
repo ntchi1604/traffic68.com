@@ -472,6 +472,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     return res.status(500).json({ error: 'Lỗi server' });
   }
 
+  // ── Trusted worker: bỏ qua challenge hoàn toàn ──
   try {
     const pool = getPool();
     const workerId = req.userId;
@@ -485,6 +486,8 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       }
     }
   } catch (_) { }
+
+  console.log('[DEBUG ADB SHAKE] shakeLog received:', JSON.stringify(shakeLog));
 
   let detectedBotReason = null;
   const isMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
