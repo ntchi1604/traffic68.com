@@ -450,8 +450,7 @@ function UserDetail({ user: u, onBack }) {
         {[
           ['Tổng', u.total, 'text-slate-800'],
           ['Hoàn thành', u.ok, 'text-emerald-600'],
-          ['Blocked', u.blocked, 'text-red-600'],
-          ['Bot', u.events, 'text-amber-600'],
+          ['Bot', u.blocked + (u.events || 0), 'text-red-600'],
           ['Thu nhập', money(u.earned), 'text-emerald-600'],
         ].map(([l, v, c]) => (
           <div key={l} className="bg-white rounded-xl border border-slate-200 p-3 text-center">
@@ -463,7 +462,7 @@ function UserDetail({ user: u, onBack }) {
 
       {/* Tabs */}
       <div className="flex gap-2 flex-wrap">
-        {[['tasks', `Tasks (${taskTotal})`], ['events', `Bot events (${eventTotal || u.events})`], ['ips', `IPs (${allIps.length}${!ipsLoaded && allIps.length >= 5 ? '+' : ''})`]].map(([k, l]) => (
+        {[['tasks', `Tasks (${taskTotal})`], ['events', `Bot events (${eventTotal})`], ['ips', `IPs (${allIps.length}${!ipsLoaded && allIps.length >= 5 ? '+' : ''})`]].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition ${tab === k ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
             {l}
