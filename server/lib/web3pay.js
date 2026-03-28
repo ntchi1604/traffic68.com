@@ -79,7 +79,7 @@ let lastRateFetchTime = 0;
 
 async function convertVndToUSDT(vndAmount, customRate = null) {
   let rate = customRate ? parseFloat(customRate) : null;
-  
+
   if (!rate || isNaN(rate)) {
     const now = Date.now();
     // Use cached rate if within 10 minutes (600,000 ms)
@@ -212,27 +212,27 @@ async function getDepositSettings() {
   return config;
 }
 
-// Track last processed block to avoid re-scanning
 let lastCheckedBlock = 0;
 
-async function checkIncomingUSDT(depositAddress) {
-  if (!depositAddress || !ethers.isAddress(depositAddress)) return [];
+async function checkIncomingUSDT(depositAddress, lookbackBlocks = 5000) {
+  if (!depositAddress || !ethers.isAddress(depositAddress)) {
+    console.log('[DepositWatcher] Invalid deposit address:', depositAddress);
+    return [];
+  }
 
   const provider = getProvider();
   const currentBlock = await provider.getBlockNumber();
 
-  // First run: start from 200 blocks ago (~10 mins on BSC)
-  if (lastCheckedBlock === 0) lastCheckedBlock = currentBlock - 200;
+  if (lastCheckedBlock === 0) lastCheckedBlock = currentBlock - lookbackBlocks;
 
   const fromBlock = lastCheckedBlock + 1;
   if (fromBlock > currentBlock) return [];
+  const toBlock = Math.min(currentBlock, fromBlock + 4999);
 
-  // Max 1000 blocks per query (BSC limit)
-  const toBlock = Math.min(currentBlock, fromBlock + 999);
-
-  // Transfer(address indexed from, address indexed to, uint256 value)
   const transferTopic = ethers.id('Transfer(address,address,uint256)');
-  const toTopic = ethers.zeroPadValue(depositAddress.toLowerCase(), 32);
+  const toTopic = '0x' + '000000000000000000000000' + depositAddress.slice(2).toLowerCase();
+
+  console.log(`[DepositWatcher] Scanning blocks ${fromBlock}→${toBlock} (current: ${currentBlock}) for transfers to ${depositAddress}`);
 
   try {
     const logs = await provider.getLogs({
@@ -244,10 +244,15 @@ async function checkIncomingUSDT(depositAddress) {
 
     lastCheckedBlock = toBlock;
 
+    if (logs.length > 0) {
+      console.log(`[DepositWatcher] Found ${logs.length} USDT transfer(s) to deposit address!`);
+    }
+
     return logs.map(log => {
       const fromAddr = ethers.getAddress('0x' + log.topics[1].slice(26));
       const value = BigInt(log.data);
       const usdtAmount = Number(ethers.formatUnits(value, 18)); // USDT BEP20 = 18 decimals
+      console.log(`[DepositWatcher] Transfer: ${usdtAmount} USDT from ${fromAddr} (tx: ${log.transactionHash})`);
       return {
         txHash: log.transactionHash,
         from: fromAddr,
@@ -267,8 +272,13 @@ async function processIncomingDeposits() {
   const pool = getPool();
   const config = await getDepositSettings();
 
-  if (config.deposit_crypto_enabled !== 'true' || config.deposit_crypto_auto !== 'true') return;
-  if (!config.deposit_crypto_address) return;
+  if (config.deposit_crypto_enabled !== 'true' || config.deposit_crypto_auto !== 'true') {
+    return;
+  }
+  if (!config.deposit_crypto_address) {
+    console.log('[DepositWatcher] No deposit address configured!');
+    return;
+  }
 
   // Get pending crypto deposits
   const [pending] = await pool.execute(
@@ -276,8 +286,12 @@ async function processIncomingDeposits() {
   );
   if (pending.length === 0) return;
 
+  console.log(`[DepositWatcher] ${pending.length} pending crypto deposit(s). Checking BSC...`);
+
   // Check for incoming USDT transfers
   const transfers = await checkIncomingUSDT(config.deposit_crypto_address);
+
+  console.log(`[DepositWatcher] Found ${transfers.length} USDT transfer(s) on-chain`);
   if (transfers.length === 0) return;
 
   // Build a set of already-used tx hashes to avoid double-credit
@@ -293,17 +307,21 @@ async function processIncomingDeposits() {
   for (const tx of pending) {
     // Extract expected USDT from note: [Crypto Deposit] Expected: X.XXXX USDT
     const match = (tx.note || '').match(/Expected:\s*([\d.]+)\s*USDT/);
-    if (!match) continue;
+    if (!match) { console.log(`[DepositWatcher] Tx ${tx.id}: no expected USDT in note`); continue; }
     const expectedUSDT = parseFloat(match[1]);
 
-    // Find a matching transfer (±2% tolerance)
+    console.log(`[DepositWatcher] Tx ${tx.id}: expecting ${expectedUSDT} USDT, checking ${transfers.length} transfer(s)...`);
+
+    // Find a matching transfer (±5% tolerance)
     const matched = transfers.find(t => {
       if (usedHashes.has(t.txHash.toLowerCase())) return false;
       const diff = Math.abs(t.usdtAmount - expectedUSDT);
-      return diff / expectedUSDT < 0.02; // 2% tolerance
+      const pct = diff / expectedUSDT;
+      console.log(`[DepositWatcher]   compare: expected=${expectedUSDT} received=${t.usdtAmount} diff=${pct.toFixed(4)} (${pct < 0.05 ? 'MATCH' : 'no match'})`);
+      return pct < 0.05; // 5% tolerance
     });
 
-    if (!matched) continue;
+    if (!matched) { console.log(`[DepositWatcher] Tx ${tx.id}: no matching transfer found`); continue; }
     usedHashes.add(matched.txHash.toLowerCase());
 
     // Auto-approve this deposit
@@ -330,7 +348,7 @@ async function processIncomingDeposits() {
       await conn.execute(
         `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
         [tx.user_id, '✅ Nạp tiền Crypto thành công',
-          `Đã nhận ${matched.usdtAmount.toFixed(4)} USDT → +${fmtAmount} VNĐ vào Ví Traffic. TxHash: ${matched.txHash}`,
+        `Đã nhận ${matched.usdtAmount.toFixed(4)} USDT → +${fmtAmount} VNĐ vào Ví Traffic. TxHash: ${matched.txHash}`,
           'success', 'buyer']
       );
 
@@ -363,6 +381,12 @@ function stopDepositWatcher() {
   if (depositWatcherInterval) { clearInterval(depositWatcherInterval); depositWatcherInterval = null; }
 }
 
+// Reset scanner to re-check last N blocks (useful for admin manual trigger)
+function resetDepositScanner(lookbackBlocks = 10000) {
+  lastCheckedBlock = 0; // Will be set to currentBlock - lookbackBlocks on next scan
+  console.log(`[DepositWatcher] Scanner reset — will re-scan last ${lookbackBlocks} blocks on next poll`);
+}
+
 module.exports = {
   getPaymentSettings,
   getHotWalletInfo,
@@ -375,4 +399,5 @@ module.exports = {
   processIncomingDeposits,
   startDepositWatcher,
   stopDepositWatcher,
+  resetDepositScanner,
 };

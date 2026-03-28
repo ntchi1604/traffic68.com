@@ -724,6 +724,19 @@ router.put('/settings/site', async (req, res) => {
 });
 
 
+// ── Manual deposit scan trigger ──
+router.post('/deposit/scan', async (req, res) => {
+  try {
+    const w3 = getWeb3Pay();
+    w3.resetDepositScanner(10000); // Re-scan last ~50 mins
+    await w3.processIncomingDeposits();
+    res.json({ message: 'Deposit scan hoàn tất. Kiểm tra PM2 logs để xem kết quả.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 
 router.get('/security/init', async (req, res) => {
