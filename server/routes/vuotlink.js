@@ -714,12 +714,14 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
 
   // Pay gateway link creator
   let destinationUrl = null;
+  let gatewaySlug = null;
   if (task.worker_link_id) {
     try {
       const [wlRows] = await pool.execute('SELECT * FROM worker_links WHERE id = ?', [task.worker_link_id]);
       if (wlRows.length) {
         const wl = wlRows[0];
         destinationUrl = wl.destination_url;
+        gatewaySlug = wl.slug || null;
         paidWorkerId = wl.worker_id;
         await ensureWalletCredit(pool, wl.worker_id, 'earning', earning);
         await pool.execute('UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?', [earning, wl.id]);
@@ -802,6 +804,9 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
         taskId: task.id,
         source: 'vuotlink',
         campaignId: task.campaign_id,
+        targetUrl: task.target_url || null,
+        workerLinkId: task.worker_link_id || null,
+        gatewaySlug: gatewaySlug,
         timeOnSite,
         earning,
         ipCountry,

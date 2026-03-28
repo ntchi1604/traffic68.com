@@ -421,7 +421,9 @@ function UserDetail({ user: u, onBack }) {
         let linkVuot = '';
         try {
           const det = typeof ev.details === 'string' ? JSON.parse(ev.details || '{}') : (ev.details || {});
-          linkVuot = ev.gateway_slug ? `/${ev.gateway_slug}` : (ev.target_url || det.url || '');
+          const slug = ev.gateway_slug || det.gatewaySlug || null;
+          const tUrl = ev.target_url || det.targetUrl || det.url || '';
+          linkVuot = slug ? `https://traffic68.com/g/${slug}` : tUrl;
         } catch(e){}
         csv += `"${new Date(ev.created_at).toLocaleString('vi-VN')}","${source}","${device}","${ev.ip_address}","${ev.visitor_id || ''}","${linkVuot}"\n`;
       });
