@@ -704,20 +704,12 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
                             )}
                           </td>
                           <td className="px-3 py-2.5 max-w-[220px]">
-                            <div className="flex flex-wrap gap-1 mb-1">
+                            <div className="flex flex-wrap gap-1">
                               {allReasons.slice(0, 2).map((r, ri) => (
                                 <span key={ri} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 block w-fit">{r}</span>
                               ))}
                               {allReasons.length > 2 && <span className="text-[9px] text-slate-400">+{allReasons.length - 2}</span>}
                             </div>
-                            {allSubReasons.slice(0, 2).map((r, i) => (
-                              <span key={i} className="block text-[9px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 mb-0.5 leading-tight truncate max-w-full">
-                                ↳ {r}
-                              </span>
-                            ))}
-                            {allSubReasons.length > 2 && (
-                              <span className="text-[9px] text-slate-400">+{allSubReasons.length - 2} lý do khác...</span>
-                            )}
                           </td>
                           <td className="px-3 py-2.5">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${rootEv.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
