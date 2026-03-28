@@ -481,6 +481,21 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     return res.status(500).json({ error: 'Lỗi server' });
   }
 
+  // ── Trusted worker: bỏ qua challenge hoàn toàn ──
+  try {
+    const pool = getPool();
+    const workerId = req.userId;
+    if (workerId) {
+      const [uRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [workerId]);
+      if (uRows[0]?.trusted === 1) {
+        const ts = Date.now();
+        const challengeToken = signChallengeToken(req.params.id, ip, ts);
+        challengePassedStore[req.params.id] = { token: challengeToken, ts, ip };
+        return res.json({ challengeToken, trusted: true });
+      }
+    }
+  } catch (_) { }
+
   const isMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
   if (isMobile) {
     const EMULATOR_UA = /bluestacks|bstk|nox|ldplayer|memu|andy|genymotion|android.*x86_64|android.*x86;|com\.vphone|goldfish|ranchu/i;

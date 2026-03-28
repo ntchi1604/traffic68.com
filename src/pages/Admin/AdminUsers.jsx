@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet, Briefcase, HardHat, MoreVertical } from 'lucide-react';
+import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet, Briefcase, HardHat, MoreVertical, ShieldCheck } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
@@ -171,6 +171,14 @@ export default function AdminUsers({ type }) {
     catch (err) { toast.error(err.message); }
   };
 
+  const toggleTrusted = async (u) => {
+    try {
+      const res = await api.put(`/admin/users/${u.id}/trusted`);
+      toast.success(res.trusted ? `Đã tin tưởng ${u.name}` : `Đã bỏ tin tưởng ${u.name}`);
+      fetchUsers(search, page);
+    } catch (err) { toast.error(err.message); }
+  };
+
   const totalPages = Math.ceil(total / LIMIT);
 
   return (
@@ -228,6 +236,11 @@ export default function AdminUsers({ type }) {
                     <p className="font-semibold text-slate-800">{u.name}</p>
                     <p className="text-xs text-slate-400">{u.email}</p>
                     {u.username && <p className="text-[10px] text-blue-500 font-medium">@{u.username}</p>}
+                    {isWorker && u.trusted === 1 && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700 mt-0.5">
+                        <ShieldCheck size={9} /> Tin tưởng
+                      </span>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-slate-600">{u.phone || '—'}</td>
                   <td className="px-5 py-3">
@@ -302,6 +315,19 @@ export default function AdminUsers({ type }) {
                           >
                             <Ban size={14} className="text-amber-500" /> {u.status === 'banned' ? 'Bỏ ban' : 'Ban tài khoản'}
                           </button>
+                          {isWorker && (
+                            <button
+                              onClick={() => { toggleTrusted(u); setOpenMenuId(null); }}
+                              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition text-left ${
+                                u.trusted === 1
+                                  ? 'text-emerald-700 hover:bg-emerald-50'
+                                  : 'text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
+                              }`}
+                            >
+                              <ShieldCheck size={14} className={u.trusted === 1 ? 'text-emerald-500' : 'text-slate-400'} />
+                              {u.trusted === 1 ? 'Bỏ tin tưởng' : 'Tin tưởng (bỏ qua captcha)'}
+                            </button>
+                          )}
                           <div className="border-t border-slate-100 my-1" />
                           <button
                             onClick={() => { deleteUser(u.id, u.name); setOpenMenuId(null); }}

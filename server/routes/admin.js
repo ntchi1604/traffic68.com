@@ -90,7 +90,7 @@ router.get('/users', async (req, res) => {
   const { search, role, service_type, page = 1, limit = 20 } = req.query;
   const offset = (page - 1) * limit;
 
-  let sql = `SELECT u.id, u.email, u.name, u.username, u.phone, u.role, u.service_type, u.status, u.referral_code, u.created_at,
+  let sql = `SELECT u.id, u.email, u.name, u.username, u.phone, u.role, u.service_type, u.status, u.trusted, u.referral_code, u.created_at,
     (SELECT COALESCE(SUM(w.balance), 0) FROM wallets w WHERE w.user_id = u.id) as total_balance,
     (SELECT COALESCE(w2.balance, 0) FROM wallets w2 WHERE w2.user_id = u.id AND w2.type = 'main') as main_balance,
     (SELECT COALESCE(w3.balance, 0) FROM wallets w3 WHERE w3.user_id = u.id AND w3.type = 'earning') as earning_balance,
@@ -141,6 +141,18 @@ router.put('/users/:id', async (req, res) => {
   );
   const [users] = await pool.execute('SELECT id, email, name, role, status FROM users WHERE id = ?', [req.params.id]);
   res.json({ message: 'Cập nhật thành công', user: users[0] });
+});
+
+router.put('/users/:id/trusted', async (req, res) => {
+  try {
+    const pool = getPool();
+    await pool.execute(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trusted TINYINT(1) NOT NULL DEFAULT 0`).catch(() => {});
+    const [rows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Không tìm thấy user' });
+    const newVal = rows[0].trusted ? 0 : 1;
+    await pool.execute('UPDATE users SET trusted = ? WHERE id = ?', [newVal, req.params.id]);
+    res.json({ ok: true, trusted: newVal });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 
