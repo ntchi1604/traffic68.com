@@ -18,6 +18,8 @@ const parseJsonArray = (val) => {
 function KeywordStats({ campaignId }) {
   const [stats, setStats] = useState(null);
   const [daily, setDaily] = useState([]);
+  const [page, setPage] = useState(1);
+  const rowsPerPage = 10;
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -112,7 +114,7 @@ function KeywordStats({ campaignId }) {
             <tbody className="divide-y divide-slate-100">
               {daily.length === 0 ? (
                 <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-400">Không có dữ liệu</td></tr>
-              ) : daily.map((d, i) => (
+              ) : daily.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((d, i) => (
                 <tr key={i} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{d.date?.slice(0, 10)}</td>
                   <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]">{d.keyword || '(Trống)'}</td>
@@ -125,6 +127,25 @@ function KeywordStats({ campaignId }) {
             </tbody>
           </table>
         </div>
+        {daily.length > rowsPerPage && (
+          <div className="bg-slate-50 border-t border-slate-200 px-4 py-2 flex items-center justify-between">
+            <span className="text-[10px] font-medium text-slate-500">Trang <b>{page}</b> / {Math.ceil(daily.length / rowsPerPage)}</span>
+            <div className="flex gap-1.5">
+              <button 
+                onClick={() => setPage(p => Math.max(1, p - 1))} 
+                disabled={page === 1}
+                className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 hover:bg-slate-50 rounded shadow-sm text-slate-600 disabled:opacity-40 transition">
+                ‹ Trước
+              </button>
+              <button 
+                onClick={() => setPage(p => Math.min(Math.ceil(daily.length / rowsPerPage), p + 1))} 
+                disabled={page >= Math.ceil(daily.length / rowsPerPage)}
+                className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 hover:bg-slate-50 rounded shadow-sm text-slate-600 disabled:opacity-40 transition">
+                Sau ›
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -63,12 +63,16 @@ function CampaignDetailModal({ campaign: c, onClose }) {
   const [tasks, setTasks] = useState([]);
   const [dailyKws, setDailyKws] = useState([]);
   const [fetchingTasks, setFetchingTasks] = useState(false);
+  const [pageDaily, setPageDaily] = useState(1);
+  const [pageTasks, setPageTasks] = useState(1);
 
   useEffect(() => {
     if (!c) return;
     setDetail(null);
     setTasks([]);
     setFetchingTasks(true);
+    setPageDaily(1);
+    setPageTasks(1);
     Promise.all([
       api.get(`/reports/traffic?campaignId=${c.id}&period=${mRange}`),
       api.get(`/reports/tasks?campaignId=${c.id}&period=${mRange}`),
@@ -376,7 +380,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {dailyKws.map((d, i) => (
+                      {dailyKws.slice((pageDaily - 1) * 10, pageDaily * 10).map((d, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
                           <td style={{ padding: '7px 12px', color: '#475569', whiteSpace: 'nowrap', fontWeight: 600 }}>{d.date?.slice(0, 10)}</td>
                           <td style={{ padding: '7px 12px', color: '#4338ca', fontWeight: 700, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.keyword}>{d.keyword || '(Trống)'}</td>
@@ -387,6 +391,15 @@ function CampaignDetailModal({ campaign: c, onClose }) {
                     </tbody>
                   </table>
                 </div>
+                {dailyKws.length > 10 && (
+                  <div style={{ padding: '8px 16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>Trang {pageDaily} / {Math.ceil(dailyKws.length / 10)}</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => setPageDaily(p => Math.max(1, p - 1))} disabled={pageDaily === 1} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, color: '#475569', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, cursor: pageDaily === 1 ? 'not-allowed' : 'pointer', opacity: pageDaily === 1 ? 0.5 : 1 }}>Trước</button>
+                      <button onClick={() => setPageDaily(p => Math.min(Math.ceil(dailyKws.length / 10), p + 1))} disabled={pageDaily >= Math.ceil(dailyKws.length / 10)} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, color: '#475569', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, cursor: pageDaily >= Math.ceil(dailyKws.length / 10) ? 'not-allowed' : 'pointer', opacity: pageDaily >= Math.ceil(dailyKws.length / 10) ? 0.5 : 1 }}>Sau</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -407,7 +420,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {tasks.map((t, i) => (
+                      {tasks.slice((pageTasks - 1) * 15, pageTasks * 15).map((t, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
                           <td style={{ padding: '7px 12px', color: '#475569', whiteSpace: 'nowrap' }}>
                             {t.completed_at ? new Date(t.completed_at).toLocaleString('vi-VN') : '—'}
@@ -423,6 +436,15 @@ function CampaignDetailModal({ campaign: c, onClose }) {
                     </tbody>
                   </table>
                 </div>
+                {tasks.length > 15 && (
+                  <div style={{ padding: '8px 16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>Trang {pageTasks} / {Math.ceil(tasks.length / 15)}</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => setPageTasks(p => Math.max(1, p - 1))} disabled={pageTasks === 1} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, color: '#475569', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, cursor: pageTasks === 1 ? 'not-allowed' : 'pointer', opacity: pageTasks === 1 ? 0.5 : 1 }}>Trước</button>
+                      <button onClick={() => setPageTasks(p => Math.min(Math.ceil(tasks.length / 15), p + 1))} disabled={pageTasks >= Math.ceil(tasks.length / 15)} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, color: '#475569', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, cursor: pageTasks >= Math.ceil(tasks.length / 15) ? 'not-allowed' : 'pointer', opacity: pageTasks >= Math.ceil(tasks.length / 15) ? 0.5 : 1 }}>Sau</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>}
