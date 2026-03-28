@@ -216,7 +216,6 @@ export default function LinkGateway() {
     detectAdBlock();
   }, []);
 
-  // Step 1: Load link info
   useEffect(() => {
     fetch(`/api/shortlink/info/${slug}`)
       .then(r => r.json())
@@ -227,26 +226,23 @@ export default function LinkGateway() {
       .catch(() => setLinkError('Không thể tải thông tin link'));
   }, [slug]);
 
-  // Track skipped campaigns
   const [skippedCampaigns, setSkippedCampaigns] = useState(() => {
     try { return JSON.parse(sessionStorage.getItem(`gw_skip_${slug}`)) || []; } catch { return []; }
   });
 
-  // Fetch challenge + task (reusable)
   const fetchTask = useCallback(async (force = false, excludeList = null) => {
     if (!linkInfo) return;
     const sessionKey = `gw_task_${slug}`;
 
-    // If not forced, try to restore from sessionStorage
     if (!force) {
       try {
         const cached = sessionStorage.getItem(sessionKey);
         if (cached) {
           const parsed = JSON.parse(cached);
-          // Only use cache if task is still pending and hasn't exceeded 12-14 mins locally
           if (parsed && parsed.id && !parsed._expired) {
             if (!parsed._fetched_at || (Date.now() - parsed._fetched_at < 13 * 60 * 1000)) {
               setTask(parsed);
+              if (parsed.trusted) setHumanPassed(true);
               setLoading(false);
               return;
             } else {
@@ -258,9 +254,8 @@ export default function LinkGateway() {
     }
 
     try {
-      setLoading(true); setError('');
+      setLoading(true); setError(''); setHumanPassed(false);
 
-      // Incognito detection
       if (navigator.storage && navigator.storage.estimate) {
         const { quota } = await navigator.storage.estimate();
         if (quota && quota < 10 * 1024 * 1024 * 1024) {
@@ -326,6 +321,7 @@ export default function LinkGateway() {
       if (!taskRes.ok) throw new Error('Không thể lấy nhiệm vụ');
       const newTask = await taskRes.json();
       setTask(newTask);
+      if (newTask.trusted) setHumanPassed(true);
       // Save to sessionStorage with timestamp to drop old tasks on reload
       try { sessionStorage.setItem(sessionKey, JSON.stringify({ ...newTask, _fetched_at: Date.now() })); } catch { }
     } catch (err) {
@@ -358,6 +354,7 @@ export default function LinkGateway() {
           setTask(null);
           setInputCode('');
           setShowError(false);
+          setHumanPassed(false);
           try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
           fetchTask(true);
           return 0;
@@ -382,6 +379,7 @@ export default function LinkGateway() {
     setTask(null);
     setInputCode('');
     setVerified(false);
+    setHumanPassed(false);
     setCompletionResult(null);
     setShowError(false);
     try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
@@ -992,7 +990,6 @@ function ShakeChallenge({ onPass, onClose }) {
         if (ax === ay && ay === az) return;
         const now = Date.now();
 
-        // Track raw interval between ALL events (not just shakes) để phát hiện fixed-interval
         if (intervalLogRef.current.length > 0) {
           intervalLogRef.current.push(now - intervalLogRef.current[intervalLogRef.current.length - 1]);
         } else {
@@ -1009,23 +1006,19 @@ function ShakeChallenge({ onPass, onClose }) {
             if (next >= TARGET) {
               const log = shakeLogRef.current.slice(-TARGET);
 
-              // ── Frontend emulator detection ──
-              // 1. az = 0 tuyệt đối trên tất cả shake events
               const allAzZero = log.every(s => s.az === 0);
-              // 2. Tần suất event cảm biến đều tuyệt đối (fixed setInterval)
-              const ivals = intervalLogRef.current.slice(1); // bỏ entry đầu là timestamp tuyệt đối
+              const ivals = intervalLogRef.current.slice(1);
               let fixedInterval = false;
               if (ivals.length >= 5) {
                 const avg = ivals.reduce((a, b) => a + b, 0) / ivals.length;
                 const variance = ivals.reduce((a, v) => a + (v - avg) ** 2, 0) / ivals.length;
-                fixedInterval = variance < 5 && avg > 0; // < 5ms variance = cực kỳ đều
+                fixedInterval = variance < 5 && avg > 0;
               }
-              // 3. ax hoặc ay cũng = 0 hoàn toàn (chỉ 1 trục có giá trị - emulator thường vậy)
               const allAxZero = log.every(s => s.ax === 0);
 
               if (allAzZero || fixedInterval || allAxZero) {
                 setFakeDetected(true);
-                return next; // không call onPass
+                return next;
               }
 
               setPassed(true);
@@ -1063,7 +1056,7 @@ function ShakeChallenge({ onPass, onClose }) {
         <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
           <div style={{ fontSize: 72, marginBottom: 16 }}>🚫</div>
           <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 12px', color: '#fca5a5' }}>Phát hiện giả lập!</h2>
-          <p style={{ fontSize: 14, opacity: 0.8, margin: '0 0 24px' }}>Cảm biến điện thoại cho thấy thiết bị không hợp lệ.<br/>Vui lòng dùng thiết bị thật.</p>
+          <p style={{ fontSize: 14, opacity: 0.8, margin: '0 0 24px' }}>Cảm biến điện thoại cho thấy thiết bị không hợp lệ.<br />Vui lòng dùng thiết bị thật.</p>
           <button onClick={onClose} style={{ padding: '10px 24px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>Đóng</button>
         </div>
       ) : (

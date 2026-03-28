@@ -354,14 +354,11 @@ async function _handleTaskPost(req, res) {
     waitTime = parseInt(tos) || 60;
   }
 
-  // Task expires after 10 minutes — code cannot be used after expiry
   const expirySeconds = 600;
 
-  // Use worker_link_id and refWorkerId from challenge session (server-side), NOT from client body
   const workerLinkId = ch.workerLinkId || null;
   const refWorkerId = ch.refWorkerId || null;
 
-  // Build security_detail JSON — tổng hợp từ analyzeDevice + CreepJS raw data
   const secObj = {
     detectionLog: [...new Set(detectionLog)],
     isMobile: /Mobi|Android|iPhone|iPad|iPod/i.test(ua),
@@ -369,11 +366,11 @@ async function _handleTaskPost(req, res) {
     deviceType: devResult.deviceType,
     reasons: devResult.reasons,
     detail: devResult.detail,
-    // Store canvas & audio hash trực tiếp ở top-level để SQL JSON_EXTRACT dùng được
+
     canvasHash: botDetection?.canvasHash || devResult.detail?.canvasHash || null,
     audioHash: botDetection?.audioHash || devResult.detail?.audioHash || null,
     canvas: { hash1: botDetection?.canvas?.hash1, hash2: botDetection?.canvas?.hash2, noisy: botDetection?.canvas?.noisy },
-    // CreepJS summary
+
     creepSummary: botDetection ? {
       totalLies: botDetection.totalLies || 0,
       lieNames: (botDetection.lieNames || []).slice(0, 5),
@@ -389,7 +386,13 @@ async function _handleTaskPost(req, res) {
     [campaign.id, req.userId || null, selectedKeyword, selectedUrl, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId, refWorkerId, securityDetail]
   );
 
-  console.log(`[VuotLink] Task #${result.insertId} created — IP: ${ip}, code: ${randomCode}, campaign: ${campaign.id}, keyword: ${selectedKeyword}, waitTime: ${waitTime}s`);
+  let isTrustedWorker = false;
+  if (req.userId) {
+    try {
+      const [usr] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [req.userId]);
+      if (usr.length && usr[0].trusted === 1) isTrustedWorker = true;
+    } catch (_) { }
+  }
 
   // Track view (worker entered the page/claimed task)
   try {
@@ -449,6 +452,7 @@ async function _handleTaskPost(req, res) {
     traffic_type: campaign.traffic_type || 'google_search',
     ...(isDirect ? { target_url: selectedUrl } : {}),
     _tk,
+    trusted: isTrustedWorker,
   });
 }
 
@@ -591,14 +595,25 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   }
 
   const taskIdStr = String(req.params.id);
-  const cpEntry = challengePassedStore[taskIdStr];
-  if (!cpEntry) {
-    return res.status(403).json({ error: 'Bạn chưa hoàn thành bước xác minh người thật.' });
+
+  let isTrustedWorker = false;
+  if (req.userId) {
+    try {
+      const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [req.userId]);
+      isTrustedWorker = tRows[0]?.trusted === 1;
+    } catch (_) {}
   }
-  if (cpEntry.token !== challengeToken || cpEntry.ip !== ip) {
-    return res.status(403).json({ error: 'Token xác minh không hợp lệ.' });
+
+  if (!isTrustedWorker) {
+    const cpEntry = challengePassedStore[taskIdStr];
+    if (!cpEntry) {
+      return res.status(403).json({ error: 'Bạn chưa hoàn thành bước xác minh người thật.' });
+    }
+    if (cpEntry.token !== challengeToken || cpEntry.ip !== ip) {
+      return res.status(403).json({ error: 'Token xác minh không hợp lệ.' });
+    }
+    delete challengePassedStore[taskIdStr];
   }
-  delete challengePassedStore[taskIdStr];
 
   if (!code || code.trim().length < 4) {
     return res.status(400).json({ error: 'Mã xác nhận không hợp lệ' });
