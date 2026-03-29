@@ -438,15 +438,10 @@ export default function CampaignList() {
     <div className="space-y-5 w-full min-w-0 pb-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <Breadcrumb items={[{ label: 'Dashboard', to: '/buyer/dashboard' }, { label: 'Quản lý chiến dịch' }]} />
 
-      {/* ── Page header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Quản lý chiến dịch</h1>
-          <p className="text-sm text-slate-500 mt-1">{campaigns.length} chiến dịch · Cài đặt và điều phối</p>
-        </div>
+      <div className="flex justify-end">
         <button
           onClick={() => navigate('/buyer/dashboard/campaigns/create')}
-          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 rounded-xl shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-95 self-start sm:self-auto"
+          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 rounded-xl shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-95"
         >
           <Plus size={15} /> Tạo chiến dịch mới
         </button>

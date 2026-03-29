@@ -334,14 +334,9 @@ export default function CreateCampaign() {
         { label: 'Tạo chiến dịch mới' },
       ]} />
 
-      {/* ── Page Hero ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Tạo chiến dịch mới</h1>
-          <p className="text-sm text-slate-500 mt-1">Điền thông tin để bắt đầu chiến dịch traffic của bạn</p>
-        </div>
-        {/* Wallet balance pill */}
-        <div className="flex items-center gap-2.5 bg-white border border-indigo-100 rounded-2xl px-4 py-3 shadow-sm self-start sm:self-auto">
+      {/* Wallet balance pill */}
+      <div className="flex justify-end">
+        <div className="flex items-center gap-2.5 bg-white border border-indigo-100 rounded-2xl px-4 py-3 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
             <Wallet size={15} className="text-indigo-600" />
           </div>

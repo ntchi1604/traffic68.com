@@ -534,29 +534,22 @@ export default function TrafficTracking() {
     <div className="space-y-5 w-full min-w-0 pb-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <Breadcrumb items={[{ label: 'Dashboard', to: '/buyer/dashboard' }, { label: 'Theo dõi lưu lượng' }]} />
 
-      {/* ── Page header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Theo dõi lưu lượng</h1>
-          <p className="text-sm text-slate-500 mt-1">Phân tích traffic và hiệu suất chiến dịch</p>
+      <div className="flex items-center justify-end gap-2">
+        <div className="flex bg-white border border-slate-200 rounded-xl p-1 gap-0.5 shadow-sm">
+          {PERIODS.map(p => (
+            <button key={p.key} onClick={() => setRange(p.key)}
+              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${range === p.key
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                }`}>
+              {p.label}
+            </button>
+          ))}
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex bg-white border border-slate-200 rounded-xl p-1 gap-0.5 shadow-sm">
-            {PERIODS.map(p => (
-              <button key={p.key} onClick={() => setRange(p.key)}
-                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${range === p.key
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                  }`}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <button onClick={() => setRefreshKey(k => k + 1)}
-            className="p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition shadow-sm">
-            <RefreshCw size={15} />
-          </button>
-        </div>
+        <button onClick={() => setRefreshKey(k => k + 1)}
+          className="p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition shadow-sm">
+          <RefreshCw size={15} />
+        </button>
       </div>
 
       {/* ── KPI cards ── */}

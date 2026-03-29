@@ -222,35 +222,21 @@ export default function TrafficDashboard() {
   return (
     <div className="space-y-5 w-full min-w-0 pb-6" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
 
-      {/* ── Top bar — greeting + actions ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            {greeting}{userName ? `, ${userName.split(' ').pop()}` : ''}! 👋
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {currentTime.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            <span className="mx-2 opacity-40">·</span>
-            <span className="font-mono font-semibold tabular-nums text-slate-700">
-              {currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
-            </span>
-          </p>
-        </div>
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <button
-            onClick={() => navigate('/buyer/dashboard/finance/deposit')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-700 transition-all duration-200 shadow-sm"
-          >
-            <CreditCard size={14} /> Nạp tiền
-          </button>
-          <button
-            onClick={() => navigate('/buyer/dashboard/campaigns/create')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all duration-200 hover:-translate-y-0.5 shadow-lg hover:shadow-xl"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}
-          >
-            <Plus size={14} /> Tạo chiến dịch
-          </button>
-        </div>
+      {/* ── Quick actions ── */}
+      <div className="flex items-center justify-end gap-2.5 flex-wrap">
+        <button
+          onClick={() => navigate('/buyer/dashboard/finance/deposit')}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-700 transition-all duration-200 shadow-sm"
+        >
+          <CreditCard size={14} /> Nạp tiền
+        </button>
+        <button
+          onClick={() => navigate('/buyer/dashboard/campaigns/create')}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all duration-200 hover:-translate-y-0.5 shadow-lg hover:shadow-xl"
+          style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}
+        >
+          <Plus size={14} /> Tạo chiến dịch
+        </button>
       </div>
 
       {/* ══════════════════════════════════════

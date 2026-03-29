@@ -191,14 +191,10 @@ export default function WorkerShortLinks() {
         </form>
       </div>
 
-      {/* Page header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 900, color: '#0F172A', marginBottom: 2 }}>Link kiếm tiền</h1>
-          <p style={{ color: '#64748B', fontSize: 13 }}>Nhập URL bạn muốn chia sẻ — hệ thống tạo link. Người click link phải vượt link trước → bạn nhận tiền.</p>
-        </div>
+      {/* Page action */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
         <button onClick={openPanel} style={{
-          padding: '10px 18px', borderRadius: 11, border: 'none', cursor: 'pointer', flexShrink: 0, marginLeft: 16,
+          padding: '10px 18px', borderRadius: 11, border: 'none', cursor: 'pointer',
           background: 'linear-gradient(135deg,#3B82F6,#2563EB)', color: '#fff', fontWeight: 700, fontSize: 14,
           display: 'flex', alignItems: 'center', gap: 7, boxShadow: '0 4px 14px rgba(59,130,246,0.3)',
         }}>
