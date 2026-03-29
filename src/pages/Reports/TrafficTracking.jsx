@@ -94,8 +94,6 @@ function CampaignDetailModal({ campaign: c, onClose }) {
   }, [c, mRange]);
 
   if (!c) return null;
-  // Ưu tiên detail.totalClicks (đếm từ traffic_logs) khi đã load,
-  // fallback về c.views_done khi chưa có data
   const done = detail ? Math.max(Number(c.views_done || 0), Number(detail.totalClicks || 0)) : Number(c.views_done || 0);
   const total = Number(c.total_views || 1);
   const pct = Math.min(Math.round((done / total) * 100), 100);
@@ -547,8 +545,8 @@ export default function TrafficTracking() {
             {PERIODS.map(p => (
               <button key={p.key} onClick={() => setRange(p.key)}
                 className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${range === p.key
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                   }`}>
                 {p.label}
               </button>
