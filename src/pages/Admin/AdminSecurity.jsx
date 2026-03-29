@@ -558,7 +558,7 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 w-full">
       {/* Header Profile */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden relative group">
         <div className="absolute inset-0 bg-gradient-to-br from-violet-50/50 via-transparent to-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
@@ -1151,15 +1151,15 @@ export default function AdminSecurity() {
   if (detail) return <UserDetail user={detail} dateFrom={dateFrom} dateTo={dateTo} onBack={() => { setDetail(null); load(); }} />;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 w-full">
       {/* Header & Global Stats */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-indigo-600 tracking-tight flex items-center gap-3">
-            <Bot className="text-violet-600" size={32} />
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+            <Shield className="text-indigo-600" size={24} />
             Hệ thống Anti-Cheat
           </h1>
-          <p className="text-sm text-slate-500 mt-2 font-medium">Giám sát {total} người dùng · Phân tích hành vi & tự động phát hiện bằng AI</p>
+          <p className="text-sm text-slate-500 mt-1 font-medium">Giám sát {total} người dùng</p>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-50 to-violet-50 text-indigo-700 border border-indigo-100 shadow-sm rounded-xl text-sm font-semibold hover:from-indigo-100 hover:to-violet-100 hover:shadow disabled:opacity-50 transition-all">
