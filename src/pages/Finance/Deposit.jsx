@@ -695,7 +695,13 @@ export default function Deposit() {
                 ...(bankEnabled ? [{ icon: Clock, color: 'text-blue-400', text: 'Chuyển khoản: 5–15 phút' }] : []),
                 ...((cryptoEnabled || trc20Enabled) && (depositConfig?.crypto?.auto || depositConfig?.trc20?.auto) ? [{ icon: Zap, color: 'text-emerald-500', text: 'Crypto tự động: 1–3 phút' }] : []),
                 { icon: ArrowLeftRight, color: 'text-indigo-400', text: 'Chuyển HH → Traffic: ngay lập tức' },
-                ...(cryptoEnabled ? [{ icon: AlertCircle, color: 'text-rose-500', text: 'Chỉ gửi USDT đúng mạng BEP20' }] : []),
+                ...(cryptoEnabled && trc20Enabled
+                  ? [{ icon: AlertCircle, color: 'text-rose-500', text: 'BEP20: chỉ gửi USDT trên mạng BSC' }, { icon: AlertCircle, color: 'text-violet-500', text: 'TRC20: chỉ gửi USDT trên mạng Tron' }]
+                  : cryptoEnabled
+                    ? [{ icon: AlertCircle, color: 'text-rose-500', text: 'Chỉ gửi USDT trên mạng BSC (BEP20)' }]
+                    : trc20Enabled
+                      ? [{ icon: AlertCircle, color: 'text-violet-500', text: 'Chỉ gửi USDT trên mạng Tron (TRC20)' }]
+                      : []),
               ].map(({ icon: Icon, color, text }, i) => (
                 <li key={i} className="flex items-start gap-2.5">
                   <Icon size={13} className={`${color} shrink-0 mt-0.5`} />
