@@ -20,171 +20,215 @@ import {
   Terminal,
 } from 'lucide-react';
 
-const linkBase =
-  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors';
+const activeStyle = {
+  background: 'linear-gradient(90deg, rgba(99,102,241,0.20) 0%, rgba(99,102,241,0.05) 100%)',
+  borderLeft: '2px solid #6366f1',
+  color: '#a5b4fc',
+};
+
+function SideLink({ to, icon: Icon, children, end = false, onClick }) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      onClick={onClick}
+      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 relative group"
+      style={({ isActive }) =>
+        isActive
+          ? activeStyle
+          : { color: '#64748b' }
+      }
+    >
+      {({ isActive }) => (
+        <>
+          <Icon
+            size={15}
+            className="flex-shrink-0 transition-colors"
+            style={{ color: isActive ? '#818cf8' : '#475569' }}
+          />
+          <span
+            style={{ color: isActive ? '#c7d2fe' : '#94a3b8' }}
+            className="transition-colors group-hover:text-slate-200"
+          >
+            {children}
+          </span>
+        </>
+      )}
+    </NavLink>
+  );
+}
+
+function SectionLabel({ children, icon: Icon, open, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors group"
+      style={{ color: '#334155' }}
+    >
+      <div className="flex items-center gap-2">
+        <Icon size={12} style={{ color: '#334155' }} />
+        <span className="group-hover:text-slate-400 transition-colors">{children}</span>
+      </div>
+      <ChevronDown
+        size={12}
+        style={{ color: '#334155' }}
+        className={`transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
+      />
+    </button>
+  );
+}
 
 export default function Sidebar({ isOpen, onClose }) {
   const [isCampaignOpen, setIsCampaignOpen] = useState(true);
-  const [isReportOpen, setIsReportOpen] = useState(true);
-  const [isFinanceOpen, setIsFinanceOpen] = useState(true);
+  const [isReportOpen,   setIsReportOpen]   = useState(true);
+  const [isFinanceOpen,  setIsFinanceOpen]  = useState(true);
 
   return (
     <>
+      {/* Overlay */}
       <div
-        className={`fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300 ${
+          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
         onClick={onClose}
       />
 
+      {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-slate-900 text-slate-300 z-50 transform transition-transform lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed top-0 left-0 h-full w-64 z-50 transform transition-transform duration-300 lg:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        } flex flex-col`}
+        style={{
+          background: 'linear-gradient(180deg, #0d1520 0%, #111827 100%)',
+          borderRight: '1px solid rgba(255,255,255,0.04)',
+        }}
       >
-        <div className="flex items-center justify-center px-5 py-5 border-b border-slate-800 relative">
-          <div className="flex items-center justify-center w-full">
-            <img
-              src="/traffic68_com.gif"
-              alt="Traffic68"
-              className="h-14 sm:h-16 w-auto mx-auto"
-            />
+        {/* Logo */}
+        <div className="flex items-center justify-center px-5 py-5 relative flex-shrink-0"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+          {/* Glow behind logo */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-20 h-20 rounded-full blur-2xl opacity-20"
+              style={{ background: 'radial-gradient(circle, #6366f1, transparent)' }} />
           </div>
-          <button onClick={onClose} className="lg:hidden p-2 hover:bg-slate-800 rounded-lg absolute right-4">
-            <X className="w-5 h-5" />
+          <img
+            src="/traffic68_com.gif"
+            alt="Traffic68"
+            className="h-14 sm:h-16 w-auto mx-auto relative z-10"
+          />
+          <button
+            onClick={onClose}
+            className="lg:hidden p-2 rounded-lg absolute right-4 transition-colors"
+            style={{ color: '#475569' }}
+          >
+            <X size={18} />
           </button>
         </div>
 
-        <nav className="p-4 space-y-1">
-          <NavLink
-            to="/buyer/dashboard"
-            end
-            className={({ isActive }) =>
-              `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`
-            }
-          >
-            <LayoutDashboard className="w-5 h-5" />
-            Tổng quan
-          </NavLink>
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto p-3 space-y-0.5 scrollbar-thin">
 
+          {/* Dashboard */}
+          <div className="mb-2">
+            <SideLink to="/buyer/dashboard" end icon={LayoutDashboard} onClick={onClose}>
+              Tổng quan
+            </SideLink>
+          </div>
 
-          {/* ── Chiến dịch ── */}
-          <div className="mt-2">
-            <button
-              type="button"
-              onClick={() => setIsCampaignOpen(p => !p)}
-              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200"
-            >
-              <div className="flex items-center gap-2">
-                <Megaphone className="w-4 h-4" />
-                Quản lý Chiến dịch
-              </div>
-              <ChevronDown className={`w-4 h-4 transition-transform ${isCampaignOpen ? '' : '-rotate-90'}`} />
-            </button>
+          {/* Divider */}
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.04)', margin: '6px 12px' }} />
+
+          {/* Campaigns */}
+          <div className="pt-1">
+            <SectionLabel icon={Megaphone} open={isCampaignOpen} onToggle={() => setIsCampaignOpen(p => !p)}>
+              Chiến dịch
+            </SectionLabel>
             {isCampaignOpen && (
-              <div className="ml-2 space-y-1">
-                <NavLink to="/buyer/dashboard/campaigns/create"
-                  className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
-                  <PlusCircle className="w-4 h-4" />
-                  Tạo Chiến dịch
-                </NavLink>
-                <NavLink to="/buyer/dashboard/campaigns" end
-                  className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
-                  <List className="w-4 h-4" />
-                  Xem Chiến dịch
-                </NavLink>
+              <div className="ml-1 mt-0.5 space-y-0.5">
+                <SideLink to="/buyer/dashboard/campaigns/create" icon={PlusCircle} onClick={onClose}>
+                  Tạo chiến dịch
+                </SideLink>
+                <SideLink to="/buyer/dashboard/campaigns" end icon={List} onClick={onClose}>
+                  Quản lý chiến dịch
+                </SideLink>
               </div>
             )}
           </div>
 
-          {/* ── Báo cáo ── */}
-          <div className="mt-2">
-            <button
-              type="button"
-              onClick={() => setIsReportOpen(p => !p)}
-              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200"
-            >
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4" />
-                Báo cáo
-              </div>
-              <ChevronDown className={`w-4 h-4 transition-transform ${isReportOpen ? '' : '-rotate-90'}`} />
-            </button>
+          {/* Reports */}
+          <div className="pt-1">
+            <SectionLabel icon={BarChart3} open={isReportOpen} onToggle={() => setIsReportOpen(p => !p)}>
+              Báo cáo & Thống kê
+            </SectionLabel>
             {isReportOpen && (
-              <div className="ml-2 space-y-1">
-                <NavLink to="/buyer/dashboard/reports"
-                  className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
-                  <TrendingUp className="w-4 h-4" />
-                  Theo dõi Traffic
-                </NavLink>
+              <div className="ml-1 mt-0.5 space-y-0.5">
+                <SideLink to="/buyer/dashboard/reports" icon={TrendingUp} onClick={onClose}>
+                  Theo dõi traffic
+                </SideLink>
               </div>
             )}
           </div>
 
-          {/* ── Tài chính ── */}
-          <div className="mt-2">
-            <button
-              type="button"
-              onClick={() => setIsFinanceOpen(p => !p)}
-              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200"
-            >
-              <div className="flex items-center gap-2">
-                <Wallet className="w-4 h-4" />
-                Tài chính
-              </div>
-              <ChevronDown className={`w-4 h-4 transition-transform ${isFinanceOpen ? '' : '-rotate-90'}`} />
-            </button>
+          {/* Finance */}
+          <div className="pt-1">
+            <SectionLabel icon={Wallet} open={isFinanceOpen} onToggle={() => setIsFinanceOpen(p => !p)}>
+              Tài chính
+            </SectionLabel>
             {isFinanceOpen && (
-              <div className="ml-2 space-y-1">
-                <NavLink to="/buyer/dashboard/finance/deposit"
-                  className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
-                  <CreditCard className="w-4 h-4" />
+              <div className="ml-1 mt-0.5 space-y-0.5">
+                <SideLink to="/buyer/dashboard/finance/deposit" icon={CreditCard} onClick={onClose}>
                   Nạp tiền
-                </NavLink>
-                <NavLink to="/buyer/dashboard/finance/transactions"
-                  className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
-                  <History className="w-4 h-4" />
+                </SideLink>
+                <SideLink to="/buyer/dashboard/finance/transactions" icon={History} onClick={onClose}>
                   Lịch sử giao dịch
-                </NavLink>
+                </SideLink>
               </div>
             )}
           </div>
 
-          {/* ── Bottom ── */}
-          <div className="pt-4 mt-4 border-t border-slate-800 space-y-1">
-            <NavLink to="/buyer/dashboard/referral"
-              className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
-              <Gift className="w-5 h-5" />
+          {/* Separator */}
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.04)', margin: '8px 12px' }} />
+
+          {/* Other */}
+          <div className="space-y-0.5">
+            <SideLink to="/buyer/dashboard/referral" icon={Gift} onClick={onClose}>
               Giới thiệu bạn bè
-            </NavLink>
-            <NavLink to="/buyer/dashboard/pricing"
-              className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
-              <DollarSign className="w-5 h-5" />
+            </SideLink>
+            <SideLink to="/buyer/dashboard/pricing" icon={DollarSign} onClick={onClose}>
               Bảng giá
-            </NavLink>
-            <NavLink to="/buyer/dashboard/profile"
-              className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
-              <UserCircle className="w-5 h-5" />
+            </SideLink>
+            <SideLink to="/buyer/dashboard/profile" icon={UserCircle} onClick={onClose}>
               Hồ sơ của tôi
-            </NavLink>
-            <NavLink to="/buyer/dashboard/support"
-              className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
-              <HelpCircle className="w-5 h-5" />
+            </SideLink>
+            <SideLink to="/buyer/dashboard/support" icon={HelpCircle} onClick={onClose}>
               Hỗ trợ
-            </NavLink>
+            </SideLink>
           </div>
 
-          {/* ── Công cụ ── */}
-          <div className="mt-2">
-            <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Công cụ</p>
-            <NavLink to="/buyer/dashboard/script"
-              className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
-              <Code2 className="w-5 h-5" />
-              Script Nút Lấy Mã
-            </NavLink>
-            <NavLink to="/buyer/dashboard/api"
-              className={({ isActive }) => `${linkBase} ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60 hover:text-white'}`}>
-              <Terminal className="w-5 h-5" />
-              Buyer API
-            </NavLink>
+          {/* Tools */}
+          <div className="pt-1">
+            <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: '#1e293b' }}>
+              Công cụ
+            </p>
+            <div className="space-y-0.5">
+              <SideLink to="/buyer/dashboard/script" icon={Code2} onClick={onClose}>
+                Script nút lấy mã
+              </SideLink>
+              <SideLink to="/buyer/dashboard/api" icon={Terminal} onClick={onClose}>
+                Buyer API
+              </SideLink>
+            </div>
           </div>
         </nav>
+
+        {/* Footer */}
+        <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+          <div className="px-3 py-2 rounded-lg" style={{ background: 'rgba(99,102,241,0.06)' }}>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: '#334155' }}>Traffic68</p>
+            <p className="text-[10px]" style={{ color: '#1e293b' }}>© 2025 · Nền tảng mua traffic SEO</p>
+          </div>
+        </div>
       </aside>
     </>
   );

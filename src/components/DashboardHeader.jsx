@@ -52,15 +52,16 @@ export default function DashboardHeader({ onMenuClick }) {
   const initials = (user.name || 'U').split(' ').map(w => w[0]).join('').slice(-2).toUpperCase();
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <header style={{ background: '#0d1520', borderBottom: '1px solid rgba(255,255,255,0.05)' }} className="sticky top-0 z-30">
       <div className="px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
 
         {/* Left: hamburger */}
         <button
           onClick={onMenuClick}
-          className="lg:hidden p-2 hover:bg-slate-100 rounded-lg flex-shrink-0"
+          className="lg:hidden p-2 rounded-lg flex-shrink-0 transition-colors"
+          style={{ color: '#64748b' }}
         >
-          <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
@@ -71,81 +72,94 @@ export default function DashboardHeader({ onMenuClick }) {
           {/* ── Ví chính ── */}
           <button
             onClick={() => navigate(isWorker ? '/worker/dashboard/withdraw' : '/buyer/dashboard/finance/deposit')}
-            className={`hidden sm:flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-xl transition-all border ${
-              isWorker
-                ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700'
-                : 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700'
-            }`}
+            className="hidden sm:flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-xl transition-all border"
+            style={{
+              background: isWorker ? 'rgba(16,185,129,0.1)' : 'rgba(99,102,241,0.1)',
+              borderColor: isWorker ? 'rgba(16,185,129,0.2)' : 'rgba(99,102,241,0.2)',
+              color: isWorker ? '#34d399' : '#818cf8',
+            }}
             title={isWorker ? 'Ví Earning – thu nhập vượt link' : 'Ví Traffic – dùng để mua traffic'}
           >
-            <Wallet size={14} className={`flex-shrink-0 ${isWorker ? 'text-emerald-500' : 'text-blue-500'}`} />
-            <span className="hidden md:inline text-slate-500 font-medium">{isWorker ? 'Ví Earning' : 'Ví Traffic'}</span>
+            <Wallet size={14} className="flex-shrink-0" />
+            <span className="hidden md:inline font-medium" style={{ color: '#64748b' }}>{isWorker ? 'Ví Earning' : 'Ví Traffic'}</span>
             <span className="font-black">{fmt(isWorker ? wallets.earning : wallets.main)}</span>
-            <span className="text-slate-400 font-normal">đ</span>
+            <span className="font-normal" style={{ color: '#475569' }}>đ</span>
           </button>
 
           {/* ── Ví hoa hồng ── */}
           <button
             onClick={() => navigate(isWorker ? '/worker/dashboard/transactions' : '/buyer/dashboard/finance/transactions')}
-            className="hidden sm:flex items-center gap-2 bg-orange-50 hover:bg-orange-100 border border-orange-200
-                       text-orange-700 text-xs font-bold px-3 py-2 rounded-xl transition-all"
+            className="hidden sm:flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-xl transition-all border"
+            style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.15)', color: '#fbbf24' }}
             title="Ví Hoa Hồng – nhận khi giới thiệu thành viên"
           >
-            <Gift size={14} className="text-orange-500 flex-shrink-0" />
-            <span className="hidden md:inline text-slate-500 font-medium">Hoa hồng</span>
+            <Gift size={14} className="flex-shrink-0" />
+            <span className="hidden md:inline font-medium" style={{ color: '#64748b' }}>Hoa hồng</span>
             <span className="font-black">{fmt(wallets.commission)}</span>
-            <span className="text-slate-400 font-normal">đ</span>
+            <span className="font-normal" style={{ color: '#475569' }}>đ</span>
           </button>
 
           {/* Bell */}
           <NotificationDropdown isWorker={isWorker} />
 
           {/* Profile */}
-          <div className="relative border-l border-slate-200 pl-2 sm:pl-3" ref={profileRef}>
+          <div className="relative pl-2 sm:pl-3" style={{ borderLeft: '1px solid rgba(255,255,255,0.06)' }} ref={profileRef}>
             <button
               onClick={() => setProfileOpen(o => !o)}
-              className="flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900"
+              className="flex items-center gap-2 text-sm transition-colors"
+              style={{ color: '#94a3b8' }}
             >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs overflow-hidden flex-shrink-0 ${user.avatar_url ? '' : 'bg-blue-600'}`}>
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs overflow-hidden flex-shrink-0`}
+                style={user.avatar_url ? {} : { background: 'linear-gradient(135deg, #6366f1, #818cf8)' }}
+              >
                 {user.avatar_url ? (
                   <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   initials
                 )}
               </div>
-              <span className="hidden sm:inline font-medium">{user.name || 'User'}</span>
+              <span className="hidden sm:inline font-medium" style={{ color: '#cbd5e1' }}>{user.name || 'User'}</span>
               <ChevronDown size={14} className={`transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {profileOpen && (
-              <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50">
-                <div className="px-4 py-2.5 border-b border-slate-100">
-                  <p className="font-bold text-slate-800 text-sm">{user.name || 'User'}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{user.email || 'Đang hoạt động'}</p>
+              <div
+                className="absolute right-0 mt-2 w-52 rounded-xl shadow-2xl py-1.5 z-50 border"
+                style={{ background: '#131d2b', borderColor: 'rgba(255,255,255,0.08)' }}
+              >
+                <div className="px-4 py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <p className="font-bold text-sm" style={{ color: '#e2e8f0' }}>{user.name || 'User'}</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#475569' }}>{user.email || 'Đang hoạt động'}</p>
                 </div>
 
-                {/* Mini wallet info in dropdown */}
-                <div className="px-4 py-2 border-b border-slate-100 space-y-1.5">
+                <div className="px-4 py-2 space-y-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-1 text-slate-500"><Wallet size={11} /> {isWorker ? 'Ví Earning' : 'Ví Traffic'}</span>
-                    <span className={`font-bold ${isWorker ? 'text-emerald-600' : 'text-blue-600'}`}>{fmt(isWorker ? wallets.earning : wallets.main)} đ</span>
+                    <span className="flex items-center gap-1" style={{ color: '#475569' }}><Wallet size={11} /> {isWorker ? 'Ví Earning' : 'Ví Traffic'}</span>
+                    <span className="font-bold" style={{ color: isWorker ? '#34d399' : '#818cf8' }}>{fmt(isWorker ? wallets.earning : wallets.main)} đ</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-1 text-slate-500"><Gift size={11} /> Hoa hồng</span>
-                    <span className="font-bold text-orange-500">{fmt(wallets.commission)} đ</span>
+                    <span className="flex items-center gap-1" style={{ color: '#475569' }}><Gift size={11} /> Hoa hồng</span>
+                    <span className="font-bold" style={{ color: '#fbbf24' }}>{fmt(wallets.commission)} đ</span>
                   </div>
                 </div>
 
-                <a href={`${dashPrefix}/profile`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Hồ sơ của tôi</a>
-                <a href={`${dashPrefix}/profile?tab=password`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Cài đặt tài khoản</a>
+                <a href={`${dashPrefix}/profile`} className="block px-4 py-2 text-sm transition" style={{ color: '#94a3b8' }}
+                  onMouseEnter={e => e.target.style.color = '#e2e8f0'}
+                  onMouseLeave={e => e.target.style.color = '#94a3b8'}
+                >Hồ sơ của tôi</a>
+                <a href={`${dashPrefix}/profile?tab=password`} className="block px-4 py-2 text-sm transition" style={{ color: '#94a3b8' }}
+                  onMouseEnter={e => e.target.style.color = '#e2e8f0'}
+                  onMouseLeave={e => e.target.style.color = '#94a3b8'}
+                >Cài đặt tài khoản</a>
                 {user.role === 'admin' && (
-                  <a href="/admin" className="flex items-center gap-2 px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 transition font-semibold">
-                    🛡️ Admin Panel
-                  </a>
+                  <a href="/admin" className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition" style={{ color: '#fb923c' }}
+                  >🛡️ Admin Panel</a>
                 )}
                 <button
                   onClick={handleLogout}
-                  className="block w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition font-medium"
+                  className="block w-full text-left px-4 py-2 text-sm font-medium transition"
+                  style={{ color: '#f87171' }}
                 >
                   Đăng xuất
                 </button>

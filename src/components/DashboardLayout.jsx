@@ -46,7 +46,7 @@ export default function DashboardLayout() {
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="min-h-screen bg-slate-50 overflow-x-hidden">
+        <div className="min-h-screen overflow-x-hidden" style={{ background: '#0d1520' }}>
           <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
           <div className="lg:ml-64">
