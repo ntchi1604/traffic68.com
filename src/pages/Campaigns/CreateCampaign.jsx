@@ -729,13 +729,13 @@ export default function CreateCampaign() {
           <div className="space-y-4">
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden sticky top-6">
               {/* Header */}
-              <div className="px-5 py-4 border-b border-slate-100"
-                style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)' }}>
+              <div className="px-5 py-4 border-b border-indigo-100"
+                style={{ background: 'linear-gradient(135deg, #eef2ff, #f5f3ff)' }}>
                 <div className="flex items-center gap-2 mb-1">
-                  <Sparkles size={13} className="text-indigo-300" />
-                  <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">Đơn hàng</span>
+                  <Sparkles size={13} className="text-indigo-500" />
+                  <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Đơn hàng</span>
                 </div>
-                <p className="text-base font-black text-white">Tóm tắt chiến dịch</p>
+                <p className="text-base font-black text-slate-900">Tóm tắt chiến dịch</p>
               </div>
 
               {/* Summary rows */}

@@ -335,37 +335,22 @@ export default function Deposit() {
 
   return (
     <div className="min-h-screen bg-slate-50/50">
-      {/* ── Hero header ── */}
-      <div
-        className="relative overflow-hidden rounded-3xl mb-8 p-8"
-        style={{
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 40%, #312e81 70%, #1e40af 100%)',
-          boxShadow: '0 24px 64px rgba(15,23,42,0.25)',
-        }}
-      >
-        {/* Mesh pattern */}
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(99,102,241,0.8) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(56,189,248,0.6) 0%, transparent 50%), radial-gradient(circle at 60% 80%, rgba(167,139,250,0.6) 0%, transparent 40%)',
-        }} />
-        <div className="absolute inset-0 opacity-[0.03]" style={{
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)',
-          backgroundSize: '32px 32px',
-        }} />
+      {/* ── Page header ── */}
+      <div className="mb-6">
+        <Breadcrumb items={[
+          { label: 'Dashboard', to: '/buyer/dashboard' },
+          { label: 'Tài chính', to: '/buyer/dashboard/finance/deposit' },
+          { label: 'Nạp tiền' },
+        ]} />
 
-        <div className="relative">
-          <Breadcrumb items={[
-            { label: 'Dashboard', to: '/buyer/dashboard' },
-            { label: 'Tài chính', to: '/buyer/dashboard/finance/deposit' },
-            { label: 'Nạp tiền' },
-          ]} />
-
-          <div className="mt-5">
-            <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-3 py-1 mb-4">
-              <Sparkles size={11} className="text-violet-300" />
-              <span className="text-[11px] font-semibold text-white/80">Quản lý tài chính</span>
-            </div>
-            <h1 className="text-3xl font-black text-white tracking-tight mb-1">Nạp tiền & Ví</h1>
-            <p className="text-sm text-white/50">Nạp tiền vào Ví Traffic hoặc quản lý Ví Hoa Hồng</p>
+        <div className="mt-3 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0"
+            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
+            <Wallet size={18} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-[22px] font-extrabold text-slate-900 tracking-tight leading-tight" style={{ letterSpacing: '-0.02em' }}>Nạp tiền & Ví</h1>
+            <p className="text-[13px] text-slate-500 mt-0.5">Nạp tiền vào Ví Traffic hoặc quản lý Ví Hoa Hồng</p>
           </div>
         </div>
       </div>

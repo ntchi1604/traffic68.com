@@ -223,41 +223,33 @@ export default function TrafficDashboard() {
     <div className="space-y-5 w-full min-w-0 pb-6" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
 
       {/* ══════════════════════════════════════════
-          Hero Header — premium gradient banner
+          Hero Header — premium light theme
       ══════════════════════════════════════════ */}
       <div
         className="relative rounded-2xl overflow-hidden p-6 sm:p-8"
-        style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #1e40af 100%)' }}
+        style={{ background: 'linear-gradient(135deg, #f8faff 0%, #eef2ff 40%, #faf5ff 100%)', border: '1px solid #e0e7ff' }}
       >
-        {/* Decorative blobs */}
+        {/* Decorative shapes */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
-          <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full opacity-20 blur-3xl"
-            style={{ background: 'radial-gradient(circle, #a5b4fc, transparent)' }} />
-          <div className="absolute bottom-0 left-1/4 w-40 h-40 rounded-full opacity-10 blur-3xl"
-            style={{ background: 'radial-gradient(circle, #38bdf8, transparent)' }} />
-          <svg className="absolute inset-0 w-full h-full opacity-5" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern id="microgrid" width="28" height="28" patternUnits="userSpaceOnUse">
-                <path d="M 28 0 L 0 0 0 28" fill="none" stroke="white" strokeWidth="0.4"/>
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#microgrid)" />
-          </svg>
+          <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full opacity-30"
+            style={{ background: 'radial-gradient(circle, #c7d2fe, transparent)' }} />
+          <div className="absolute bottom-0 left-1/4 w-40 h-40 rounded-full opacity-20"
+            style={{ background: 'radial-gradient(circle, #ddd6fe, transparent)' }} />
         </div>
 
         <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-5">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <Sparkles size={13} className="text-indigo-300" />
-              <span className="text-[11px] font-bold text-indigo-300 uppercase tracking-widest">Traffic68 · Buyer Dashboard</span>
+              <Sparkles size={13} className="text-indigo-500" />
+              <span className="text-[11px] font-bold text-indigo-500 uppercase tracking-widest">Traffic68 · Buyer Dashboard</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
               {greeting}{userName ? `, ${userName.split(' ').pop()}` : ''}! 👋
             </h1>
-            <p className="text-sm text-indigo-200 mt-1.5">
+            <p className="text-sm text-slate-500 mt-1.5">
               {currentTime.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               <span className="mx-2 opacity-40">·</span>
-              <span className="font-mono font-semibold tabular-nums text-white/80">
+              <span className="font-mono font-semibold tabular-nums text-slate-700">
                 {currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
               </span>
             </p>
@@ -266,13 +258,14 @@ export default function TrafficDashboard() {
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
               onClick={() => navigate('/buyer/dashboard/finance/deposit')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all duration-200"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-700 transition-all duration-200 shadow-sm"
             >
               <CreditCard size={14} /> Nạp tiền
             </button>
             <button
               onClick={() => navigate('/buyer/dashboard/campaigns/create')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-white text-indigo-700 hover:bg-indigo-50 shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all duration-200 hover:-translate-y-0.5 shadow-lg hover:shadow-xl"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}
             >
               <Plus size={14} /> Tạo chiến dịch
             </button>
@@ -280,19 +273,19 @@ export default function TrafficDashboard() {
         </div>
 
         {/* Quick stats strip */}
-        <div className="relative mt-6 grid grid-cols-3 gap-3 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+        <div className="relative mt-6 grid grid-cols-3 gap-3 pt-5" style={{ borderTop: '1px solid #e0e7ff' }}>
           {[
             { label: 'Tổng chiến dịch', value: campaigns.length,         icon: Target },
             { label: 'Đang chạy',       value: runningCamps.length,      icon: Zap },
             { label: 'Hôm nay',         value: fmt(ov.todayViews || 0) + ' views', icon: MousePointerClick, raw: true },
           ].map(({ label, value, icon: Icon, raw }) => (
             <div key={label} className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-                <Icon size={14} className="text-white/70" />
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                <Icon size={14} className="text-indigo-600" />
               </div>
               <div className="min-w-0">
-                <p className="text-base font-black text-white tabular-nums">{raw ? value : <AnimatedNumber value={value} />}</p>
-                <p className="text-[10px] text-indigo-300 uppercase tracking-wider">{label}</p>
+                <p className="text-base font-black text-slate-900 tabular-nums">{raw ? value : <AnimatedNumber value={value} />}</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</p>
               </div>
             </div>
           ))}
