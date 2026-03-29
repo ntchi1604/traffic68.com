@@ -41,7 +41,12 @@ export default function Sidebar({ isOpen, onClose }) {
       <aside
         className={`fixed top-0 left-0 h-full w-64 z-50 transform transition-transform duration-300 lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
-        } flex flex-col bg-white border-r border-slate-100 shadow-sm`}
+        } flex flex-col`}
+        style={{
+          background: 'linear-gradient(180deg, #f8faff 0%, #f1f5f9 100%)',
+          borderRight: '1px solid #e2e8f0',
+          boxShadow: '2px 0 12px 0 rgba(99,102,241,0.06)',
+        }}
       >
         {/* Logo */}
         <div className="flex items-center justify-center px-5 py-5 relative flex-shrink-0 border-b border-slate-100">

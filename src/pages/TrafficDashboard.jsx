@@ -477,23 +477,23 @@ export default function TrafficDashboard() {
           <p className="text-xs text-slate-400 mb-3 px-1">Truy cập nhanh các tính năng</p>
           <div className="space-y-1">
             {[
-              { label: 'Tạo chiến dịch',    desc: 'Bắt đầu traffic mới',          icon: Plus,       to: '/buyer/dashboard/campaigns/create',         accentCls: 'bg-indigo-500' },
-              { label: 'Xem báo cáo',       desc: 'Phân tích chi tiết',            icon: TrendingUp, to: '/buyer/dashboard/reports',                  accentCls: 'bg-violet-500' },
-              { label: 'Nạp tiền',          desc: 'Bổ sung ngân sách',             icon: CreditCard, to: '/buyer/dashboard/finance/deposit',          accentCls: 'bg-emerald-500' },
-              { label: 'Quản lý campaigns', desc: 'Xem, sửa và theo dõi',          icon: Target,     to: '/buyer/dashboard/campaigns',                accentCls: 'bg-amber-500' },
-              { label: 'Theo dõi traffic',  desc: 'Monitor lưu lượng',             icon: Globe,      to: '/buyer/dashboard/reports',                  accentCls: 'bg-cyan-500' },
-              { label: 'Lịch sử giao dịch', desc: 'Xem các giao dịch tài khoản',  icon: Timer,      to: '/buyer/dashboard/finance/transactions',      accentCls: 'bg-slate-500' },
+              { label: 'Tạo chiến dịch',    desc: 'Bắt đầu traffic mới',         icon: Plus,       to: '/buyer/dashboard/campaigns/create',     gradient: 'from-indigo-500 to-violet-500',  shadow: 'shadow-indigo-200' },
+              { label: 'Xem báo cáo',       desc: 'Phân tích chi tiết',           icon: TrendingUp, to: '/buyer/dashboard/reports',              gradient: 'from-violet-500 to-purple-600',  shadow: 'shadow-violet-200' },
+              { label: 'Nạp tiền',          desc: 'Bổ sung ngân sách',            icon: CreditCard, to: '/buyer/dashboard/finance/deposit',      gradient: 'from-emerald-400 to-teal-500',   shadow: 'shadow-emerald-200' },
+              { label: 'Quản lý campaigns', desc: 'Xem, sửa và theo dõi',         icon: Target,     to: '/buyer/dashboard/campaigns',            gradient: 'from-amber-400 to-orange-500',   shadow: 'shadow-amber-200' },
+              { label: 'Theo dõi traffic',  desc: 'Monitor lưu lượng truy cập',   icon: Globe,      to: '/buyer/dashboard/reports',              gradient: 'from-cyan-400 to-blue-500',      shadow: 'shadow-cyan-200' },
+              { label: 'Lịch sử giao dịch', desc: 'Xem các giao dịch tài khoản', icon: Timer,      to: '/buyer/dashboard/finance/transactions', gradient: 'from-slate-400 to-slate-600',    shadow: 'shadow-slate-200' },
             ].map(a => (
               <button key={a.label} onClick={() => navigate(a.to)}
                 className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-all duration-150 group text-left">
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${a.accentCls}`}>
-                  <a.icon size={13} className="text-white" />
+                <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${a.gradient} shadow-md ${a.shadow} flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-200`}>
+                  <a.icon size={14} className="text-white" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-slate-700 group-hover:text-slate-900 transition-colors truncate">{a.label}</p>
                   <p className="text-[10px] text-slate-400 truncate">{a.desc}</p>
                 </div>
-                <ChevronRight size={12} className="text-slate-300 group-hover:text-slate-500 transition shrink-0" />
+                <ChevronRight size={12} className="text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all shrink-0" />
               </button>
             ))}
           </div>

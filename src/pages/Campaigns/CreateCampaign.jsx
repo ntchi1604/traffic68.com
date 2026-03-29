@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight, Info, Upload, X, Tag, Globe, Monitor, Smartphone,
   BarChart2, Wallet, Gift, Star, CheckCircle2, AlertCircle, Plus, Trash2,
-  Zap, MousePointerClick, Clock, Sparkles, ArrowRight, CreditCard,
+  Zap, MousePointerClick, Sparkles, ArrowRight, CreditCard,
+  Search, Link2, Share2,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useToast } from '../../components/Toast';
@@ -13,10 +14,9 @@ import Breadcrumb from '../../components/Breadcrumb';
 
 /* ─── Static data ───────────────────────────────────────────── */
 const TRAFFIC_TYPES = [
-  { value: '', label: 'Chọn loại traffic' },
-  { value: 'google_search', label: 'Google Search', icon: '🔍', desc: 'Traffic từ kết quả tìm kiếm Google' },
-  { value: 'direct', label: 'Direct / Redirect', icon: '🔗', desc: 'Traffic trực tiếp hoặc redirect' },
-  { value: 'social', label: 'Social', icon: '📱', desc: 'Traffic từ mạng xã hội' },
+  { value: 'google_search', label: 'Google Search',    icon: Search, desc: 'Traffic từ kết quả tìm kiếm Google',       iconBg: 'bg-blue-50',   iconColor: 'text-blue-600',   activeBg: 'bg-blue-50/80',   activeBorder: 'border-blue-500',   activeText: 'text-blue-700' },
+  { value: 'direct',        label: 'Direct / Redirect', icon: Link2,  desc: 'Traffic trực tiếp hoặc redirect URL',       iconBg: 'bg-violet-50', iconColor: 'text-violet-600', activeBg: 'bg-violet-50/80', activeBorder: 'border-violet-500', activeText: 'text-violet-700' },
+  { value: 'social',        label: 'Social',            icon: Share2, desc: 'Traffic từ mạng xã hội (Facebook, TikTok…)', iconBg: 'bg-pink-50',   iconColor: 'text-pink-600',   activeBg: 'bg-pink-50/80',   activeBorder: 'border-pink-500',   activeText: 'text-pink-700' },
 ];
 
 const DURATIONS = [
@@ -404,17 +404,42 @@ export default function CreateCampaign() {
               {/* Traffic type */}
               <div>
                 <Label required hint="Mỗi loại traffic có mức giá và hành vi khác nhau">Loại traffic</Label>
-                <div className="relative">
-                  <SelectInput value={form.trafficType} onChange={e => set('trafficType', e.target.value)}>
-                    {TRAFFIC_TYPES.map(t => (
-                      <option key={t.value} value={t.value}>{t.value ? `${t.icon}  ${t.label}` : t.label}</option>
-                    ))}
-                  </SelectInput>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {TRAFFIC_TYPES.map(t => {
+                    const Icon    = t.icon;
+                    const active  = form.trafficType === t.value;
+                    return (
+                      <div
+                        key={t.value}
+                        onClick={() => set('trafficType', t.value)}
+                        className={`relative flex flex-col gap-2.5 border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 ${
+                          active
+                            ? `${t.activeBorder} ${t.activeBg} shadow-md`
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
+                            active ? t.iconBg : 'bg-slate-100'
+                          }`}>
+                            <Icon size={17} className={active ? t.iconColor : 'text-slate-400'} />
+                          </div>
+                          <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                            active ? `${t.activeBorder.replace('border-', 'border-')} bg-current` : 'border-slate-300 bg-white'
+                          }`} style={active ? { backgroundColor: 'currentColor' } : {}}>
+                            {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          </div>
+                        </div>
+                        <div>
+                          <p className={`text-sm font-bold leading-tight ${
+                            active ? t.activeText : 'text-slate-700'
+                          }`}>{t.label}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{t.desc}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                {form.trafficType && (() => {
-                  const found = TRAFFIC_TYPES.find(t => t.value === form.trafficType);
-                  return found ? <Hint>{found.desc}</Hint> : null;
-                })()}
               </div>
 
               {/* Version */}
