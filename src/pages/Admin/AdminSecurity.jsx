@@ -3,6 +3,7 @@ import usePageTitle from '../../hooks/usePageTitle';
 import {
   Shield, Search, RefreshCw, X, Eye, Copy,
   ChevronLeft, ChevronRight, ArrowLeft, Bot, AlertTriangle, CheckCircle,
+  Activity, Globe, Download, Smartphone, Monitor
 } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -594,10 +595,10 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
 
           <div className="flex items-center gap-3 w-full md:w-auto">
             <button onClick={toggleBan}
-              className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-all focus:ring-2 focus:ring-offset-1 focus:outline-none flex items-center justify-center gap-2
-                ${banned ? 'bg-slate-800 text-white hover:bg-slate-900 border border-slate-700'
-                  : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'}`}>
-              {banned ? <><Shield size={16} /> Mở khóa tài khoản</> : <><AlertTriangle size={16} /> Khóa tài khoản</>}
+              className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-all focus:ring-2 focus:ring-offset-1 flex items-center justify-center gap-2
+                ${banned ? 'bg-slate-800 text-white hover:bg-slate-700 border border-slate-700'
+                  : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'}`}>
+              {banned ? <><Shield size={16} /> Bỏ Cấm Tài Khoản</> : <><AlertTriangle size={16} /> Cấm Tài Khoản</>}
             </button>
             <button onClick={async () => {
               if (!confirm(`Xóa ${u.name || u.email}?\nTất cả dữ liệu sẽ bị xóa vĩnh viễn.`)) return;
@@ -757,8 +758,8 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
         <div className="space-y-4">
           <div className="flex justify-end">
             <button onClick={exportEvents} disabled={eventsLoading}
-              className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 text-white hover:bg-slate-700 text-sm font-semibold rounded transition-colors disabled:opacity-50">
-              Xuất File CSV
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-sm font-semibold rounded shadow-sm transition-colors disabled:opacity-50">
+              <Download size={16} /> Xuất File CSV
             </button>
           </div>
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
@@ -773,9 +774,19 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {eventsLoading ? (
-                    <tr><td colSpan={7} className="text-center py-10 text-slate-500">Đang tải dữ liệu cảnh báo...</td></tr>
+                    <tr><td colSpan={7} className="text-center py-10 text-slate-500">
+                      <div className="flex items-center justify-center gap-2">
+                        <RefreshCw size={16} className="animate-spin text-slate-400" />
+                        <span>Đang tải dữ liệu cảnh báo...</span>
+                      </div>
+                    </td></tr>
                   ) : events.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center py-10 text-slate-400 font-medium text-sm">Chưa có cảnh báo hệ thống nào</td></tr>
+                    <tr><td colSpan={7} className="text-center py-12">
+                      <div className="flex flex-col items-center justify-center text-slate-400">
+                        <Activity size={32} className="opacity-30 mb-2" />
+                        <span className="font-medium text-sm">Chưa có cảnh báo hệ thống nào</span>
+                      </div>
+                    </td></tr>
                   ) : (() => {
                     const groups = [];
                     events.forEach(ev => {
@@ -816,13 +827,13 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-xs font-semibold text-slate-700">
+                            <span className="text-xs font-semibold text-slate-700 truncate pr-2">
                               {rootEv.source === 'widget' ? 'Core Script' : rootEv.source === 'vuotlink' ? 'Vượt Link' : rootEv.source}
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-xs font-semibold text-slate-500">
-                              {mob ? 'Mobile' : 'Desktop'}
+                            <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                              {mob ? <><Smartphone size={14} className="text-slate-400" /> Mobile</> : <><Monitor size={14} className="text-slate-400" /> Desktop</>}
                             </span>
                           </td>
                           <td className="px-4 py-3 font-mono text-slate-500 text-xs">{rootEv.ip_address}</td>
@@ -881,11 +892,15 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
               {!ipsLoaded && allIps.length === 0 ? (
                 <div className="flex justify-center py-10">
-                  <span className="text-slate-500 text-sm">Đang tải biểu dữ liệu IP...</span>
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <RefreshCw size={16} className="animate-spin text-slate-400" />
+                    <span className="text-sm">Đang tải biểu dữ liệu IP...</span>
+                  </div>
                 </div>
               ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-slate-400">
-                  <p className="text-sm font-semibold">Không có địa chỉ IP nào phù hợp chuẩn lọc</p>
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <Globe size={40} className="mb-3 opacity-20" />
+                  <p className="text-sm font-semibold">Không có địa chỉ IP nào phù hợp bộ lọc</p>
                 </div>
               ) : (
                 <>
@@ -1207,14 +1222,20 @@ export default function AdminSecurity() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-10">
-                    <p className="text-sm text-slate-500">Đang tải dữ liệu người dùng...</p>
+                  <td colSpan={6} className="text-center py-12">
+                    <div className="flex items-center justify-center gap-2 text-slate-500">
+                      <RefreshCw size={16} className="animate-spin text-slate-400" />
+                      <p className="text-sm font-medium">Đang tải dữ liệu người dùng...</p>
+                    </div>
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-10">
-                    <p className="text-sm text-slate-400 font-medium">Chưa tìm thấy dữ liệu gian lận nào phù hợp</p>
+                  <td colSpan={6} className="text-center py-16">
+                    <div className="flex flex-col items-center justify-center text-slate-400">
+                      <Search size={32} className="opacity-30 mb-3" />
+                      <p className="text-sm font-medium">Chưa tìm thấy dữ liệu gian lận nào phù hợp</p>
+                    </div>
                   </td>
                 </tr>
               ) : users.map(u => {
@@ -1268,11 +1289,11 @@ export default function AdminSecurity() {
                       <div className="flex flex-col gap-1 items-center">
                         <span className="text-xs font-bold text-slate-700">{total} <span className="text-[10px] text-slate-400 font-semibold leading-none">LƯỢT</span></span>
                         {(events > 0) ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 mt-1 border border-red-200">
-                            {events} BOT
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 mt-1 border border-red-200 flex items-center gap-1">
+                            <Activity size={10} /> {events} LỖI
                           </span>
                         ) : (
-                          <span className="text-[10px] font-semibold text-slate-400 mt-1">—</span>
+                          <span className="text-[10px] font-semibold text-slate-400 mt-1 flex items-center gap-1"><CheckCircle size={10} className="text-slate-300"/> An Toàn</span>
                         )}
                       </div>
                     </td>
