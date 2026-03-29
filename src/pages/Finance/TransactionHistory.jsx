@@ -212,23 +212,7 @@ export default function TransactionHistory() {
         { label: 'Lịch sử giao dịch' },
       ]} />
 
-      {/* ── Page Header ── */}
-      <div style={{ marginBottom: 28, marginTop: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: 12,
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
-          }}>
-            <BarChart3 size={18} color="#fff" />
-          </div>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>Lịch sử giao dịch</h1>
-            <p style={{ margin: 0, fontSize: 13, color: '#64748b', marginTop: 1 }}>Theo dõi toàn bộ biến động tài khoản của bạn</p>
-          </div>
-        </div>
-      </div>
+
 
       {/* ── Summary Banner ── */}
       <div style={{

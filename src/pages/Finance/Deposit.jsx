@@ -335,25 +335,11 @@ export default function Deposit() {
 
   return (
     <div className="min-h-screen bg-slate-50/50">
-      {/* ── Page header ── */}
-      <div className="mb-6">
-        <Breadcrumb items={[
+      <Breadcrumb items={[
           { label: 'Dashboard', to: '/buyer/dashboard' },
           { label: 'Tài chính', to: '/buyer/dashboard/finance/deposit' },
           { label: 'Nạp tiền' },
         ]} />
-
-        <div className="mt-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
-            <Wallet size={18} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-[22px] font-extrabold text-slate-900 tracking-tight leading-tight" style={{ letterSpacing: '-0.02em' }}>Nạp tiền & Ví</h1>
-            <p className="text-[13px] text-slate-500 mt-0.5">Nạp tiền vào Ví Traffic hoặc quản lý Ví Hoa Hồng</p>
-          </div>
-        </div>
-      </div>
 
       {/* ── Wallet balance strip ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
