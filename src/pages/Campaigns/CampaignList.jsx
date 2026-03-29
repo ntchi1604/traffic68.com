@@ -170,7 +170,7 @@ function KeywordStats({ campaignId }) {
                     <td className="px-4 py-2.5 text-slate-600 font-medium whitespace-nowrap">{d.date?.slice(0, 10)}</td>
                     <td className="px-4 py-2.5 font-semibold text-indigo-600 truncate max-w-[130px]">{d.keyword || '(Trống)'}</td>
                     <td className="px-4 py-2.5 font-bold text-emerald-600 tabular-nums">
-                      {d.completed}<span className="text-slate-400 font-medium text-[10px] ml-0.5">/{d.daily_views || d.total}</span>
+                      {d.completed}<span className="text-slate-400 font-medium text-[10px] ml-1">/ {d.total} nhận</span>
                     </td>
                     <td className="px-4 py-2.5 text-right font-semibold text-slate-700 tabular-nums">{fmt(d.cost)} đ</td>
                   </tr>
