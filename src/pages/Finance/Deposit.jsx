@@ -3,8 +3,9 @@ import usePageTitle from '../../hooks/usePageTitle';
 import { useToast } from '../../components/Toast';
 import {
   Wallet, Gift, Banknote, ArrowRight, ArrowLeftRight,
-  Info, LogOut, X, Copy, Check, Clock, ExternalLink, RefreshCw,
-  ChevronRight, Sparkles, Shield, Zap, TrendingUp,
+  Info, LogOut, X, Copy, Check, Clock, RefreshCw,
+  ChevronRight, Shield, Zap, TrendingUp, CircleDollarSign,
+  Building2, Coins, Star, Sparkles, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import api from '../../lib/api';
 import Breadcrumb from '../../components/Breadcrumb';
@@ -12,6 +13,7 @@ import { formatMoney as fmt } from '../../lib/format';
 
 const QUICK = [100000, 200000, 500000, 1000000, 2000000, 5000000];
 
+/* ── USDT SVG ── */
 const UsdtIcon = ({ size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
     <circle cx="16" cy="16" r="16" fill="#26A17B" />
@@ -19,102 +21,121 @@ const UsdtIcon = ({ size = 20 }) => (
   </svg>
 );
 
-function CopyField({ label, value }) {
+/* ── Step indicator ── */
+function StepDot({ n, active, done }) {
+  return (
+    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300 border-2
+      ${done ? 'bg-indigo-600 border-indigo-600 text-white' : active ? 'bg-white border-indigo-600 text-indigo-600 shadow-md shadow-indigo-100' : 'bg-white border-slate-200 text-slate-400'}`}>
+      {done ? <Check size={14} /> : n}
+    </div>
+  );
+}
+
+/* ── Animated counter ── */
+function AnimatedNumber({ value }) {
+  const [display, setDisplay] = useState(0);
+  const prev = useRef(0);
+  useEffect(() => {
+    const target = value;
+    const start = prev.current;
+    const diff = target - start;
+    if (diff === 0) return;
+    const duration = 600;
+    const startTime = performance.now();
+    const tick = (now) => {
+      const p = Math.min((now - startTime) / duration, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      setDisplay(Math.round(start + diff * ease));
+      if (p < 1) requestAnimationFrame(tick);
+      else { setDisplay(target); prev.current = target; }
+    };
+    requestAnimationFrame(tick);
+  }, [value]);
+  return <span>{fmt(display)}</span>;
+}
+
+/* ── Copy button inline ── */
+function CopyBtn({ text }) {
   const [copied, setCopied] = useState(false);
+  return (
+    <button onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); }}
+      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all duration-200
+        ${copied ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700'}`}>
+      {copied ? <><Check size={10} /> Đã copy</> : <><Copy size={10} /> Copy</>}
+    </button>
+  );
+}
+
+/* ── Bank info row ── */
+function BankRow({ label, value }) {
   if (!value) return null;
   return (
-    <div className="flex items-center justify-between py-2.5 group">
-      <span className="text-xs font-medium text-slate-500">{label}</span>
+    <div className="flex items-center justify-between py-3 border-b border-slate-100 last:border-0 group">
+      <span className="text-xs text-slate-400 font-medium">{label}</span>
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-slate-800">{value}</span>
-        <button
-          onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-          className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-600 transition-all duration-200"
-        >
-          {copied
-            ? <Check size={12} className="text-emerald-500" />
-            : <Copy size={12} className="text-slate-400 group-hover:text-blue-400" />}
-        </button>
+        <CopyBtn text={value} />
       </div>
     </div>
   );
 }
 
-/* ── Commission modal ── */
+/* ── Commission Modal ── */
 function CommissionModal({ mode, balance, onConfirm, onClose }) {
   const [amount, setAmount] = useState('');
-  const [method] = useState('transfer');
   const isTransfer = mode === 'transfer';
   const num = Number(amount);
   const valid = num > 0 && num <= balance;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-md" />
-      <div
-        className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-7 z-10 border border-slate-100"
-        style={{ boxShadow: '0 32px 64px rgba(15,23,42,0.15), 0 4px 16px rgba(15,23,42,0.08)' }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm ${isTransfer ? 'bg-gradient-to-br from-blue-500 to-blue-600' : 'bg-gradient-to-br from-rose-400 to-rose-600'}`}>
-              {isTransfer ? <ArrowLeftRight size={18} className="text-white" /> : <LogOut size={18} className="text-white" />}
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-base">
-                {isTransfer ? 'Chuyển sang Ví Traffic' : 'Rút tiền về tài khoản'}
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Số dư: <strong className="text-orange-500">{fmt(balance)} đ</strong></p>
-            </div>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all">
-            <X size={15} className="text-slate-500" />
-          </button>
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-lg" />
+      <div className="relative bg-white rounded-3xl w-full max-w-sm p-7 z-10 shadow-2xl" onClick={e => e.stopPropagation()}
+        style={{ boxShadow: '0 40px 80px -12px rgba(15,23,42,0.25)' }}>
+        <button onClick={onClose} className="absolute top-5 right-5 w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition">
+          <X size={14} className="text-slate-500" />
+        </button>
+
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-5 ${isTransfer ? 'bg-indigo-100' : 'bg-rose-100'}`}>
+          {isTransfer ? <ArrowLeftRight size={20} className="text-indigo-600" /> : <LogOut size={20} className="text-rose-600" />}
         </div>
 
-        <div className="space-y-5">
-          {/* Quick amounts */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Chọn nhanh</p>
-            <div className="grid grid-cols-3 gap-2">
-              {QUICK.slice(0, 6).map(q => {
-                const capped = Math.min(q, balance);
-                const sel = amount === String(capped);
-                return (
-                  <button key={q} type="button" onClick={() => setAmount(String(capped))}
-                    className={`py-2 text-xs font-bold rounded-xl border-2 transition-all duration-200
-                      ${sel ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm scale-[1.02]' : 'border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50/50'}`}>
-                    {fmt(capped)}đ
-                  </button>
-                );
-              })}
-            </div>
+        <h3 className="text-xl font-black text-slate-900 mb-1">
+          {isTransfer ? 'Chuyển sang Ví Traffic' : 'Rút tiền về tài khoản'}
+        </h3>
+        <p className="text-sm text-slate-400 mb-6">Số dư khả dụng: <span className="font-bold text-orange-500">{fmt(balance)} đ</span></p>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-2">
+            {QUICK.slice(0, 6).map(q => {
+              const capped = Math.min(q, balance);
+              const sel = amount === String(capped);
+              return (
+                <button key={q} type="button" onClick={() => setAmount(String(capped))}
+                  className={`py-2 text-[11px] font-bold rounded-xl border-2 transition-all
+                    ${sel ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-slate-200 text-slate-500 hover:border-indigo-300'}`}>
+                  {fmt(capped)}đ
+                </button>
+              );
+            })}
           </div>
 
-          {/* Input */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Số tiền</p>
-            <div className="relative">
-              <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
-                max={balance} min="1000" placeholder="Nhập số tiền..."
-                className="w-full px-4 py-3.5 border-2 border-slate-200 rounded-2xl text-sm font-semibold focus:outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all pr-14 bg-slate-50"
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">VNĐ</span>
-            </div>
+          <div className="relative">
+            <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+              min="1000" max={balance} placeholder="Hoặc nhập số tiền..."
+              className="w-full px-4 py-3.5 border-2 border-slate-200 rounded-2xl text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all pr-16 bg-slate-50" />
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">VNĐ</span>
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-sm rounded-2xl transition-all">
+          <div className="flex gap-3">
+            <button onClick={onClose}
+              className="flex-1 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm transition">
               Hủy
             </button>
-            <button type="button" disabled={!valid} onClick={() => onConfirm(num, isTransfer ? 'transfer' : method)}
-              className={`flex-1 py-3 text-white font-bold text-sm rounded-2xl transition-all shadow-lg
-                disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none
-                ${isTransfer ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-blue-200' : 'bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 shadow-rose-200'}`}>
+            <button disabled={!valid} onClick={() => onConfirm(num, isTransfer ? 'transfer' : 'withdraw')}
+              className={`flex-1 py-3.5 rounded-2xl text-white font-black text-sm transition-all
+                disabled:opacity-40 disabled:cursor-not-allowed
+                ${isTransfer ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-rose-600 hover:bg-rose-700'}`}>
               {isTransfer ? 'Chuyển ngay' : 'Rút tiền'}
             </button>
           </div>
@@ -124,7 +145,7 @@ function CommissionModal({ mode, balance, onConfirm, onClose }) {
   );
 }
 
-/* ── Crypto deposit result panel ── */
+/* ── Crypto Panel ── */
 function CryptoDepositPanel({ data, onClose }) {
   const [copied, setCopied] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -132,121 +153,106 @@ function CryptoDepositPanel({ data, onClose }) {
     const t = setInterval(() => setElapsed(p => p + 1), 1000);
     return () => clearInterval(t);
   }, []);
-
   const isTrc20 = data.network === 'TRC20';
+  const min = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const sec = String(elapsed % 60).padStart(2, '0');
 
   return (
-    <div className={`rounded-3xl border-2 p-6 space-y-5 ${isTrc20 ? 'border-rose-200 bg-gradient-to-br from-rose-50 to-orange-50' : 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50'}`}
-      style={{ boxShadow: isTrc20 ? '0 8px 32px rgba(244,63,94,0.1)' : '0 8px 32px rgba(16,185,129,0.1)' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" />
+      <div className="relative bg-white rounded-3xl w-full max-w-md z-10 overflow-hidden shadow-2xl"
+        style={{ boxShadow: '0 40px 80px -12px rgba(15,23,42,0.3)' }} onClick={e => e.stopPropagation()}>
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${isTrc20 ? 'bg-rose-100' : 'bg-emerald-100'}`}>
-            <UsdtIcon size={26} />
+        {/* Header stripe */}
+        <div className={`px-6 pt-6 pb-5 ${isTrc20 ? 'bg-gradient-to-r from-rose-500 to-pink-600' : 'bg-gradient-to-r from-emerald-500 to-teal-600'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 bg-white/20 rounded-2xl flex items-center justify-center">
+                <UsdtIcon size={20} />
+              </div>
+              <div>
+                <p className="text-white font-black text-sm">Gửi USDT để hoàn tất</p>
+                <p className="text-white/70 text-[10px]">{isTrc20 ? 'Tron (TRC20)' : 'BSC (BEP20)'}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center transition">
+              <X size={14} className="text-white" />
+            </button>
           </div>
+          {/* Amount display */}
+          <div className="bg-white/15 rounded-2xl p-4 backdrop-blur-sm">
+            <p className="text-white/60 text-[10px] font-medium mb-1 uppercase tracking-wider">Số USDT cần gửi</p>
+            <div className="flex items-end gap-2">
+              <span className="text-4xl font-black text-white tracking-tight">{data.usdtAmount}</span>
+              <span className="text-white/80 text-sm font-bold mb-1">USDT</span>
+              <button onClick={() => { navigator.clipboard.writeText(String(data.usdtAmount)); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                className="ml-auto mb-1 flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition">
+                {copied ? <><Check size={11} /> Đã copy</> : <><Copy size={11} /> Copy</>}
+              </button>
+            </div>
+            <p className="text-white/50 text-[10px] mt-1.5">≈ {fmt(data.amount)} VNĐ • 1 USDT = {fmt(data.rate)} VNĐ</p>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 space-y-4">
+          {/* Address */}
           <div>
-            <h3 className={`font-black text-base ${isTrc20 ? 'text-rose-800' : 'text-emerald-800'}`}>Gửi USDT để hoàn tất</h3>
-            <p className={`text-xs mt-0.5 ${isTrc20 ? 'text-rose-600' : 'text-emerald-600'}`}>
-              {data.auto ? '⚡ Tự động xác nhận sau khi nhận USDT' : '⏳ Admin sẽ xác nhận thủ công'}
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Địa chỉ ví nhận</p>
+              <CopyBtn text={data.depositAddress} />
+            </div>
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5">
+              <code className="text-xs font-mono text-slate-700 break-all leading-relaxed">{data.depositAddress}</code>
+            </div>
+            <div className={`flex items-center gap-1.5 mt-2 ${isTrc20 ? 'text-rose-600' : 'text-amber-600'}`}>
+              <AlertCircle size={11} />
+              <p className="text-[10px] font-semibold">Chỉ gửi USDT trên mạng {isTrc20 ? 'Tron (TRC20)' : 'BSC (BEP20)'}. Sai mạng = mất tiền.</p>
+            </div>
+          </div>
+
+          {/* Timer & status */}
+          <div className="flex gap-3">
+            <div className="flex-1 bg-blue-50 border border-blue-200 rounded-2xl p-3.5 flex items-center gap-3">
+              <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
+                <Clock size={16} className="text-blue-600 animate-pulse" />
+              </div>
+              <div>
+                <p className="text-[10px] text-blue-500 font-medium">Đang chờ</p>
+                <p className="text-xl font-black text-blue-700 font-mono">{min}:{sec}</p>
+              </div>
+            </div>
+            {data.auto && (
+              <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 flex items-center gap-3">
+                <div className="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center shrink-0">
+                  <RefreshCw size={16} className="text-emerald-600 animate-spin" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-emerald-500 font-medium">Xác nhận</p>
+                  <p className="text-sm font-black text-emerald-700">Tự động</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3">
+            <CheckCircle2 size={14} className="text-slate-400 shrink-0" />
+            <p className="text-[11px] text-slate-400 leading-relaxed">Mã giao dịch: <span className="font-mono font-bold text-slate-600">{data.refCode}</span> — Hệ thống tự phát hiện trong 1–3 phút.</p>
           </div>
         </div>
-        <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/60 hover:bg-white flex items-center justify-center transition-all">
-          <X size={15} className="text-slate-500" />
-        </button>
-      </div>
-
-      {/* USDT amount */}
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-5 border border-white shadow-sm">
-        <p className="text-xs text-slate-500 font-medium mb-2">Số USDT cần gửi (chính xác)</p>
-        <div className="flex items-center gap-3">
-          <p className={`text-4xl font-black tracking-tight ${isTrc20 ? 'text-rose-700' : 'text-emerald-700'}`}>{data.usdtAmount}</p>
-          <span className={`text-sm font-bold px-2 py-1 rounded-lg ${isTrc20 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>USDT</span>
-          <button onClick={() => { navigator.clipboard.writeText(String(data.usdtAmount)); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-            className={`ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${isTrc20 ? 'bg-rose-100 hover:bg-rose-200 text-rose-700' : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700'}`}>
-            {copied ? <><Check size={12} /> Đã copy</> : <><Copy size={12} /> Copy</>}
-          </button>
-        </div>
-        <p className="text-[11px] text-slate-400 mt-2">≈ {fmt(data.amount)} VNĐ • Tỷ giá: 1 USDT = {fmt(data.rate)} VNĐ</p>
-      </div>
-
-      {/* Address */}
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-5 border border-white shadow-sm">
-        <p className="text-xs text-slate-500 font-medium mb-3">Địa chỉ ví nhận ({isTrc20 ? 'Tron TRC20' : 'BSC BEP20'})</p>
-        <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3 border border-slate-200">
-          <code className="text-xs font-mono text-slate-700 break-all flex-1 leading-relaxed">{data.depositAddress}</code>
-          <button onClick={() => navigator.clipboard.writeText(data.depositAddress)}
-            className="p-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-100 transition shrink-0 shadow-sm">
-            <Copy size={13} className="text-slate-500" />
-          </button>
-        </div>
-        <div className={`flex items-center gap-1.5 mt-2.5 ${isTrc20 ? 'text-rose-600' : 'text-amber-600'}`}>
-          <Shield size={11} />
-          <p className="text-[10px] font-semibold">Chỉ gửi USDT trên mạng {isTrc20 ? 'Tron (TRC20)' : 'BSC (BEP20)'}. Gửi sai mạng sẽ mất tiền!</p>
-        </div>
-      </div>
-
-      {/* Status */}
-      <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-2xl p-4">
-        <div className="w-10 h-10 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
-          <Clock size={18} className="text-blue-500 animate-pulse" />
-        </div>
-        <div className="flex-1">
-          <p className="text-xs font-bold text-blue-700">Đang chờ giao dịch...</p>
-          <p className="text-[10px] text-blue-400 mt-0.5">Mã: <span className="font-mono font-bold">{data.refCode}</span> • {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</p>
-        </div>
-        {data.auto && (
-          <div className="flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2.5 py-1.5 rounded-full">
-            <RefreshCw size={9} className="animate-spin" /> Auto
-          </div>
-        )}
-      </div>
-
-      <p className="text-[10px] text-slate-400 text-center">Sau khi gửi USDT, hệ thống tự động phát hiện trong 1–3 phút và cộng tiền vào ví.</p>
-    </div>
-  );
-}
-
-/* ── Wallet Card ── */
-function WalletCard({ gradient, shadowColor, icon: Icon, title, subtitle, balance, action }) {
-  return (
-    <div
-      className={`relative rounded-3xl p-6 text-white overflow-hidden ${gradient}`}
-      style={{ boxShadow: `0 16px 48px ${shadowColor}` }}
-    >
-      {/* Decorative orb */}
-      <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/10 blur-2xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-black/10 blur-xl pointer-events-none" />
-
-      <div className="relative">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30 shadow-sm">
-            <Icon size={18} />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-white/90">{title}</p>
-            <p className="text-[10px] text-white/60">{subtitle}</p>
-          </div>
-        </div>
-
-        <div className="mb-5">
-          <p className="text-[11px] text-white/50 font-medium uppercase tracking-widest mb-1">Số dư</p>
-          <p className="text-3xl font-black tracking-tight">{fmt(balance)}</p>
-          <p className="text-xs text-white/60 mt-0.5">VNĐ</p>
-        </div>
-
-        {action}
       </div>
     </div>
   );
 }
 
-/* ── Main ── */
+/* ════════════════════════════════════════════
+   MAIN COMPONENT
+════════════════════════════════════════════ */
 export default function Deposit() {
-  usePageTitle('Quản lý ví');
+  usePageTitle('Tài chính – Nạp tiền');
   const toast = useToast();
   const [wallets, setWallets] = useState({ main: { balance: 0 }, commission: { balance: 0 } });
+  const [step, setStep] = useState(1); // 1=method, 2=amount, 3=confirm
   const [method, setMethod] = useState('bank');
   const [amount, setAmount] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -268,21 +274,39 @@ export default function Deposit() {
     api.get('/finance/deposit-config').then(setDepositConfig).catch(console.error);
   }, []);
 
-  const handleDeposit = async (e) => {
-    e.preventDefault();
-    const num = Number(amount);
-    if (!num || num < 10000) { toast.error('Số tiền nạp tối thiểu là 10.000 VNĐ'); return; }
+  const bankEnabled = depositConfig?.bank?.enabled;
+  const cryptoEnabled = depositConfig?.crypto?.enabled;
+  const trc20Enabled = depositConfig?.trc20?.enabled;
+
+  const METHODS = [
+    ...(bankEnabled ? [{ id: 'bank', label: 'Chuyển khoản ngân hàng', sub: 'Xác nhận 5–15 phút', Icon: Building2, gradient: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', ring: 'ring-blue-400' }] : []),
+    ...(cryptoEnabled ? [{ id: 'bep20', label: 'USDT (BEP20)', sub: 'BSC Network · Nhanh & tự động', icon: 'usdt', gradient: 'from-emerald-500 to-teal-600', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', ring: 'ring-emerald-400' }] : []),
+    ...(trc20Enabled ? [{ id: 'trc20', label: 'USDT (TRC20)', sub: 'Tron Network · Nhanh & tự động', icon: 'usdt', gradient: 'from-violet-500 to-purple-700', bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700', ring: 'ring-violet-400' }] : []),
+  ];
+
+  useEffect(() => {
+    if (METHODS.length > 0 && !METHODS.find(m => m.id === method)) setMethod(METHODS[0].id);
+  }, [depositConfig]);
+
+  const activeMeta = METHODS.find(m => m.id === method) || METHODS[0];
+  const isCrypto = method === 'bep20' || method === 'trc20';
+  const num = Number(amount);
+  const minOk = isCrypto
+    ? (num >= 10000)
+    : num >= 10000;
+
+  const handleDeposit = async () => {
+    if (!minOk) { toast.error('Số tiền không hợp lệ'); return; }
     setProcessing(true);
     try {
-      if (method === 'bep20' || method === 'trc20') {
+      if (isCrypto) {
         const data = await api.post('/finance/deposits', { amount: num, method });
         setCryptoResult({ ...data, amount: num });
-        setAmount('');
+        setAmount(''); setStep(1);
       } else {
-        const methodMap = { bank: 'bank_transfer' };
-        const data = await api.post('/finance/deposits', { amount: num, method: methodMap[method] || method });
-        setAmount('');
-        toast.success(`Đơn nạp ${fmt(num)} đ đã gửi! Mã: ${data.refCode}. Vui lòng chờ admin xác minh.`, 'Nạp tiền');
+        const data = await api.post('/finance/deposits', { amount: num, method: method === 'bank' ? 'bank_transfer' : method });
+        setAmount(''); setStep(1);
+        toast.success(`Đơn nạp ${fmt(num)} đ đã gửi! Mã: ${data.refCode}`, 'Nạp tiền');
         fetchWallets();
       }
     } catch (err) {
@@ -292,325 +316,423 @@ export default function Deposit() {
     }
   };
 
-  const handleCommissionAction = async (num, meth) => {
+  const handleCommission = async (num, meth) => {
     setModal(null);
     if (meth === 'transfer') {
       try {
         const data = await api.post('/finance/transfer', { amount: num });
-        toast.success(data.message || `Đã chuyển ${fmt(num)} đ sang Ví Traffic`, 'Chuyển ví');
+        toast.success(data.message || `Đã chuyển ${fmt(num)} đ sang Ví Traffic`);
         fetchWallets();
-      } catch (err) {
-        toast.error(err.message);
-      }
+      } catch (err) { toast.error(err.message); }
     }
   };
 
-  const bankEnabled = depositConfig?.bank?.enabled;
-  const cryptoEnabled = depositConfig?.crypto?.enabled;
-  const trc20Enabled = depositConfig?.trc20?.enabled;
-  const methods = [];
-  if (bankEnabled) methods.push({ id: 'bank', label: 'Ngân hàng', Icon: Banknote, color: 'from-blue-500 to-blue-600', ring: 'ring-blue-400', light: 'bg-blue-50 text-blue-700 border-blue-200' });
-  if (cryptoEnabled) methods.push({ id: 'bep20', label: 'USDT BEP20', icon: 'usdt', color: 'from-emerald-500 to-teal-600', ring: 'ring-emerald-400', light: 'bg-emerald-50 text-emerald-700 border-emerald-200' });
-  if (trc20Enabled) methods.push({ id: 'trc20', label: 'USDT TRC20', icon: 'usdt', color: 'from-rose-400 to-rose-600', ring: 'ring-rose-400', light: 'bg-rose-50 text-rose-700 border-rose-200' });
-
-  useEffect(() => {
-    if (methods.length > 0 && !methods.find(m => m.id === method)) {
-      setMethod(methods[0].id);
-    }
-  }, [depositConfig]);
-
-  const activeMeta = methods.find(m => m.id === method);
+  const STEPS = [
+    { n: 1, label: 'Phương thức' },
+    { n: 2, label: 'Số tiền' },
+    { n: 3, label: 'Xác nhận' },
+  ];
 
   return (
-    <div className="space-y-7">
-      <Breadcrumb items={[
-        { label: 'Dashboard', to: '/buyer/dashboard' },
-        { label: 'Tài chính', to: '/buyer/dashboard/finance/deposit' },
-        { label: 'Nạp tiền & Quản lý ví' },
-      ]} />
+    <div className="min-h-screen bg-slate-50/50">
+      {/* ── Hero header ── */}
+      <div
+        className="relative overflow-hidden rounded-3xl mb-8 p-8"
+        style={{
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 40%, #312e81 70%, #1e40af 100%)',
+          boxShadow: '0 24px 64px rgba(15,23,42,0.25)',
+        }}
+      >
+        {/* Mesh pattern */}
+        <div className="absolute inset-0 opacity-10" style={{
+          backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(99,102,241,0.8) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(56,189,248,0.6) 0%, transparent 50%), radial-gradient(circle at 60% 80%, rgba(167,139,250,0.6) 0%, transparent 40%)',
+        }} />
+        <div className="absolute inset-0 opacity-[0.03]" style={{
+          backgroundImage: 'linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)',
+          backgroundSize: '32px 32px',
+        }} />
 
-      {/* Page title */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Quản lý ví</h1>
-          <p className="text-sm text-slate-400 mt-1">Nạp tiền, chuyển hoặc rút từ ví hoa hồng</p>
-        </div>
-        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full">
-          <Shield size={12} className="text-emerald-600" />
-          <span className="text-xs font-semibold text-emerald-700">Bảo mật 100%</span>
-        </div>
-      </div>
+        <div className="relative">
+          <Breadcrumb items={[
+            { label: 'Dashboard', to: '/buyer/dashboard' },
+            { label: 'Tài chính', to: '/buyer/dashboard/finance/deposit' },
+            { label: 'Nạp tiền' },
+          ]} />
 
-      {/* Wallet Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        <WalletCard
-          gradient="bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700"
-          shadowColor="rgba(59,130,246,0.3)"
-          icon={Wallet}
-          title="Ví Traffic"
-          subtitle="Dùng để mua gói traffic"
-          balance={wallets.main.balance}
-          action={
-            <button
-              onClick={() => document.getElementById('deposit-form')?.scrollIntoView({ behavior: 'smooth' })}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-2xl transition-all border border-white/20"
-            >
-              <Zap size={13} /> Nạp tiền ngay
-              <ChevronRight size={13} className="ml-auto" />
-            </button>
-          }
-        />
-
-        <WalletCard
-          gradient="bg-gradient-to-br from-orange-400 via-orange-500 to-amber-600"
-          shadowColor="rgba(251,146,60,0.3)"
-          icon={Gift}
-          title="Ví Hoa Hồng"
-          subtitle="Nhận từ chương trình giới thiệu"
-          balance={wallets.commission.balance}
-          action={
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setModal('transfer')} disabled={wallets.commission.balance <= 0}
-                className="flex items-center justify-center gap-1.5 py-2.5 bg-white/20 hover:bg-white/30 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-2xl transition-all border border-white/20">
-                <ArrowLeftRight size={12} /> Chuyển ví
-              </button>
-              <button onClick={() => setModal('withdraw')} disabled={wallets.commission.balance <= 0}
-                className="flex items-center justify-center gap-1.5 py-2.5 bg-white/20 hover:bg-white/30 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-2xl transition-all border border-white/20">
-                <LogOut size={12} /> Rút tiền
-              </button>
-            </div>
-          }
-        />
-      </div>
-
-      {/* Deposit form area */}
-      <div id="deposit-form" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* LEFT: Main form */}
-        <div className="lg:col-span-2 space-y-5">
-
-          {/* Crypto result */}
-          {cryptoResult && (
-            <CryptoDepositPanel data={cryptoResult} onClose={() => { setCryptoResult(null); fetchWallets(); }} />
-          )}
-
-          {/* Method selector */}
-          {!cryptoResult && methods.length > 0 && (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6"
-              style={{ boxShadow: '0 4px 24px rgba(15,23,42,0.06)' }}>
-              <div className="flex items-center gap-2 mb-1">
-                <Sparkles size={15} className="text-blue-500" />
-                <h2 className="font-bold text-slate-800">Phương thức nạp tiền</h2>
+          <div className="mt-5 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+            <div>
+              <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-3 py-1 mb-4">
+                <Sparkles size={11} className="text-violet-300" />
+                <span className="text-[11px] font-semibold text-white/80">Quản lý tài chính</span>
               </div>
-              <p className="text-xs text-slate-400 mb-5">Chọn phương thức để nạp vào <span className="font-semibold text-blue-600">Ví Traffic</span></p>
+              <h1 className="text-3xl font-black text-white tracking-tight mb-1">Nạp tiền & Ví</h1>
+              <p className="text-sm text-white/50">Nạp tiền vào Ví Traffic hoặc quản lý Ví Hoa Hồng</p>
+            </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {methods.map(({ id, label, Icon, icon, color, ring, light }) => {
-                  const sel = method === id;
-                  return (
-                    <button key={id} type="button" onClick={() => setMethod(id)}
-                      className={`flex flex-col items-center gap-2.5 p-4 rounded-2xl border-2 transition-all duration-200
-                        ${sel ? `border-transparent ${light.replace('border-', '')} ring-2 ${ring} ring-offset-1 scale-[1.02] shadow-sm` : 'border-slate-200 hover:border-slate-300 hover:shadow-sm bg-white'}`}
-                    >
-                      <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center shadow-sm`}>
-                        {icon === 'usdt' ? <UsdtIcon size={22} /> : <Icon size={18} className="text-white" />}
-                      </div>
-                      <span className={`text-xs font-bold ${sel ? '' : 'text-slate-500'}`}>{label}</span>
+            {/* Balance pills */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-5 py-3.5 min-w-[160px]">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Wallet size={13} className="text-blue-300" />
+                  <span className="text-[11px] text-white/50 font-medium">Ví Traffic</span>
+                </div>
+                <p className="text-2xl font-black text-white tracking-tight"><AnimatedNumber value={wallets.main.balance} /></p>
+                <p className="text-[10px] text-white/40 mt-0.5">VNĐ</p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-5 py-3.5 min-w-[160px]">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Gift size={13} className="text-orange-300" />
+                  <span className="text-[11px] text-white/50 font-medium">Hoa Hồng</span>
+                </div>
+                <p className="text-2xl font-black text-white tracking-tight"><AnimatedNumber value={wallets.commission.balance} /></p>
+                <p className="text-[10px] text-white/40 mt-0.5">VNĐ</p>
+                <div className="flex gap-1.5 mt-2">
+                  <button onClick={() => setModal('transfer')} disabled={wallets.commission.balance <= 0}
+                    className="flex-1 flex items-center justify-center gap-1 py-1 bg-white/15 hover:bg-white/25 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-[10px] font-bold text-white transition">
+                    <ArrowLeftRight size={9} /> Chuyển
+                  </button>
+                  <button onClick={() => setModal('withdraw')} disabled={wallets.commission.balance <= 0}
+                    className="flex-1 flex items-center justify-center gap-1 py-1 bg-white/15 hover:bg-white/25 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-[10px] font-bold text-white transition">
+                    <LogOut size={9} /> Rút
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Main grid ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        {/* LEFT — Deposit wizard */}
+        <div className="lg:col-span-8 space-y-5">
+
+          {/* Step navigator */}
+          {METHODS.length > 0 && (
+            <div className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm"
+              style={{ boxShadow: '0 2px 20px rgba(15,23,42,0.05)' }}>
+              <div className="flex items-center gap-0">
+                {STEPS.map((s, i) => (
+                  <div key={s.n} className="flex items-center flex-1 last:flex-none">
+                    <button onClick={() => { if (s.n < step || (s.n === step)) return; }}
+                      className="flex items-center gap-2.5">
+                      <StepDot n={s.n} active={step === s.n} done={step > s.n} />
+                      <span className={`text-xs font-bold hidden sm:block ${step === s.n ? 'text-indigo-600' : step > s.n ? 'text-slate-400' : 'text-slate-300'}`}>{s.label}</span>
                     </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Amount form */}
-          {!cryptoResult && methods.length > 0 && (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6"
-              style={{ boxShadow: '0 4px 24px rgba(15,23,42,0.06)' }}>
-              <h2 className="font-bold text-slate-800 mb-1">Nhập số tiền nạp</h2>
-              <p className="text-xs text-slate-400 mb-5">
-                {method === 'bep20' || method === 'trc20'
-                  ? `Tối thiểu ${method === 'trc20' ? (depositConfig?.trc20?.minUsdt || depositConfig?.crypto?.minUsdt || 1) : (depositConfig?.crypto?.minUsdt || 1)} USDT • Tỷ giá: 1 USDT ≈ ${fmt(depositConfig?.rate || 25500)} VNĐ`
-                  : 'Nạp tối thiểu 10.000 VNĐ • Xử lý trong 5–15 phút'}
-              </p>
-
-              <form onSubmit={handleDeposit} className="space-y-5">
-                {/* Quick amounts */}
-                <div>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Chọn nhanh</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {QUICK.map(q => {
-                      const sel = amount === String(q);
-                      return (
-                        <button key={q} type="button" onClick={() => setAmount(String(q))}
-                          className={`py-2.5 rounded-xl border-2 text-xs font-bold transition-all duration-200
-                            ${sel
-                              ? 'border-blue-500 bg-blue-500 text-white shadow-md shadow-blue-200 scale-[1.02]'
-                              : 'border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'}`}>
-                          {fmt(q)}đ
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Custom input */}
-                <div>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">Hoặc nhập số khác</p>
-                  <div className="relative">
-                    <input
-                      type="number" value={amount} onChange={e => setAmount(e.target.value)}
-                      placeholder="Nhập số tiền..." min="10000" step="1000"
-                      className="w-full px-5 py-4 border-2 border-slate-200 rounded-2xl text-base font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all pr-16 bg-slate-50"
-                    />
-                    <span className="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">VNĐ</span>
-                  </div>
-                  {/* Conversion hint */}
-                  {amount && Number(amount) >= 10000 && (method === 'bep20' || method === 'trc20') && depositConfig?.rate && (
-                    <div className="flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-emerald-50 rounded-xl border border-emerald-200 w-fit">
-                      <TrendingUp size={11} className="text-emerald-600" />
-                      <p className="text-xs text-emerald-700 font-semibold">≈ {(Number(amount) / depositConfig.rate).toFixed(4)} USDT</p>
-                    </div>
-                  )}
-                  {amount && Number(amount) >= 10000 && method !== 'bep20' && method !== 'trc20' && (
-                    <div className="flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-blue-50 rounded-xl border border-blue-200 w-fit">
-                      <Check size={11} className="text-blue-600" />
-                      <p className="text-xs text-blue-700 font-semibold">{fmt(Number(amount))} VNĐ</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={processing || Number(amount) < 10000}
-                  className="w-full flex items-center justify-center gap-2.5 py-4 font-black text-white text-sm rounded-2xl
-                    bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-indigo-600
-                    transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98]
-                    shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-300
-                    disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-none"
-                >
-                  {processing
-                    ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Đang xử lý...</>
-                    : (method === 'bep20' || method === 'trc20')
-                      ? <><UsdtIcon size={18} /> Tạo đơn nạp Crypto <ArrowRight size={16} /></>
-                      : <><Wallet size={16} /> Nạp vào Ví Traffic <ArrowRight size={16} /></>}
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* No methods */}
-          {!cryptoResult && methods.length === 0 && depositConfig && (
-            <div className="bg-amber-50 border-2 border-amber-200 rounded-3xl p-8 text-center">
-              <div className="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Info size={22} className="text-amber-600" />
-              </div>
-              <p className="text-amber-800 font-bold mb-1">Chưa có phương thức nạp tiền nào</p>
-              <p className="text-xs text-amber-600">Vui lòng liên hệ admin để được hỗ trợ nạp tiền.</p>
-            </div>
-          )}
-        </div>
-
-        {/* RIGHT: Sidebar */}
-        <div className="space-y-4">
-
-          {/* Bank info */}
-          {bankEnabled && depositConfig?.bank && (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5"
-              style={{ boxShadow: '0 4px 24px rgba(15,23,42,0.06)' }}>
-              <h3 className="font-bold text-slate-800 text-sm mb-4 flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-blue-100 flex items-center justify-center">
-                  <Banknote size={13} className="text-blue-600" />
-                </div>
-                Thông tin chuyển khoản
-              </h3>
-              <div className="divide-y divide-slate-100">
-                <CopyField label="Ngân hàng" value={depositConfig.bank.bankName} />
-                <CopyField label="Số tài khoản" value={depositConfig.bank.accountNumber} />
-                <CopyField label="Chủ tài khoản" value={depositConfig.bank.accountHolder} />
-                {depositConfig.bank.branch && <CopyField label="Chi nhánh" value={depositConfig.bank.branch} />}
-              </div>
-            </div>
-          )}
-
-          {/* Crypto info */}
-          {(cryptoEnabled || trc20Enabled) && (
-            <div className="bg-white rounded-3xl border border-emerald-200 shadow-sm p-5"
-              style={{ boxShadow: '0 4px 24px rgba(16,185,129,0.08)' }}>
-              <h3 className="font-bold text-slate-800 text-sm mb-4 flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-emerald-100 flex items-center justify-center">
-                  <UsdtIcon size={15} />
-                </div>
-                Thông tin Crypto
-              </h3>
-              <div className="space-y-2.5">
-                {[
-                  { label: 'Mạng', value: method === 'trc20' ? 'Tron (TRC20)' : 'BSC (BEP20)', accent: method === 'trc20' ? 'text-rose-600' : 'text-slate-800' },
-                  { label: 'Token', value: 'USDT', accent: method === 'trc20' ? 'text-rose-500' : 'text-emerald-600' },
-                  { label: 'Tỷ giá', value: `1 USDT ≈ ${fmt(depositConfig?.rate || 25500)} VNĐ`, accent: 'text-slate-800' },
-                  { label: 'Xác nhận', value: (method === 'trc20' ? depositConfig?.trc20?.auto : depositConfig?.crypto?.auto) ? '⚡ Tự động' : '⏳ Thủ công', accent: (method === 'trc20' ? depositConfig?.trc20?.auto : depositConfig?.crypto?.auto) ? 'text-emerald-600' : 'text-amber-600' },
-                ].map(({ label, value, accent }) => (
-                  <div key={label} className="flex justify-between items-center py-1.5">
-                    <span className="text-xs text-slate-400 font-medium">{label}</span>
-                    <span className={`text-xs font-bold ${accent}`}>{value}</span>
+                    {i < STEPS.length - 1 && (
+                      <div className={`flex-1 h-0.5 mx-3 rounded-full transition-all duration-500 ${step > s.n ? 'bg-indigo-500' : 'bg-slate-200'}`} />
+                    )}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Notes */}
-          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl border border-amber-200 p-5">
-            <p className="text-xs font-bold text-amber-800 mb-3 flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-amber-200 flex items-center justify-center">
-                <Info size={11} className="text-amber-800" />
+          {/* STEP 1 — Choose method */}
+          {step === 1 && METHODS.length > 0 && (
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
+              style={{ boxShadow: '0 2px 20px rgba(15,23,42,0.05)' }}>
+              <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+                <h2 className="text-base font-black text-slate-900">Chọn phương thức nạp tiền</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Nạp vào <span className="text-indigo-600 font-semibold">Ví Traffic</span> để mua gói traffic</p>
               </div>
-              Lưu ý quan trọng
-            </p>
-            <ul className="space-y-2 text-xs text-amber-700">
-              <li className="flex items-start gap-2"><span className="text-amber-400 mt-0.5">•</span> Nạp tối thiểu <strong>10.000 VNĐ</strong></li>
-              {bankEnabled && <li className="flex items-start gap-2"><span className="text-amber-400 mt-0.5">•</span> Chuyển khoản: Admin xác nhận trong <strong>5–15 phút</strong></li>}
-              {(cryptoEnabled || trc20Enabled) && (depositConfig?.crypto?.auto || depositConfig?.trc20?.auto) && (
-                <li className="flex items-start gap-2"><span className="text-amber-400 mt-0.5">•</span> Crypto: Tự động xác nhận sau <strong>1–3 phút</strong></li>
-              )}
-              <li className="flex items-start gap-2"><span className="text-amber-400 mt-0.5">•</span> Chuyển HH → Traffic: <strong>ngay lập tức</strong></li>
-              {cryptoEnabled && (
-                <li className="flex items-start gap-2"><span className="text-rose-400 mt-0.5">!</span> <span className="text-rose-700 font-semibold">Chỉ gửi USDT đúng mạng BSC (BEP20)</span></li>
-              )}
+              <div className="p-6 space-y-3">
+                {METHODS.map(({ id, label, sub, Icon, icon, gradient, bg, border, text, ring }) => {
+                  const sel = method === id;
+                  return (
+                    <button key={id} type="button" onClick={() => { setMethod(id); }}
+                      className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all duration-200 text-left
+                        ${sel ? `${border} ${bg} ring-2 ${ring} ring-offset-1` : 'border-slate-200 hover:border-slate-300 bg-slate-50 hover:bg-white'}`}>
+                      <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-sm shrink-0`}>
+                        {icon === 'usdt' ? <UsdtIcon size={24} /> : <Icon size={22} className="text-white" />}
+                      </div>
+                      <div className="flex-1">
+                        <p className={`text-sm font-bold ${sel ? text : 'text-slate-700'}`}>{label}</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${sel ? `${border.replace('border-', 'border-')} bg-indigo-600 border-indigo-600` : 'border-slate-300'}`}>
+                        {sel && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="px-6 pb-6">
+                <button onClick={() => setStep(2)}
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-white text-sm
+                    bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700
+                    shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-300
+                    transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98]">
+                  Tiếp tục <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2 — Amount */}
+          {step === 2 && (
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
+              style={{ boxShadow: '0 2px 20px rgba(15,23,42,0.05)' }}>
+              <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-black text-slate-900">Nhập số tiền nạp</h2>
+                  <div className="flex items-center gap-2 mt-1">
+                    {activeMeta && (
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${activeMeta.bg || 'bg-slate-100'} ${activeMeta.text || 'text-slate-600'}`}>
+                        {activeMeta.label}
+                      </span>
+                    )}
+                    <span className="text-[11px] text-slate-400">
+                      {isCrypto ? `1 USDT ≈ ${fmt(depositConfig?.rate || 25500)} VNĐ` : 'Tối thiểu 10.000 VNĐ'}
+                    </span>
+                  </div>
+                </div>
+                <button onClick={() => setStep(1)} className="text-xs font-semibold text-indigo-500 hover:text-indigo-700 transition">← Quay lại</button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                {/* Big amount input */}
+                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-1">
+                  <div className="relative">
+                    <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                      placeholder="0" min="10000" step="1000"
+                      className="w-full px-5 py-5 text-4xl font-black text-slate-900 placeholder:text-slate-300 bg-transparent focus:outline-none pr-24 tracking-tight"
+                    />
+                    <span className="absolute right-5 top-1/2 -translate-y-1/2 text-base font-bold text-slate-400">VNĐ</span>
+                  </div>
+                  {isCrypto && amount && num >= 10000 && depositConfig?.rate ? (
+                    <div className="px-5 pb-3 -mt-1">
+                      <p className="text-sm font-semibold text-emerald-600">≈ {(num / depositConfig.rate).toFixed(4)} USDT</p>
+                    </div>
+                  ) : amount && num >= 10000 ? (
+                    <div className="px-5 pb-3 -mt-1">
+                      <p className="text-sm font-semibold text-indigo-600">✓ {fmt(num)} VNĐ</p>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Quick select */}
+                <div>
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-3">Chọn nhanh</p>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {QUICK.map(q => {
+                      const sel = amount === String(q);
+                      return (
+                        <button key={q} type="button" onClick={() => setAmount(String(q))}
+                          className={`py-2.5 rounded-xl text-xs font-bold border transition-all duration-150
+                            ${sel ? 'border-indigo-500 bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'border-slate-200 text-slate-600 bg-slate-50 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700'}`}>
+                          {q >= 1000000 ? `${q / 1000000}M` : `${q / 1000}K`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <button onClick={() => setStep(3)} disabled={!minOk}
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-white text-sm
+                    bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700
+                    shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5 active:scale-[0.98]
+                    disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-none">
+                  Xem xác nhận <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3 — Confirm */}
+          {step === 3 && (
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
+              style={{ boxShadow: '0 2px 20px rgba(15,23,42,0.05)' }}>
+              <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-black text-slate-900">Xác nhận đơn nạp tiền</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Kiểm tra thông tin trước khi gửi</p>
+                </div>
+                <button onClick={() => setStep(2)} className="text-xs font-semibold text-indigo-500 hover:text-indigo-700 transition">← Sửa</button>
+              </div>
+
+              <div className="p-6">
+                {/* Summary card */}
+                <div className="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-2xl p-5 mb-5"
+                  style={{ boxShadow: '0 8px 32px rgba(15,23,42,0.2)' }}>
+                  <p className="text-[10px] text-white/40 font-semibold uppercase tracking-widest mb-1">Số tiền nạp</p>
+                  <p className="text-3xl font-black text-white tracking-tight">{fmt(num)} <span className="text-white/50 text-base font-bold">VNĐ</span></p>
+                  {isCrypto && depositConfig?.rate && (
+                    <p className="text-sm text-indigo-300 font-semibold mt-1">≈ {(num / depositConfig.rate).toFixed(4)} USDT</p>
+                  )}
+                  <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] text-white/30 mb-0.5">Phương thức</p>
+                      <p className="text-xs font-bold text-white">{activeMeta?.label || method}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-white/30 mb-0.5">Nhận vào</p>
+                      <p className="text-xs font-bold text-white">Ví Traffic</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-white/30 mb-0.5">Xử lý</p>
+                      <p className="text-xs font-bold text-white">{isCrypto ? (depositConfig?.crypto?.auto || depositConfig?.trc20?.auto ? '1–3 phút' : 'Thủ công') : '5–15 phút'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-white/30 mb-0.5">Trạng thái</p>
+                      <p className="text-xs font-bold text-emerald-400">Sẵn sàng gửi</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bank info if bank method */}
+                {method === 'bank' && bankEnabled && depositConfig?.bank && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-5">
+                    <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                      <Building2 size={12} /> Thông tin chuyển khoản
+                    </p>
+                    <BankRow label="Ngân hàng" value={depositConfig.bank.bankName} />
+                    <BankRow label="Số tài khoản" value={depositConfig.bank.accountNumber} />
+                    <BankRow label="Chủ tài khoản" value={depositConfig.bank.accountHolder} />
+                    {depositConfig.bank.branch && <BankRow label="Chi nhánh" value={depositConfig.bank.branch} />}
+                  </div>
+                )}
+
+                <button onClick={handleDeposit} disabled={processing}
+                  className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-black text-white text-sm
+                    bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600
+                    hover:from-indigo-700 hover:via-violet-700 hover:to-purple-700
+                    shadow-xl shadow-indigo-200/70 transition-all hover:-translate-y-0.5 active:scale-[0.98]
+                    disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:translate-y-0">
+                  {processing
+                    ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Đang xử lý...</>
+                    : isCrypto
+                      ? <><UsdtIcon size={18} /> Tạo đơn nạp Crypto <Zap size={15} /></>
+                      : <><CircleDollarSign size={17} /> Gửi đơn nạp tiền <ArrowRight size={15} /></>}
+                </button>
+
+                <div className="flex items-center gap-2 mt-4 justify-center">
+                  <Shield size={12} className="text-slate-400" />
+                  <p className="text-[11px] text-slate-400">Giao dịch được mã hóa và bảo vệ an toàn</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* No methods */}
+          {METHODS.length === 0 && depositConfig && (
+            <div className="bg-white rounded-3xl border border-amber-200 p-10 text-center shadow-sm">
+              <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={24} className="text-amber-600" />
+              </div>
+              <p className="font-black text-slate-800 mb-1">Chưa có phương thức nạp tiền</p>
+              <p className="text-sm text-slate-400">Vui lòng liên hệ admin để được hỗ trợ.</p>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT — Info sidebar */}
+        <div className="lg:col-span-4 space-y-4">
+
+          {/* Crypto rate info */}
+          {(cryptoEnabled || trc20Enabled) && depositConfig?.rate && (
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5"
+              style={{ boxShadow: '0 2px 20px rgba(15,23,42,0.05)' }}>
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center">
+                  <TrendingUp size={14} className="text-emerald-600" />
+                </div>
+                <h3 className="text-sm font-black text-slate-800">Tỷ giá USDT</h3>
+                <span className="ml-auto text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Live</span>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <UsdtIcon size={18} />
+                    <span className="text-xs font-semibold text-slate-600">1 USDT</span>
+                  </div>
+                  <span className="text-sm font-black text-slate-900">{fmt(depositConfig.rate)} VNĐ</span>
+                </div>
+                {[
+                  { usdt: 1, label: '1 USDT' },
+                  { usdt: 10, label: '10 USDT' },
+                  { usdt: 100, label: '100 USDT' },
+                ].map(({ usdt, label }) => (
+                  <div key={usdt} className="flex justify-between text-xs">
+                    <span className="text-slate-400">{label}</span>
+                    <span className="font-bold text-slate-700">{fmt(usdt * depositConfig.rate)} VNĐ</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Bank info sidebar */}
+          {bankEnabled && depositConfig?.bank && (
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5"
+              style={{ boxShadow: '0 2px 20px rgba(15,23,42,0.05)' }}>
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <Building2 size={14} className="text-blue-600" />
+                </div>
+                <h3 className="text-sm font-black text-slate-800">Thông tin NH</h3>
+              </div>
+              <BankRow label="Ngân hàng" value={depositConfig.bank.bankName} />
+              <BankRow label="Số TK" value={depositConfig.bank.accountNumber} />
+              <BankRow label="Chủ TK" value={depositConfig.bank.accountHolder} />
+              {depositConfig.bank.branch && <BankRow label="Chi nhánh" value={depositConfig.bank.branch} />}
+            </div>
+          )}
+
+          {/* Notes */}
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5"
+            style={{ boxShadow: '0 2px 20px rgba(15,23,42,0.05)' }}>
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center">
+                <Info size={14} className="text-amber-600" />
+              </div>
+              <h3 className="text-sm font-black text-slate-800">Lưu ý</h3>
+            </div>
+            <ul className="space-y-2.5">
+              {[
+                { icon: CheckCircle2, color: 'text-slate-400', text: 'Nạp tối thiểu 10.000 VNĐ' },
+                ...(bankEnabled ? [{ icon: Clock, color: 'text-blue-400', text: 'Chuyển khoản: 5–15 phút' }] : []),
+                ...((cryptoEnabled || trc20Enabled) && (depositConfig?.crypto?.auto || depositConfig?.trc20?.auto) ? [{ icon: Zap, color: 'text-emerald-500', text: 'Crypto tự động: 1–3 phút' }] : []),
+                { icon: ArrowLeftRight, color: 'text-indigo-400', text: 'Chuyển HH → Traffic: ngay lập tức' },
+                ...(cryptoEnabled ? [{ icon: AlertCircle, color: 'text-rose-500', text: 'Chỉ gửi USDT đúng mạng BEP20' }] : []),
+              ].map(({ icon: Icon, color, text }, i) => (
+                <li key={i} className="flex items-start gap-2.5">
+                  <Icon size={13} className={`${color} shrink-0 mt-0.5`} />
+                  <span className="text-xs text-slate-500 leading-relaxed">{text}</span>
+                </li>
+              ))}
             </ul>
           </div>
 
-          {/* Commission quick actions */}
-          <div className="bg-white rounded-3xl border border-orange-200 shadow-sm p-5"
+          {/* Commission wallet */}
+          <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-3xl border border-orange-200 p-5"
             style={{ boxShadow: '0 4px 24px rgba(251,146,60,0.1)' }}>
-            <h3 className="font-bold text-slate-800 text-sm mb-1 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-orange-100 flex items-center justify-center">
-                <Gift size={13} className="text-orange-500" />
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-8 h-8 rounded-xl bg-orange-200 flex items-center justify-center">
+                <Gift size={14} className="text-orange-700" />
               </div>
-              Ví Hoa Hồng
-            </h3>
-            <p className="text-xs text-slate-400 mb-4 ml-9">
-              Số dư: <strong className="text-orange-500">{fmt(wallets.commission.balance)} đ</strong>
-            </p>
-            <button
-              onClick={() => setModal('transfer')}
-              disabled={wallets.commission.balance <= 0}
-              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <ArrowLeftRight size={13} /> Chuyển sang Ví Traffic
+              <div>
+                <h3 className="text-sm font-black text-orange-900">Ví Hoa Hồng</h3>
+                <p className="text-[10px] text-orange-500">từ chương trình giới thiệu</p>
+              </div>
+            </div>
+            <p className="text-xl font-black text-orange-700 mb-3">{fmt(wallets.commission.balance)} <span className="text-sm font-bold text-orange-400">đ</span></p>
+            <button onClick={() => setModal('transfer')} disabled={wallets.commission.balance <= 0}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/70 hover:bg-white border border-orange-200 text-orange-700 text-xs font-bold rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+              <ArrowLeftRight size={12} /> Chuyển sang Ví Traffic
             </button>
           </div>
         </div>
       </div>
 
+      {/* Modals */}
       {modal && (
-        <CommissionModal
-          mode={modal}
-          balance={wallets.commission.balance}
-          onConfirm={handleCommissionAction}
-          onClose={() => setModal(null)}
-        />
+        <CommissionModal mode={modal} balance={wallets.commission.balance}
+          onConfirm={handleCommission} onClose={() => setModal(null)} />
+      )}
+      {cryptoResult && (
+        <CryptoDepositPanel data={cryptoResult} onClose={() => { setCryptoResult(null); fetchWallets(); }} />
       )}
     </div>
   );
