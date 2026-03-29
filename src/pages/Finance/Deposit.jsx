@@ -293,10 +293,9 @@ export default function Deposit() {
         </div>
       </div>
 
-      {/* Wallet cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 lg:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
         {/* Main Wallet */}
-        <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-indigo-500 via-indigo-600 to-blue-600 p-6 lg:p-7 text-white shadow-xl shadow-indigo-500/20">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-blue-600 p-5 lg:p-6 text-white shadow-xl shadow-indigo-500/20">
           <div className="absolute -right-20 -top-20 w-64 h-64 bg-white/10 blur-[50px] rounded-full pointer-events-none" />
           
           <div className="relative flex justify-between items-start mb-6">
@@ -314,19 +313,19 @@ export default function Deposit() {
             </div>
           </div>
           
-          <div className="flex items-baseline gap-2 mb-6">
-            <p className="text-4xl lg:text-[40px] font-black tracking-tight drop-shadow-sm">{fmt(wallets.main.balance)}</p>
-            <span className="text-lg font-bold text-indigo-200">VNĐ</span>
+          <div className="flex items-baseline gap-2 mb-5">
+            <p className="text-3xl lg:text-[32px] font-black tracking-tight drop-shadow-sm">{fmt(wallets.main.balance)}</p>
+            <span className="text-sm font-bold text-indigo-200">VNĐ</span>
           </div>
           
           <button onClick={() => document.getElementById('deposit-form')?.scrollIntoView({ behavior: 'smooth' })}
-            className="w-full py-3.5 bg-white text-indigo-700 text-[13px] font-black rounded-2xl transition hover:bg-slate-50 hover:scale-[1.01] active:scale-[0.99] shadow-[0_4px_12px_-2px_rgba(0,0,0,0.1)] flex items-center justify-center gap-2">
+            className="w-full py-3 bg-white text-indigo-700 text-[13px] font-black rounded-xl transition hover:bg-slate-50 hover:scale-[1.01] active:scale-[0.99] shadow-[0_4px_12px_-2px_rgba(0,0,0,0.1)] flex items-center justify-center gap-2">
             Nạp thêm tiền vào ví <ArrowRight size={14} />
           </button>
         </div>
 
         {/* Commission Wallet */}
-        <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 p-6 lg:p-7 text-white shadow-xl shadow-emerald-500/20">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 p-5 lg:p-6 text-white shadow-xl shadow-emerald-500/20">
           <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-black/10 blur-[50px] rounded-full pointer-events-none" />
           
           <div className="relative flex justify-between items-start mb-6">
@@ -341,18 +340,18 @@ export default function Deposit() {
             </div>
           </div>
           
-          <div className="flex items-baseline gap-2 mb-6">
-            <p className="text-4xl lg:text-[40px] font-black tracking-tight drop-shadow-sm">{fmt(wallets.commission.balance)}</p>
-            <span className="text-lg font-bold text-emerald-200">VNĐ</span>
+          <div className="flex items-baseline gap-2 mb-5">
+            <p className="text-3xl lg:text-[32px] font-black tracking-tight drop-shadow-sm">{fmt(wallets.commission.balance)}</p>
+            <span className="text-sm font-bold text-emerald-200">VNĐ</span>
           </div>
           
           <div className="grid grid-cols-2 gap-3 relative z-10">
             <button onClick={() => setModal('transfer')} disabled={wallets.commission.balance <= 0}
-              className="flex items-center justify-center gap-2 py-3.5 border-2 border-white/30 bg-white/10 hover:bg-white/20 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed hover:disabled:bg-white/10 hover:disabled:border-white/30 text-white text-[13px] font-bold rounded-2xl transition-all">
+              className="flex items-center justify-center gap-2 py-3 border-2 border-white/30 bg-white/10 hover:bg-white/20 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed hover:disabled:bg-white/10 hover:disabled:border-white/30 text-white text-[13px] font-bold rounded-xl transition-all">
               <ArrowLeftRight size={14} /> Trút vào ví chính
             </button>
             <button onClick={() => setModal('withdraw')} disabled={wallets.commission.balance <= 0}
-              className="flex items-center justify-center gap-2 py-3.5 border-2 border-white/30 bg-white/10 hover:bg-white/20 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed hover:disabled:bg-white/10 hover:disabled:border-white/30 text-white text-[13px] font-bold rounded-2xl transition-all">
+              className="flex items-center justify-center gap-2 py-3 border-2 border-white/30 bg-white/10 hover:bg-white/20 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed hover:disabled:bg-white/10 hover:disabled:border-white/30 text-white text-[13px] font-bold rounded-xl transition-all">
               <LogOut size={14} /> Làm lệnh rút
             </button>
           </div>
@@ -362,10 +361,10 @@ export default function Deposit() {
       <hr className="border-slate-100" />
 
       {/* Deposit form section */}
-      <div id="deposit-form" className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+      <div id="deposit-form" className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6">
         
         {/* Left 2/3 - Action Area */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-5">
 
           {/* Crypto result panel */}
           {cryptoResult ? (
@@ -374,29 +373,29 @@ export default function Deposit() {
             <>
               {/* Method Selector */}
               {methods.length > 0 && (
-                <div className="bg-white rounded-[24px] border border-slate-200/60 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] p-6 lg:p-7">
-                  <h2 className="text-lg font-black text-slate-800 tracking-tight mb-2">1. Chọn phương thức nạp</h2>
-                  <p className="text-[13px] font-medium text-slate-500 mb-6">Tiền sẽ được cộng tự động vào Ví Traffic của bạn.</p>
+                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] p-5 lg:p-6">
+                  <h2 className="text-base font-black text-slate-800 tracking-tight mb-2">1. Chọn phương thức nạp</h2>
+                  <p className="text-[12px] font-medium text-slate-500 mb-5">Tiền sẽ được cộng tự động vào Ví Traffic của bạn.</p>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {methods.map(({ id, label, Icon, icon, color, bg, ring }) => {
                       const sel = method === id;
                       return (
                         <button key={id} type="button" onClick={() => setMethod(id)}
-                          className={`relative flex flex-col items-start gap-4 p-5 rounded-[20px] transition-all duration-200 text-left overflow-hidden outline-none
+                          className={`relative flex flex-col items-start gap-3 p-4 rounded-xl transition-all duration-200 text-left overflow-hidden outline-none
                             ${sel 
                               ? `bg-indigo-50 border-2 border-indigo-600 shadow-[0_4px_16px_-4px_rgba(79,70,229,0.2)]` 
                               : `bg-slate-50/50 border-2 border-transparent hover:bg-slate-50 hover:border-slate-200 ${ring}`}`}>
                           
                           {/* Top right check icon for active */}
                           {sel && (
-                            <div className="absolute top-3 right-3 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white">
-                              <Check size={12} strokeWidth={3} />
+                            <div className="absolute top-3 right-3 w-4 h-4 bg-indigo-600 rounded-full flex items-center justify-center text-white">
+                              <Check size={10} strokeWidth={3} />
                             </div>
                           )}
 
-                          <div className={`w-12 h-12 rounded-[16px] ${bg} flex items-center justify-center shadow-inner ${sel ? 'bg-white' : ''}`}>
-                            {icon === 'usdt' ? <UsdtIcon size={24} /> : <Icon size={22} className={color} strokeWidth={2.5} />}
+                          <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center shadow-inner ${sel ? 'bg-white' : ''}`}>
+                            {icon === 'usdt' ? <UsdtIcon size={20} /> : <Icon size={18} className={color} strokeWidth={2.5} />}
                           </div>
                           
                           <span className={`text-[13px] mt-1 ${sel ? 'font-black text-indigo-900' : 'font-bold text-slate-600'}`}>
@@ -411,16 +410,16 @@ export default function Deposit() {
 
               {/* Amount form */}
               {methods.length > 0 && (
-                <div className="bg-white rounded-[24px] border border-slate-200/60 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] p-6 lg:p-7 relative overflow-hidden">
+                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] p-5 lg:p-6 relative overflow-hidden">
                   
-                  <h2 className="text-lg font-black text-slate-800 tracking-tight mb-2">2. Số tiền thanh toán</h2>
-                  <p className="text-[13px] font-medium text-slate-500 mb-6">
+                  <h2 className="text-base font-black text-slate-800 tracking-tight mb-2">2. Số tiền thanh toán</h2>
+                  <p className="text-[12px] font-medium text-slate-500 mb-5">
                     {method === 'bep20' || method === 'trc20'
                       ? `Nạp tối thiểu ${method === 'trc20' ? (depositConfig?.trc20?.minUsdt || depositConfig?.crypto?.minUsdt || 1) : (depositConfig?.crypto?.minUsdt || 1)} USDT (tỷ giá gốc 1 USDT ≈ ${fmt(depositConfig?.rate || 25500)} đ)`
                       : 'Hệ thống hỗ trợ nạp từ 10.000 VNĐ'}
                   </p>
 
-                  <form onSubmit={handleDeposit} className="space-y-6">
+                  <form onSubmit={handleDeposit} className="space-y-5">
                     {/* Quick selectors */}
                     <div>
                       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -438,25 +437,25 @@ export default function Deposit() {
 
                     {/* Custom input */}
                     <div className="relative max-w-sm">
-                      <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                        <span className="text-slate-400 font-bold">VND</span>
+                      <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                        <span className="text-slate-400 font-bold text-sm">VND</span>
                       </div>
                       <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
                         placeholder="0" min="10000" step="1000"
-                        className="w-full pl-16 pr-5 py-4 bg-slate-50 border border-slate-200 rounded-[20px] text-lg font-black text-slate-800 focus:outline-none focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:font-normal placeholder:text-slate-300" />
+                        className="w-full pl-14 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base font-black text-slate-800 focus:outline-none focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:font-normal placeholder:text-slate-300" />
                         
                       {/* Sub hints */}
                       {amount && Number(amount) >= 10000 && (method === 'bep20' || method === 'trc20') && depositConfig?.rate && (
-                        <div className="absolute -bottom-7 left-2 flex items-center gap-1.5 text-[12px] font-bold text-emerald-600 animate-in slide-in-from-top-1">
-                          <ArrowRight size={12} /> {(Number(amount) / depositConfig.rate).toFixed(2)} USDT cần gửi
+                        <div className="absolute -bottom-6 left-1 text-[11px] font-bold text-emerald-600">
+                          ≈ {(Number(amount) / depositConfig.rate).toFixed(2)} USDT
                         </div>
                       )}
                     </div>
 
-                    <div className="pt-4 max-w-sm">
+                    <div className="pt-3 max-w-sm">
                       <button type="submit" disabled={processing || Number(amount) < 10000}
-                        className="w-full flex items-center justify-center gap-2 py-4 font-black text-white text-[15px] rounded-[20px]
-                          bg-indigo-600 shadow-[0_4px_16px_-4px_rgba(79,70,229,0.3)]
+                        className="w-full flex items-center justify-center gap-2 py-3 font-black text-white text-[14px] rounded-xl
+                          bg-indigo-600 shadow-md shadow-indigo-200
                           transition-all hover:bg-indigo-700 hover:-translate-y-0.5 active:scale-[0.98] outline-none focus:ring-4 focus:ring-indigo-500/20
                           disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:active:scale-100">
                         {processing
@@ -485,17 +484,17 @@ export default function Deposit() {
         </div>
 
         {/* Right 1/3 - Info Sidebar */}
-        <div className="space-y-5">
+        <div className="space-y-4">
 
           {/* Guidelines Box */}
-          <div className="bg-white rounded-[24px] border border-slate-200/60 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] p-6 block">
-            <h3 className="font-black text-slate-800 text-base mb-4 flex items-center gap-2.5">
-              <span className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                <Info size={14} className="text-slate-500" />
+          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] p-5 block">
+            <h3 className="font-black text-slate-800 text-[13px] mb-3 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                <Info size={12} className="text-slate-500" />
               </span>
               Lưu ý dịch vụ
             </h3>
-            <ul className="text-[12px] font-medium text-slate-500 space-y-3">
+            <ul className="text-[11px] font-medium text-slate-500 space-y-2">
               <li className="flex gap-2"><span className="text-slate-300 inline-block w-4">01</span> Tiền nạp không thể rút lại (Chỉ dùng mua Traffic).</li>
               <li className="flex gap-2"><span className="text-slate-300 inline-block w-4">02</span> VNĐ được xử lý siêu tốc trong vòng 3-5 phút làm việc.</li>
               {(cryptoEnabled || trc20Enabled) && (depositConfig?.crypto?.auto || depositConfig?.trc20?.auto) && (
