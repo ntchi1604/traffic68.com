@@ -362,8 +362,8 @@ export default function Deposit() {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
               <h2 className="font-bold text-gray-800 mb-1">Nhập số tiền nạp</h2>
               <p className="text-xs text-gray-400 mb-4">
-                {method === 'crypto'
-                  ? `Tối thiểu ${depositConfig?.crypto?.minUsdt || 1} USDT • Tỷ giá: 1 USDT ≈ ${fmt(depositConfig?.rate || 25500)} VNĐ`
+                {method === 'crypto' || method === 'trc20'
+                  ? `Tối thiểu ${depositConfig?.[method]?.minUsdt || depositConfig?.crypto?.minUsdt || 1} USDT • Tỷ giá: 1 USDT ≈ ${fmt(depositConfig?.rate || 25500)} VNĐ`
                   : 'Nạp tối thiểu 10.000 VNĐ'}
               </p>
               <form onSubmit={handleDeposit} className="space-y-4">
@@ -388,12 +388,12 @@ export default function Deposit() {
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-14" />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-semibold pointer-events-none">VNĐ</span>
                   </div>
-                  {amount && Number(amount) >= 10000 && method === 'crypto' && depositConfig?.rate && (
+                  {amount && Number(amount) >= 10000 && (method === 'crypto' || method === 'trc20') && depositConfig?.rate && (
                     <p className="text-xs text-emerald-600 font-medium mt-1">
                       ≈ {(Number(amount) / depositConfig.rate).toFixed(4)} USDT
                     </p>
                   )}
-                  {amount && Number(amount) >= 10000 && method !== 'crypto' && (
+                  {amount && Number(amount) >= 10000 && method !== 'crypto' && method !== 'trc20' && (
                     <p className="text-xs text-blue-600 font-medium mt-1">✓ {fmt(Number(amount))} VNĐ</p>
                   )}
                 </div>
@@ -405,7 +405,7 @@ export default function Deposit() {
                     disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0">
                   {processing
                     ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Đang xử lý...</>
-                    : method === 'crypto'
+                    : (method === 'crypto' || method === 'trc20')
                       ? <><UsdtIcon size={18} />Tạo đơn nạp Crypto<ArrowRight size={16} /></>
                       : <><Wallet size={16} />Nạp vào Ví Traffic<ArrowRight size={16} /></>}
                 </button>
@@ -441,19 +441,21 @@ export default function Deposit() {
           )}
 
           {/* Crypto info */}
-          {cryptoEnabled && (
-            <div className="bg-white rounded-2xl border border-emerald-200 shadow-sm p-5">
+          {(cryptoEnabled || trc20Enabled) && (
+            <div className={`bg-white rounded-2xl border ${method === 'trc20' ? 'border-red-200' : 'border-emerald-200'} shadow-sm p-5`}>
               <h3 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2">
                 <UsdtIcon size={16} /> Nạp Crypto
               </h3>
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-gray-500">Mạng</span>
-                  <span className="font-bold text-gray-800">BSC (BEP20)</span>
+                  <span className={`font-bold ${method === 'trc20' ? 'text-red-600' : 'text-gray-800'}`}>
+                    {method === 'trc20' ? 'Tron (TRC20)' : 'BSC (BEP20)'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Token</span>
-                  <span className="font-bold text-emerald-600">USDT</span>
+                  <span className={`font-bold ${method === 'trc20' ? 'text-red-500' : 'text-emerald-600'}`}>USDT</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Tỷ giá</span>
@@ -461,8 +463,8 @@ export default function Deposit() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Xác nhận</span>
-                  <span className={`font-bold ${depositConfig?.crypto?.auto ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {depositConfig?.crypto?.auto ? '⚡ Tự động' : '⏳ Thủ công'}
+                  <span className={`font-bold ${(method === 'trc20' ? depositConfig?.trc20?.auto : depositConfig?.crypto?.auto) ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {(method === 'trc20' ? depositConfig?.trc20?.auto : depositConfig?.crypto?.auto) ? '⚡ Tự động' : '⏳ Thủ công'}
                   </span>
                 </div>
               </div>
@@ -475,7 +477,7 @@ export default function Deposit() {
             <ul className="text-xs text-amber-700 space-y-1.5">
               <li>• Nạp tối thiểu <strong>10.000 VNĐ</strong></li>
               {bankEnabled && <li>• Chuyển khoản: Admin xác nhận trong <strong>5-15 phút</strong></li>}
-              {cryptoEnabled && depositConfig?.crypto?.auto && (
+              {(cryptoEnabled || trc20Enabled) && (depositConfig?.crypto?.auto || depositConfig?.trc20?.auto) && (
                 <li>• Crypto: Tự động xác nhận sau <strong>1-3 phút</strong></li>
               )}
               <li>• Chuyển ví HH → Traffic: <strong>ngay lập tức</strong></li>
