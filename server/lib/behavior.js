@@ -246,6 +246,12 @@ function analyzeDevice(deviceData, userAgent, botDetection) {
     score += 20;
   }
 
+  if (deviceData?.behavioral?.probes?.fakeMobileWithMouse) {
+    reasons.push('Thiết bị khai báo là Mobile nhưng lại dùng chuột máy tính (Fake thiết bị)');
+    detectionLog.push('Mobile ảo dùng Chuột');
+    score += 50;
+  }
+
 
   if (botDetection?.timezoneLied) {
     reasons.push('Múi giờ bị giả mạo (CreepJS)');

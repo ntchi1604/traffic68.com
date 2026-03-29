@@ -217,7 +217,7 @@ export default function Deposit() {
     if (!num || num < 10000) { toast.error('Số tiền nạp tối thiểu là 10.000 VNĐ'); return; }
     setProcessing(true);
     try {
-      if (method === 'crypto' || method === 'trc20') {
+      if (method === 'bep20' || method === 'trc20') {
         const data = await api.post('/finance/deposits', { amount: num, method });
         setCryptoResult({ ...data, amount: num });
         setAmount('');
@@ -253,7 +253,7 @@ export default function Deposit() {
   const trc20Enabled = depositConfig?.trc20?.enabled;
   const methods = [];
   if (bankEnabled) methods.push({ id: 'bank', label: 'Ngân hàng', Icon: Banknote, color: 'bg-blue-600', border: 'border-blue-200', bg: 'bg-blue-50' });
-  if (cryptoEnabled) methods.push({ id: 'crypto', label: 'USDT (BEP20)', icon: 'usdt', color: 'bg-emerald-600', border: 'border-emerald-200', bg: 'bg-emerald-50' });
+  if (cryptoEnabled) methods.push({ id: 'bep20', label: 'USDT (BEP20)', icon: 'usdt', color: 'bg-emerald-600', border: 'border-emerald-200', bg: 'bg-emerald-50' });
   if (trc20Enabled) methods.push({ id: 'trc20', label: 'USDT (TRC20)', icon: 'usdt', color: 'bg-red-500', border: 'border-red-200', bg: 'bg-red-50' });
 
   // Auto-select first available method
@@ -362,8 +362,8 @@ export default function Deposit() {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
               <h2 className="font-bold text-gray-800 mb-1">Nhập số tiền nạp</h2>
               <p className="text-xs text-gray-400 mb-4">
-                {method === 'crypto' || method === 'trc20'
-                  ? `Tối thiểu ${depositConfig?.[method]?.minUsdt || depositConfig?.crypto?.minUsdt || 1} USDT • Tỷ giá: 1 USDT ≈ ${fmt(depositConfig?.rate || 25500)} VNĐ`
+                {method === 'bep20' || method === 'trc20'
+                  ? `Tối thiểu ${method === 'trc20' ? (depositConfig?.trc20?.minUsdt || depositConfig?.crypto?.minUsdt || 1) : (depositConfig?.crypto?.minUsdt || 1)} USDT • Tỷ giá: 1 USDT ≈ ${fmt(depositConfig?.rate || 25500)} VNĐ`
                   : 'Nạp tối thiểu 10.000 VNĐ'}
               </p>
               <form onSubmit={handleDeposit} className="space-y-4">
@@ -388,12 +388,12 @@ export default function Deposit() {
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-14" />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-semibold pointer-events-none">VNĐ</span>
                   </div>
-                  {amount && Number(amount) >= 10000 && (method === 'crypto' || method === 'trc20') && depositConfig?.rate && (
+                  {amount && Number(amount) >= 10000 && (method === 'bep20' || method === 'trc20') && depositConfig?.rate && (
                     <p className="text-xs text-emerald-600 font-medium mt-1">
                       ≈ {(Number(amount) / depositConfig.rate).toFixed(4)} USDT
                     </p>
                   )}
-                  {amount && Number(amount) >= 10000 && method !== 'crypto' && method !== 'trc20' && (
+                  {amount && Number(amount) >= 10000 && method !== 'bep20' && method !== 'trc20' && (
                     <p className="text-xs text-blue-600 font-medium mt-1">✓ {fmt(Number(amount))} VNĐ</p>
                   )}
                 </div>
@@ -405,7 +405,7 @@ export default function Deposit() {
                     disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0">
                   {processing
                     ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Đang xử lý...</>
-                    : (method === 'crypto' || method === 'trc20')
+                    : (method === 'bep20' || method === 'trc20')
                       ? <><UsdtIcon size={18} />Tạo đơn nạp Crypto<ArrowRight size={16} /></>
                       : <><Wallet size={16} />Nạp vào Ví Traffic<ArrowRight size={16} /></>}
                 </button>

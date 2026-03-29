@@ -264,7 +264,7 @@ async function processIncomingDeposits() {
 
   const networks = [
     {
-      id: 'crypto',
+      id: 'bep20',
       enabled: config.deposit_crypto_enabled === 'true',
       auto: config.deposit_crypto_auto === 'true',
       address: config.deposit_crypto_address,
@@ -284,16 +284,27 @@ async function processIncomingDeposits() {
   for (const net of networks) {
     if (!net.enabled || !net.auto || !net.address) continue;
 
-    const [pending] = await pool.execute(
+    const [pendingRaw] = await pool.execute(
       `SELECT * FROM transactions WHERE type='deposit' AND method=? AND status='pending' AND wallet_type='main' ORDER BY created_at ASC`,
       [net.id]
     );
+
+    const pending = [];
+    const nowMs = Date.now();
+    for (const tx of pendingRaw) {
+      if (nowMs - new Date(tx.created_at).getTime() > 20 * 60 * 1000) {
+        await pool.execute('UPDATE transactions SET status=? WHERE id=?', ['cancelled', tx.id]);
+        console.log(`[DepositWatcher] ❌ Auto-cancelled expired tx ${tx.id} (${net.label})`);
+      } else {
+        pending.push(tx);
+      }
+    }
 
     let currentBalance;
     try {
       currentBalance = await net.getBalance(net.address);
     } catch (err) {
-      if (net.id === 'crypto') rotateRpc();
+      if (net.id === 'bep20') rotateRpc();
       continue;
     }
 

@@ -70,16 +70,16 @@ router.post('/deposits', async (req, res) => {
   }
 
   // ── Crypto deposit ──
-  if (method === 'crypto' || method === 'trc20') {
+  if (method === 'bep20' || method === 'trc20') {
     try {
       const w3 = getWeb3Pay();
       if (!w3) return res.status(400).json({ error: 'Hệ thống crypto chưa sẵn sàng' });
       const config = await w3.getDepositSettings();
       
-      const isConfigEnabled = method === 'crypto' ? config.deposit_crypto_enabled : config.deposit_trc20_enabled;
+      const isConfigEnabled = method === 'bep20' ? config.deposit_crypto_enabled : config.deposit_trc20_enabled;
       if (isConfigEnabled !== 'true') return res.status(400).json({ error: 'Nạp crypto mạng này đang tắt' });
       
-      const depositAddress = method === 'crypto' ? config.deposit_crypto_address : config.deposit_trc20_address;
+      const depositAddress = method === 'bep20' ? config.deposit_crypto_address : config.deposit_trc20_address;
       if (!depositAddress) return res.status(400).json({ error: 'Chưa cấu hình ví nhận' });
 
       const customRate = config.web3_vnd_rate ? parseFloat(config.web3_vnd_rate) : null;
@@ -115,7 +115,7 @@ router.post('/deposits', async (req, res) => {
       );
 
       const fmt = new Intl.NumberFormat('vi-VN').format(amount);
-      const networkLabel = method === 'crypto' ? 'BEP20' : 'TRC20';
+      const networkLabel = method === 'bep20' ? 'BEP20' : 'TRC20';
       await pool.execute(
         `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
         [req.userId, '💰 Đơn nạp Crypto đang chờ', `Đơn nạp ${fmt} VND (${usdtAmount} USDT) qua mạng ${networkLabel} đang chờ xác nhận. Gửi đúng số USDT đến ví nhận.`, 'info', 'buyer']
@@ -128,7 +128,7 @@ router.post('/deposits', async (req, res) => {
         depositAddress: depositAddress,
         rate: conversion.rate,
         status: 'pending',
-        auto: (method === 'crypto' ? config.deposit_crypto_auto : config.deposit_trc20_auto) === 'true',
+        auto: (method === 'bep20' ? config.deposit_crypto_auto : config.deposit_trc20_auto) === 'true',
         network: networkLabel,
       });
 

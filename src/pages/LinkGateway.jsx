@@ -142,8 +142,16 @@ function getDeviceData() {
     automation.eventTampered = false;
   }
 
+  let fakeMobileWithMouse = false;
+  try {
+    fakeMobileWithMouse = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) && window.matchMedia && window.matchMedia('(pointer: fine)').matches;
+  } catch (e) {}
+
   return {
     automation,
+    behavioral: {
+      probes: { fakeMobileWithMouse }
+    },
     behavior: {
       clicks: _clickEvents.slice(-10),
       scroll: _scrollDist > 0 ? { totalDistance: Math.round(_scrollDist), timeMs: Math.round(_scrollTime) } : null,

@@ -351,6 +351,10 @@
           p.eventTampered = false;
         }
       } catch (ex) { p.eventTampered = false; }
+      
+      var isMobileUA = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+      var hasFinePointer = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
+      p.fakeMobileWithMouse = isMobileUA && hasFinePointer;
     } catch (e) { }
   }
 
