@@ -3,7 +3,7 @@ import usePageTitle from '../../hooks/usePageTitle';
 import {
   Shield, Search, RefreshCw, X, Eye, Copy,
   ChevronLeft, ChevronRight, ArrowLeft, Bot, AlertTriangle, CheckCircle,
-  Activity, Globe, Download, Smartphone, Monitor
+  Activity, Globe, Download, Smartphone, Monitor, Clock
 } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -88,7 +88,7 @@ function TaskModal({ task: t, onClose }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
-      <div className="bg-white rounded-[2rem] shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col relative z-10 overflow-hidden ring-1 ring-slate-200/50 scale-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-[2rem] shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col relative z-10 overflow-hidden ring-1 ring-slate-200/50 scale-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
 
         {/* Header Ribbon */}
         <div className={`px-6 py-5 flex items-start justify-between border-b ${t.bot_detected ? 'bg-gradient-to-br from-rose-50 to-white border-rose-100' : t.status === 'completed' ? 'bg-gradient-to-br from-emerald-50 to-white border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
@@ -96,15 +96,15 @@ function TaskModal({ task: t, onClose }) {
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-lg font-black tracking-tight text-slate-900">Nhiệm Vụ #{t.id}</span>
               <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm ${st.c}`}>{st.l}</span>
-              <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm border ${mobile ? 'bg-sky-50 text-sky-700 border-sky-100' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                {mobile ? '📱 Mobile' : '💻 Desktop'}
+              <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm border ${mobile ? 'bg-sky-50 text-sky-700 border-sky-100' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                {mobile ? <><Smartphone size={12} /> Mobile</> : <><Monitor size={12} /> Desktop</>}
               </span>
               {t.bot_detected && <span className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm bg-rose-500 text-white flex items-center gap-1.5"><Bot size={12} />SYSTEM DENIED</span>}
             </div>
             <p className="text-xs font-semibold text-slate-500 mt-2 flex items-center gap-2">
-              <span className="text-slate-400">🕒</span> {fmt(t.created_at)}
-              <span className="text-slate-300">|</span>
-              <span className="text-slate-400">🌐</span> <span className="font-mono text-[11px]">{t.ip_address}</span>
+              <Clock size={12} className="text-slate-400" /> {fmt(t.created_at)}
+              <span className="w-1 h-1 rounded-full bg-slate-300" />
+              <Globe size={12} className="text-sky-500" /> <span className="font-mono text-[11px] text-sky-600 tracking-tight">{t.ip_address}</span>
             </p>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-white border border-transparent hover:border-slate-200 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-slate-200"><X size={20} className="text-slate-400" /></button>
@@ -281,7 +281,7 @@ function EventModal({ event: ev, onClose }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
-      <div className="bg-white rounded-[2rem] shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col relative z-10 overflow-hidden ring-1 ring-slate-200/50 scale-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-[2rem] shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col relative z-10 overflow-hidden ring-1 ring-slate-200/50 scale-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
 
         {/* Header Ribbon */}
         <div className="px-6 py-5 flex items-start justify-between border-b bg-gradient-to-br from-rose-50 to-white border-rose-100">
@@ -292,14 +292,14 @@ function EventModal({ event: ev, onClose }) {
               <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm border ${ev.source === 'widget' ? 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
                 {ev.source === 'widget' ? 'Core Script' : ev.source === 'vuotlink' ? 'Vượt Link' : ev.source}
               </span>
-              <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm border ${mobile ? 'bg-sky-50 text-sky-700 border-sky-100' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                {mobile ? '📱 Mobile' : '💻 Desktop'}
+              <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm border ${mobile ? 'bg-sky-50 text-sky-700 border-sky-100' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                {mobile ? <><Smartphone size={12} /> Mobile</> : <><Monitor size={12} /> Desktop</>}
               </span>
             </div>
             <p className="text-xs font-semibold text-slate-500 mt-2 flex items-center gap-2">
-              <span className="text-slate-400">🕒</span> {fmt(ev.created_at)}
-              <span className="text-slate-300">|</span>
-              <span className="text-slate-400">🌐</span> <span className="font-mono text-[11px]">{ev.ip_address}</span>
+              <Clock size={12} className="text-slate-400" /> {fmt(ev.created_at)}
+              <span className="w-1 h-1 rounded-full bg-slate-300 flex-shrink-0" />
+              <Globe size={12} className="text-rose-400" /> <span className="font-mono text-rose-600 tracking-tight">{ev.ip_address}</span>
             </p>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-white border border-transparent hover:border-slate-200 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-slate-200"><X size={20} className="text-slate-400" /></button>
