@@ -19,31 +19,72 @@ router.get('/overview', async (req, res) => {
 
   const today = localDateStr();
   const [todayTraffic] = await pool.execute(
-    `SELECT COALESCE(SUM(views), 0) as views, COALESCE(SUM(clicks), 0) as clicks FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ? AND tl.date = ?`,
+    `SELECT COALESCE(SUM(views), 0) as views, COALESCE(SUM(clicks), 0) as clicks
+     FROM traffic_logs tl
+     JOIN campaigns c ON c.id = tl.campaign_id
+     WHERE c.user_id = ? AND tl.date = ?`,
     [req.userId, today]
   );
 
   const [totalV] = await pool.execute(
-    `SELECT COALESCE(SUM(views), 0) as total, COALESCE(SUM(clicks), 0) as totalClicks FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ?`,
+    `SELECT COALESCE(SUM(views), 0) as total, COALESCE(SUM(clicks), 0) as totalClicks
+     FROM traffic_logs tl
+     JOIN campaigns c ON c.id = tl.campaign_id
+     WHERE c.user_id = ?`,
     [req.userId]
   );
 
+  // Tổng chi phí chiến dịch (đã trừ từ ví)
   const [totalS] = await pool.execute(
-    `SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE user_id = ? AND type = 'withdraw' AND status = 'completed'`,
+    `SELECT COALESCE(SUM(amount), 0) as total FROM transactions
+     WHERE user_id = ? AND wallet_type = 'main' AND type = 'campaign' AND status = 'completed'`,
     [req.userId]
   );
+
+  // Chart 7 ngày: views + chi phí theo ngày từ traffic_logs
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+  const fromDate = localDateStr(sevenDaysAgo);
+
+  const [chartRows] = await pool.execute(
+    `SELECT tl.date as day,
+            COALESCE(SUM(tl.views), 0)              as views,
+            COALESCE(SUM(tl.clicks * c.cpc), 0)    as spent
+     FROM traffic_logs tl
+     JOIN campaigns c ON c.id = tl.campaign_id
+     WHERE c.user_id = ? AND tl.date >= ?
+     GROUP BY tl.date
+     ORDER BY tl.date ASC`,
+    [req.userId, fromDate]
+  );
+
+  // Điền đủ 7 ngày (ngày nào không có data sẽ là 0)
+  const chartMap = {};
+  chartRows.forEach(r => { chartMap[r.day] = r; });
+  const chart = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = localDateStr(d);
+    chart.push({
+      day:   key,
+      views: Number(chartMap[key]?.views || 0),
+      spent: Number(chartMap[key]?.spent || 0),
+    });
+  }
 
   res.json({
     overview: {
-      totalCampaigns: tc[0].count,
-      runningCampaigns: rc[0].count,
-      mainBalance: mw[0]?.balance || 0,
+      totalCampaigns:    tc[0].count,
+      runningCampaigns:  rc[0].count,
+      mainBalance:       mw[0]?.balance || 0,
       commissionBalance: cw[0]?.balance || 0,
-      todayViews: todayTraffic[0].views,
-      todayClicks: todayTraffic[0].clicks,
-      totalViews: totalV[0].total,
-      totalClicks: totalV[0].totalClicks,
-      totalSpent: totalS[0].total,
+      todayViews:        todayTraffic[0].views,
+      todayClicks:       todayTraffic[0].clicks,
+      totalViews:        totalV[0].total,
+      totalClicks:       totalV[0].totalClicks,
+      totalSpent:        totalS[0].total,
+      chart,
     },
   });
 });
