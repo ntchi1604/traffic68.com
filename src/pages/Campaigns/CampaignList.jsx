@@ -14,17 +14,17 @@ import api from '../../lib/api';
 /* ── helpers ── */
 const parseJsonArray = (val) => {
   if (!val) return [''];
-  try { const a = JSON.parse(val); if (Array.isArray(a)) return a.length ? a : ['']; } catch {}
+  try { const a = JSON.parse(val); if (Array.isArray(a)) return a.length ? a : ['']; } catch { }
   return [val];
 };
 
 /* ── Status badge ── */
 function StatusBadge({ status }) {
   const cfg = {
-    running:   { label: 'Đang chạy',  cls: 'text-emerald-700 bg-emerald-50 ring-emerald-200', dot: 'bg-emerald-500 animate-pulse' },
-    paused:    { label: 'Tạm dừng',   cls: 'text-amber-700  bg-amber-50   ring-amber-200',    dot: 'bg-amber-400' },
-    completed: { label: 'Hoàn thành', cls: 'text-indigo-700 bg-indigo-50  ring-indigo-200',   dot: 'bg-indigo-500' },
-    draft:     { label: 'Bản nháp',   cls: 'text-slate-600  bg-slate-100  ring-slate-200',    dot: 'bg-slate-400' },
+    running: { label: 'Đang chạy', cls: 'text-emerald-700 bg-emerald-50 ring-emerald-200', dot: 'bg-emerald-500 animate-pulse' },
+    paused: { label: 'Tạm dừng', cls: 'text-amber-700  bg-amber-50   ring-amber-200', dot: 'bg-amber-400' },
+    completed: { label: 'Hoàn thành', cls: 'text-indigo-700 bg-indigo-50  ring-indigo-200', dot: 'bg-indigo-500' },
+    draft: { label: 'Bản nháp', cls: 'text-slate-600  bg-slate-100  ring-slate-200', dot: 'bg-slate-400' },
   }[status] || { label: status, cls: 'text-slate-600 bg-slate-100 ring-slate-200', dot: 'bg-slate-400' };
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ring-1 ${cfg.cls}`}>
@@ -38,8 +38,8 @@ function StatusBadge({ status }) {
 function TrafficBadge({ type }) {
   const map = {
     google_search: { label: 'Google Search', cls: 'text-blue-700 bg-blue-50 border-blue-200' },
-    direct:        { label: 'Direct',         cls: 'text-violet-700 bg-violet-50 border-violet-200' },
-    social:        { label: 'Social',         cls: 'text-pink-700 bg-pink-50 border-pink-200' },
+    direct: { label: 'Direct', cls: 'text-violet-700 bg-violet-50 border-violet-200' },
+    social: { label: 'Social', cls: 'text-pink-700 bg-pink-50 border-pink-200' },
   };
   const cfg = map[type] || { label: type, cls: 'text-slate-600 bg-slate-100 border-slate-200' };
   return (
@@ -51,9 +51,9 @@ function TrafficBadge({ type }) {
 
 /* ── Keyword Stats Panel ── */
 function KeywordStats({ campaignId }) {
-  const [stats, setStats]   = useState(null);
-  const [daily, setDaily]   = useState([]);
-  const [page, setPage]     = useState(1);
+  const [stats, setStats] = useState(null);
+  const [daily, setDaily] = useState([]);
+  const [page, setPage] = useState(1);
   const rowsPerPage = 10;
   const [loading, setLoading] = useState(true);
 
@@ -80,9 +80,9 @@ function KeywordStats({ campaignId }) {
     </div>
   );
 
-  const totalAll       = stats.reduce((s, k) => s + Number(k.total), 0);
+  const totalAll = stats.reduce((s, k) => s + Number(k.total), 0);
   const totalCompleted = stats.reduce((s, k) => s + Number(k.completed), 0);
-  const totalCost      = stats.reduce((s, k) => s + Number(k.cost), 0);
+  const totalCost = stats.reduce((s, k) => s + Number(k.cost), 0);
 
   const exportCSV = () => {
     const BOM = '\uFEFF';
@@ -91,8 +91,8 @@ function KeywordStats({ campaignId }) {
       csv += `"${kw.keyword || '(trống)'}",${kw.total},${kw.completed},${kw.pending},${kw.expired},${kw.blocked},${kw.cost}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
     a.href = url; a.download = `tu-khoa-${campaignId}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
@@ -102,9 +102,9 @@ function KeywordStats({ campaignId }) {
       {/* Summary strip */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Tổng tasks',    value: totalAll,       color: 'text-slate-800', bg: 'bg-slate-50' },
-          { label: 'Hoàn thành',   value: totalCompleted, color: 'text-emerald-700', bg: 'bg-emerald-50' },
-          { label: 'Chi phí (đ)',   value: fmt(totalCost), color: 'text-indigo-700', bg: 'bg-indigo-50', raw: true },
+          { label: 'Tổng tasks', value: totalAll, color: 'text-slate-800', bg: 'bg-slate-50' },
+          { label: 'Hoàn thành', value: totalCompleted, color: 'text-emerald-700', bg: 'bg-emerald-50' },
+          { label: 'Chi phí (đ)', value: fmt(totalCost), color: 'text-indigo-700', bg: 'bg-indigo-50', raw: true },
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl px-4 py-3`}>
             <p className="text-[10px] text-slate-500 uppercase tracking-wide font-bold mb-0.5">{s.label}</p>
@@ -170,7 +170,7 @@ function KeywordStats({ campaignId }) {
                     <td className="px-4 py-2.5 text-slate-600 font-medium whitespace-nowrap">{d.date?.slice(0, 10)}</td>
                     <td className="px-4 py-2.5 font-semibold text-indigo-600 truncate max-w-[130px]">{d.keyword || '(Trống)'}</td>
                     <td className="px-4 py-2.5 font-bold text-emerald-600 tabular-nums">
-                      {d.completed}<span className="text-slate-400 font-medium text-[10px] ml-1">/ {d.total} nhận</span>
+                      {d.completed}<span className="text-slate-400 font-medium text-[10px] ml-0.5">/{d.daily_views || d.total}</span>
                     </td>
                     <td className="px-4 py-2.5 text-right font-semibold text-slate-700 tabular-nums">{fmt(d.cost)} đ</td>
                   </tr>
@@ -199,22 +199,22 @@ function KeywordStats({ campaignId }) {
 function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
   const [dailyViews, setDailyViews] = useState(campaign.daily_views || 500);
-  const [keywords, setKeywords]     = useState(() => parseJsonArray(campaign.keyword));
-  const [urls, setUrls]             = useState(() => {
-    const main   = campaign.url || '';
+  const [keywords, setKeywords] = useState(() => parseJsonArray(campaign.keyword));
+  const [urls, setUrls] = useState(() => {
+    const main = campaign.url || '';
     const extras = parseJsonArray(campaign.url2);
     return main ? [main, ...extras.filter(u => u && u !== main)] : [''];
   });
-  const [imageUrls, setImageUrls]   = useState(() => {
+  const [imageUrls, setImageUrls] = useState(() => {
     const imgs = parseJsonArray(campaign.image1_url);
     const img2 = campaign.image2_url;
     if (img2 && !imgs.includes(img2)) imgs.push(img2);
     return imgs.filter(Boolean).length ? imgs.filter(Boolean) : [''];
   });
-  const [saving, setSaving]             = useState(false);
+  const [saving, setSaving] = useState(false);
   const [uploadingIdx, setUploadingIdx] = useState(-1);
 
-  const addItem    = (setter) => setter(prev => [...prev, '']);
+  const addItem = (setter) => setter(prev => [...prev, '']);
   const removeItem = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
   const updateItem = (setter, idx, val) => setter(prev => prev.map((v, i) => i === idx ? val : v));
 
@@ -226,8 +226,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       const formData = new FormData();
       formData.append('image', file);
       const token = localStorage.getItem('token');
-      const res   = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
-      const data  = await res.json();
+      const res = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+      const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload thất bại');
       updateItem(setImageUrls, idx, data.imageUrl);
     } catch (err) { toast.error(err.message); }
@@ -237,14 +237,14 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const kws  = keywords.filter(k => k.trim());
-      const u    = urls.filter(u => u.trim());
+      const kws = keywords.filter(k => k.trim());
+      const u = urls.filter(u => u.trim());
       const imgs = imageUrls.filter(u => u.trim());
       await api.put(`/campaigns/${campaign.id}`, {
         dailyViews: Number(dailyViews),
-        keyword:    JSON.stringify(kws.length ? kws : [campaign.keyword || '']),
-        url:        u[0] || campaign.url,
-        url2:       JSON.stringify(u.slice(1)),
+        keyword: JSON.stringify(kws.length ? kws : [campaign.keyword || '']),
+        url: u[0] || campaign.url,
+        url2: JSON.stringify(u.slice(1)),
         image1_url: imgs.length ? JSON.stringify(imgs) : null,
         image2_url: null,
       });
@@ -371,14 +371,14 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 export default function CampaignList() {
   usePageTitle('Quản lý chiến dịch');
   const navigate = useNavigate();
-  const toast    = useToast();
-  const [campaigns, setCampaigns]     = useState([]);
-  const [filter, setFilter]           = useState('all');
-  const [search, setSearch]           = useState('');
-  const [loading, setLoading]         = useState(true);
+  const toast = useToast();
+  const [campaigns, setCampaigns] = useState([]);
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
   const [editingCampaign, setEditingCampaign] = useState(null);
-  const [expandedId, setExpandedId]   = useState(null);
-  const [page, setPage]               = useState(1);
+  const [expandedId, setExpandedId] = useState(null);
+  const [page, setPage] = useState(1);
   const LIMIT = 10;
 
   const fetchCampaigns = () => {
@@ -408,7 +408,7 @@ export default function CampaignList() {
   }, [campaigns, filter, search]);
 
   const totalPages = Math.ceil(filtered.length / LIMIT);
-  const pagedList  = filtered.slice((page - 1) * LIMIT, page * LIMIT);
+  const pagedList = filtered.slice((page - 1) * LIMIT, page * LIMIT);
 
   const handleToggle = async (c) => {
     const newStatus = c.status === 'running' ? 'paused' : 'running';
@@ -421,17 +421,17 @@ export default function CampaignList() {
 
   /* counts */
   const counts = {
-    all:       campaigns.length,
-    running:   campaigns.filter(c => c.status === 'running' && !(Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0)).length,
-    paused:    campaigns.filter(c => c.status === 'paused'  && !(Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0)).length,
+    all: campaigns.length,
+    running: campaigns.filter(c => c.status === 'running' && !(Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0)).length,
+    paused: campaigns.filter(c => c.status === 'paused' && !(Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0)).length,
     completed: campaigns.filter(c => Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0 || c.status === 'completed').length,
   };
 
   const FILTERS = [
-    { key: 'all',       label: 'Tất cả',    icon: Target },
-    { key: 'running',   label: 'Đang chạy', icon: Zap },
-    { key: 'paused',    label: 'Tạm dừng',  icon: Clock },
-    { key: 'completed', label: 'Hoàn thành',icon: CheckCircle2 },
+    { key: 'all', label: 'Tất cả', icon: Target },
+    { key: 'running', label: 'Đang chạy', icon: Zap },
+    { key: 'paused', label: 'Tạm dừng', icon: Clock },
+    { key: 'completed', label: 'Hoàn thành', icon: CheckCircle2 },
   ];
 
   return (
@@ -455,10 +455,10 @@ export default function CampaignList() {
       {/* ── Stats strip ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Tổng chiến dịch', value: counts.all,       icon: Target,       iconBg: 'bg-slate-100',    iconCl: 'text-slate-600' },
-          { label: 'Đang chạy',       value: counts.running,   icon: Zap,          iconBg: 'bg-emerald-100',  iconCl: 'text-emerald-600' },
-          { label: 'Tạm dừng',        value: counts.paused,    icon: Clock,        iconBg: 'bg-amber-100',    iconCl: 'text-amber-600' },
-          { label: 'Hoàn thành',      value: counts.completed, icon: CheckCircle2, iconBg: 'bg-indigo-100',   iconCl: 'text-indigo-600' },
+          { label: 'Tổng chiến dịch', value: counts.all, icon: Target, iconBg: 'bg-slate-100', iconCl: 'text-slate-600' },
+          { label: 'Đang chạy', value: counts.running, icon: Zap, iconBg: 'bg-emerald-100', iconCl: 'text-emerald-600' },
+          { label: 'Tạm dừng', value: counts.paused, icon: Clock, iconBg: 'bg-amber-100', iconCl: 'text-amber-600' },
+          { label: 'Hoàn thành', value: counts.completed, icon: CheckCircle2, iconBg: 'bg-indigo-100', iconCl: 'text-indigo-600' },
         ].map(s => {
           const Icon = s.icon;
           return (
@@ -490,17 +490,15 @@ export default function CampaignList() {
             const Icon = f.icon;
             return (
               <button key={f.key} onClick={() => { setFilter(f.key); setPage(1); }}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all ${
-                  filter === f.key
-                    ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all ${filter === f.key
+                  ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200'
+                  : 'text-slate-500 hover:text-slate-700'
+                  }`}
               >
                 <Icon size={11} />
                 <span className="hidden sm:inline">{f.label}</span>
-                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
-                  filter === f.key ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-500'
-                }`}>{counts[f.key]}</span>
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${filter === f.key ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-500'
+                  }`}>{counts[f.key]}</span>
               </button>
             );
           })}
@@ -534,124 +532,123 @@ export default function CampaignList() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   {['Chiến dịch', 'Trạng thái', 'Tổng tiến độ', 'Ngân sách', 'Hành động'].map((h, i) => (
-                    <th key={h} className={`px-5 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest ${
-                      i >= 2 ? 'text-right' : 'text-left'
-                    } ${i === 4 ? 'text-center w-28' : ''}`}>{h}</th>
+                    <th key={h} className={`px-5 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest ${i >= 2 ? 'text-right' : 'text-left'
+                      } ${i === 4 ? 'text-center w-28' : ''}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
               {pagedList.map(c => {
-                  const isDone    = Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0;
-                  const effStatus = isDone ? 'completed' : c.status;
-                  const pct       = Number(c.total_views) > 0
-                    ? Math.min(Math.round(Number(c.views_done) / Number(c.total_views) * 100), 100) : 0;
-                  const barColor  = effStatus === 'completed' ? '#6366f1' : effStatus === 'running' ? '#10b981' : '#f59e0b';
-                  const isExpanded = expandedId === c.id;
+                const isDone = Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0;
+                const effStatus = isDone ? 'completed' : c.status;
+                const pct = Number(c.total_views) > 0
+                  ? Math.min(Math.round(Number(c.views_done) / Number(c.total_views) * 100), 100) : 0;
+                const barColor = effStatus === 'completed' ? '#6366f1' : effStatus === 'running' ? '#10b981' : '#f59e0b';
+                const isExpanded = expandedId === c.id;
 
-                  const keywords = (() => {
-                    try { return JSON.parse(c.keyword); } catch { return [c.keyword || '']; }
-                  })();
+                const keywords = (() => {
+                  try { return JSON.parse(c.keyword); } catch { return [c.keyword || '']; }
+                })();
 
-                  return (
-                    <tbody key={c.id} className={`border-b border-slate-100 last:border-0 group transition-colors ${isExpanded ? 'bg-indigo-50/20' : 'hover:bg-slate-50/60'}`}>
-                      <tr>
-                        {/* Campaign info */}
-                        <td className="px-5 py-4">
-                          <div className="max-w-[260px]">
-                            <p className="font-bold text-slate-900 text-[13px] leading-tight truncate group-hover:text-indigo-700 transition-colors cursor-pointer"
-                              onClick={() => setExpandedId(isExpanded ? null : c.id)}>
-                              {c.name}
-                            </p>
-                            <a href={c.url} target="_blank" rel="noopener noreferrer"
-                              className="text-[11px] text-indigo-500 hover:text-indigo-700 hover:underline truncate block mt-0.5 font-mono">
-                              {c.url}
-                            </a>
-                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                              <TrafficBadge type={c.traffic_type} />
-                              {keywords.slice(0, 2).map((kw, i) => (
-                                <span key={i} className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md font-medium truncate max-w-[100px]">{kw}</span>
-                              ))}
-                              {keywords.length > 2 && (
-                                <span className="text-[10px] text-slate-400">+{keywords.length - 2}</span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Status */}
-                        <td className="px-5 py-4 align-top pt-5">
-                          <StatusBadge status={effStatus} />
-                        </td>
-
-                        {/* Progress */}
-                        <td className="px-5 py-4 text-right align-top pt-5">
-                          <div className="flex flex-col items-end w-36 ml-auto">
-                            <div className="flex justify-between w-full mb-1.5">
-                              <span className="text-[11px] font-semibold text-slate-500 tabular-nums">{fmt(c.views_done)}<span className="text-slate-300">/{fmt(c.total_views)}</span></span>
-                              <span className="text-[12px] font-black tabular-nums" style={{ color: barColor }}>{pct}%</span>
-                            </div>
-                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: barColor }} />
-                            </div>
-                            <p className="text-[10px] text-slate-400 mt-1 font-medium">Max {fmt(c.daily_views)}/ngày</p>
-                          </div>
-                        </td>
-
-                        {/* Budget */}
-                        <td className="px-5 py-4 text-right align-top pt-5 whitespace-nowrap">
-                          <p className="text-[13px] font-black text-slate-800 tabular-nums">{fmt(c.budget)} <span className="text-[10px] font-bold text-slate-400">đ</span></p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">CPC: {fmt(c.cpc)} đ</p>
-                        </td>
-
-                        {/* Actions */}
-                        <td className="px-4 py-4 text-center align-top pt-4">
-                          <div className="flex items-center justify-center gap-1.5 sm:opacity-60 group-hover:opacity-100 transition-opacity">
-                            {/* Stats toggle */}
-                            <button onClick={() => setExpandedId(isExpanded ? null : c.id)} title="Thống kê từ khóa"
-                              className={`p-2 rounded-xl transition border ${isExpanded
-                                ? 'bg-indigo-100 border-indigo-200 text-indigo-700'
-                                : 'bg-white border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 text-slate-400'}`}>
-                              <BarChart3 size={14} />
-                            </button>
-
-                            {effStatus !== 'completed' && (
-                              <>
-                                {/* Edit */}
-                                <button onClick={() => setEditingCampaign(c)} title="Chỉnh sửa"
-                                  className="p-2 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-400 hover:text-slate-700 rounded-xl transition">
-                                  <Pencil size={14} />
-                                </button>
-
-                                {/* Pause / Resume */}
-                                <button onClick={() => handleToggle(c)} title={c.status === 'running' ? 'Tạm dừng' : 'Chạy lại'}
-                                  className={`p-2 rounded-xl transition border ${c.status === 'running'
-                                    ? 'bg-white border-slate-200 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-600 text-slate-400'
-                                    : 'bg-white border-slate-200 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600 text-slate-400'}`}>
-                                  {c.status === 'running' ? <Pause size={14} /> : <Play size={14} />}
-                                </button>
-                              </>
+                return (
+                  <tbody key={c.id} className={`border-b border-slate-100 last:border-0 group transition-colors ${isExpanded ? 'bg-indigo-50/20' : 'hover:bg-slate-50/60'}`}>
+                    <tr>
+                      {/* Campaign info */}
+                      <td className="px-5 py-4">
+                        <div className="max-w-[260px]">
+                          <p className="font-bold text-slate-900 text-[13px] leading-tight truncate group-hover:text-indigo-700 transition-colors cursor-pointer"
+                            onClick={() => setExpandedId(isExpanded ? null : c.id)}>
+                            {c.name}
+                          </p>
+                          <a href={c.url} target="_blank" rel="noopener noreferrer"
+                            className="text-[11px] text-indigo-500 hover:text-indigo-700 hover:underline truncate block mt-0.5 font-mono">
+                            {c.url}
+                          </a>
+                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                            <TrafficBadge type={c.traffic_type} />
+                            {keywords.slice(0, 2).map((kw, i) => (
+                              <span key={i} className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md font-medium truncate max-w-[100px]">{kw}</span>
+                            ))}
+                            {keywords.length > 2 && (
+                              <span className="text-[10px] text-slate-400">+{keywords.length - 2}</span>
                             )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-5 py-4 align-top pt-5">
+                        <StatusBadge status={effStatus} />
+                      </td>
+
+                      {/* Progress */}
+                      <td className="px-5 py-4 text-right align-top pt-5">
+                        <div className="flex flex-col items-end w-36 ml-auto">
+                          <div className="flex justify-between w-full mb-1.5">
+                            <span className="text-[11px] font-semibold text-slate-500 tabular-nums">{fmt(c.views_done)}<span className="text-slate-300">/{fmt(c.total_views)}</span></span>
+                            <span className="text-[12px] font-black tabular-nums" style={{ color: barColor }}>{pct}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: barColor }} />
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-1 font-medium">Max {fmt(c.daily_views)}/ngày</p>
+                        </div>
+                      </td>
+
+                      {/* Budget */}
+                      <td className="px-5 py-4 text-right align-top pt-5 whitespace-nowrap">
+                        <p className="text-[13px] font-black text-slate-800 tabular-nums">{fmt(c.budget)} <span className="text-[10px] font-bold text-slate-400">đ</span></p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">CPC: {fmt(c.cpc)} đ</p>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-4 text-center align-top pt-4">
+                        <div className="flex items-center justify-center gap-1.5 sm:opacity-60 group-hover:opacity-100 transition-opacity">
+                          {/* Stats toggle */}
+                          <button onClick={() => setExpandedId(isExpanded ? null : c.id)} title="Thống kê từ khóa"
+                            className={`p-2 rounded-xl transition border ${isExpanded
+                              ? 'bg-indigo-100 border-indigo-200 text-indigo-700'
+                              : 'bg-white border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 text-slate-400'}`}>
+                            <BarChart3 size={14} />
+                          </button>
+
+                          {effStatus !== 'completed' && (
+                            <>
+                              {/* Edit */}
+                              <button onClick={() => setEditingCampaign(c)} title="Chỉnh sửa"
+                                className="p-2 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-400 hover:text-slate-700 rounded-xl transition">
+                                <Pencil size={14} />
+                              </button>
+
+                              {/* Pause / Resume */}
+                              <button onClick={() => handleToggle(c)} title={c.status === 'running' ? 'Tạm dừng' : 'Chạy lại'}
+                                className={`p-2 rounded-xl transition border ${c.status === 'running'
+                                  ? 'bg-white border-slate-200 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-600 text-slate-400'
+                                  : 'bg-white border-slate-200 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600 text-slate-400'}`}>
+                                {c.status === 'running' ? <Pause size={14} /> : <Play size={14} />}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Expanded stats row */}
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={5} className="p-0 border-t border-indigo-100">
+                          <div className="px-5 py-5"
+                            style={{ background: 'linear-gradient(135deg, #f8faff 0%, #f5f3ff 100%)' }}>
+                            <div className="flex items-center gap-2 mb-4">
+                              <TrendingUp size={14} className="text-indigo-500" />
+                              <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Thống kê chi tiết – {c.name}</span>
+                            </div>
+                            <KeywordStats campaignId={c.id} />
                           </div>
                         </td>
                       </tr>
-
-                      {/* Expanded stats row */}
-                      {isExpanded && (
-                        <tr>
-                          <td colSpan={5} className="p-0 border-t border-indigo-100">
-                            <div className="px-5 py-5"
-                              style={{ background: 'linear-gradient(135deg, #f8faff 0%, #f5f3ff 100%)' }}>
-                              <div className="flex items-center gap-2 mb-4">
-                                <TrendingUp size={14} className="text-indigo-500" />
-                                <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Thống kê chi tiết – {c.name}</span>
-                              </div>
-                              <KeywordStats campaignId={c.id} />
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  );
+                    )}
+                  </tbody>
+                );
               })}
             </table>
           </div>
@@ -674,7 +671,7 @@ export default function CampaignList() {
               .map((p, i) => p === '...'
                 ? <span key={`d${i}`} className="px-1.5 text-slate-400 text-xs">…</span>
                 : <button key={p} onClick={() => setPage(p)}
-                    className={`w-8 h-8 text-xs font-bold rounded-xl transition ${page === p ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
+                  className={`w-8 h-8 text-xs font-bold rounded-xl transition ${page === p ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
               )
             }
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
