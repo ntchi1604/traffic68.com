@@ -240,11 +240,18 @@ async function getUSDTBalance(address) {
 async function getTrc20USDTBalance(address) {
   if (!address) return 0;
   try {
-    const resp = await fetch(`https://apilist.tronscanapi.com/api/accountinfo?address=${address}`);
+    const resp = await fetch(`https://api.trongrid.io/v1/accounts/${address}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
-    const usdt = data.trc20token_balances?.find(t => t.tokenId === 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t');
-    if (!usdt) return 0;
-    return Number(usdt.balance) / 1e6;
+    if (!data.data || data.data.length === 0) return 0;
+    
+    const trc20Arr = data.data[0].trc20 || [];
+    for (const token of trc20Arr) {
+      if (token['TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t']) {
+        return Number(token['TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t']) / 1e6;
+      }
+    }
+    return 0;
   } catch (err) {
     console.error('[DepositWatcher] Error fetching TRC20 balance:', err.message);
     throw err;
