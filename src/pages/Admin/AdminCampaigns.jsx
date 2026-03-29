@@ -123,7 +123,6 @@ function KeywordStats({ campaignId }) {
                   <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]" title={d.keyword}>{d.keyword || '(Trống)'}</td>
                   <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
                     {d.completed} <span className="text-slate-500 font-medium text-[10px] ml-0.5">/ {d.daily_views || d.total}</span>
-                    <span className="block text-[10px] text-slate-400 font-normal mt-0.5">{d.total} lượt nhận</span>
                   </td>
                   <td className="px-4 py-2.5 text-right font-semibold text-slate-600">{fmt(d.cost)} đ</td>
                 </tr>

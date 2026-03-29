@@ -94,13 +94,11 @@ function CampaignDetailModal({ campaign: c, onClose }) {
   }, [c, mRange]);
 
   if (!c) return null;
-  // Ưu tiên detail.totalClicks (đếm từ traffic_logs) khi đã load,
-  // fallback về c.views_done khi chưa có data
-  const done  = detail ? Math.max(Number(c.views_done || 0), Number(detail.totalClicks || 0)) : Number(c.views_done || 0);
+  const done = Number(c.views_done || 0);
   const total = Number(c.total_views || 1);
-  const pct   = Math.min(Math.round((done / total) * 100), 100);
+  const pct = Math.min(Math.round((done / total) * 100), 100);
   const spent = Number(detail?.totalClicks || c.views_done || 0) * Number(c.cpc || 0);
-  const eff   = detail?.totalViews > 0 ? Math.round((detail.totalClicks / detail.totalViews) * 100) : 0;
+  const eff = detail?.totalViews > 0 ? Math.round((detail.totalClicks / detail.totalViews) * 100) : 0;
 
   const deviceData = [
     { name: 'Desktop', value: detail?.desktop || 0, color: '#3B82F6' },
@@ -115,9 +113,9 @@ function CampaignDetailModal({ campaign: c, onClose }) {
   }));
 
   const kpis = [
-    { label: 'Hoàn thành', value: fmt(detail?.totalClicks || 0), sub: `/ ${fmt(detail?.totalViews || 0)} nhận task`, color: '#10B981', bg: '#ECFDF5' },
+    { label: 'Hoàn thành', value: fmt(done), sub: '', color: '#10B981', bg: '#ECFDF5' },
     { label: 'Chi phí', value: `${fmt(spent)} đ`, sub: `CPC: ${fmt(c.cpc)} đ`, color: '#F97316', bg: '#FFF7ED' },
-    { label: 'Hiệu suất', value: `${eff}%`, sub: 'hoàn thành / nhận task', color: '#3B82F6', bg: '#EFF6FF' },
+    { label: 'Hiệu suất', value: `${eff}%`, sub: '', color: '#3B82F6', bg: '#EFF6FF' },
     { label: 'Unique IPs', value: fmt(detail?.uniqueIps || 0), sub: 'IP khác nhau', color: '#8B5CF6', bg: '#F5F3FF' },
   ];
 
@@ -390,7 +388,6 @@ function CampaignDetailModal({ campaign: c, onClose }) {
                           <td style={{ padding: '7px 12px', color: '#059669', textAlign: 'right', fontWeight: 700 }}>
                             {fmt(d.completed)}
                             <span style={{ color: '#94a3b8', fontWeight: 500, fontSize: 10, marginLeft: 2 }}>/ {fmt(d.daily_views || d.total)}</span>
-                            <span style={{ display: 'block', color: '#94a3b8', fontWeight: 400, fontSize: 10, marginTop: 2 }}>{fmt(d.total)} lượt nhận</span>
                           </td>
                           <td style={{ padding: '7px 12px', color: '#475569', textAlign: 'right', fontWeight: 600 }}>{fmt(d.cost)} đ</td>
                         </tr>
@@ -546,11 +543,10 @@ export default function TrafficTracking() {
           <div className="flex bg-white border border-slate-200 rounded-xl p-1 gap-0.5 shadow-sm">
             {PERIODS.map(p => (
               <button key={p.key} onClick={() => setRange(p.key)}
-                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                  range === p.key
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                }`}>
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${range === p.key
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                  }`}>
                 {p.label}
               </button>
             ))}
@@ -591,17 +587,15 @@ export default function TrafficTracking() {
           </div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 flex items-start gap-4">
-          <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${
-            trend.dir === 'up' ? 'bg-emerald-50 border-emerald-100' : trend.dir === 'down' ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-200'
-          }`}>
+          <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${trend.dir === 'up' ? 'bg-emerald-50 border-emerald-100' : trend.dir === 'down' ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-200'
+            }`}>
             {trend.dir === 'up' ? <TrendingUp size={17} className="text-emerald-500" /> : trend.dir === 'down' ? <TrendingDown size={17} className="text-red-500" /> : <Minus size={17} className="text-slate-400" />}
           </div>
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Xu hướng traffic</p>
             <p className="text-lg font-black text-slate-900 mt-0.5">{trend.dir === 'up' ? `+${trend.pct}%` : trend.dir === 'down' ? `-${trend.pct}%` : 'Ổn định'}</p>
-            <p className={`text-xs font-semibold mt-0.5 ${
-              trend.dir === 'up' ? 'text-emerald-600' : trend.dir === 'down' ? 'text-red-500' : 'text-slate-400'
-            }`}>{trend.dir === 'up' ? 'Đang tăng' : trend.dir === 'down' ? 'Đang giảm' : 'Không đổi'} nửa kỳ sau</p>
+            <p className={`text-xs font-semibold mt-0.5 ${trend.dir === 'up' ? 'text-emerald-600' : trend.dir === 'down' ? 'text-red-500' : 'text-slate-400'
+              }`}>{trend.dir === 'up' ? 'Đang tăng' : trend.dir === 'down' ? 'Đang giảm' : 'Không đổi'} nửa kỳ sau</p>
           </div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 flex items-start gap-4">
@@ -621,7 +615,6 @@ export default function TrafficTracking() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
           <div>
             <h2 className="text-sm font-bold text-slate-800">Lượt hoàn thành & Chi phí theo ngày</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Dual-axis: bars = hoàn thành, line = chi phí</p>
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-500 inline-block" /> Hoàn thành</span>
@@ -677,11 +670,10 @@ export default function TrafficTracking() {
             </div>
           </div>
           <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5 overflow-x-auto">
-            {[{id: 'all', label: 'Tất cả'}, {id: 'running', label: 'Đang chạy'}, {id: 'paused', label: 'Tạm dừng'}, {id: 'completed', label: 'Hoàn thành'}].map(f => (
+            {[{ id: 'all', label: 'Tất cả' }, { id: 'running', label: 'Đang chạy' }, { id: 'paused', label: 'Tạm dừng' }, { id: 'completed', label: 'Hoàn thành' }].map(f => (
               <button key={f.id} onClick={() => { setCampFilter(f.id); setPageCamp(1); }}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap ${
-                  campFilter === f.id ? 'bg-white shadow-sm text-indigo-700 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'
-                }`}>
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap ${campFilter === f.id ? 'bg-white shadow-sm text-indigo-700 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'
+                  }`}>
                 {f.label}
               </button>
             ))}
@@ -709,9 +701,9 @@ export default function TrafficTracking() {
                 const pct = Math.min(Math.round((done / total) * 100), 100);
                 const effStatus = isCompleted ? 'completed' : c.status;
                 const statusCfg = {
-                  running:   { label: 'Đang chạy',  cls: 'text-emerald-700 bg-emerald-50 ring-emerald-200', dot: 'bg-emerald-500 animate-pulse' },
-                  paused:    { label: 'Tạm dừng',   cls: 'text-amber-700 bg-amber-50 ring-amber-200',        dot: 'bg-amber-400' },
-                  completed: { label: 'Hoàn thành', cls: 'text-indigo-700 bg-indigo-50 ring-indigo-200',     dot: 'bg-indigo-500' },
+                  running: { label: 'Đang chạy', cls: 'text-emerald-700 bg-emerald-50 ring-emerald-200', dot: 'bg-emerald-500 animate-pulse' },
+                  paused: { label: 'Tạm dừng', cls: 'text-amber-700 bg-amber-50 ring-amber-200', dot: 'bg-amber-400' },
+                  completed: { label: 'Hoàn thành', cls: 'text-indigo-700 bg-indigo-50 ring-indigo-200', dot: 'bg-indigo-500' },
                 }[effStatus] || { label: effStatus, cls: 'text-slate-600 bg-slate-100 ring-slate-200', dot: 'bg-slate-400' };
                 const barColor = effStatus === 'completed' ? '#6366f1' : effStatus === 'running' ? '#10b981' : '#f59e0b';
                 return (

@@ -196,7 +196,6 @@ router.get('/:id/keyword-stats', async (req, res) => {
     );
     res.json({ keywords: rows });
 
-    // ── Auto-sync views_done (fire-and-forget) ──
     const realViews = rows.reduce((s, r) => s + Number(r.completed), 0);
     pool.execute('SELECT views_done, total_views, status FROM campaigns WHERE id = ?', [req.params.id]).then(([c]) => {
       if (c[0]) {
