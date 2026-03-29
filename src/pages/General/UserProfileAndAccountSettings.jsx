@@ -131,7 +131,6 @@ export default function UserProfileAndAccountSettings() {
         { label: 'Hồ sơ & Tài khoản' },
       ]} />
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900">Hồ sơ & Tài khoản</h1>
       </div>
 
       {error && (
@@ -142,22 +141,20 @@ export default function UserProfileAndAccountSettings() {
       <div className="flex border-b border-slate-200">
         <button
           onClick={() => setActiveTab('profile')}
-          className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'profile'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
+          className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'profile'
+            ? 'border-blue-500 text-blue-600'
+            : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
         >
           <User className="w-4 h-4 inline mr-1" />
           Hồ sơ cá nhân
         </button>
         <button
           onClick={() => setActiveTab('password')}
-          className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'password'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
+          className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'password'
+            ? 'border-blue-500 text-blue-600'
+            : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
         >
           <Lock className="w-4 h-4 inline mr-1" />
           Mật khẩu

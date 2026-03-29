@@ -412,12 +412,6 @@ export default function ScriptGenerator() {
         { label: 'Script Nút Lấy Mã' },
       ]} />
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-gray-900">Script Nút Lấy Mã</h1>
-        </div>
-      </div>
-
       {/* Config panel — always visible */}
       {!loading && (
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
@@ -542,7 +536,7 @@ export default function ScriptGenerator() {
                   </div>
                   <div className="relative">
                     <pre className="bg-slate-900 text-green-400 rounded-xl p-4 text-xs font-mono overflow-x-auto">
-{`<div id="API_SEO_TRAFFIC68"></div>`}
+                      {`<div id="API_SEO_TRAFFIC68"></div>`}
                     </pre>
                     <div className="absolute top-2 right-2">
                       <CopyButton text='<div id="API_SEO_TRAFFIC68"></div>' />

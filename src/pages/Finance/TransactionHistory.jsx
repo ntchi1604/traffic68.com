@@ -214,48 +214,8 @@ export default function TransactionHistory() {
 
 
 
-      {/* ── Summary Banner ── */}
-      <div style={{
-        background: 'linear-gradient(135deg, #f8faff 0%, #eef2ff 50%, #faf5ff 100%)',
-        border: '1px solid #e0e7ff',
-        borderRadius: 20,
-        padding: '20px 24px',
-        marginBottom: 20,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: 16,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 14,
-            background: net >= 0 ? 'linear-gradient(135deg,#10b981,#059669)' : 'linear-gradient(135deg,#f43f5e,#e11d48)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: net >= 0 ? '0 4px 14px rgba(16,185,129,0.35)' : '0 4px 14px rgba(244,63,94,0.35)',
-          }}>
-            <Sparkles size={20} color="#fff" />
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Số dư ròng tích lũy</p>
-            <p style={{ margin: 0, fontSize: 26, fontWeight: 900, color: net >= 0 ? '#059669' : '#e11d48', letterSpacing: '-0.03em', lineHeight: 1.15 }}>
-              {net >= 0 ? '+' : '−'}{fmt(Math.abs(net))}<span style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', marginLeft: 4 }}>VNĐ</span>
-            </p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-          {[
-            { label: 'Tổng nạp', value: summary.deposit, color: '#10b981' },
-            { label: 'Hoa hồng', value: summary.commission, color: '#8b5cf6' },
-            { label: 'Đã chi',   value: summary.campaign + summary.withdraw, color: '#f43f5e' },
-          ].map(item => (
-            <div key={item.label} style={{ textAlign: 'center' }}>
-              <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{item.label}</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: item.color, letterSpacing: '-0.02em' }}>{fmt(item.value)}₫</p>
-            </div>
-          ))}
-        </div>
-      </div>
+
+
 
       {/* ── Stat Cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 24 }}>

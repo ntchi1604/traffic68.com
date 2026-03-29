@@ -41,11 +41,6 @@ export default function BuyerSupport() {
   return (
     <div className="space-y-6 w-full min-w-0">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/buyer/dashboard' }, { label: 'Hỗ trợ' }]} />
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Hỗ trợ kỹ thuật</h1>
-        <p className="text-slate-500 text-sm mt-1">Gửi yêu cầu hỗ trợ hoặc báo cáo lỗi</p>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl border border-slate-200/80 p-5">
           <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
