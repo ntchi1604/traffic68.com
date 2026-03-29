@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import usePageTitle from '../../hooks/usePageTitle';
-import { User, Lock, Mail, Phone, Save, Camera, Check } from 'lucide-react';
+import { User, Lock, Mail, Phone, Save, Camera, Check, Eye, EyeOff, Shield } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
@@ -12,18 +12,12 @@ export default function UserProfileAndAccountSettings() {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile');
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', avatar: '' });
-  const [passwordForm, setPasswordForm] = useState({
-    current: '',
-    new: '',
-    confirm: '',
-  });
+  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Fetch user profile on mount
   useEffect(() => {
     api.get('/users/profile').then(data => {
       const u = data.user;
@@ -31,7 +25,7 @@ export default function UserProfileAndAccountSettings() {
         name: u.name || '',
         email: u.email || '',
         phone: u.phone || '',
-        avatar: u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'U')}&background=3B82F6&color=FFFFFF`,
+        avatar: u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'U')}&background=6366f1&color=FFFFFF`,
       });
     }).catch(err => {
       console.error('Failed to load profile:', err);
@@ -41,18 +35,12 @@ export default function UserProfileAndAccountSettings() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
-    setPasswordForm(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setPasswordForm(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -61,8 +49,7 @@ export default function UserProfileAndAccountSettings() {
     setError('');
     try {
       await api.put('/users/profile', { name: formData.name, phone: formData.phone });
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
+      toast.success('Đã cập nhật hồ sơ thành công!');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -80,14 +67,12 @@ export default function UserProfileAndAccountSettings() {
       toast.error('Mật khẩu mới phải có ít nhất 8 ký tự!');
       return;
     }
-
     setIsSubmitting(true);
     setError('');
     try {
       await api.put('/users/password', { currentPassword: passwordForm.current, newPassword: passwordForm.new });
-      setShowSuccess(true);
+      toast.success('Đổi mật khẩu thành công!');
       setPasswordForm({ current: '', new: '', confirm: '' });
-      setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -119,237 +104,154 @@ export default function UserProfileAndAccountSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
+  const tabs = [
+    { key: 'profile', label: 'Hồ sơ cá nhân', icon: User },
+    { key: 'password', label: 'Mật khẩu', icon: Lock },
+  ];
+
+  const inputStyle = "w-full px-4 py-3 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 w-full min-w-0 pb-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <Breadcrumb items={[
         { label: 'Dashboard', to: '/buyer/dashboard' },
         { label: 'Hồ sơ & Tài khoản' },
       ]} />
+
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm font-medium">
+        <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-semibold">
           {error}
         </div>
       )}
-      <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'profile'
-            ? 'border-blue-500 text-blue-600'
-            : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-        >
-          <User className="w-4 h-4 inline mr-1" />
-          Hồ sơ cá nhân
-        </button>
-        <button
-          onClick={() => setActiveTab('password')}
-          className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'password'
-            ? 'border-blue-500 text-blue-600'
-            : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-        >
-          <Lock className="w-4 h-4 inline mr-1" />
-          Mật khẩu
-        </button>
+
+      {/* Tab Bar */}
+      <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-bold rounded-lg transition-all ${
+              activeTab === t.key
+                ? 'bg-white text-indigo-700 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}>
+            <t.icon size={14} />
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {activeTab === 'profile' ? (
-        <div className="bg-white rounded-lg shadow border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-6">Thông tin cá nhân</h2>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="flex flex-col md:flex-row gap-6">
-              <div className="flex flex-col items-center">
-                <div className="relative">
-                  <img
-                    src={formData.avatar}
-                    alt="Avatar"
-                    className="w-24 h-24 rounded-full object-cover border-2 border-slate-200"
-                  />
-                  <label className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full p-2 cursor-pointer hover:bg-blue-700 transition-colors">
-                    <Camera className="w-5 h-5" />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-                <p className="text-sm text-slate-500 mt-2">Chọn ảnh đại diện</p>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <form onSubmit={handleSubmit}>
+            {/* Avatar section */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-5">
+              <div className="relative">
+                <img src={formData.avatar} alt="Avatar"
+                  className="w-20 h-20 rounded-2xl object-cover border-2 border-slate-200" />
+                <label className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer transition-all hover:scale-110"
+                  style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 2px 8px rgba(99,102,241,0.3)' }}>
+                  <Camera size={14} className="text-white" />
+                  <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
+                </label>
+              </div>
+              <div>
+                <p className="text-base font-black text-slate-900">{formData.name || 'Chưa cập nhật'}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{formData.email}</p>
+              </div>
+            </div>
+
+            {/* Form fields */}
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Họ và tên</label>
+                <input id="name" name="name" value={formData.name} onChange={handleChange} className={inputStyle} required />
               </div>
 
-              <div className="flex-1 space-y-6">
-                <div className="space-y-2">
-                  <label htmlFor="name" className="text-sm font-medium text-slate-700">
-                    Họ và tên
-                  </label>
-                  <input
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium text-slate-700">
-                    Email
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    />
-                    <span className="inline-flex items-center px-3 py-2 text-sm text-green-600 bg-green-50 rounded-lg">
-                      <Check className="w-4 h-4 mr-1" />
-                      Đã xác minh
-                    </span>
+              <div>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Email</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 relative">
+                    <Mail size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input id="email" name="email" type="email" value={formData.email} readOnly
+                      className={`${inputStyle} pl-10 bg-slate-50 text-slate-500 cursor-not-allowed`} />
                   </div>
+                  <span className="inline-flex items-center gap-1 px-3 py-2.5 text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-xl shrink-0">
+                    <Check size={12} /> Đã xác minh
+                  </span>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="phone" className="text-sm font-medium text-slate-700">
-                    Số điện thoại
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <span className="inline-flex items-center px-3 py-2 text-sm text-blue-600 bg-blue-50 rounded-lg">
-                      <Check className="w-4 h-4 mr-1" />
-                      Đã xác minh
-                    </span>
+              <div>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Số điện thoại</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 relative">
+                    <Phone size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleChange}
+                      className={`${inputStyle} pl-10`} />
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end pt-4">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+            {/* Submit */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+              <button type="submit" disabled={isSubmitting}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white rounded-xl transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
+                <Save size={14} />
                 {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
               </button>
             </div>
           </form>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-6">Đổi mật khẩu</h2>
-          <form onSubmit={handlePasswordSubmit} className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="current" className="text-sm font-medium text-slate-700">
-                  Mật khẩu hiện tại
-                </label>
-                <div className="relative">
-                  <input
-                    id="current"
-                    name="current"
-                    type={showPassword ? 'text' : 'password'}
-                    value={passwordForm.current}
-                    onChange={handlePasswordChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-2 text-slate-500 hover:text-slate-700"
-                  >
-                    {showPassword ? 'Ẩn' : 'Hiện'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="new" className="text-sm font-medium text-slate-700">
-                  Mật khẩu mới
-                </label>
-                <div className="relative">
-                  <input
-                    id="new"
-                    name="new"
-                    type={showPassword ? 'text' : 'password'}
-                    value={passwordForm.new}
-                    onChange={handlePasswordChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-2 text-slate-500 hover:text-slate-700"
-                  >
-                    {showPassword ? 'Ẩn' : 'Hiện'}
-                  </button>
-                </div>
-                <p className="text-sm text-slate-500">Tối thiểu 8 ký tự, bao gồm chữ cái và số</p>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="confirm" className="text-sm font-medium text-slate-700">
-                  Xác nhận mật khẩu mới
-                </label>
-                <div className="relative">
-                  <input
-                    id="confirm"
-                    name="confirm"
-                    type={showPassword ? 'text' : 'password'}
-                    value={passwordForm.confirm}
-                    onChange={handlePasswordChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-2 text-slate-500 hover:text-slate-700"
-                  >
-                    {showPassword ? 'Ẩn' : 'Hiện'}
-                  </button>
-                </div>
-              </div>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center">
+              <Shield size={16} className="text-indigo-500" />
             </div>
+            <div>
+              <p className="text-sm font-bold text-slate-800">Bảo mật tài khoản</p>
+              <p className="text-[11px] text-slate-400">Đổi mật khẩu đăng nhập</p>
+            </div>
+          </div>
 
-            <div className="flex justify-end pt-4">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+          <form onSubmit={handlePasswordSubmit} className="p-6 space-y-5">
+            {['current', 'new', 'confirm'].map((field, i) => (
+              <div key={field}>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">
+                  {['Mật khẩu hiện tại', 'Mật khẩu mới', 'Xác nhận mật khẩu mới'][i]}
+                </label>
+                <div className="relative">
+                  <Lock size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input id={field} name={field}
+                    type={showPassword ? 'text' : 'password'}
+                    value={passwordForm[field]}
+                    onChange={handlePasswordChange}
+                    className={`${inputStyle} pl-10 pr-12`}
+                    required />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition">
+                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+                {field === 'new' && <p className="text-[10px] text-slate-400 mt-1.5">Tối thiểu 8 ký tự, bao gồm chữ cái và số</p>}
+              </div>
+            ))}
+
+            <div className="pt-2 flex justify-end">
+              <button type="submit" disabled={isSubmitting}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white rounded-xl transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
+                <Lock size={14} />
                 {isSubmitting ? 'Đang lưu...' : 'Đổi mật khẩu'}
               </button>
             </div>
           </form>
-
-          {showSuccess && (
-            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center text-green-800">
-                <Check className="w-5 h-5 mr-2" />
-                Đổi mật khẩu thành công!
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

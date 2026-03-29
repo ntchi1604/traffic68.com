@@ -108,37 +108,40 @@ export default function BuyerApi() {
     <div className="space-y-6 w-full min-w-0">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/buyer/dashboard' }, { label: 'Buyer API' }]} />
       {/* ── API Key card ── */}
-      <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center">
-            <Key size={20} className="text-white" />
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.25)' }}>
+            <Key size={18} className="text-white" />
           </div>
           <div>
-            <h2 className="font-bold text-lg">API Key</h2>
-            <p className="text-slate-400 text-xs">Thêm vào header mọi request: <code className="text-green-400">Authorization: Bearer KEY</code></p>
+            <h2 className="font-bold text-base text-slate-900">API Key</h2>
+            <p className="text-slate-400 text-[11px]">Thêm vào header: <code className="text-indigo-600 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded">Authorization: Bearer KEY</code></p>
           </div>
         </div>
 
         {loading ? (
-          <p className="text-sm text-slate-400 text-center py-4">Đang tải...</p>
+          <div className="flex justify-center py-6"><div className="w-6 h-6 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : !keyData ? (
-          <div className="text-center py-6">
-            <p className="text-sm text-slate-400 mb-4">Chưa có API key. Tạo key để bắt đầu.</p>
+          <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+            <Key size={28} className="text-slate-300 mx-auto mb-3" />
+            <p className="text-sm text-slate-500 mb-3">Chưa có API key. Tạo key để bắt đầu.</p>
             <button onClick={createKey} disabled={regenerating}
-              className="px-6 py-2.5 text-sm font-bold bg-violet-500 hover:bg-violet-600 text-white rounded-xl transition disabled:opacity-50 inline-flex items-center gap-2">
-              <Key size={15} /> {regenerating ? 'Đang tạo...' : 'Tạo API key'}
+              className="px-5 py-2.5 text-xs font-bold text-white rounded-xl transition-all hover:-translate-y-0.5 disabled:opacity-50 inline-flex items-center gap-2"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
+              <Key size={14} /> {regenerating ? 'Đang tạo...' : 'Tạo API key'}
             </button>
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <code className="flex-1 bg-slate-800/60 border border-slate-700 px-4 py-3 rounded-xl text-xs font-mono text-green-400 overflow-x-auto select-all">
+            <code className="flex-1 bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-xs font-mono text-indigo-700 overflow-x-auto select-all">
               {showKey ? keyData.api_key : maskKey(keyData.api_key)}
             </code>
-            <button onClick={() => setShowKey(!showKey)} className="p-2.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition shrink-0">
+            <button onClick={() => setShowKey(!showKey)} className="p-2.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition shrink-0">
               {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
             <button onClick={() => copy(keyData.api_key, 'key')}
-              className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold bg-violet-500 hover:bg-violet-600 text-white rounded-lg transition shrink-0">
+              className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold text-white rounded-lg transition shrink-0"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
               {copied === 'key' ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
             </button>
             <button onClick={regenerateKey} disabled={regenerating}
@@ -150,11 +153,11 @@ export default function BuyerApi() {
       </div>
 
       {/* ── Quick start ── */}
-      <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl border border-violet-200 p-5">
-        <h3 className="text-sm font-black text-violet-900 mb-2 flex items-center gap-2">
-          <Zap size={16} className="text-violet-500" /> Quick Start
+      <div className="bg-white rounded-2xl border border-indigo-100 p-5">
+        <h3 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
+          <Zap size={15} className="text-indigo-500" /> Quick Start
         </h3>
-        <p className="text-xs text-violet-700 mb-3">Base URL: <code className="font-mono font-bold">{BASE}/api/buyer/v1</code></p>
+        <p className="text-xs text-slate-500 mb-3">Base URL: <code className="font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{BASE}/api/buyer/v1</code></p>
         <Code id="qs" copy={copy} copied={copied}>{`curl ${BASE}/api/buyer/v1/me \\
   -H "Authorization: Bearer ${apiKey}"
 `}</Code>
@@ -340,12 +343,12 @@ curl -X PUT ${BASE}/api/buyer/v1/campaigns/7/status \\
       </div>
 
       {/* ── Notes ── */}
-      <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-2xl border border-violet-200 p-5">
-        <h3 className="text-sm font-black text-violet-900 mb-2">Lưu ý quan trọng</h3>
-        <ul className="text-xs text-violet-800 space-y-1.5 list-disc pl-4">
+      <div className="bg-white rounded-2xl border border-indigo-100 p-5">
+        <h3 className="text-sm font-bold text-slate-800 mb-2">Lưu ý quan trọng</h3>
+        <ul className="text-xs text-slate-600 space-y-1.5 list-disc pl-4">
           <li>Budget <strong>không bị trừ ngay</strong> khi tạo chiến dịch — trừ dần theo từng lượt xem hoàn thành.</li>
-          <li>Dùng <code className="bg-white/70 px-1 rounded font-mono">/v1/pricing</code> để lấy <code className="bg-white/70 px-1 rounded font-mono">duration</code> hợp lệ trước khi tạo chiến dịch.</li>
-          <li>API key <strong>dùng chung</strong> với Worker API (cùng bảng <code className="bg-white/70 px-1 rounded font-mono">api_keys</code>). Nếu đổi key, cả 2 đều thay đổi.</li>
+          <li>Dùng <code className="bg-indigo-50 text-indigo-700 px-1 rounded font-mono">/v1/pricing</code> để lấy <code className="bg-indigo-50 text-indigo-700 px-1 rounded font-mono">duration</code> hợp lệ trước khi tạo chiến dịch.</li>
+          <li>API key <strong>dùng chung</strong> với Worker API (cùng bảng <code className="bg-indigo-50 text-indigo-700 px-1 rounded font-mono">api_keys</code>). Nếu đổi key, cả 2 đều thay đổi.</li>
           <li>Mỗi tài khoản chỉ có <strong>1 API key</strong>.</li>
           <li>Rate limit: <strong>1000 requests/giờ</strong> (sắp ra mắt).</li>
         </ul>

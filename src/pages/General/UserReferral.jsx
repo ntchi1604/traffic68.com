@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
-  Copy, Check, Users, Gift, Sparkles, TrendingUp,
+  Copy, Check, Users, Gift, TrendingUp,
   ChevronLeft, ChevronRight, UserPlus, Link2,
-  ArrowUpRight, Crown, Star, Zap, Heart,
+  Heart, Share2,
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import usePageTitle from '../../hooks/usePageTitle';
@@ -12,29 +12,6 @@ import api from '../../lib/api';
 const fmt = (n) => new Intl.NumberFormat('vi-VN').format(n);
 const LIMIT = 20;
 
-/* ── Stat Card ── */
-function StatCard({ label, value, sub, Icon, color, bgLight, borderColor }) {
-  return (
-    <div style={{
-      background: '#fff', border: `1px solid ${borderColor}`, borderRadius: 18,
-      padding: '20px 22px', transition: 'all .2s', cursor: 'default',
-      boxShadow: '0 1px 6px rgba(15,23,42,0.04)',
-    }}
-      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 28px rgba(15,23,42,0.09)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-      onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 6px rgba(15,23,42,0.04)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>
-        <div style={{ width: 36, height: 36, borderRadius: 12, background: bgLight, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon size={16} style={{ color }} />
-        </div>
-      </div>
-      <p style={{ fontSize: 24, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.03em', margin: 0, lineHeight: 1 }}>{value}</p>
-      {sub && <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>{sub}</p>}
-    </div>
-  );
-}
-
 /* ── Avatar with initials ── */
 function Avatar({ name, email }) {
   const initials = (name || email || '??').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -42,10 +19,10 @@ function Avatar({ name, email }) {
   const idx = (name || email || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % colors.length;
   return (
     <div style={{
-      width: 36, height: 36, borderRadius: 12, flexShrink: 0,
+      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
       background: `linear-gradient(135deg, ${colors[idx]}cc, ${colors[idx]})`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 12, fontWeight: 800, color: '#fff', letterSpacing: '0.02em',
+      fontSize: 12, fontWeight: 800, color: '#fff',
     }}>{initials}</div>
   );
 }
@@ -79,225 +56,126 @@ export default function UserReferral() {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Pagination numbers
   const paginationPages = Array.from({ length: totalPages }, (_, i) => i + 1)
     .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
     .reduce((acc, p, i, arr) => { if (i > 0 && arr[i - 1] !== p - 1) acc.push('...'); acc.push(p); return acc; }, []);
 
-  return (
-    <div style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-        .ref-row { transition: background .12s; }
-        .ref-row:hover { background: #f8faff !important; }
-        .ref-copy-btn { transition: all .15s; }
-        .ref-copy-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.3) !important; }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-        .fade-in { animation: fadeInUp .4s ease forwards; }
-        @keyframes shimmer { 0% { background-position: -600px 0; } 100% { background-position: 600px 0; } }
-        .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 600px 100%; animation: shimmer 1.4s infinite; border-radius: 8px; }
-      `}</style>
+  const kpis = [
+    { label: 'Tỷ lệ hoa hồng', value: pct ? `${pct}%` : '—', Icon: Gift, color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe' },
+    { label: 'Tổng giới thiệu', value: referrals.length, sub: `${referrals.filter(r => r.status === 'active').length} đang hoạt động`, Icon: Users, color: '#6366f1', bg: '#eef2ff', border: '#e0e7ff' },
+    { label: 'Tổng hoa hồng', value: <>{fmt(totalComm)}<span className="text-xs font-semibold text-slate-400 ml-1">₫</span></>, Icon: TrendingUp, color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0' },
+    { label: 'TB / người', value: <>{fmt(referrals.length > 0 ? Math.round(totalComm / referrals.length) : 0)}<span className="text-xs font-semibold text-slate-400 ml-1">₫</span></>, Icon: UserPlus, color: '#06b6d4', bg: '#ecfeff', border: '#a5f3fc' },
+  ];
 
+  return (
+    <div className="space-y-5 w-full min-w-0 pb-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <Breadcrumb items={[
         { label: 'Dashboard', to: basePath },
         { label: 'Giới thiệu bạn bè' },
       ]} />
 
-
-
-      {/* ── Commission Promo Banner ── */}
-      {pct && (
-        <div className="fade-in" style={{
-          background: 'linear-gradient(135deg, #f8faff 0%, #eef2ff 40%, #faf5ff 100%)',
-          border: '1px solid #e0e7ff', borderRadius: 20,
-          padding: '24px 28px', marginBottom: 20,
-          position: 'relative', overflow: 'hidden',
-        }}>
-          <div style={{ position: 'absolute', right: -20, top: -20, width: 120, height: 120, borderRadius: '50%', background: 'radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%)' }} />
-          <div style={{ position: 'absolute', right: 60, bottom: -30, width: 80, height: 80, borderRadius: '50%', background: 'radial-gradient(circle, rgba(99,102,241,0.1) 0%, transparent 70%)' }} />
-
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <Sparkles size={16} style={{ color: '#8b5cf6' }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Chương trình hoa hồng</span>
+      {/* ── KPI Cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {kpis.map(k => (
+          <div key={k.label} className="bg-white rounded-2xl border p-4 hover:shadow-md transition-all duration-200"
+            style={{ borderColor: k.border }}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{k.label}</span>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: k.bg }}>
+                <k.Icon size={15} style={{ color: k.color }} />
+              </div>
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 42, fontWeight: 900, color: '#6366f1', letterSpacing: '-0.04em', lineHeight: 1 }}>{pct}%</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#475569' }}>
-                {isWorker ? 'tổng thu nhập' : 'tổng nạp tiền'} của bạn bè
-              </span>
-            </div>
-
-            <p style={{ fontSize: 13, color: '#64748b', margin: 0, lineHeight: 1.6, maxWidth: 520 }}>
-              {isWorker
-                ? 'Chia sẻ → Bạn bè đăng ký & làm nhiệm vụ → Mỗi khi họ nhận thu nhập, bạn tự động nhận hoa hồng vào ví'
-                : 'Chia sẻ → Bạn bè đăng ký & nạp tiền → Mỗi khi họ nạp, bạn tự động nhận hoa hồng vào ví'
-              }
-            </p>
-
-            <div style={{ display: 'flex', gap: 20, marginTop: 16, flexWrap: 'wrap' }}>
-              {[
-                { icon: Link2, label: 'Chia sẻ link', color: '#6366f1' },
-                { icon: UserPlus, label: 'Bạn bè đăng ký', color: '#8b5cf6' },
-                { icon: Gift, label: 'Nhận hoa hồng', color: '#10b981' },
-              ].map((step, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: 9,
-                    background: step.color + '1a',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <step.icon size={13} style={{ color: step.color }} />
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>{step.label}</span>
-                  {i < 2 && <ArrowUpRight size={12} style={{ color: '#cbd5e1', marginLeft: 4 }} />}
-                </div>
-              ))}
-            </div>
+            <p className="text-xl font-black text-slate-900 tabular-nums leading-none">{k.value}</p>
+            {k.sub && <p className="text-[11px] text-slate-400 mt-2">{k.sub}</p>}
           </div>
-        </div>
-      )}
+        ))}
+      </div>
 
-      {/* ── Referral Link Card ── */}
-      <div className="fade-in" style={{
-        background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18,
-        padding: '20px 24px', marginBottom: 20,
-        boxShadow: '0 1px 6px rgba(15,23,42,0.04)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-          <Link2 size={14} style={{ color: '#6366f1' }} />
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Link giới thiệu của bạn</span>
+      {/* ── Referral Link ── */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <Share2 size={14} className="text-indigo-500" />
+          <span className="text-xs font-bold text-slate-700">Link giới thiệu của bạn</span>
+          <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full ml-auto">
+            {data.referralCode || '...'}
+          </span>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
-          <div style={{
-            flex: 1, background: '#f8fafc', border: '1px solid #e2e8f0',
-            borderRadius: 12, padding: '12px 16px',
-            fontFamily: 'monospace', fontSize: 13, color: '#334155',
-            display: 'flex', alignItems: 'center', overflow: 'hidden',
-            whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-          }}>
-            {loading ? <span className="skeleton" style={{ width: '60%', height: 14 }} /> : refLink}
+        <div className="flex gap-2 items-stretch">
+          <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-mono text-xs text-slate-600 flex items-center overflow-hidden">
+            {loading
+              ? <div className="h-3 w-3/5 bg-slate-200 rounded animate-pulse" />
+              : <span className="truncate">{refLink}</span>
+            }
           </div>
-          <button
-            className="ref-copy-btn"
-            onClick={copyLink}
+          <button onClick={copyLink}
+            className="flex items-center gap-2 px-5 rounded-xl text-xs font-bold text-white transition-all duration-200 hover:-translate-y-0.5 shrink-0"
             style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '0 20px', borderRadius: 12, border: 'none',
-              fontWeight: 700, fontSize: 13, cursor: 'pointer',
               background: copied ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              color: '#fff', boxShadow: copied ? '0 2px 8px rgba(16,185,129,0.3)' : '0 2px 8px rgba(99,102,241,0.3)',
-              flexShrink: 0, transition: 'all .2s',
-            }}
-          >
-            {copied ? <><Check size={15} /> Đã chép</> : <><Copy size={15} /> Sao chép</>}
+              boxShadow: copied ? '0 4px 14px rgba(16,185,129,0.3)' : '0 4px 14px rgba(99,102,241,0.25)',
+            }}>
+            {copied ? <><Check size={14} /> Đã chép</> : <><Copy size={14} /> Sao chép</>}
           </button>
         </div>
-        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10 }}>
-          Mã giới thiệu: <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#6366f1', background: '#eef2ff', padding: '2px 8px', borderRadius: 6, fontSize: 12 }}>{data.referralCode || '...'}</span>
-        </p>
+        {pct && (
+          <div className="mt-3 flex items-center gap-6 flex-wrap">
+            {[
+              { icon: Link2, text: 'Chia sẻ link', color: '#6366f1' },
+              { icon: UserPlus, text: 'Bạn bè đăng ký', color: '#8b5cf6' },
+              { icon: Gift, text: 'Nhận hoa hồng', color: '#10b981' },
+            ].map((s, i) => (
+              <div key={i} className="flex items-center gap-2 text-[11px] text-slate-500">
+                <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: s.color + '15' }}>
+                  <s.icon size={11} style={{ color: s.color }} />
+                </div>
+                <span className="font-semibold">{s.text}</span>
+                {i < 2 && <span className="text-slate-300 ml-1">→</span>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* ── Stat Cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 24 }}>
-        <StatCard
-          label="Tổng giới thiệu"
-          value={referrals.length}
-          sub={`${referrals.filter(r => r.status === 'active').length} đang hoạt động`}
-          Icon={Users}
-          color="#6366f1"
-          bgLight="#eef2ff"
-          borderColor="#e0e7ff"
-        />
-        <StatCard
-          label="Tổng hoa hồng"
-          value={<>{fmt(totalComm)}<span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 3 }}>₫</span></>}
-          sub={pct ? `Tỷ lệ hoa hồng: ${pct}%` : ''}
-          Icon={Gift}
-          color="#8b5cf6"
-          bgLight="#f5f3ff"
-          borderColor="#ddd6fe"
-        />
-        <StatCard
-          label="Hoa hồng TB/người"
-          value={<>{fmt(referrals.length > 0 ? Math.round(totalComm / referrals.length) : 0)}<span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 3 }}>₫</span></>}
-          sub="Trung bình mỗi người giới thiệu"
-          Icon={TrendingUp}
-          color="#06b6d4"
-          bgLight="#ecfeff"
-          borderColor="#a5f3fc"
-        />
-      </div>
-
-      {/* ── Referral List Table ── */}
-      <div style={{
-        background: '#fff', border: '1px solid #e2e8f0', borderRadius: 20,
-        overflow: 'hidden', boxShadow: '0 4px 20px rgba(15,23,42,0.06)',
-      }}>
-        {/* Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 24px', borderBottom: '1px solid #f1f5f9',
-          background: '#fafbfc',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Crown size={15} style={{ color: '#6366f1' }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>Danh sách bạn bè</span>
-            <span style={{
-              fontSize: 11, fontWeight: 700, padding: '2px 8px',
-              borderRadius: 20, background: '#eef2ff', color: '#6366f1',
-            }}>{referrals.length}</span>
+      {/* ── Referral List ── */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <Users size={14} className="text-indigo-500" />
+            <span className="text-sm font-bold text-slate-700">Danh sách bạn bè</span>
+            <span className="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">{referrals.length}</span>
           </div>
         </div>
 
-        {/* Content */}
         {loading ? (
-          <div style={{ padding: '32px 24px' }}>
+          <div className="p-6 space-y-3">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 0', borderBottom: i < 4 ? '1px solid #f1f5f9' : 'none' }}>
-                <div className="skeleton" style={{ width: 36, height: 36, borderRadius: 12, flexShrink: 0 }} />
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div className="skeleton" style={{ width: `${50 + i * 8}%`, height: 12 }} />
-                  <div className="skeleton" style={{ width: `${30 + i * 5}%`, height: 10 }} />
+              <div key={i} className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-slate-100 animate-pulse shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-2/5 bg-slate-100 rounded animate-pulse" />
+                  <div className="h-2 w-1/4 bg-slate-50 rounded animate-pulse" />
                 </div>
-                <div className="skeleton" style={{ width: 60, height: 14, borderRadius: 6 }} />
+                <div className="h-3 w-16 bg-slate-100 rounded animate-pulse" />
               </div>
             ))}
           </div>
         ) : referrals.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 24px', gap: 14 }}>
-            <div style={{
-              width: 64, height: 64, borderRadius: 20,
-              background: 'linear-gradient(135deg, #f1f5f9, #e2e8f0)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Heart size={28} style={{ color: '#cbd5e1' }} />
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+              <Heart size={24} className="text-slate-300" />
             </div>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#475569' }}>Chưa có bạn bè nào</p>
-              <p style={{ margin: 0, fontSize: 13, color: '#94a3b8', marginTop: 5 }}>Chia sẻ link giới thiệu để bắt đầu nhận hoa hồng</p>
-            </div>
+            <p className="text-sm font-bold text-slate-500">Chưa có bạn bè nào</p>
+            <p className="text-xs text-slate-400">Chia sẻ link giới thiệu để bắt đầu nhận hoa hồng</p>
           </div>
         ) : (
           <>
             {/* Desktop Table */}
-            <div className="hidden md:block" style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
                 <thead>
-                  <tr style={{ background: '#fafbfc', borderBottom: '1px solid #f1f5f9' }}>
-                    {[
-                      { label: '#', align: 'center', w: 50 },
-                      { label: 'Người dùng', align: 'left' },
-                      { label: 'Hoa hồng', align: 'right' },
-                      { label: 'Trạng thái', align: 'center' },
-                      { label: 'Ngày tham gia', align: 'right' },
-                    ].map(({ label, align, w }) => (
-                      <th key={label} style={{
-                        padding: '11px 20px', textAlign: align, width: w,
-                        fontSize: 11, fontWeight: 700, color: '#94a3b8',
-                        textTransform: 'uppercase', letterSpacing: '0.07em',
-                      }}>{label}</th>
+                  <tr className="border-b border-slate-100">
+                    {['#', 'Người dùng', 'Hoa hồng', 'Trạng thái', 'Ngày tham gia'].map((h, i) => (
+                      <th key={h} className="px-5 py-2.5 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                        style={{ textAlign: i === 0 ? 'center' : i >= 2 ? 'right' : 'left', ...(i === 3 && { textAlign: 'center' }) }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -305,45 +183,34 @@ export default function UserReferral() {
                   {pagedList.map((r, i) => {
                     const isActive = r.status === 'active';
                     return (
-                      <tr key={r.id} className="ref-row" style={{ borderBottom: '1px solid #f8fafc', background: '#fff' }}>
-                        <td style={{ padding: '13px 20px', textAlign: 'center' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1' }}>{(page - 1) * LIMIT + i + 1}</span>
+                      <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                        <td className="px-5 py-3 text-center">
+                          <span className="text-[10px] font-bold text-slate-300">{(page - 1) * LIMIT + i + 1}</span>
                         </td>
-                        <td style={{ padding: '13px 20px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-3">
                             <Avatar name={r.name} email={r.email} />
                             <div>
-                              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{r.name || r.email}</p>
-                              <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{r.email}</p>
+                              <p className="text-xs font-bold text-slate-800">{r.name || r.email}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">{r.email}</p>
                             </div>
                           </div>
                         </td>
-                        <td style={{ padding: '13px 20px', textAlign: 'right' }}>
+                        <td className="px-5 py-3 text-right">
                           {r.commissionEarned > 0 ? (
-                            <span style={{ fontSize: 13, fontWeight: 900, color: '#059669' }}>
-                              +{fmt(r.commissionEarned)}<span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 2 }}>₫</span>
-                            </span>
+                            <span className="text-xs font-black text-emerald-600">+{fmt(r.commissionEarned)}<span className="text-[10px] text-slate-400 ml-0.5">₫</span></span>
                           ) : (
-                            <span style={{ fontSize: 12, color: '#cbd5e1' }}>—</span>
+                            <span className="text-[10px] text-slate-300">—</span>
                           )}
                         </td>
-                        <td style={{ padding: '13px 20px', textAlign: 'center' }}>
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 4,
-                            padding: '3px 10px', borderRadius: 30, fontSize: 11, fontWeight: 700,
-                            background: isActive ? '#ecfdf5' : '#f1f5f9',
-                            color: isActive ? '#059669' : '#94a3b8',
-                            border: `1px solid ${isActive ? '#6ee7b7' : '#e2e8f0'}`,
-                          }}>
-                            <span style={{
-                              width: 5, height: 5, borderRadius: '50%',
-                              background: isActive ? '#10b981' : '#cbd5e1',
-                            }} />
+                        <td className="px-5 py-3 text-center">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${isActive ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-slate-50 text-slate-400 border border-slate-200'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-slate-300'}`} />
                             {isActive ? 'Hoạt động' : (r.status || 'Chưa xác minh')}
                           </span>
                         </td>
-                        <td style={{ padding: '13px 20px', textAlign: 'right' }}>
-                          <span style={{ fontSize: 11, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                        <td className="px-5 py-3 text-right">
+                          <span className="text-[10px] text-slate-400 tabular-nums">
                             {new Date(r.created_at).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </td>
@@ -355,33 +222,28 @@ export default function UserReferral() {
             </div>
 
             {/* Mobile list */}
-            <div className="md:hidden">
-              {pagedList.map((r, i) => {
+            <div className="md:hidden divide-y divide-slate-50">
+              {pagedList.map(r => {
                 const isActive = r.status === 'active';
                 return (
-                  <div key={r.id} className="ref-row" style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '14px 20px', borderBottom: '1px solid #f8fafc', background: '#fff',
-                  }}>
+                  <div key={r.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
                     <Avatar name={r.name} email={r.email} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name || r.email}</p>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 12,
-                          background: isActive ? '#ecfdf5' : '#f1f5f9',
-                          color: isActive ? '#059669' : '#94a3b8',
-                        }}>{isActive ? 'Hoạt động' : (r.status || 'Chưa xác minh')}</span>
-                        <span style={{ fontSize: 10, color: '#94a3b8' }}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-800 truncate">{r.name || r.email}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
+                          {isActive ? 'Hoạt động' : (r.status || 'Chưa xác minh')}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
                           {new Date(r.created_at).toLocaleDateString('vi-VN')}
                         </span>
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div className="text-right shrink-0">
                       {r.commissionEarned > 0 ? (
-                        <p style={{ margin: 0, fontSize: 13, fontWeight: 900, color: '#059669' }}>+{fmt(r.commissionEarned)}₫</p>
+                        <p className="text-xs font-black text-emerald-600">+{fmt(r.commissionEarned)}₫</p>
                       ) : (
-                        <p style={{ margin: 0, fontSize: 12, color: '#cbd5e1' }}>—</p>
+                        <p className="text-[10px] text-slate-300">—</p>
                       )}
                     </div>
                   </div>
@@ -393,42 +255,28 @@ export default function UserReferral() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '14px 24px', borderTop: '1px solid #f1f5f9', background: '#fafbfc',
-          }}>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>
-              Trang <strong style={{ color: '#334155' }}>{page}</strong> / <strong style={{ color: '#334155' }}>{totalPages}</strong>
-              <span style={{ margin: '0 8px', color: '#cbd5e1' }}>·</span>{referrals.length} bạn bè
+          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50">
+            <p className="text-[11px] text-slate-400">
+              Trang <strong className="text-slate-600">{page}</strong> / <strong className="text-slate-600">{totalPages}</strong>
+              <span className="mx-1.5 text-slate-300">·</span>{referrals.length} bạn bè
             </p>
-            <div style={{ display: 'flex', gap: 4 }}>
+            <div className="flex gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-                style={{
-                  width: 32, height: 32, borderRadius: 10, border: '1px solid #e2e8f0',
-                  background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.35 : 1,
-                }}>
-                <ChevronLeft size={13} style={{ color: '#64748b' }} />
+                className="w-7 h-7 rounded-lg border border-slate-200 bg-white flex items-center justify-center disabled:opacity-30 hover:bg-slate-50 transition">
+                <ChevronLeft size={12} className="text-slate-500" />
               </button>
               {paginationPages.map((p, i) => p === '...'
-                ? <span key={`e${i}`} style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', fontSize: 12 }}>·</span>
-                : <button key={p} onClick={() => setPage(p)} style={{
-                  width: 32, height: 32, borderRadius: 10, border: '1px solid',
-                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  background: page === p ? '#6366f1' : '#fff',
-                  color: page === p ? '#fff' : '#64748b',
-                  borderColor: page === p ? '#6366f1' : '#e2e8f0',
-                  boxShadow: page === p ? '0 2px 8px rgba(99,102,241,0.3)' : 'none',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>{p}</button>
+                ? <span key={`e${i}`} className="w-7 h-7 flex items-center justify-center text-slate-300 text-[10px]">·</span>
+                : <button key={p} onClick={() => setPage(p)} className="w-7 h-7 rounded-lg border text-[11px] font-bold flex items-center justify-center transition"
+                  style={{
+                    background: page === p ? '#6366f1' : '#fff',
+                    color: page === p ? '#fff' : '#64748b',
+                    borderColor: page === p ? '#6366f1' : '#e2e8f0',
+                  }}>{p}</button>
               )}
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-                style={{
-                  width: 32, height: 32, borderRadius: 10, border: '1px solid #e2e8f0',
-                  background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.35 : 1,
-                }}>
-                <ChevronRight size={13} style={{ color: '#64748b' }} />
+                className="w-7 h-7 rounded-lg border border-slate-200 bg-white flex items-center justify-center disabled:opacity-30 hover:bg-slate-50 transition">
+                <ChevronRight size={12} className="text-slate-500" />
               </button>
             </div>
           </div>
