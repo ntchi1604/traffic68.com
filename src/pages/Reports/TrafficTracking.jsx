@@ -94,7 +94,9 @@ function CampaignDetailModal({ campaign: c, onClose }) {
   }, [c, mRange]);
 
   if (!c) return null;
-  const done = Number(c.views_done || 0);
+  // Ưu tiên detail.totalClicks (đếm từ traffic_logs) khi đã load,
+  // fallback về c.views_done khi chưa có data
+  const done = detail ? Math.max(Number(c.views_done || 0), Number(detail.totalClicks || 0)) : Number(c.views_done || 0);
   const total = Number(c.total_views || 1);
   const pct = Math.min(Math.round((done / total) * 100), 100);
   const spent = Number(detail?.totalClicks || c.views_done || 0) * Number(c.cpc || 0);
@@ -113,9 +115,9 @@ function CampaignDetailModal({ campaign: c, onClose }) {
   }));
 
   const kpis = [
-    { label: 'Hoàn thành', value: fmt(done), sub: '', color: '#10B981', bg: '#ECFDF5' },
+    { label: 'Hoàn thành', value: fmt(detail?.totalClicks || 0), sub: `/ ${fmt(detail?.totalViews || 0)} nhận task`, color: '#10B981', bg: '#ECFDF5' },
     { label: 'Chi phí', value: `${fmt(spent)} đ`, sub: `CPC: ${fmt(c.cpc)} đ`, color: '#F97316', bg: '#FFF7ED' },
-    { label: 'Hiệu suất', value: `${eff}%`, sub: '', color: '#3B82F6', bg: '#EFF6FF' },
+    { label: 'Hiệu suất', value: `${eff}%`, sub: 'hoàn thành / nhận task', color: '#3B82F6', bg: '#EFF6FF' },
     { label: 'Unique IPs', value: fmt(detail?.uniqueIps || 0), sub: 'IP khác nhau', color: '#8B5CF6', bg: '#F5F3FF' },
   ];
 
@@ -388,6 +390,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
                           <td style={{ padding: '7px 12px', color: '#059669', textAlign: 'right', fontWeight: 700 }}>
                             {fmt(d.completed)}
                             <span style={{ color: '#94a3b8', fontWeight: 500, fontSize: 10, marginLeft: 2 }}>/ {fmt(d.daily_views || d.total)}</span>
+                            <span style={{ display: 'block', color: '#94a3b8', fontWeight: 400, fontSize: 10, marginTop: 2 }}>{fmt(d.total)} lượt nhận</span>
                           </td>
                           <td style={{ padding: '7px 12px', color: '#475569', textAlign: 'right', fontWeight: 600 }}>{fmt(d.cost)} đ</td>
                         </tr>
@@ -544,8 +547,8 @@ export default function TrafficTracking() {
             {PERIODS.map(p => (
               <button key={p.key} onClick={() => setRange(p.key)}
                 className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${range === p.key
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                   }`}>
                 {p.label}
               </button>

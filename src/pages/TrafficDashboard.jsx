@@ -68,12 +68,13 @@ function ChartTooltip({ active, payload, label }) {
 /* ───────────────────────────────────────────── transaction icon */
 function TxIcon({ type }) {
   const isIn = ['deposit', 'referral', 'commission'].includes(type);
-  const color = isIn ? 'text-emerald-600 bg-emerald-50 border border-emerald-100/50 shadow-[0_2px_8px_rgba(16,185,129,0.1)]' : 'text-indigo-600 bg-indigo-50 border border-indigo-100/50 shadow-[0_2px_8px_rgba(99,102,241,0.1)]';
   return (
-    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-105 ${color}`}>
+    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+      isIn ? 'bg-emerald-50 ring-1 ring-emerald-100' : 'bg-slate-100 ring-1 ring-slate-200'
+    }`}>
       {isIn
-        ? <ArrowDownLeft size={18} strokeWidth={2.5} />
-        : <ArrowUpRight  size={18} strokeWidth={2.5} />
+        ? <ArrowDownLeft size={16} className="text-emerald-600" />
+        : <ArrowUpRight  size={16} className="text-slate-500" />
       }
     </div>
   );
@@ -570,64 +571,48 @@ export default function TrafficDashboard() {
         </div>
 
         {/* Transactions */}
-        <div className="xl:col-span-2 bg-white rounded-3xl border border-slate-200/60 shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col h-full transform-gpu transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] relative">
-          {/* Abstract light decoration */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full blur-3xl -mx-20 -my-20 opacity-50 pointer-events-none" />
-
-          <div className="flex items-center justify-between px-7 py-6 border-b border-slate-100/80 bg-slate-50/30 relative z-10 backdrop-blur-md">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center flex-shrink-0 text-slate-600">
-                <RefreshCw size={18} />
-              </div>
-              <div>
-                <h3 className="text-[17px] font-extrabold text-slate-800 tracking-tight leading-tight">Giao dịch gần đây</h3>
-                <p className="text-[13px] font-medium text-slate-400 mt-0.5 leading-tight">5 giao dịch xuất hiện cuối</p>
-              </div>
+        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">Giao dịch gần đây</h3>
+              <p className="text-xs text-slate-400 mt-0.5">5 giao dịch cuối</p>
             </div>
             <button onClick={() => navigate('/buyer/dashboard/finance/transactions')}
-              className="text-[13px] font-bold text-indigo-600 bg-indigo-50/80 hover:bg-indigo-100 hover:text-indigo-700 px-4 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95 group">
-              Xem tất cả <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors">
+              Xem tất cả <ChevronRight size={12} />
             </button>
           </div>
 
           {transactions.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center py-16 text-slate-400 bg-slate-50/30 relative z-10">
-              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
-                <CreditCard size={32} className="opacity-40" />
-              </div>
-              <p className="text-sm font-bold text-slate-500">Chưa có giao dịch nào</p>
+            <div className="flex flex-col items-center justify-center py-14 text-slate-400">
+              <CreditCard size={28} className="mb-2 opacity-20" />
+              <p className="text-sm font-medium">Chưa có giao dịch</p>
               <button onClick={() => navigate('/buyer/dashboard/finance/deposit')}
-                className="mt-4 px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 font-bold rounded-xl transition-all shadow-sm">
+                className="mt-3 text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
                 Nạp tiền ngay
               </button>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100 flex-1 overflow-y-auto relative z-10">
-              {transactions.slice(0, 5).map(t => {
+            <div className="divide-y divide-slate-50">
+              {transactions.slice(0, 6).map(t => {
                 const isIn = ['deposit', 'referral', 'commission'].includes(t.type);
                 const label = typeLabel[t.type] || t.type;
                 const statusCfg = {
-                  completed: { cls: 'text-emerald-700 bg-emerald-50 border-emerald-100/60', label: 'Thành công', dot: 'bg-emerald-500' },
-                  pending:   { cls: 'text-amber-700 bg-amber-50 border-amber-100/60',       label: 'Đang xử lý', dot: 'bg-amber-500 animate-pulse' },
-                }[t.status] || { cls: 'text-red-600 bg-red-50 border-red-100/60', label: 'Từ chối', dot: 'bg-red-500' };
-                
+                  completed: { cls: 'text-emerald-600 bg-emerald-50', label: 'Thành công' },
+                  pending:   { cls: 'text-amber-600 bg-amber-50',     label: 'Đang xử lý' },
+                }[t.status] || { cls: 'text-red-500 bg-red-50', label: 'Từ chối' };
                 return (
-                  <div key={t.id} className="group flex items-center justify-between gap-4 px-7 py-4 hover:bg-slate-50/50 transition-colors duration-200 cursor-default">
-                    <div className="flex items-center gap-4">
-                      <TxIcon type={t.type} />
-                      <div className="flex flex-col justify-center">
-                        <p className="text-[14px] font-bold text-slate-800 tracking-tight leading-none group-hover:text-indigo-700 transition-colors mb-1.5">{label}</p>
-                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider leading-none">{fmtDateTime(t.created_at)}</p>
-                      </div>
+                  <div key={t.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50/60 transition-colors">
+                    <TxIcon type={t.type} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-semibold text-slate-800 truncate">{label}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{fmtDateTime(t.created_at)}</p>
                     </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <p className={`text-[15px] font-black tabular-nums tracking-tight leading-none ${isIn ? 'text-emerald-600' : 'text-slate-700 group-hover:text-slate-900'}`}>
+                    <div className="text-right shrink-0">
+                      <p className={`text-sm font-black tabular-nums ${isIn ? 'text-emerald-600' : 'text-slate-700'}`}>
                         {isIn ? '+' : '-'}{fmt(t.amount)} đ
                       </p>
-                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border ${statusCfg.cls}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusCfg.dot}`} />
-                        {statusCfg.label}
-                      </span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${statusCfg.cls}`}>{statusCfg.label}</span>
                     </div>
                   </div>
                 );

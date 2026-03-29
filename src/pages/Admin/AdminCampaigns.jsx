@@ -123,6 +123,7 @@ function KeywordStats({ campaignId }) {
                   <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]" title={d.keyword}>{d.keyword || '(Trống)'}</td>
                   <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
                     {d.completed} <span className="text-slate-500 font-medium text-[10px] ml-0.5">/ {d.daily_views || d.total}</span>
+                    <span className="block text-[10px] text-slate-400 font-normal mt-0.5">{d.total} lượt nhận</span>
                   </td>
                   <td className="px-4 py-2.5 text-right font-semibold text-slate-600">{fmt(d.cost)} đ</td>
                 </tr>
@@ -435,10 +436,10 @@ export default function AdminCampaigns() {
                   </tr>
                 </thead>
                 {paged.map(c => {
-                    const st = STATUS_MAP[c.status] || { label: c.status, cls: 'bg-gray-100 text-gray-700' };
-                    const isExpanded = expandedId === c.id;
-                    return (
-                      <tbody key={c.id} className={`border-b border-slate-100 group hover:bg-slate-50/50 transition-colors ${isExpanded ? 'bg-slate-50/30' : 'bg-white'}`}>
+                  const st = STATUS_MAP[c.status] || { label: c.status, cls: 'bg-gray-100 text-gray-700' };
+                  const isExpanded = expandedId === c.id;
+                  return (
+                    <tbody key={c.id} className={`border-b border-slate-100 group hover:bg-slate-50/50 transition-colors ${isExpanded ? 'bg-slate-50/30' : 'bg-white'}`}>
                       <tr className="hover:bg-slate-50/70">
                         <td className="px-5 py-3">
                           <p className="font-semibold text-slate-800">{c.name}</p>
@@ -463,46 +464,46 @@ export default function AdminCampaigns() {
                               <BarChart3 size={15} />
                             </button>
                             <div className="relative" ref={openMenuId === c.id ? menuRef : null}>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
-                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
-                            >
-                              <MoreVertical size={16} />
-                            </button>
-                            {openMenuId === c.id && (
-                              <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[180px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
-                                <button
-                                  onClick={() => { setOpenMenuId(null); setEditingCampaign(c); }}
-                                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition text-left"
-                                >
-                                  <Pencil size={14} className="text-blue-500" /> Sửa chiến dịch
-                                </button>
-                                {c.status !== 'running' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
+                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+                              >
+                                <MoreVertical size={16} />
+                              </button>
+                              {openMenuId === c.id && (
+                                <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[180px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
                                   <button
-                                    onClick={() => updateStatus(c.id, 'running')}
-                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-green-50 hover:text-green-700 transition text-left"
-                                  >
-                                    <Play size={14} className="text-green-500" /> Chạy chiến dịch
-                                  </button>
-                                )}
-                                {c.status === 'running' && (
-                                  <button
-                                    onClick={() => updateStatus(c.id, 'paused')}
-                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition text-left"
-                                  >
-                                    <Pause size={14} className="text-amber-500" /> Tạm dừng
-                                  </button>
-                                )}
-                                {c.status !== 'completed' && (
-                                  <button
-                                    onClick={() => updateStatus(c.id, 'completed')}
+                                    onClick={() => { setOpenMenuId(null); setEditingCampaign(c); }}
                                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition text-left"
                                   >
-                                    <CheckCircle size={14} className="text-blue-500" /> Hoàn thành
+                                    <Pencil size={14} className="text-blue-500" /> Sửa chiến dịch
                                   </button>
-                                )}
-                              </div>
-                            )}
+                                  {c.status !== 'running' && (
+                                    <button
+                                      onClick={() => updateStatus(c.id, 'running')}
+                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-green-50 hover:text-green-700 transition text-left"
+                                    >
+                                      <Play size={14} className="text-green-500" /> Chạy chiến dịch
+                                    </button>
+                                  )}
+                                  {c.status === 'running' && (
+                                    <button
+                                      onClick={() => updateStatus(c.id, 'paused')}
+                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition text-left"
+                                    >
+                                      <Pause size={14} className="text-amber-500" /> Tạm dừng
+                                    </button>
+                                  )}
+                                  {c.status !== 'completed' && (
+                                    <button
+                                      onClick={() => updateStatus(c.id, 'completed')}
+                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition text-left"
+                                    >
+                                      <CheckCircle size={14} className="text-blue-500" /> Hoàn thành
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -516,9 +517,9 @@ export default function AdminCampaigns() {
                           </td>
                         </tr>
                       )}
-                      </tbody>
-                    );
-                  })}
+                    </tbody>
+                  );
+                })}
               </table>
             </div>
 
@@ -613,9 +614,9 @@ export default function AdminCampaigns() {
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">‹ Trước</button>
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-              .reduce((acc, p, i, arr) => { if (i > 0 && arr[i-1] !== p-1) acc.push('...'); acc.push(p); return acc; }, [])
+              .reduce((acc, p, i, arr) => { if (i > 0 && arr[i - 1] !== p - 1) acc.push('...'); acc.push(p); return acc; }, [])
               .map((p, i) => p === '...' ? <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span> : (
-                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-orange-500 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
+                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-orange-500 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
               ))}
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
           </div>
