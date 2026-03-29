@@ -4,48 +4,45 @@ import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight, Info, Upload, X, Tag, Globe, Monitor, Smartphone,
   BarChart2, Wallet, Gift, Star, CheckCircle2, AlertCircle, Plus, Trash2,
+  Zap, MousePointerClick, Clock, Sparkles, ArrowRight, CreditCard,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import Breadcrumb from '../../components/Breadcrumb';
 
-/* ── Static data ─────────────────────────────────────────── */
+/* ─── Static data ───────────────────────────────────────────── */
 const TRAFFIC_TYPES = [
   { value: '', label: 'Chọn loại traffic' },
-  { value: 'google_search', label: 'Google Search' },
-  { value: 'direct', label: 'Direct / Redirect' },
-  { value: 'social', label: 'Social' },
+  { value: 'google_search', label: 'Google Search', icon: '🔍', desc: 'Traffic từ kết quả tìm kiếm Google' },
+  { value: 'direct', label: 'Direct / Redirect', icon: '🔗', desc: 'Traffic trực tiếp hoặc redirect' },
+  { value: 'social', label: 'Social', icon: '📱', desc: 'Traffic từ mạng xã hội' },
 ];
 
 const DURATIONS = [
-  { value: '', label: 'Chọn thời gian' },
-  { value: '60', label: 'Gói 60s' },
-  { value: '90', label: 'Gói 90s' },
+  { value: '',    label: 'Chọn thời gian' },
+  { value: '60',  label: 'Gói 60s' },
+  { value: '90',  label: 'Gói 90s' },
   { value: '120', label: 'Gói 120s' },
   { value: '150', label: 'Gói 150s' },
   { value: '200', label: 'Gói 200s' },
 ];
 
 const DEVICES = [
-  { value: 'desktop', label: 'Desktop', icon: Monitor },
-  { value: 'mobile', label: 'Mobile', icon: Smartphone },
+  { value: 'desktop', label: 'Desktop', icon: Monitor, desc: 'PC, Laptop' },
+  { value: 'mobile',  label: 'Mobile',  icon: Smartphone, desc: 'Điện thoại, Tablet' },
 ];
 
-const COUNTRIES = [
-  { value: 'VN', label: 'Việt Nam', flag: '🇻🇳' },
-];
-
-/* ── Tiny UI primitives ──────────────────────────────────── */
+/* ─── Form primitives ───────────────────────────────────────── */
 function Label({ children, required, hint }) {
   return (
-    <label className="flex items-center gap-1 text-sm font-semibold text-gray-700 mb-1.5">
+    <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 mb-1.5">
       {children}
-      {required && <span className="text-red-500">*</span>}
+      {required && <span className="text-red-500 text-xs">*</span>}
       {hint && (
         <span className="group relative cursor-help">
-          <Info size={13} className="text-gray-400" />
-          <span className="absolute left-5 top-0 z-50 hidden group-hover:block w-52 p-2 bg-gray-800 text-white text-xs rounded-lg shadow-xl">
+          <Info size={13} className="text-slate-400 hover:text-slate-600 transition-colors" />
+          <span className="absolute left-5 top-0 z-50 hidden group-hover:block w-56 p-2.5 bg-slate-900 text-white text-xs rounded-xl shadow-2xl leading-relaxed">
             {hint}
           </span>
         </span>
@@ -55,15 +52,15 @@ function Label({ children, required, hint }) {
 }
 
 function Hint({ children }) {
-  return <p className="mt-1 text-xs text-gray-400 leading-snug">{children}</p>;
+  return <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">{children}</p>;
 }
 
 function TextInput({ className = '', ...props }) {
   return (
     <input
-      className={`w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white
-                  shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2
-                  focus:ring-blue-500 focus:border-transparent transition ${className}`}
+      className={`w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl bg-white
+                  placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30
+                  focus:border-indigo-400 transition-all shadow-sm hover:border-slate-300 ${className}`}
       {...props}
     />
   );
@@ -72,9 +69,9 @@ function TextInput({ className = '', ...props }) {
 function SelectInput({ children, ...props }) {
   return (
     <select
-      className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white
-                 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500
-                 focus:border-transparent transition appearance-none cursor-pointer"
+      className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl bg-white
+                 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400
+                 transition-all appearance-none cursor-pointer shadow-sm hover:border-slate-300"
       {...props}
     >
       {children}
@@ -88,13 +85,13 @@ function NumberInput({ suffix, ...props }) {
       <input
         type="number"
         min="0"
-        className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white
-                   shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2
-                   focus:ring-blue-500 focus:border-transparent transition pr-16"
+        className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl bg-white
+                   placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30
+                   focus:border-indigo-400 transition-all pr-20 shadow-sm hover:border-slate-300"
         {...props}
       />
       {suffix && (
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-medium pointer-events-none">
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none bg-slate-50 px-1.5 py-0.5 rounded-md">
           {suffix}
         </span>
       )}
@@ -102,164 +99,140 @@ function NumberInput({ suffix, ...props }) {
   );
 }
 
-/* ── Image upload field ──────────────────────────────────── */
-function ImageUpload({ label, required, hint, value, onUploaded, onError }) {
-  const ref = useRef();
-  const [uploading, setUploading] = useState(false);
-
-  const handleFile = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('image', file);
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/campaigns/upload-image', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload thất bại');
-      onUploaded(file, data.imageUrl);
-    } catch (err) {
-      if (onError) onError(err.message); else console.error(err.message);
-    } finally {
-      setUploading(false);
-    }
-  };
-
+/* ─── Section card wrapper ──────────────────────────────────── */
+function SectionCard({ icon: Icon, iconBg, iconColor, title, badge, children }) {
   return (
-    <div>
-      <Label required={required} hint={hint}>{label}</Label>
-      <div
-        onClick={() => ref.current.click()}
-        className="flex items-center gap-3 border border-dashed border-gray-300 rounded-xl
-                   px-4 py-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition group"
-      >
-        <div className="w-9 h-9 rounded-lg bg-gray-100 group-hover:bg-blue-100 flex items-center justify-center flex-shrink-0 transition">
-          <Upload size={16} className={`text-gray-400 group-hover:text-blue-500 transition ${uploading ? 'animate-spin' : ''}`} />
+    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+            <Icon size={15} className={iconColor} />
+          </div>
+          <h2 className="text-sm font-bold text-slate-800">{title}</h2>
         </div>
-        <div className="min-w-0 flex-1">
-          {value ? (
-            <span className="text-sm text-gray-700 font-medium truncate block">{value.name}</span>
-          ) : (
-            <span className="text-sm text-gray-400">No file chosen</span>
-          )}
-        </div>
-        {value && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onUploaded(null, ''); }}
-            className="text-gray-400 hover:text-red-500 transition flex-shrink-0"
-          >
-            <X size={14} />
-          </button>
+        {badge && (
+          <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
+            {badge}
+          </span>
         )}
       </div>
-      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      <div className="p-6 space-y-5">{children}</div>
     </div>
   );
 }
 
-/* ── Version card ────────────────────────────────────────── */
+/* ─── Version card ──────────────────────────────────────────── */
 function VersionCard({ value, selected, onSelect, badge, title, desc }) {
   return (
     <div
       onClick={() => onSelect(value)}
-      className={`relative border-2 rounded-xl p-4 cursor-pointer transition-all
-                  ${selected
-          ? 'border-blue-500 bg-blue-50 shadow-md'
-          : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/40'}`}
+      className={`relative border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 ${
+        selected
+          ? 'border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-100'
+          : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm'
+      }`}
     >
       {badge && (
-        <span className="absolute -top-2.5 left-3 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
+        <span className="absolute -top-2.5 left-3 bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
           <Star size={9} fill="white" /> {badge}
         </span>
       )}
       <div className="flex items-start gap-3">
-        <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition
-                        ${selected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
+        <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+          selected ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'
+        }`}>
           {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
         </div>
         <div>
-          <p className={`text-sm font-bold mb-1 ${selected ? 'text-blue-700' : 'text-gray-700'}`}>{title}</p>
-          <p className="text-xs text-gray-500 leading-relaxed">{desc}</p>
+          <p className={`text-sm font-bold mb-1 ${selected ? 'text-indigo-700' : 'text-slate-700'}`}>{title}</p>
+          <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
         </div>
       </div>
     </div>
   );
 }
 
-/* ── Toggle switch ───────────────────────────────────────── */
-function Toggle({ checked, onChange, label }) {
+/* ─── Toggle switch ─────────────────────────────────────────── */
+function Toggle({ checked, onChange }) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer select-none">
-      <div
-        onClick={onChange}
-        className={`relative w-10 h-5.5 rounded-full transition-colors duration-200
-                    ${checked ? 'bg-blue-600' : 'bg-gray-300'}`}
-        style={{ height: '22px', width: '40px' }}
-      >
-        <span
-          className={`absolute top-0.5 w-4.5 h-4.5 bg-white rounded-full shadow transition-transform duration-200
-                      ${checked ? 'translate-x-5' : 'translate-x-0.5'}`}
-          style={{ width: '18px', height: '18px' }}
-        />
-      </div>
-      <span className="text-sm text-gray-600">{label}</span>
-    </label>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onChange}
+      className={`relative inline-flex h-5 w-10 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer
+                  transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
+        checked ? 'bg-indigo-600' : 'bg-slate-200'
+      }`}
+    >
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${
+          checked ? 'translate-x-5' : 'translate-x-0'
+        }`}
+      />
+    </button>
   );
 }
 
-/* ── Main component ──────────────────────────────────────── */
+/* ─── Summary row ───────────────────────────────────────────── */
+function SummaryRow({ label, value, accent }) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+      <span className="text-xs text-slate-500">{label}</span>
+      <span className={`text-xs font-semibold text-right max-w-[55%] break-words ${accent ? 'text-emerald-600' : 'text-slate-800'}`}>
+        {value || <span className="text-slate-300 font-normal">—</span>}
+      </span>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Main Component
+═══════════════════════════════════════════════════════════════ */
 export default function CreateCampaign() {
   usePageTitle('Tạo chiến dịch mới');
   const navigate = useNavigate();
   const toast = useToast();
   const [walletBalance, setWalletBalance] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [uploadingIdx, setUploadingIdx] = useState(-1);
+  const [submitted, setSubmitted]         = useState(false);
+  const [submitting, setSubmitting]       = useState(false);
+  const [error, setError]                 = useState('');
+  const [uploadingIdx, setUploadingIdx]   = useState(-1);
 
-  // Pricing from API
-  const [pricingTiers, setPricingTiers] = useState([]);
-  const [pricingConfig, setPricingConfig] = useState({});
+  const [pricingTiers, setPricingTiers]     = useState([]);
+  const [pricingConfig, setPricingConfig]   = useState({});
   const [discountApplied, setDiscountApplied] = useState(false);
 
   useEffect(() => {
     api.get('/finance').then(data => {
       setWalletBalance(data.wallets?.main?.balance || 0);
-    }).catch(() => { });
-
+    }).catch(() => {});
     fetch('/api/pricing').then(r => r.json()).then(data => {
       setPricingTiers(data.tiers || []);
       if (data.config) setPricingConfig(data.config);
-    }).catch(() => { });
+    }).catch(() => {});
   }, []);
 
   const [form, setForm] = useState({
     campaignName: '',
-    trafficType: '',
-    version: 'v1',
-    duration: '',
-    dailyViews: 500,
-    totalViews: 1000,
-    viewByHour: false,
-    keywords: [''],
-    urls: [''],
-    imageUrls: [''],
-    devices: ['desktop', 'mobile'],
-    countries: ['VN'],
+    trafficType:  '',
+    version:      'v1',
+    duration:     '',
+    dailyViews:   500,
+    totalViews:   1000,
+    viewByHour:   false,
+    keywords:     [''],
+    urls:         [''],
+    imageUrls:    [''],
+    devices:      ['desktop', 'mobile'],
+    countries:    ['VN'],
     discountCode: '',
-    note: '',
+    note:         '',
   });
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
-  /* ── Discount apply logic ── */
   const adminDiscountEnabled = pricingConfig.discount_enabled === 'true';
   const applyDiscount = () => {
     if (!form.discountCode.trim()) return;
@@ -272,26 +245,22 @@ export default function CreateCampaign() {
     }
   };
 
-  /* ── Find matching price per 1000 views from DB ── */
   const findTier = () => {
     const durSec = form.duration ? form.duration + 's' : '';
-    const match = pricingTiers.find(t => t.traffic_type === form.trafficType && t.duration === durSec);
-    return match || null;
+    return pricingTiers.find(t => t.traffic_type === form.trafficType && t.duration === durSec) || null;
   };
 
-  const tier = findTier();
-  const hasPricing = !!(form.trafficType && form.duration && tier);
-  const getPricePerView = () => {
+  const tier         = findTier();
+  const hasPricing   = !!(form.trafficType && form.duration && tier);
+  const pricePerView = (() => {
     if (!tier) return 0;
     if (discountApplied) return form.version === 'v1' ? tier.v1_discount : tier.v2_discount;
     return form.version === 'v1' ? tier.v1_price : tier.v2_price;
-  };
-
-  const pricePerView = getPricePerView();
+  })();
   const totalPrice = hasPricing ? Math.round(form.totalViews * pricePerView) : 0;
+  const budgetOk   = totalPrice <= walletBalance;
 
-  /* ── Array helpers ── */
-  const addArrayItem = (key) => setForm(f => ({ ...f, [key]: [...f[key], ''] }));
+  const addArrayItem    = (key) => setForm(f => ({ ...f, [key]: [...f[key], ''] }));
   const removeArrayItem = (key, idx) => setForm(f => ({ ...f, [key]: f[key].filter((_, i) => i !== idx) }));
   const updateArrayItem = (key, idx, val) => setForm(f => ({ ...f, [key]: f[key].map((v, i) => i === idx ? val : v) }));
 
@@ -303,12 +272,8 @@ export default function CreateCampaign() {
       const formData = new FormData();
       formData.append('image', file);
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/campaigns/upload-image', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
+      const res   = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+      const data  = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload thất bại');
       updateArrayItem('imageUrls', idx, data.imageUrl);
     } catch (err) {
@@ -321,7 +286,7 @@ export default function CreateCampaign() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const keywords = form.keywords.filter(k => k.trim());
-    const urls = form.urls.filter(u => u.trim());
+    const urls     = form.urls.filter(u => u.trim());
     if (!form.campaignName || !form.trafficType || !form.duration || keywords.length === 0 || urls.length === 0) {
       setError('Vui lòng điền đầy đủ các trường bắt buộc (*).');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -361,284 +326,255 @@ export default function CreateCampaign() {
     }
   };
 
-
   return (
-    <div className="space-y-0">
-
-      {/* Breadcrumb */}
+    <div className="space-y-5 w-full min-w-0 pb-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <Breadcrumb items={[
         { label: 'Dashboard', to: '/buyer/dashboard' },
         { label: 'Chiến dịch', to: '/buyer/dashboard/campaigns' },
         { label: 'Tạo chiến dịch mới' },
       ]} />
 
-      {/* Page title */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-black text-gray-900">Tạo chiến dịch mới</h1>
-      </div>
-
-      {/* Balance bar — 2 wallets */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        {/* Ví Traffic */}
-        <div className="flex items-center gap-3 bg-white border border-blue-200 rounded-2xl px-5 py-3.5 shadow-sm flex-1 min-w-[200px]">
-          <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
-            <Wallet size={18} className="text-blue-600" />
+      {/* ── Page Hero ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Tạo chiến dịch mới</h1>
+          <p className="text-sm text-slate-500 mt-1">Điền thông tin để bắt đầu chiến dịch traffic của bạn</p>
+        </div>
+        {/* Wallet balance pill */}
+        <div className="flex items-center gap-2.5 bg-white border border-indigo-100 rounded-2xl px-4 py-3 shadow-sm self-start sm:self-auto">
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+            <Wallet size={15} className="text-indigo-600" />
           </div>
           <div>
-            <p className="text-xs text-gray-500 font-medium">Ví Traffic</p>
-            <p className="text-lg font-black text-blue-700">{fmt(walletBalance)} <span className="text-sm font-semibold text-gray-400">VNĐ</span></p>
+            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Ví Traffic</p>
+            <p className="text-sm font-black text-indigo-700 tabular-nums">{fmt(walletBalance)} <span className="text-xs font-semibold text-slate-400">đ</span></p>
           </div>
           <button
             type="button"
-            className="ml-auto text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl transition"
             onClick={() => navigate('/buyer/dashboard/finance/deposit')}
+            className="ml-1 text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg transition-all active:scale-95"
           >
-            + Nạp tiền
+            + Nạp
           </button>
         </div>
       </div>
 
-      {/* Toast messages */}
+      {/* ── Alerts ── */}
       {submitted && (
-        <div className="mb-5 flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm font-semibold shadow-sm animate-pulse">
-          <CheckCircle2 size={18} className="text-green-500 flex-shrink-0" />
-          Chiến dịch đã được tạo thành công! Chúng tôi sẽ bắt đầu xử lý sớm nhất.
+        <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-4 rounded-2xl text-sm font-semibold shadow-sm">
+          <CheckCircle2 size={18} className="text-emerald-500 flex-shrink-0" />
+          <div>
+            <p className="font-bold">Chiến dịch đã được tạo thành công!</p>
+            <p className="text-xs text-emerald-600 font-normal mt-0.5">Chúng tôi sẽ bắt đầu xử lý trong vòng 24 giờ.</p>
+          </div>
+          <button
+            onClick={() => navigate('/buyer/dashboard/campaigns')}
+            className="ml-auto flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-900 transition-colors"
+          >
+            Xem chiến dịch <ArrowRight size={12} />
+          </button>
         </div>
       )}
       {error && (
-        <div className="mb-5 flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-semibold shadow-sm">
-          <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
-          {error}
+        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-2xl text-sm shadow-sm">
+          <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+          <p className="font-semibold">{error}</p>
         </div>
       )}
 
       <form onSubmit={handleSubmit} noValidate>
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
 
-          {/* ══ LEFT: Main form ════════════════════════════════════ */}
+          {/* ══ LEFT: Main form ════════════════════════════════════════ */}
           <div className="xl:col-span-2 space-y-5">
 
-            {/* ── Card: Traffic type ── */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <BarChart2 size={16} className="text-blue-600" />
-                </div>
-                <h2 className="font-bold text-gray-800">Thông tin cơ bản</h2>
+            {/* ── 1. Thông tin cơ bản ── */}
+            <SectionCard icon={BarChart2} iconBg="bg-indigo-50" iconColor="text-indigo-600" title="Thông tin cơ bản" badge="Bắt buộc">
+              {/* Campaign name */}
+              <div>
+                <Label required hint="Đặt tên để dễ nhận biết và quản lý chiến dịch">Tên chiến dịch</Label>
+                <TextInput
+                  type="text"
+                  value={form.campaignName}
+                  onChange={e => set('campaignName', e.target.value)}
+                  placeholder="VD: SEO traffic68.com – tháng 4"
+                />
               </div>
 
-              <div className="space-y-5">
+              {/* Traffic type */}
+              <div>
+                <Label required hint="Mỗi loại traffic có mức giá và hành vi khác nhau">Loại traffic</Label>
+                <div className="relative">
+                  <SelectInput value={form.trafficType} onChange={e => set('trafficType', e.target.value)}>
+                    {TRAFFIC_TYPES.map(t => (
+                      <option key={t.value} value={t.value}>{t.value ? `${t.icon}  ${t.label}` : t.label}</option>
+                    ))}
+                  </SelectInput>
+                </div>
+                {form.trafficType && (() => {
+                  const found = TRAFFIC_TYPES.find(t => t.value === form.trafficType);
+                  return found ? <Hint>{found.desc}</Hint> : null;
+                })()}
+              </div>
 
-                {/* Campaign name */}
-                <div>
-                  <Label required hint="Đặt tên để dễ nhận biết chiến dịch">Tên chiến dịch</Label>
-                  <input
-                    type="text"
-                    value={form.campaignName}
-                    onChange={e => set('campaignName', e.target.value)}
-                    placeholder="VD: SEO traffic68.com"
-                    className="w-full mt-1 px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white
-                               shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              {/* Version */}
+              <div>
+                <Label required hint="Version khác nhau ảnh hưởng đến chất lượng tín hiệu và giá">Version</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <VersionCard
+                    value="v1" selected={form.version === 'v1'} onSelect={v => set('version', v)}
+                    badge="Tốt nhất" title="Version 1"
+                    desc="(2 bước) Chờ X thời gian → click link nội bộ → chờ thêm 25–35 giây. Tín hiệu tự nhiên hơn."
+                  />
+                  <VersionCard
+                    value="v2" selected={form.version === 'v2'} onSelect={v => set('version', v)}
+                    title="Version 2"
+                    desc="(1 bước) Chờ X thời gian hết là xong. Đơn giản, giá thấp hơn."
                   />
                 </div>
-
-                {/* Traffic type */}
-                <div>
-                  <Label required hint="Loại traffic khác nhau sẽ có mức giá khác nhau">
-                    Loại traffic
-                  </Label>
-                  <SelectInput
-                    value={form.trafficType}
-                    onChange={e => set('trafficType', e.target.value)}
-                  >
-                    {TRAFFIC_TYPES.map(t => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </SelectInput>
-                  <Hint>Loại traffic khác nhau sẽ có mức giá khác nhau</Hint>
-                </div>
-
-                {/* Version */}
-                <div>
-                  <Label required hint="Version khác nhau sẽ có mức giá khác nhau">
-                    Version
-                  </Label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
-                    <VersionCard
-                      value="v1"
-                      selected={form.version === 'v1'}
-                      onSelect={v => set('version', v)}
-                      badge="Tốt nhất"
-                      title="Version 1"
-                      desc="(2 bước) Chờ X thời gian hết sau đó click ngẫu nhiên link nội bộ và chờ X thời gian là xong. (thời gian bước 2 khoảng 25–35 giây)."
-                    />
-                    <VersionCard
-                      value="v2"
-                      selected={form.version === 'v2'}
-                      onSelect={v => set('version', v)}
-                      title="Version 2"
-                      desc="(1 bước) Chờ X thời gian hết là xong."
-                    />
-                  </div>
-                  <Hint>Version khác nhau sẽ có mức giá khác nhau</Hint>
-                </div>
-
-                {/* Duration */}
-                <div>
-                  <Label required hint="Thời gian khác nhau sẽ có mức giá khác nhau">
-                    Thời gian
-                  </Label>
-                  <SelectInput
-                    value={form.duration}
-                    onChange={e => set('duration', e.target.value)}
-                  >
-                    {DURATIONS.map(d => (
-                      <option key={d.value} value={d.value}>{d.label}</option>
-                    ))}
-                  </SelectInput>
-                  <Hint>Thời gian khác nhau sẽ có mức giá khác nhau</Hint>
-                </div>
-
-                {/* Views */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label required hint="Số lượng view tối đa trong 1 ngày">
-                      Số lượng view trong ngày
-                    </Label>
-                    <NumberInput
-                      value={form.dailyViews}
-                      onChange={e => set('dailyViews', Number(e.target.value))}
-                      suffix="view/ngày"
-                    />
-                    <Hint>Số lượng view tối đa trong 1 ngày</Hint>
-                  </div>
-                  <div>
-                    <Label required hint="Khi 1 ngày không dùng hết sẽ chuyển sang ngày hôm sau">
-                      Tổng view mua
-                    </Label>
-                    <NumberInput
-                      value={form.totalViews}
-                      onChange={e => set('totalViews', Number(e.target.value))}
-                      suffix="view"
-                    />
-                    <Hint>Tổng view mua: khi 1 ngày không dùng hết sẽ chuyển sang ngày hôm sau để view tiếp</Hint>
-                  </div>
-                </div>
-
-                {/* View by hour toggle */}
-                <div className="flex items-start gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
-                  <div className="pt-0.5">
-                    <Toggle
-                      checked={form.viewByHour}
-                      onChange={() => set('viewByHour', !form.viewByHour)}
-                      label=""
-                    />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">View theo giờ</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Chia view theo giờ: Số view ngày / 24h</p>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            {/* ── Card: Keyword / URL & Website ── */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
-                  <Globe size={16} className="text-orange-500" />
-                </div>
-                <h2 className="font-bold text-gray-800">Từ khóa & Địa chỉ web</h2>
               </div>
 
-              <div className="space-y-5">
+              {/* Duration */}
+              <div>
+                <Label required hint="Thời gian ở lại trang — dài hơn giá cao hơn nhưng tín hiệu tốt hơn">Thời gian (Duration)</Label>
+                <div className="flex flex-wrap gap-2">
+                  {DURATIONS.filter(d => d.value).map(d => (
+                    <button
+                      key={d.value} type="button"
+                      onClick={() => set('duration', d.value)}
+                      className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all duration-150 ${
+                        form.duration === d.value
+                          ? 'border-indigo-500 bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-600'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+                <Hint>Thời gian dài → SEO tín hiệu tốt hơn. Giá sẽ hiển thị sau khi chọn loại traffic.</Hint>
+              </div>
 
-                {/* Keywords */}
+              {/* Views */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label required>Từ khóa</Label>
-                  <div className="space-y-2">
-                    {form.keywords.map((kw, i) => (
-                      <div key={i} className="flex gap-2">
+                  <Label required hint="Số view tối đa phân phối trong 1 ngày">Số view / ngày</Label>
+                  <NumberInput
+                    value={form.dailyViews}
+                    onChange={e => set('dailyViews', Number(e.target.value))}
+                    suffix="view/ngày"
+                  />
+                  <Hint>Giới hạn phân phối hàng ngày</Hint>
+                </div>
+                <div>
+                  <Label required hint="Tổng số view cần mua cho chiến dịch">Tổng view mua</Label>
+                  <NumberInput
+                    value={form.totalViews}
+                    onChange={e => set('totalViews', Number(e.target.value))}
+                    suffix="view"
+                  />
+                  <Hint>View dư ngày trước sẽ chuyển sang ngày sau</Hint>
+                </div>
+              </div>
+
+              {/* View by hour */}
+              <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                <Toggle checked={form.viewByHour} onChange={() => set('viewByHour', !form.viewByHour)} />
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Phân phối theo giờ</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Chia đều view trong 24h mỗi ngày</p>
+                </div>
+              </div>
+            </SectionCard>
+
+            {/* ── 2. Từ khóa & URL ── */}
+            <SectionCard icon={Globe} iconBg="bg-amber-50" iconColor="text-amber-600" title="Từ khóa & Địa chỉ web">
+              {/* Keywords */}
+              <div>
+                <Label required>Từ khóa tìm kiếm</Label>
+                <div className="space-y-2">
+                  {form.keywords.map((kw, i) => (
+                    <div key={i} className="flex gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">{i + 1}</span>
                         <TextInput
                           placeholder={`Từ khóa ${i + 1}`}
                           value={kw}
                           onChange={e => updateArrayItem('keywords', i, e.target.value)}
+                          className="pl-10"
                         />
-                        {form.keywords.length > 1 && (
-                          <button type="button" onClick={() => removeArrayItem('keywords', i)}
-                            className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
-                            <Trash2 size={16} />
-                          </button>
-                        )}
                       </div>
-                    ))}
-                  </div>
-                  <button type="button" onClick={() => addArrayItem('keywords')}
-                    className="mt-2 flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition">
-                    <Plus size={14} /> Thêm từ khóa
-                  </button>
-                  <Hint>Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt</Hint>
+                      {form.keywords.length > 1 && (
+                        <button type="button" onClick={() => removeArrayItem('keywords', i)}
+                          className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
+                <button type="button" onClick={() => addArrayItem('keywords')}
+                  className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
+                  <Plus size={13} /> Thêm từ khóa
+                </button>
+                <Hint>Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt truy cập</Hint>
+              </div>
 
-                {/* URLs */}
-                <div>
-                  <Label required>Địa chỉ trang web</Label>
-                  <div className="space-y-2">
-                    {form.urls.map((url, i) => (
-                      <div key={i} className="flex gap-2">
+              {/* URLs */}
+              <div>
+                <Label required>Địa chỉ trang web (URL đích)</Label>
+                <div className="space-y-2">
+                  {form.urls.map((url, i) => (
+                    <div key={i} className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Globe size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                         <TextInput
                           type="url"
-                          placeholder={i === 0 ? 'https://traffic68.com/' : `URL ${i + 1}`}
+                          placeholder={i === 0 ? 'https://example.com/trang-can-tang-traffic' : `URL phụ ${i + 1}`}
                           value={url}
                           onChange={e => updateArrayItem('urls', i, e.target.value)}
+                          className="pl-9"
                         />
-                        {form.urls.length > 1 && (
-                          <button type="button" onClick={() => removeArrayItem('urls', i)}
-                            className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
-                            <Trash2 size={16} />
-                          </button>
-                        )}
                       </div>
-                    ))}
-                  </div>
-                  <button type="button" onClick={() => addArrayItem('urls')}
-                    className="mt-2 flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition">
-                    <Plus size={14} /> Thêm URL
-                  </button>
-                  <Hint>URL đầu tiên là trang chính, các URL tiếp theo sẽ được chọn ngẫu nhiên</Hint>
+                      {form.urls.length > 1 && (
+                        <button type="button" onClick={() => removeArrayItem('urls', i)}
+                          className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
-
+                <button type="button" onClick={() => addArrayItem('urls')}
+                  className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
+                  <Plus size={13} /> Thêm URL
+                </button>
+                <Hint>URL đầu tiên là trang chính. Các URL tiếp theo được chọn ngẫu nhiên.</Hint>
               </div>
-            </div>
+            </SectionCard>
 
-            {/* ── Card: Images ── */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-                  <Upload size={16} className="text-purple-600" />
-                </div>
-                <h2 className="font-bold text-gray-800">Hình ảnh</h2>
-              </div>
-
+            {/* ── 3. Hình ảnh ── */}
+            <SectionCard icon={Upload} iconBg="bg-violet-50" iconColor="text-violet-600" title="Hình ảnh chiến dịch" badge="Tuỳ chọn">
               <div className="space-y-3">
                 {form.imageUrls.map((imgUrl, i) => (
                   <div key={i}>
                     {imgUrl && (
-                      <img src={imgUrl} alt="" className="w-full h-28 object-cover rounded-xl border border-gray-200 mb-1.5" onError={e => e.target.style.display='none'} />
+                      <img src={imgUrl} alt="" className="w-full h-28 object-cover rounded-xl border border-slate-200 mb-2" onError={e => e.target.style.display='none'} />
                     )}
                     <div className="flex gap-2">
-                      <label className="flex-1 flex items-center gap-3 border border-dashed border-gray-300 rounded-xl px-4 py-2.5 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition group">
-                        <div className="w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-blue-100 flex items-center justify-center flex-shrink-0">
-                          <Upload size={14} className={`text-gray-400 group-hover:text-blue-500 transition ${uploadingIdx === i ? 'animate-spin' : ''}`} />
+                      <label className="flex-1 flex items-center gap-3 border-2 border-dashed border-slate-200 rounded-xl px-4 py-3 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/50 transition-all group">
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center flex-shrink-0 transition-colors">
+                          <Upload size={14} className={`text-slate-400 group-hover:text-indigo-500 transition-colors ${uploadingIdx === i ? 'animate-spin' : ''}`} />
                         </div>
-                        <span className="text-xs text-gray-500">{uploadingIdx === i ? 'Đang upload...' : imgUrl ? 'Thay ảnh' : `Chọn ảnh ${i + 1}`}</span>
+                        <span className="text-xs text-slate-500 group-hover:text-indigo-600 transition-colors">
+                          {uploadingIdx === i ? 'Đang tải lên...' : imgUrl ? 'Thay ảnh khác' : `Chọn ảnh ${i + 1}`}
+                        </span>
                         <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, i)} />
                       </label>
                       {form.imageUrls.length > 1 && (
                         <button type="button" onClick={() => removeArrayItem('imageUrls', i)}
                           className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
-                          <Trash2 size={16} />
+                          <Trash2 size={15} />
                         </button>
                       )}
                     </div>
@@ -646,229 +582,227 @@ export default function CreateCampaign() {
                 ))}
               </div>
               <button type="button" onClick={() => addArrayItem('imageUrls')}
-                className="mt-2 flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition">
-                <Plus size={14} /> Thêm ảnh
+                className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
+                <Plus size={13} /> Thêm ảnh
               </button>
-              <Hint>Upload ảnh lên hệ thống, thêm không giới hạn</Hint>
-            </div>
+              <Hint>Upload ảnh thumbnail hoặc ảnh đại diện chiến dịch. Không giới hạn số lượng.</Hint>
+            </SectionCard>
 
-            {/* ── Card: Target thiết bị & Quốc gia ── */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
-                  <Globe size={16} className="text-teal-600" />
-                </div>
-                <h2 className="font-bold text-gray-800">Target thiết bị & Quốc gia</h2>
-              </div>
-
-              <div className="space-y-5">
-                {/* Devices */}
-                <div>
-                  <Label hint="Chọn thiết bị mà bạn muốn traffic đến từ">Thiết bị</Label>
-                  <div className="grid grid-cols-2 gap-3 mt-1">
-                    {DEVICES.map(d => {
-                      const Icon = d.icon;
-                      const active = form.devices.includes(d.value);
-                      return (
-                        <div
-                          key={d.value}
-                          onClick={() => {
-                            const next = active
-                              ? form.devices.filter(v => v !== d.value)
-                              : [...form.devices, d.value];
-                            if (next.length > 0) set('devices', next);
-                          }}
-                          className={`flex flex-col items-center gap-2 border-2 rounded-xl px-3 py-3 cursor-pointer transition-all
-                                      ${active
-                              ? 'border-blue-500 bg-blue-50 shadow-sm'
-                              : 'border-gray-200 hover:border-blue-300'}`}
-                        >
-                          <Icon size={20} className={active ? 'text-blue-600' : 'text-gray-400'} />
-                          <span className={`text-xs font-semibold ${active ? 'text-blue-700' : 'text-gray-500'}`}>{d.label}</span>
+            {/* ── 4. Thiết bị & Quốc gia ── */}
+            <SectionCard icon={MousePointerClick} iconBg="bg-teal-50" iconColor="text-teal-600" title="Thiết bị & Quốc gia">
+              {/* Devices */}
+              <div>
+                <Label hint="Chọn loại thiết bị mà visitor sẽ sử dụng để truy cập">Thiết bị target</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  {DEVICES.map(d => {
+                    const Icon   = d.icon;
+                    const active = form.devices.includes(d.value);
+                    return (
+                      <div
+                        key={d.value}
+                        onClick={() => {
+                          const next = active ? form.devices.filter(v => v !== d.value) : [...form.devices, d.value];
+                          if (next.length > 0) set('devices', next);
+                        }}
+                        className={`flex items-center gap-3 border-2 rounded-xl px-4 py-3 cursor-pointer transition-all ${
+                          active ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${active ? 'bg-indigo-100' : 'bg-slate-100'}`}>
+                          <Icon size={18} className={active ? 'text-indigo-600' : 'text-slate-400'} />
                         </div>
-                      );
-                    })}
-                  </div>
-                  <Hint>Chọn thiết thiết bị mà bạn muốn traffic truy cập vào website.</Hint>
+                        <div>
+                          <p className={`text-sm font-bold ${active ? 'text-indigo-700' : 'text-slate-600'}`}>{d.label}</p>
+                          <p className="text-xs text-slate-400">{d.desc}</p>
+                        </div>
+                        <div className={`ml-auto w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                          active ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'
+                        }`}>
+                          {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                {/* Countries */}
-                <div>
-                  <Label hint="Chọn quốc gia mà bạn muốn traffic đến từ">Quốc gia</Label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {COUNTRIES.map(c => {
-                      const active = form.countries.includes(c.value);
-                      return (
-                        <button
-                          key={c.value}
-                          type="button"
-                          onClick={() => {
-                            const next = active
-                              ? form.countries.filter(v => v !== c.value)
-                              : [...form.countries, c.value];
-                            if (next.length > 0) set('countries', next);
-                          }}
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-semibold transition-all
-                                      ${active
-                              ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
-                              : 'border-gray-200 text-gray-500 hover:border-blue-300'}`}
-                        >
-                          <img src="https://flagcdn.com/w40/vn.png" alt="VN" className="w-6 h-4 rounded-sm object-cover" />
-                          {c.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <Hint>Hiện tại chúng tôi chỉ hỗ trợ quốc gia Việt Nam.</Hint>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Card: Discount + Note ── */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center">
-                  <Tag size={16} className="text-yellow-600" />
-                </div>
-                <h2 className="font-bold text-gray-800">Mã giảm giá & Ghi chú</h2>
+                <Hint>Chọn cả hai để phân phối đều, chọn một để target cụ thể hơn.</Hint>
               </div>
 
-              <div className="space-y-5">
-                {/* Discount */}
-                <div>
-                  <Label>Mã giảm giá</Label>
-                  <div className="flex gap-2">
-                    <TextInput
-                      placeholder="Nhập mã giảm giá..."
-                      value={form.discountCode}
-                      onChange={e => { set('discountCode', e.target.value); setDiscountApplied(false); }}
-                      className="flex-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={applyDiscount}
-                      className={`px-4 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-95 flex-shrink-0
-                                 ${discountApplied
-                          ? 'bg-green-500 hover:bg-green-600 text-white'
-                          : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
-                    >
-                      {discountApplied ? '✓ Đã áp dụng' : 'Áp dụng'}
-                    </button>
+              {/* Country */}
+              <div>
+                <Label hint="Quốc gia xuất phát của traffic">Quốc gia</Label>
+                <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border-2 border-indigo-500 bg-indigo-50 shadow-sm">
+                    <img src="https://flagcdn.com/w40/vn.png" alt="VN" className="w-6 h-4 rounded-sm object-cover" />
+                    <span className="text-sm font-bold text-indigo-700">Việt Nam</span>
+                    <CheckCircle2 size={14} className="text-indigo-500" />
                   </div>
-                  {discountApplied && (
-                    <div className="mt-2 flex items-start gap-1.5 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-                      <CheckCircle2 size={13} className="text-green-500 mt-0.5 flex-shrink-0" />
-                      <p className="text-xs text-green-700">
-                        Mã <strong>{form.discountCode}</strong> đã được áp dụng! Giảm <strong>{pricingConfig.discount_percent}%</strong>.
-                      </p>
-                    </div>
-                  )}
-                  {!discountApplied && adminDiscountEnabled && (
-                    <div className="mt-2 flex items-start gap-1.5 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
-                      <AlertCircle size={13} className="text-orange-500 mt-0.5 flex-shrink-0" />
-                      <p className="text-xs text-orange-700">
-                        Chú ý: Nhớ áp mã giảm giá để được giá tốt nhất. <strong>({pricingConfig.discount_code})</strong>
-                      </p>
-                    </div>
-                  )}
                 </div>
+                <Hint>Hiện tại chỉ hỗ trợ traffic từ Việt Nam.</Hint>
+              </div>
+            </SectionCard>
 
-                {/* Note */}
-                <div>
-                  <Label required>Ghi chú</Label>
-                  <textarea
-                    rows={3}
-                    placeholder="Ghi chú: Mã đơn hàng..."
-                    value={form.note}
-                    onChange={e => set('note', e.target.value)}
-                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white
-                               shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2
-                               focus:ring-blue-500 focus:border-transparent transition resize-none"
+            {/* ── 5. Mã giảm giá & Ghi chú ── */}
+            <SectionCard icon={Tag} iconBg="bg-orange-50" iconColor="text-orange-600" title="Mã giảm giá & Ghi chú">
+              {/* Discount */}
+              <div>
+                <Label>Mã giảm giá</Label>
+                <div className="flex gap-2">
+                  <TextInput
+                    placeholder="Nhập mã giảm giá nếu có..."
+                    value={form.discountCode}
+                    onChange={e => { set('discountCode', e.target.value); setDiscountApplied(false); }}
+                    className="flex-1"
                   />
-                  <Hint>Ghi chú thông tin đơn hàng</Hint>
+                  <button
+                    type="button"
+                    onClick={applyDiscount}
+                    className={`px-4 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-95 flex-shrink-0 ${
+                      discountApplied
+                        ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                        : 'bg-orange-500 hover:bg-orange-600 text-white'
+                    }`}
+                  >
+                    {discountApplied ? '✓ Đã áp dụng' : 'Áp dụng'}
+                  </button>
                 </div>
+                {discountApplied && (
+                  <div className="mt-2 flex items-start gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
+                    <CheckCircle2 size={13} className="text-emerald-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-emerald-700">
+                      Mã <strong>{form.discountCode}</strong> đã áp dụng! Giảm <strong>{pricingConfig.discount_percent}%</strong> trên toàn bộ đơn hàng.
+                    </p>
+                  </div>
+                )}
+                {!discountApplied && adminDiscountEnabled && (
+                  <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                    <AlertCircle size={13} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-amber-700">
+                      Có mã giảm giá đang áp dụng! Nhớ nhập mã để được giá tốt hơn: <strong>{pricingConfig.discount_code}</strong>
+                    </p>
+                  </div>
+                )}
               </div>
-            </div>
 
+              {/* Note */}
+              <div>
+                <Label>Ghi chú đơn hàng</Label>
+                <textarea
+                  rows={3}
+                  placeholder="Thêm ghi chú: mã đơn hàng, yêu cầu đặc biệt..."
+                  value={form.note}
+                  onChange={e => set('note', e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl bg-white
+                             placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30
+                             focus:border-indigo-400 transition-all resize-none shadow-sm hover:border-slate-300"
+                />
+                <Hint>Ghi chú internal, không ảnh hưởng đến chiến dịch.</Hint>
+              </div>
+            </SectionCard>
           </div>
 
-          {/* ══ RIGHT: Summary & CTA ═══════════════════════════════ */}
-          <div className="space-y-5">
+          {/* ══ RIGHT: Order Summary ═══════════════════════════════════ */}
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden sticky top-6">
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-slate-100"
+                style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)' }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Sparkles size={13} className="text-indigo-300" />
+                  <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">Đơn hàng</span>
+                </div>
+                <p className="text-base font-black text-white">Tóm tắt chiến dịch</p>
+              </div>
 
-            {/* Order summary */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sticky top-6">
-              <h2 className="font-bold text-gray-800 mb-4 pb-3 border-b border-gray-100">
-                Tóm tắt đơn hàng
-              </h2>
-
-              <div className="space-y-3 text-sm mb-5">
-                <SummaryRow label="Loại traffic"
-                  value={TRAFFIC_TYPES.find(t => t.value === form.trafficType)?.label || '—'} />
-                <SummaryRow label="Version"
-                  value={form.version === 'v1' ? 'Version 1 (2 bước)' : form.version === 'v2' ? 'Version 2 (1 bước)' : '—'} />
-                <SummaryRow label="Thời gian"
-                  value={DURATIONS.find(d => d.value === form.duration)?.label || '—'} />
-                <SummaryRow label="View/ngày" value={fmt(form.dailyViews)} />
-                <SummaryRow label="Tổng view" value={fmt(form.totalViews)} />
-                {hasPricing ? (
-                  <SummaryRow label="Đơn giá/view" value={`${fmt(pricePerView)} VNĐ`} />
-                ) : (
-                  <SummaryRow label="Đơn giá/view" value="Chọn loại traffic & thời gian" />
-                )}
+              {/* Summary rows */}
+              <div className="p-5 space-y-0">
+                <SummaryRow label="Tên chiến dịch" value={form.campaignName || '—'} />
+                <SummaryRow label="Loại traffic"   value={TRAFFIC_TYPES.find(t => t.value === form.trafficType)?.label || '—'} />
+                <SummaryRow label="Version"        value={form.version === 'v1' ? 'Version 1 (2 bước)' : 'Version 2 (1 bước)'} />
+                <SummaryRow label="Thời gian"      value={DURATIONS.find(d => d.value === form.duration)?.label || '—'} />
+                <SummaryRow label="View/ngày"      value={`${fmt(form.dailyViews)} view`} />
+                <SummaryRow label="Tổng view"      value={`${fmt(form.totalViews)} view`} />
+                <SummaryRow
+                  label="Đơn giá/view"
+                  value={hasPricing ? `${fmt(pricePerView)} đ` : 'Chọn loại & thời gian'}
+                />
                 {discountApplied && (
-                  <SummaryRow label="Giảm giá" value={`✓ Đã áp dụng (-${pricingConfig.discount_percent}%)`} accent />
+                  <SummaryRow label="Giảm giá" value={`✓ -${pricingConfig.discount_percent}%`} accent />
                 )}
               </div>
 
-              <div className="border-t border-gray-100 pt-4 mb-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-600">Tổng tiền</span>
-                  <span className="text-xl font-black text-blue-700">{hasPricing ? fmt(totalPrice) : '—'} <span className="text-sm font-semibold">VNĐ</span></span>
+              {/* Total */}
+              <div className="px-5 pb-4 pt-3 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-bold text-slate-600">Tổng tiền</span>
+                  <span className="text-2xl font-black text-indigo-700 tabular-nums">
+                    {hasPricing ? fmt(totalPrice) : '—'}
+                    {hasPricing && <span className="text-sm text-slate-400 font-semibold ml-1">đ</span>}
+                  </span>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  {hasPricing ? 'Số tiền sẽ trừ từ ví chính khi tạo chiến dịch.' : 'Vui lòng chọn loại traffic và thời gian để xem giá.'}
-                </p>
+
+                {/* Budget check */}
+                {hasPricing && (
+                  <div className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold mt-2 ${
+                    budgetOk
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                  }`}>
+                    {budgetOk
+                      ? <><CheckCircle2 size={12} /> Số dư đủ (còn {fmt(walletBalance - totalPrice)} đ)</>
+                      : <><AlertCircle size={12} /> Số dư không đủ – cần nạp thêm {fmt(totalPrice - walletBalance)} đ</>
+                    }
+                  </div>
+                )}
+
+                {!hasPricing && (
+                  <p className="text-xs text-slate-400 mt-1">Chọn loại traffic và thời gian để xem giá.</p>
+                )}
               </div>
 
               {/* Submit */}
-              <button
-                type="submit"
-                className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800
-                           text-white font-black text-base rounded-2xl shadow-lg shadow-blue-200
-                           transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-95"
-              >
-                Mua Dịch Vụ
-              </button>
+              <div className="px-5 pb-5">
+                {!budgetOk && hasPricing ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/buyer/dashboard/finance/deposit')}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700
+                               text-white font-black text-sm rounded-2xl shadow-lg shadow-emerald-200 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-95"
+                  >
+                    <CreditCard size={15} /> Nạp tiền ngay
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700
+                               text-white font-black text-sm rounded-2xl shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+                  >
+                    {submitting ? (
+                      <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Đang xử lý...</>
+                    ) : (
+                      <><Zap size={15} /> Mua Dịch Vụ</>
+                    )}
+                  </button>
+                )}
+              </div>
 
               {/* Notes */}
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-xl">
-                <p className="text-xs font-bold text-blue-700 mb-1.5 flex items-center gap-1">
-                  <Info size={12} /> Lưu ý quan trọng
+              <div className="mx-5 mb-5 p-3.5 bg-indigo-50 border border-indigo-100 rounded-xl">
+                <p className="text-xs font-bold text-indigo-700 mb-2 flex items-center gap-1.5">
+                  <Info size={11} /> Lưu ý quan trọng
                 </p>
-                <ul className="space-y-1 text-xs text-blue-600">
-                  <li>• Traffic bắt đầu trong vòng 24h</li>
-                  <li>• Số dư hiện tại: <strong>{fmt(walletBalance)} VNĐ</strong></li>
+                <ul className="space-y-1 text-xs text-indigo-600 leading-relaxed">
+                  <li>• Traffic bắt đầu trong vòng <strong>24h</strong></li>
+                  <li>• Số dư hiện tại: <strong>{fmt(walletBalance)} đ</strong></li>
                   <li>• Cam kết hoàn tiền nếu không đạt KPI</li>
-                  <li>• Hỗ trợ tư vấn 24/7</li>
+                  <li>• Hỗ trợ tư vấn <strong>24/7</strong></li>
                 </ul>
               </div>
             </div>
-
           </div>
+
         </div>
       </form>
-    </div>
-  );
-}
-
-/* ── Inline summary row ──────────────────────────────────── */
-function SummaryRow({ label, value, accent }) {
-  return (
-    <div className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
-      <span className="text-gray-500 text-xs">{label}</span>
-      <span className={`text-xs font-semibold text-right max-w-[55%] break-words ${accent ? 'text-orange-500' : 'text-gray-800'}`}>
-        {value || <span className="text-gray-300 font-normal">—</span>}
-      </span>
     </div>
   );
 }
