@@ -107,16 +107,6 @@ export default function BuyerApi() {
   return (
     <div className="space-y-6 w-full min-w-0">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/buyer/dashboard' }, { label: 'Buyer API' }]} />
-
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-          <Terminal size={24} className="text-violet-500" /> Buyer API
-        </h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Tích hợp traffic campaigns vào hệ thống của bạn qua REST API.
-        </p>
-      </div>
-
       {/* ── API Key card ── */}
       <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white">
         <div className="flex items-center gap-3 mb-4">

@@ -75,13 +75,6 @@ export default function BuyerSupport() {
             <div className="space-y-3">
               {tickets.map(t => (
                 <div key={t.id} className="p-3 border border-slate-100 rounded-lg hover:bg-slate-50 transition">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-semibold text-slate-700">{t.subject}</p>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${t.status === 'resolved' ? 'bg-green-50 text-green-600' : t.status === 'closed' ? 'bg-slate-100 text-slate-500' : 'bg-amber-50 text-amber-600'}`}>
-                      {t.status === 'resolved' || t.status === 'closed' ? <CheckCircle2 size={10} /> : <Clock size={10} />}
-                      {t.status === 'resolved' ? 'Đã xử lý' : t.status === 'closed' ? 'Đã đóng' : 'Đang chờ'}
-                    </span>
-                  </div>
                   <p className="text-[10px] text-slate-400">{new Date(t.created_at).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                   {t.admin_reply && (
                     <div className="mt-2 p-2 bg-blue-50 rounded-lg">
