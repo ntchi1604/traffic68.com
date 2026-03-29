@@ -822,18 +822,32 @@ router.get('/security/users', async (req, res) => {
          u.email,
          u.status,
          u.avatar_url,
-         COUNT(DISTINCT vt.id) as total,
-         COALESCE(SUM(CASE WHEN vt.status = 'completed' THEN 1 ELSE 0 END), 0) as ok,
-         COALESCE(SUM(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END), 0) as blocked,
-         COALESCE(SUM(CASE WHEN vt.status = 'expired' THEN 1 ELSE 0 END), 0) as expired,
-         COALESCE(SUM(CASE WHEN vt.status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END), 0) as pending,
-         COALESCE(SUM(vt.earning), 0) as earned,
-         MAX(vt.created_at) as last_at,
-         GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips
+         COALESCE(vt_aggr.total, 0) as total,
+         COALESCE(vt_aggr.ok, 0) as ok,
+         COALESCE(vt_aggr.blocked, 0) as blocked,
+         COALESCE(vt_aggr.expired, 0) as expired,
+         COALESCE(vt_aggr.pending, 0) as pending,
+         COALESCE(vt_aggr.earned, 0) as earned,
+         vt_aggr.last_at,
+         vt_aggr.ips
        FROM users u
-       LEFT JOIN vuot_link_tasks vt ON (vt.worker_id = u.id OR vt.worker_link_id IN (SELECT wl.id FROM worker_links wl WHERE wl.worker_id = u.id))${timeWhere}
+       LEFT JOIN (
+           SELECT 
+             COALESCE(vt.worker_id, wl.worker_id) as actual_worker_id,
+             COUNT(DISTINCT vt.id) as total,
+             CAST(SUM(CASE WHEN vt.status = 'completed' THEN 1 ELSE 0 END) AS UNSIGNED) as ok,
+             CAST(SUM(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END) AS UNSIGNED) as blocked,
+             CAST(SUM(CASE WHEN vt.status = 'expired' THEN 1 ELSE 0 END) AS UNSIGNED) as expired,
+             CAST(SUM(CASE WHEN vt.status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) AS UNSIGNED) as pending,
+             SUM(vt.earning) as earned,
+             MAX(vt.created_at) as last_at,
+             GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips
+           FROM vuot_link_tasks vt
+           LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+           WHERE 1=1 ${timeWhere.replace(/vt\./g, 'vt.')}
+           GROUP BY actual_worker_id
+       ) vt_aggr ON vt_aggr.actual_worker_id = u.id
        WHERE 1=1${searchWhere}
-       GROUP BY u.id
        ORDER BY ${orderCol} DESC, last_at DESC
        LIMIT ? OFFSET ?`,
       [...timeParams, ...params, Number(limit), offset]
@@ -847,10 +861,10 @@ router.get('/security/users', async (req, res) => {
       for (const uid of ids) {
         try {
           // Lấy IP của user trong khoảng thời gian được chọn
-          let ipQuery = `SELECT DISTINCT ip_address FROM vuot_link_tasks WHERE (worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))`;
-          const ipQParams = [uid, uid];
-          if (from) { ipQuery += ` AND created_at >= ?`; ipQParams.push(from); }
-          if (to) { ipQuery += ` AND created_at <= ?`; ipQParams.push(to + ' 23:59:59'); }
+          let ipQuery = `SELECT DISTINCT vt.ip_address FROM vuot_link_tasks vt LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id WHERE COALESCE(vt.worker_id, wl.worker_id) = ?`;
+          const ipQParams = [uid];
+          if (from) { ipQuery += ` AND vt.created_at >= ?`; ipQParams.push(from); }
+          if (to) { ipQuery += ` AND vt.created_at <= ?`; ipQParams.push(to + ' 23:59:59'); }
 
           const [ipRows] = await pool.execute(ipQuery, ipQParams);
           const ips = ipRows.map(r => r.ip_address).filter(Boolean);
@@ -871,12 +885,13 @@ router.get('/security/users', async (req, res) => {
                 FROM security_logs
                 WHERE ip_address IN (${ph}) AND reason != 'completed'${slDateWhere}
                 UNION
-                SELECT ip_address, COALESCE(visitor_id, '') as vis_id
-                FROM vuot_link_tasks
-                WHERE (worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))
-                  AND bot_detected = 1${vtDateWhere}
+                SELECT vt.ip_address, COALESCE(vt.visitor_id, '') as vis_id
+                FROM vuot_link_tasks vt
+                LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+                WHERE COALESCE(vt.worker_id, wl.worker_id) = ?
+                  AND vt.bot_detected = 1${vtDateWhere}
               ) t`,
-              [...ips, ...slDateParams, uid, uid, ...vtDateParams]
+              [...ips, ...slDateParams, uid, ...vtDateParams]
             );
             if (dedupRows[0].cnt > 0) secMap[uid] = Number(dedupRows[0].cnt);
           }
