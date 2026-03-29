@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, 
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     const ext = path.extname(file.originalname).toLowerCase();
@@ -77,6 +77,9 @@ router.get('/', async (req, res) => {
             SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
           )`, ids
         );
+        await pool.execute(
+          `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views`, ids
+        );
         const [updated] = await pool.execute(sql, params);
         return res.json({ campaigns: updated });
       }
@@ -106,7 +109,7 @@ router.post('/', async (req, res) => {
 
     if (!name || !url) return res.status(400).json({ error: 'Tên và URL chiến dịch là bắt buộc' });
 
-    
+
     let realBudget = budget || 0;
     let useDiscount = false;
     try {
@@ -138,7 +141,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: `Số dư ví không đủ. Cần ${realBudget} VNĐ, hiện có ${wallets[0]?.balance || 0} VNĐ` });
     }
 
-    
+
     const calculatedCpc = _totalViews > 0 ? Math.round(realBudget / _totalViews) : (cpc || 0);
 
     const [result] = await pool.execute(
@@ -146,7 +149,7 @@ router.post('/', async (req, res) => {
       [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0]
     );
 
-    
+
 
     await pool.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
@@ -195,11 +198,16 @@ router.get('/:id/keyword-stats', async (req, res) => {
 
     // ── Auto-sync views_done (fire-and-forget) ──
     const realViews = rows.reduce((s, r) => s + Number(r.completed), 0);
-    pool.execute('SELECT views_done FROM campaigns WHERE id = ?', [req.params.id]).then(([c]) => {
-      if (c[0] && Number(c[0].views_done) !== realViews) {
-        pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, req.params.id]).catch(() => {});
+    pool.execute('SELECT views_done, total_views, status FROM campaigns WHERE id = ?', [req.params.id]).then(([c]) => {
+      if (c[0]) {
+        if (Number(c[0].views_done) !== realViews) {
+          pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, req.params.id]).catch(() => { });
+        }
+        if (c[0].status === 'completed' && realViews < Number(c[0].total_views)) {
+          pool.execute("UPDATE campaigns SET status = 'running' WHERE id = ?", [req.params.id]).catch(() => { });
+        }
       }
-    }).catch(() => {});
+    }).catch(() => { });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -215,7 +223,7 @@ router.put('/:id', async (req, res) => {
     const { name, url, url2, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, targetPage, timeOnSite, status, image1_url, image2_url } = req.body;
     const n = (v) => v === undefined ? null : v;
 
-    
+
     const oldImage1 = existing[0].image1_url;
     const oldImage2 = existing[0].image2_url;
     if (image1_url !== undefined && oldImage1 && oldImage1 !== image1_url) {
@@ -246,7 +254,7 @@ router.put('/:id/status', async (req, res) => {
   const { status } = req.body;
   if (!['running', 'paused', 'completed'].includes(status)) return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
 
-  
+
   if (status === 'completed') {
     const [rows] = await pool.execute('SELECT image1_url FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
     if (rows[0]?.image1_url) {

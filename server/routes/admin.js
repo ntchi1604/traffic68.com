@@ -285,6 +285,10 @@ router.get('/campaigns', async (req, res) => {
           SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
         )`, ids
       );
+      // Auto-resume campaigns that fell below target after bot cleanup
+      await pool.execute(
+        `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views`, ids
+      );
       // Refetch to get corrected values
       const [updated] = await pool.execute(sql, params);
       return res.json({ campaigns: updated });
