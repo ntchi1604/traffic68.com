@@ -831,7 +831,7 @@ router.get('/security/users', async (req, res) => {
          MAX(vt.created_at) as last_at,
          GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips
        FROM users u
-       LEFT JOIN vuot_link_tasks vt ON (vt.worker_id = u.id OR vt.worker_link_id IN (SELECT wl.id FROM worker_links wl WHERE wl.worker_id = u.id))${timeWhere}
+       LEFT JOIN vuot_link_tasks vt ON vt.worker_id = u.id ${timeWhere}
        WHERE 1=1${searchWhere}
        GROUP BY u.id
        ORDER BY ${orderCol} DESC, last_at DESC
@@ -847,8 +847,8 @@ router.get('/security/users', async (req, res) => {
       for (const uid of ids) {
         try {
           // Lấy IP của user trong khoảng thời gian được chọn
-          let ipQuery = `SELECT DISTINCT ip_address FROM vuot_link_tasks WHERE (worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))`;
-          const ipQParams = [uid, uid];
+          let ipQuery = `SELECT DISTINCT ip_address FROM vuot_link_tasks WHERE worker_id = ?`;
+          const ipQParams = [uid];
           if (from) { ipQuery += ` AND created_at >= ?`; ipQParams.push(from); }
           if (to) { ipQuery += ` AND created_at <= ?`; ipQParams.push(to + ' 23:59:59'); }
 
@@ -873,10 +873,10 @@ router.get('/security/users', async (req, res) => {
                 UNION
                 SELECT ip_address, COALESCE(visitor_id, '') as vis_id
                 FROM vuot_link_tasks
-                WHERE (worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))
+                WHERE worker_id = ?
                   AND bot_detected = 1${vtDateWhere}
               ) t`,
-              [...ips, ...slDateParams, uid, uid, ...vtDateParams]
+              [...ips, ...slDateParams, uid, ...vtDateParams]
             );
             if (dedupRows[0].cnt > 0) secMap[uid] = Number(dedupRows[0].cnt);
           }
