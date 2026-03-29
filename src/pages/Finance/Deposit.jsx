@@ -111,16 +111,20 @@ function CryptoDepositPanel({ data, onClose }) {
     return () => clearInterval(t);
   }, []);
 
+  const isTrc20 = data.network === 'TRC20';
+  const networkLabel = isTrc20 ? 'Tron (TRC20)' : 'BSC (BEP20)';
+  const themeAccent = isTrc20 ? 'red' : 'emerald';
+
   return (
-    <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-2xl p-6 space-y-5">
+    <div className={`bg-gradient-to-br from-${themeAccent}-50 to-teal-50 border-2 border-${themeAccent}-200 rounded-2xl p-6 space-y-5`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+          <div className={`w-10 h-10 bg-${themeAccent}-100 rounded-xl flex items-center justify-center`}>
             <UsdtIcon size={22} />
           </div>
           <div>
-            <h3 className="font-black text-emerald-800 text-base">Gửi USDT để hoàn tất</h3>
-            <p className="text-xs text-emerald-600">
+            <h3 className={`font-black text-${themeAccent}-800 text-base`}>Gửi USDT để hoàn tất</h3>
+            <p className={`text-xs text-${themeAccent}-600`}>
               {data.auto ? '⚡ Tự động xác nhận sau khi nhận USDT' : '⏳ Admin sẽ xác nhận thủ công'}
             </p>
           </div>
@@ -129,13 +133,13 @@ function CryptoDepositPanel({ data, onClose }) {
       </div>
 
       {/* Amount to send */}
-      <div className="bg-white rounded-xl p-4 border border-emerald-200">
+      <div className={`bg-white rounded-xl p-4 border border-${themeAccent}-200`}>
         <p className="text-xs text-gray-500 mb-1">Số USDT cần gửi (chính xác)</p>
         <div className="flex items-center gap-3">
-          <p className="text-3xl font-black text-emerald-700">{data.usdtAmount}</p>
-          <span className="text-sm font-bold text-emerald-500">USDT</span>
+          <p className={`text-3xl font-black text-${themeAccent}-700`}>{data.usdtAmount}</p>
+          <span className={`text-sm font-bold text-${themeAccent}-500`}>USDT</span>
           <button onClick={() => { navigator.clipboard.writeText(String(data.usdtAmount)); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-            className="ml-auto px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 rounded-lg text-xs font-bold text-emerald-700 flex items-center gap-1 transition">
+            className={`ml-auto px-3 py-1.5 bg-${themeAccent}-100 hover:bg-${themeAccent}-200 rounded-lg text-xs font-bold text-${themeAccent}-700 flex items-center gap-1 transition`}>
             {copied ? <><Check size={12} /> Đã copy</> : <><Copy size={12} /> Copy</>}
           </button>
         </div>
@@ -143,8 +147,8 @@ function CryptoDepositPanel({ data, onClose }) {
       </div>
 
       {/* Deposit address */}
-      <div className="bg-white rounded-xl p-4 border border-emerald-200">
-        <p className="text-xs text-gray-500 mb-2">Địa chỉ ví nhận (BSC - BEP20)</p>
+      <div className={`bg-white rounded-xl p-4 border ${isTrc20 ? 'border-red-200' : 'border-emerald-200'}`}>
+        <p className="text-xs text-gray-500 mb-2">Địa chỉ ví nhận ({networkLabel})</p>
         <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3 border border-gray-200">
           <code className="text-xs font-mono text-gray-800 break-all flex-1">{data.depositAddress}</code>
           <button onClick={() => { navigator.clipboard.writeText(data.depositAddress); }}
@@ -152,9 +156,9 @@ function CryptoDepositPanel({ data, onClose }) {
             <Copy size={14} className="text-gray-500" />
           </button>
         </div>
-        <div className="flex items-center gap-1.5 mt-2 text-amber-600">
+        <div className={`flex items-center gap-1.5 mt-2 ${isTrc20 ? 'text-red-500' : 'text-amber-600'}`}>
           <Info size={12} />
-          <p className="text-[10px] font-semibold">Chỉ gửi USDT trên mạng BSC (BEP20). Gửi sai mạng sẽ mất tiền!</p>
+          <p className="text-[10px] font-semibold">Chỉ gửi USDT trên mạng {networkLabel}. Gửi sai mạng sẽ mất tiền!</p>
         </div>
       </div>
 
@@ -213,8 +217,8 @@ export default function Deposit() {
     if (!num || num < 10000) { toast.error('Số tiền nạp tối thiểu là 10.000 VNĐ'); return; }
     setProcessing(true);
     try {
-      if (method === 'crypto') {
-        const data = await api.post('/finance/deposits', { amount: num, method: 'crypto' });
+      if (method === 'crypto' || method === 'trc20') {
+        const data = await api.post('/finance/deposits', { amount: num, method });
         setCryptoResult({ ...data, amount: num });
         setAmount('');
       } else {
@@ -246,9 +250,11 @@ export default function Deposit() {
 
   const bankEnabled = depositConfig?.bank?.enabled;
   const cryptoEnabled = depositConfig?.crypto?.enabled;
+  const trc20Enabled = depositConfig?.trc20?.enabled;
   const methods = [];
   if (bankEnabled) methods.push({ id: 'bank', label: 'Ngân hàng', Icon: Banknote, color: 'bg-blue-600', border: 'border-blue-200', bg: 'bg-blue-50' });
-  if (cryptoEnabled) methods.push({ id: 'crypto', label: 'Crypto (USDT)', icon: 'usdt', color: 'bg-emerald-600', border: 'border-emerald-200', bg: 'bg-emerald-50' });
+  if (cryptoEnabled) methods.push({ id: 'crypto', label: 'USDT (BEP20)', icon: 'usdt', color: 'bg-emerald-600', border: 'border-emerald-200', bg: 'bg-emerald-50' });
+  if (trc20Enabled) methods.push({ id: 'trc20', label: 'USDT (TRC20)', icon: 'usdt', color: 'bg-red-500', border: 'border-red-200', bg: 'bg-red-50' });
 
   // Auto-select first available method
   useEffect(() => {

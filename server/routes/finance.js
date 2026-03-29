@@ -48,6 +48,12 @@ router.get('/deposit-config', async (req, res) => {
         auto: config.deposit_crypto_auto === 'true',
         minUsdt: parseFloat(config.deposit_crypto_min_usdt) || 1,
       },
+      trc20: {
+        enabled: config.deposit_trc20_enabled === 'true',
+        address: config.deposit_trc20_address || '',
+        auto: config.deposit_trc20_auto === 'true',
+        minUsdt: parseFloat(config.deposit_crypto_min_usdt) || 1, // reuse same min limit
+      },
       rate,
     });
   } catch (err) {
@@ -64,21 +70,24 @@ router.post('/deposits', async (req, res) => {
   }
 
   // ── Crypto deposit ──
-  if (method === 'crypto') {
+  if (method === 'crypto' || method === 'trc20') {
     try {
       const w3 = getWeb3Pay();
       if (!w3) return res.status(400).json({ error: 'Hệ thống crypto chưa sẵn sàng' });
       const config = await w3.getDepositSettings();
-      if (config.deposit_crypto_enabled !== 'true') return res.status(400).json({ error: 'Nạp crypto đang tắt' });
-      if (!config.deposit_crypto_address) return res.status(400).json({ error: 'Chưa cấu hình ví nhận' });
+      
+      const isConfigEnabled = method === 'crypto' ? config.deposit_crypto_enabled : config.deposit_trc20_enabled;
+      if (isConfigEnabled !== 'true') return res.status(400).json({ error: 'Nạp crypto mạng này đang tắt' });
+      
+      const depositAddress = method === 'crypto' ? config.deposit_crypto_address : config.deposit_trc20_address;
+      if (!depositAddress) return res.status(400).json({ error: 'Chưa cấu hình ví nhận' });
 
       const customRate = config.web3_vnd_rate ? parseFloat(config.web3_vnd_rate) : null;
       const conversion = await w3.convertVndToUSDT(Number(amount), customRate);
 
-      // Add random 0.01-0.99 USDT offset to make amount unique for matching
-      // Check against existing pending deposits to ensure no collision
       const [existingPending] = await pool.execute(
-        `SELECT note FROM transactions WHERE type='deposit' AND method='crypto' AND status='pending' AND wallet_type='main'`
+        `SELECT note FROM transactions WHERE type='deposit' AND method=? AND status='pending' AND wallet_type='main'`,
+        [method]
       );
       const usedAmounts = new Set();
       existingPending.forEach(r => {
@@ -97,29 +106,32 @@ router.post('/deposits', async (req, res) => {
       const minUsdt = parseFloat(config.deposit_crypto_min_usdt) || 1;
       if (usdtAmount < minUsdt) return res.status(400).json({ error: `Tối thiểu ${minUsdt} USDT` });
 
-      const refCode = `CRYPTO-${Date.now()}-${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`;
+      const refCode = `${method.toUpperCase()}-${Date.now()}-${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`;
       const note = `[Crypto Deposit] Expected: ${usdtAmount} USDT | Rate: 1 USDT = ${conversion.rate} VND`;
 
       await pool.execute(
         `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [req.userId, 'main', 'deposit', 'crypto', amount, 'pending', refCode, note]
+        [req.userId, 'main', 'deposit', method, amount, 'pending', refCode, note]
       );
 
       const fmt = new Intl.NumberFormat('vi-VN').format(amount);
+      const networkLabel = method === 'crypto' ? 'BEP20' : 'TRC20';
       await pool.execute(
         `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
-        [req.userId, '💰 Đơn nạp Crypto đang chờ', `Đơn nạp ${fmt} VND (${usdtAmount} USDT) đang chờ xác nhận. Gửi đúng số USDT đến ví nhận.`, 'info', 'buyer']
+        [req.userId, '💰 Đơn nạp Crypto đang chờ', `Đơn nạp ${fmt} VND (${usdtAmount} USDT) qua mạng ${networkLabel} đang chờ xác nhận. Gửi đúng số USDT đến ví nhận.`, 'info', 'buyer']
       );
 
       return res.status(201).json({
-        message: 'Đơn nạp crypto đã tạo — vui lòng chuyển USDT',
+        message: `Đơn nạp crypto đã tạo (${networkLabel}) — vui lòng chuyển USDT`,
         refCode,
         usdtAmount,
-        depositAddress: config.deposit_crypto_address,
+        depositAddress: depositAddress,
         rate: conversion.rate,
         status: 'pending',
-        auto: config.deposit_crypto_auto === 'true',
+        auto: (method === 'crypto' ? config.deposit_crypto_auto : config.deposit_trc20_auto) === 'true',
+        network: networkLabel,
       });
+
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -155,7 +167,7 @@ router.get('/transactions', async (req, res) => {
   const { type, period, scope, page = 1, limit = 20 } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
 
-  
+
   const walletType = scope === 'worker' ? 'earning' : 'main';
 
   let countSql = `SELECT COUNT(*) as c FROM transactions WHERE user_id = ? AND wallet_type = ?`;
@@ -164,7 +176,7 @@ router.get('/transactions', async (req, res) => {
 
   if (type && type !== 'all') {
     if (type === 'commission') {
-      
+
       countSql = `SELECT COUNT(*) as c FROM transactions WHERE user_id = ? AND wallet_type = 'commission'`;
       sql = `SELECT * FROM transactions WHERE user_id = ? AND wallet_type = 'commission'`;
       params.length = 0;
@@ -190,7 +202,7 @@ router.get('/transactions', async (req, res) => {
   sql += ` ORDER BY created_at DESC LIMIT ${Number(limit)} OFFSET ${offset}`;
   const [transactions] = await pool.execute(sql, params);
 
-  
+
   if (scope === 'worker' && transactions.length > 0) {
     const taskMap = {};
     transactions.forEach(t => {
@@ -233,7 +245,7 @@ router.post('/transfer', async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    
+
     const [wallets] = await conn.execute('SELECT balance FROM wallets WHERE user_id = ? AND type = ? FOR UPDATE', [req.userId, 'commission']);
     if (!wallets[0] || wallets[0].balance < num) {
       await conn.rollback();
@@ -241,12 +253,12 @@ router.post('/transfer', async (req, res) => {
       return res.status(400).json({ error: 'Số dư ví hoa hồng không đủ' });
     }
 
-    
+
     await conn.execute('UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = ?', [num, req.userId, 'commission']);
-    
+
     await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [num, req.userId, targetWallet]);
 
-    
+
     const ts = Date.now();
     const targetName = targetWallet === 'main' ? 'Ví Traffic' : 'Ví Thu Nhập';
     await conn.execute(
@@ -258,7 +270,7 @@ router.post('/transfer', async (req, res) => {
       [req.userId, targetWallet, 'deposit', 'transfer', num, 'completed', 'TRF-IN-' + ts, 'Nhận từ Ví Hoa Hồng']
     );
 
-    
+
     const fmtAmount = new Intl.NumberFormat('vi-VN').format(num);
     await conn.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
@@ -284,7 +296,7 @@ router.post('/withdraw', async (req, res) => {
   if (!['bank', 'crypto'].includes(method)) return res.status(400).json({ error: 'Phương thức không hợp lệ' });
   if (!trafficSource || !trafficSource.trim()) return res.status(400).json({ error: 'Vui lòng nhập nguồn lưu lượng truy cập' });
 
-  
+
   try {
     const [settings] = await pool.execute(
       "SELECT setting_value FROM site_settings WHERE setting_key = ?",
@@ -293,7 +305,7 @@ router.post('/withdraw', async (req, res) => {
     if (settings.length && settings[0].setting_value === 'false') {
       return res.status(400).json({ error: 'Phương thức rút tiền này đã bị tạm khóa' });
     }
-  } catch (e) {}
+  } catch (e) { }
 
   if (method === 'bank' && (!bankName || !accountNumber || !accountName)) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin ngân hàng' });
   if (method === 'crypto' && (!cryptoNetwork || !cryptoAddress)) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin ví crypto' });

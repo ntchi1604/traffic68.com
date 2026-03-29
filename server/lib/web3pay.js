@@ -225,7 +225,7 @@ async function getDepositSettings() {
   return config;
 }
 
-let lastKnownBalance = null;
+let lastKnownBalance = { crypto: null, trc20: null };
 
 async function getUSDTBalance(address) {
   const provider = getProvider();
@@ -236,102 +236,119 @@ async function getUSDTBalance(address) {
   return Number(ethers.formatUnits(bal, 18));
 }
 
+async function getTrc20USDTBalance(address) {
+  if (!address) return 0;
+  try {
+    const resp = await fetch(`https://apilist.tronscanapi.com/api/accountinfo?address=${address}`);
+    const data = await resp.json();
+    const usdt = data.trc20token_balances?.find(t => t.tokenId === 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t');
+    if (!usdt) return 0;
+    return Number(usdt.balance) / 1e6;
+  } catch (err) {
+    console.error('[DepositWatcher] Error fetching TRC20 balance:', err.message);
+    throw err;
+  }
+}
+
 async function processIncomingDeposits() {
   const pool = getPool();
   const config = await getDepositSettings();
 
-  if (config.deposit_crypto_enabled !== 'true' || config.deposit_crypto_auto !== 'true') return;
-  if (!config.deposit_crypto_address) return;
-
-  const depositAddress = config.deposit_crypto_address;
-
-  // Get pending crypto deposits (oldest first)
-  const [pending] = await pool.execute(
-    `SELECT * FROM transactions WHERE type = 'deposit' AND method = 'crypto' AND status = 'pending' AND wallet_type = 'main' ORDER BY created_at ASC`
-  );
-  if (pending.length === 0) return;
-
-  // Check current USDT balance (just 1 simple eth_call — never rate limited)
-  let currentBalance;
-  try {
-    currentBalance = await getUSDTBalance(depositAddress);
-  } catch (err) {
-    rotateRpc();
-    console.error('[DepositWatcher] Cannot read balance:', err.message);
-    return;
-  }
-
-  console.log(`[DepositWatcher] ${pending.length} pending | Balance: ${currentBalance} USDT (prev: ${lastKnownBalance ?? 'N/A'})`);
-
-  // First run — just record balance
-  if (lastKnownBalance === null) {
-    lastKnownBalance = currentBalance;
-    console.log('[DepositWatcher] First run — recorded starting balance');
-    return;
-  }
-
-  // No balance increase → no deposits
-  const delta = currentBalance - lastKnownBalance;
-  if (delta <= 0) return;
-
-  console.log(`[DepositWatcher] Balance increased by ${delta.toFixed(4)} USDT!`);
-
-  // Match the delta to the closest pending deposit
-  let bestMatch = null;
-  let bestDiff = Infinity;
-  for (const tx of pending) {
-    const match = (tx.note || '').match(/Expected:\s*([\d.]+)\s*USDT/);
-    if (!match) continue;
-    const expectedUSDT = parseFloat(match[1]);
-    const diff = Math.abs(delta - expectedUSDT);
-    if (diff <= 0.05 && diff < bestDiff) {
-      bestDiff = diff;
-      bestMatch = { tx, expectedUSDT };
+  const networks = [
+    {
+      id: 'crypto',
+      enabled: config.deposit_crypto_enabled === 'true',
+      auto: config.deposit_crypto_auto === 'true',
+      address: config.deposit_crypto_address,
+      getBalance: getUSDTBalance,
+      label: 'BEP20'
+    },
+    {
+      id: 'trc20',
+      enabled: config.deposit_trc20_enabled === 'true',
+      auto: config.deposit_trc20_auto === 'true',
+      address: config.deposit_trc20_address,
+      getBalance: getTrc20USDTBalance,
+      label: 'TRC20'
     }
-  }
+  ];
 
-  if (!bestMatch) {
-    console.log(`[DepositWatcher] No pending deposit matches delta ${delta.toFixed(4)} USDT`);
-    lastKnownBalance = currentBalance;
-    return;
-  }
+  for (const net of networks) {
+    if (!net.enabled || !net.auto || !net.address) continue;
 
-  const { tx } = bestMatch;
-  console.log(`[DepositWatcher] MATCHED Tx ${tx.id}: expected=${bestMatch.expectedUSDT} delta=${delta.toFixed(4)} diff=${bestDiff.toFixed(4)}`);
-
-  // Auto-approve this deposit
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-
-    await conn.execute(
-      `UPDATE transactions SET status = 'completed',
-       note = CONCAT(note, ' | Auto-confirmed | Received: ', ?, ' USDT')
-       WHERE id = ? AND status = 'pending'`,
-      [delta.toFixed(4), tx.id]
+    const [pending] = await pool.execute(
+      `SELECT * FROM transactions WHERE type='deposit' AND method=? AND status='pending' AND wallet_type='main' ORDER BY created_at ASC`,
+      [net.id]
     );
 
-    await conn.execute(
-      'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
-      [tx.amount, tx.user_id, 'main']
-    );
+    let currentBalance;
+    try {
+      currentBalance = await net.getBalance(net.address);
+    } catch (err) {
+      if (net.id === 'crypto') rotateRpc();
+      continue;
+    }
 
-    const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
-    await conn.execute(
-      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
-      [tx.user_id, '✅ Nạp tiền thành công', `Đã nhận ${delta.toFixed(4)} USDT và cộng ${fmtAmount} VNĐ vào Ví Traffic.`, 'success', 'buyer']
-    );
+    if (pending.length > 0) {
+      console.log(`[DepositWatcher] ${net.label}: ${pending.length} pending | Balance: ${currentBalance} USDT (prev: ${lastKnownBalance[net.id] ?? 'N/A'})`);
+    }
 
-    await conn.commit();
-    console.log(`[DepositWatcher] ✅ Credited ${fmtAmount} VND to user ${tx.user_id}`);
-  } catch (err) {
-    await conn.rollback();
-    console.error('[DepositWatcher] DB error:', err.message);
-  } finally {
-    conn.release();
+    if (lastKnownBalance[net.id] === null) {
+      lastKnownBalance[net.id] = currentBalance;
+      if (pending.length > 0) console.log(`[DepositWatcher] ${net.label}: First run — recorded starting balance`);
+      continue;
+    }
+
+    const delta = currentBalance - lastKnownBalance[net.id];
+    if (delta <= 0) continue;
+
+    console.log(`[DepositWatcher] ${net.label} Balance increased by ${delta.toFixed(4)} USDT!`);
+
+    let bestMatch = null;
+    let bestDiff = Infinity;
+    for (const tx of pending) {
+      const match = (tx.note || '').match(/Expected:\s*([\d.]+)\s*USDT/);
+      if (!match) continue;
+      const expectedUSDT = parseFloat(match[1]);
+      const diff = Math.abs(delta - expectedUSDT);
+      if (diff <= 0.05 && diff < bestDiff) {
+        bestDiff = diff;
+        bestMatch = { tx, expectedUSDT };
+      }
+    }
+
+    if (!bestMatch) {
+      console.log(`[DepositWatcher] ${net.label} No pending deposit matches delta ${delta.toFixed(4)} USDT`);
+      lastKnownBalance[net.id] = currentBalance;
+      continue;
+    }
+
+    const { tx } = bestMatch;
+    console.log(`[DepositWatcher] MATCHED Tx ${tx.id}: expected=${bestMatch.expectedUSDT} delta=${delta.toFixed(4)} diff=${bestDiff.toFixed(4)}`);
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.execute(
+        `UPDATE transactions SET status='completed', note=CONCAT(note, ' | Auto-confirmed | Received: ', ?, ' USDT') WHERE id=? AND status='pending'`,
+        [delta.toFixed(4), tx.id]
+      );
+      await conn.execute('UPDATE wallets SET balance=balance+? WHERE user_id=? AND type=?', [tx.amount, tx.user_id, 'main']);
+      const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
+      await conn.execute(
+        `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+        [tx.user_id, '✅ Nạp tiền thành công', `Đã nhận ${delta.toFixed(4)} USDT (${net.label}) và cộng ${fmtAmount} VNĐ vào Ví Traffic.`, 'success', 'buyer']
+      );
+      await conn.commit();
+      console.log(`[DepositWatcher] ✅ Credited ${fmtAmount} VND to user ${tx.user_id}`);
+    } catch (err) {
+      await conn.rollback();
+      console.error('[DepositWatcher] DB error:', err.message);
+    } finally {
+      conn.release();
+    }
+    lastKnownBalance[net.id] = currentBalance;
   }
-
-  lastKnownBalance = currentBalance;
 }
 
 let depositWatcherInterval = null;
@@ -352,9 +369,8 @@ function stopDepositWatcher() {
   if (depositWatcherInterval) { clearInterval(depositWatcherInterval); depositWatcherInterval = null; }
 }
 
-// Reset scanner to re-check last N blocks (useful for admin manual trigger)
 function resetDepositScanner(lookbackBlocks = 10000) {
-  lastCheckedBlock = 0; // Will be set to currentBlock - lookbackBlocks on next scan
+  lastCheckedBlock = 0;
   console.log(`[DepositWatcher] Scanner reset — will re-scan last ${lookbackBlocks} blocks on next poll`);
 }
 

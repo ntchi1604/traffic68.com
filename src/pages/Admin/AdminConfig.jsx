@@ -35,9 +35,12 @@ const DEPOSIT_FIELDS = [
   { key: 'deposit_bank_account', label: 'Số tài khoản', description: 'Số tài khoản ngân hàng nhận tiền', type: 'text', defaultValue: '' },
   { key: 'deposit_bank_holder', label: 'Chủ tài khoản', description: 'Tên chủ tài khoản ngân hàng', type: 'text', defaultValue: '' },
   { key: 'deposit_bank_branch', label: 'Chi nhánh (tùy chọn)', description: 'Chi nhánh ngân hàng', type: 'text', defaultValue: '' },
-  { key: 'deposit_crypto_enabled', label: 'Cho phép nạp qua Crypto', description: 'Bật/tắt nạp tiền bằng USDT (BEP20)', type: 'toggle', defaultValue: 'false' },
-  { key: 'deposit_crypto_address', label: 'Địa chỉ ví nhận USDT', description: 'Ví BEP20 nhận tiền nạp (khác ví hot wallet rút tiền)', type: 'text', defaultValue: '' },
-  { key: 'deposit_crypto_auto', label: 'Tự động xác nhận nạp Crypto', description: 'Polling BSC mỗi 30s để phát hiện & tự động cộng tiền', type: 'toggle', defaultValue: 'false' },
+  { key: 'deposit_crypto_enabled', label: 'Cho phép nạp qua Crypto (BEP20)', description: 'Bật/tắt nạp tiền bằng USDT (BEP20)', type: 'toggle', defaultValue: 'false' },
+  { key: 'deposit_crypto_address', label: 'Địa chỉ ví nhận USDT (BEP20)', description: 'Ví BEP20 nhận tiền nạp', type: 'text', defaultValue: '' },
+  { key: 'deposit_crypto_auto', label: 'Tự động xác nhận nạp BEP20', description: 'Polling BSC mỗi 60s để tự động cộng tiền', type: 'toggle', defaultValue: 'false' },
+  { key: 'deposit_trc20_enabled', label: 'Cho phép nạp qua Crypto (TRC20)', description: 'Bật/tắt nạp tiền bằng USDT (TRC20)', type: 'toggle', defaultValue: 'false' },
+  { key: 'deposit_trc20_address', label: 'Địa chỉ ví nhận USDT (TRC20)', description: 'Ví TRC20 nhận tiền nạp', type: 'text', defaultValue: '' },
+  { key: 'deposit_trc20_auto', label: 'Tự động xác nhận nạp TRC20', description: 'Polling Tron mỗi 60s để tự động cộng tiền', type: 'toggle', defaultValue: 'false' },
   { key: 'deposit_crypto_min_usdt', label: 'Nạp tối thiểu (USDT)', description: 'Số USDT tối thiểu cho mỗi đơn nạp', type: 'number', defaultValue: '1', min: 0 },
 ];
 
