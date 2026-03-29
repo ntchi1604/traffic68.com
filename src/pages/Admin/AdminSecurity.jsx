@@ -1156,163 +1156,162 @@ export default function AdminSecurity() {
       </div>
 
       {/* Date filters & Search Controller */}
-        <div className="bg-white border border-slate-200 shadow-sm rounded-lg p-4 flex flex-col lg:flex-row gap-4 justify-between items-center">
-          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-            <div className="flex bg-slate-100 p-1 rounded-md">
-              {[['Hôm nay', 1], ['7 Ngày', 7], ['30 Ngày', 30], ['Tất cả', 0]].map(([l, d]) => (
-                <button key={l} onClick={() => setPreset(d)}
-                  className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${activePreset === d ? 'bg-white text-slate-800 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
-                  {l}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2 mx-1 px-3 py-1.5 bg-slate-50 rounded-md border border-slate-200">
-              <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-                className="bg-transparent text-xs text-slate-700 focus:outline-none" />
-              <span className="text-slate-400">→</span>
-              <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
-                className="bg-transparent text-xs text-slate-700 focus:outline-none" />
-            </div>
+      <div className="bg-white border border-slate-200 shadow-sm rounded-lg p-4 flex flex-col lg:flex-row gap-4 justify-between items-center">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          <div className="flex bg-slate-100 p-1 rounded-md">
+            {[['Hôm nay', 1], ['7 Ngày', 7], ['30 Ngày', 30], ['Tất cả', 0]].map(([l, d]) => (
+              <button key={l} onClick={() => setPreset(d)}
+                className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${activePreset === d ? 'bg-white text-slate-800 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
+                {l}
+              </button>
+            ))}
           </div>
-
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-            <div className="relative flex-1 min-w-[240px]">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input placeholder="Tìm dữ liệu (Tên, Email, IP)..."
-                value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-slate-400 transition-colors placeholder:text-slate-400" />
-            </div>
-            <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}
-              className="px-4 py-2 border border-slate-200 rounded-md text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:border-slate-400 cursor-pointer transition-colors appearance-none pr-8 relative">
-              <option value="ok">Sắp xếp theo: Số Lượt Vượt</option>
-              <option value="blocked">Sắp xếp theo: Cảnh báo Bot</option>
-              <option value="earned">Sắp xếp theo: Thu nhập</option>
-              <option value="total">Sắp xếp theo: Tổng Lượt</option>
-              <option value="last_at">Sắp xếp theo: Mới nhất</option>
-            </select>
+          <div className="flex items-center gap-2 mx-1 px-3 py-1.5 bg-slate-50 rounded-md border border-slate-200">
+            <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+              className="bg-transparent text-xs text-slate-700 focus:outline-none" />
+            <span className="text-slate-400">→</span>
+            <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
+              className="bg-transparent text-xs text-slate-700 focus:outline-none" />
           </div>
         </div>
 
-        {/* ── USERS LIST ── */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  {['Thông tin User', 'Tỉ Lệ', 'Chi tiết', 'Truy vết IP', 'Tương tác', ''].map((h, i) => (
-                    <th key={i} className={`px-4 py-3 font-semibold text-slate-600 uppercase tracking-wider text-xs ${i === 0 || i === 3 ? 'text-left' : 'text-center'}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-10">
-                      <p className="text-sm text-slate-500">Đang tải dữ liệu người dùng...</p>
-                    </td>
-                  </tr>
-                ) : users.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-10">
-                      <p className="text-sm text-slate-400 font-medium">Chưa tìm thấy dữ liệu gian lận nào phù hợp</p>
-                    </td>
-                  </tr>
-                ) : users.map(u => {
-                  const total = u.total || 0;
-                  const ok = u.ok || 0;
-                  const events = u.events || 0;
-                  const dangerLvl = events > 10 ? 'high' : events > 0 ? 'medium' : 'safe';
-
-                  return (
-                    <tr key={u.id} className={`group transition-colors ${dangerLvl === 'high' ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-slate-50'}`}>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            {u.avatar_url ? (
-                              <img src={u.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
-                            ) : (
-                              <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                {(u.name || u.email || '?')[0].toUpperCase()}
-                              </div>
-                            )}
-                            {u.status === 'banned' && (
-                              <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-red-600 rounded-full border border-white"></div>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-slate-800 truncate text-sm flex items-center gap-1.5">
-                              {u.name || 'Ẩn Danh'}
-                              {u.status === 'banned' && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 border border-red-200">ĐÃ CẤM</span>}
-                            </p>
-                            <p className="text-xs text-slate-500 truncate mt-0.5">{u.email}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col items-center gap-1.5 w-full max-w-[140px] mx-auto">
-                          <div className="w-full flex justify-between text-[11px] font-semibold">
-                            <span className="text-emerald-600">{ok}</span>
-                            <span className="text-slate-400">{total - ok - events}</span>
-                            <span className="text-red-600">{events}</span>
-                          </div>
-                          <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden flex">
-                            <div style={{ width: `${total ? (ok / total) * 100 : 0}%` }} className="bg-emerald-500 h-full"></div>
-                            <div style={{ width: `${total ? ((total - ok - events) / total) * 100 : 0}%` }} className="bg-slate-300 h-full"></div>
-                            <div style={{ width: `${total ? (events / total) * 100 : 0}%` }} className="bg-red-500 h-full"></div>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex flex-col gap-1 items-center">
-                          <span className="text-xs font-bold text-slate-700">{total} <span className="text-[10px] text-slate-400 font-semibold leading-none">LƯỢT</span></span>
-                          {(events > 0) ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 mt-1 border border-red-200">
-                              {events} BOT
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-semibold text-slate-400 mt-1">—</span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1 max-w-[160px]">
-                          {u.ips.slice(0, 2).map((ip, j) => (
-                            <span key={j} className="font-mono text-xs text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
-                              {ip}
-                            </span>
-                          ))}
-                          {u.ips.length > 2 && (
-                            <span className="text-xs text-slate-500 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">
-                              +{u.ips.length - 2}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3 text-center text-xs text-slate-500">
-                        {ago(u.last_at)}
-                      </td>
-
-                      <td className="px-4 py-3 text-right">
-                        <button onClick={() => setDetail(u)}
-                          className="opacity-100 lg:opacity-0 group-hover:opacity-100 px-3 py-1.5 rounded bg-slate-800 text-white text-xs font-semibold hover:bg-slate-700 transition-colors ml-auto lg:translate-x-2 group-hover:translate-x-0">
-                          Chi tiết
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          <div className="relative flex-1 min-w-[240px]">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input placeholder="Tìm dữ liệu (Tên, Email, IP)..."
+              value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-slate-400 transition-colors placeholder:text-slate-400" />
           </div>
-          <div className="bg-slate-50 border-t border-slate-200">
-            <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
-          </div>
+          <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}
+            className="px-4 py-2 border border-slate-200 rounded-md text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:border-slate-400 cursor-pointer transition-colors appearance-none pr-8 relative">
+            <option value="ok">Sắp xếp theo: Số Lượt Vượt</option>
+            <option value="blocked">Sắp xếp theo: Cảnh báo Bot</option>
+            <option value="earned">Sắp xếp theo: Thu nhập</option>
+            <option value="total">Sắp xếp theo: Tổng Lượt</option>
+            <option value="last_at">Sắp xếp theo: Mới nhất</option>
+          </select>
         </div>
       </div>
-      );
-}
 
+      {/* ── USERS LIST ── */}
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                {['Thông tin User', 'Tỉ Lệ', 'Chi tiết', 'Truy vết IP', 'Tương tác', ''].map((h, i) => (
+                  <th key={i} className={`px-4 py-3 font-semibold text-slate-600 uppercase tracking-wider text-xs ${i === 0 || i === 3 ? 'text-left' : 'text-center'}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-10">
+                    <p className="text-sm text-slate-500">Đang tải dữ liệu người dùng...</p>
+                  </td>
+                </tr>
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-10">
+                    <p className="text-sm text-slate-400 font-medium">Chưa tìm thấy dữ liệu gian lận nào phù hợp</p>
+                  </td>
+                </tr>
+              ) : users.map(u => {
+                const total = u.total || 0;
+                const ok = u.ok || 0;
+                const events = u.events || 0;
+                const dangerLvl = events > 10 ? 'high' : events > 0 ? 'medium' : 'safe';
+
+                return (
+                  <tr key={u.id} className={`group transition-colors ${dangerLvl === 'high' ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-slate-50'}`}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          {u.avatar_url ? (
+                            <img src={u.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                              {(u.name || u.email || '?')[0].toUpperCase()}
+                            </div>
+                          )}
+                          {u.status === 'banned' && (
+                            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-red-600 rounded-full border border-white"></div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-800 truncate text-sm flex items-center gap-1.5">
+                            {u.name || 'Ẩn Danh'}
+                            {u.status === 'banned' && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 border border-red-200">ĐÃ CẤM</span>}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate mt-0.5">{u.email}</p>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col items-center gap-1.5 w-full max-w-[140px] mx-auto">
+                        <div className="w-full flex justify-between text-[11px] font-semibold">
+                          <span className="text-emerald-600">{ok}</span>
+                          <span className="text-slate-400">{total - ok - events}</span>
+                          <span className="text-red-600">{events}</span>
+                        </div>
+                        <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden flex">
+                          <div style={{ width: `${total ? (ok / total) * 100 : 0}%` }} className="bg-emerald-500 h-full"></div>
+                          <div style={{ width: `${total ? ((total - ok - events) / total) * 100 : 0}%` }} className="bg-slate-300 h-full"></div>
+                          <div style={{ width: `${total ? (events / total) * 100 : 0}%` }} className="bg-red-500 h-full"></div>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex flex-col gap-1 items-center">
+                        <span className="text-xs font-bold text-slate-700">{total} <span className="text-[10px] text-slate-400 font-semibold leading-none">LƯỢT</span></span>
+                        {(events > 0) ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 mt-1 border border-red-200">
+                            {events} BOT
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-slate-400 mt-1">—</span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1 max-w-[160px]">
+                        {u.ips.slice(0, 2).map((ip, j) => (
+                          <span key={j} className="font-mono text-xs text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                            {ip}
+                          </span>
+                        ))}
+                        {u.ips.length > 2 && (
+                          <span className="text-xs text-slate-500 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">
+                            +{u.ips.length - 2}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3 text-center text-xs text-slate-500">
+                      {ago(u.last_at)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => setDetail(u)}
+                        className="opacity-100 lg:opacity-0 group-hover:opacity-100 px-3 py-1.5 rounded bg-slate-800 text-white text-xs font-semibold hover:bg-slate-700 transition-colors ml-auto lg:translate-x-2 group-hover:translate-x-0">
+                        Chi tiết
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="bg-slate-50 border-t border-slate-200">
+          <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
+        </div>
+      </div>
+    </div>
+  );
+}
