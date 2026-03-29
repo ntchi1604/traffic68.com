@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Megaphone, Receipt, LifeBuoy,
-  ChevronLeft, Shield, Settings, Settings2, Menu, X, DollarSign, Fingerprint, LogOut,
+  ChevronLeft, Shield, Settings, Settings2, Menu, X, DollarSign, LogOut,
   ChevronDown, Briefcase, HardHat, Gift, ShieldAlert,
 } from 'lucide-react';
 import api from '../../lib/api';
@@ -40,15 +40,9 @@ export default function AdminLayout() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) {
-      navigate('/dang-nhap');
-      return;
-    }
+    if (!token) { navigate('/dang-nhap'); return; }
     api.get('/auth/me').then(data => {
-      if (data.user?.role !== 'admin') {
-        navigate('/dang-nhap');
-        return;
-      }
+      if (data.user?.role !== 'admin') { navigate('/dang-nhap'); return; }
       setAdmin(data.user);
       setLoading(false);
     }).catch(() => {
@@ -63,100 +57,109 @@ export default function AdminLayout() {
   const NavItem = ({ to, icon: Icon, label, end }) => (
     <NavLink key={to} to={to} end={end} onClick={closeSidebar}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+        `flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-semibold transition-all duration-150
          ${isActive
-           ? 'bg-slate-800 text-white'
-           : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'}`}
+          ? 'bg-white/10 text-white shadow-sm'
+          : 'text-white/50 hover:bg-white/5 hover:text-white/80'}`}
     >
-      <Icon size={18} />
+      <Icon size={16} />
       {label}
     </NavLink>
   );
 
   if (loading || !admin) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex overflow-hidden">
+    <div className="min-h-screen bg-slate-50 flex overflow-hidden" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={closeSidebar} />
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden" onClick={closeSidebar} />
       )}
 
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col
+        fixed inset-y-0 left-0 z-50 w-64 flex flex-col
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0
-      `}>
-        <div className="flex items-center justify-center px-5 py-5 border-b border-slate-800 relative">
-          <div className="flex items-center justify-center w-full">
-            <img src="/traffic68_com.gif" alt="Traffic68" className="h-14 sm:h-16 w-auto mx-auto" />
-          </div>
-          <button onClick={closeSidebar} className="lg:hidden p-2 hover:bg-slate-800 rounded-lg absolute right-4">
-            <X size={18} className="text-slate-400" />
+      `} style={{ background: 'linear-gradient(180deg, #1e1b4b 0%, #312e81 100%)' }}>
+        {/* Brand */}
+        <div className="flex items-center justify-center px-5 py-5 border-b border-white/10 relative">
+          <img src="/traffic68_com.gif" alt="Traffic68" className="h-12 w-auto mx-auto" />
+          <button onClick={closeSidebar} className="lg:hidden p-2 hover:bg-white/10 rounded-lg absolute right-4">
+            <X size={16} className="text-white/60" />
           </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {/* Tổng quan - standalone */}
+        {/* Admin badge */}
+        <div className="px-5 py-3 border-b border-white/5">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+              <Shield size={11} className="text-white" />
+            </div>
+            <span className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Admin Panel</span>
+          </div>
+        </div>
+
+        <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
           <NavItem to="/admin" icon={LayoutDashboard} label="Tổng quan" end />
           <NavItem to="/admin/transactions" icon={Receipt} label="Giao dịch" />
 
           {/* Buyer Section */}
-          <div className="mt-2">
-          <button onClick={() => setBuyerOpen(!buyerOpen)}
-            className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200">
-            <div className="flex items-center gap-2"><Briefcase size={12} /> Buyer</div>
-            <ChevronDown className={`w-4 h-4 transition-transform ${buyerOpen ? '' : '-rotate-90'}`} />
-          </button>
-          {buyerOpen && <div className="ml-2 space-y-1">{BUYER_NAV.map(item => <NavItem key={item.to} {...item} />)}</div>}
+          <div className="mt-3">
+            <button onClick={() => setBuyerOpen(!buyerOpen)}
+              className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white/50 transition">
+              <div className="flex items-center gap-2"><Briefcase size={10} /> Buyer</div>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${buyerOpen ? '' : '-rotate-90'}`} />
+            </button>
+            {buyerOpen && <div className="ml-1 space-y-0.5">{BUYER_NAV.map(item => <NavItem key={item.to} {...item} />)}</div>}
           </div>
 
           {/* Worker Section */}
-          <div className="mt-2">
+          <div className="mt-3">
             <button onClick={() => setWorkerOpen(!workerOpen)}
-              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200">
-              <div className="flex items-center gap-2"><HardHat size={12} /> Worker</div>
-              <ChevronDown className={`w-4 h-4 transition-transform ${workerOpen ? '' : '-rotate-90'}`} />
+              className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white/50 transition">
+              <div className="flex items-center gap-2"><HardHat size={10} /> Worker</div>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${workerOpen ? '' : '-rotate-90'}`} />
             </button>
-            {workerOpen && <div className="ml-2 space-y-1">{WORKER_NAV.map(item => <NavItem key={item.to} {...item} />)}</div>}
+            {workerOpen && <div className="ml-1 space-y-0.5">{WORKER_NAV.map(item => <NavItem key={item.to} {...item} />)}</div>}
           </div>
 
           {/* System */}
-          <div className="pt-4 mt-4 border-t border-slate-800 space-y-1">
+          <div className="pt-3 mt-3 border-t border-white/5 space-y-0.5">
             {SYSTEM_NAV.map(item => <NavItem key={item.to} {...item} />)}
           </div>
         </nav>
 
-        <div className="px-3 py-4 border-t border-white/10 space-y-2 shrink-0">
+        <div className="px-3 py-3 border-t border-white/10 space-y-1 shrink-0">
           <button onClick={() => { closeSidebar(); navigate('/buyer/dashboard'); }}
-            className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:bg-white/5 hover:text-white transition">
-            <ChevronLeft size={18} /> Buyer Dashboard
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-white/40 hover:bg-white/5 hover:text-white/70 transition">
+            <ChevronLeft size={14} /> Buyer Dashboard
           </button>
           <button onClick={() => { closeSidebar(); navigate('/worker/dashboard'); }}
-            className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:bg-white/5 hover:text-white transition">
-            <ChevronLeft size={18} /> Worker Dashboard
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-white/40 hover:bg-white/5 hover:text-white/70 transition">
+            <ChevronLeft size={14} /> Worker Dashboard
           </button>
           <button onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); navigate('/dang-nhap'); }}
-            className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 hover:text-red-300 transition">
-            <LogOut size={18} /> Đăng xuất
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-red-300/70 hover:bg-red-500/10 hover:text-red-300 transition">
+            <LogOut size={14} /> Đăng xuất
           </button>
-          <div className="flex items-center gap-3 px-4 py-2">
+          <div className="flex items-center gap-3 px-3 py-2 mt-1">
             {admin?.avatar_url ? (
-              <img src={admin.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+              <img src={admin.avatar_url} alt="" className="w-8 h-8 rounded-xl object-cover shrink-0 ring-2 ring-white/10" />
             ) : (
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-[10px] font-black shrink-0"
+                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
                 {admin?.name?.charAt(0) || 'A'}
               </div>
             )}
             <div className="min-w-0">
-              <p className="text-xs font-bold text-white truncate">{admin?.name}</p>
-              <p className="text-[10px] text-slate-500 truncate">{admin?.email}</p>
+              <p className="text-[11px] font-bold text-white truncate">{admin?.name}</p>
+              <p className="text-[9px] text-white/30 truncate">{admin?.email}</p>
             </div>
           </div>
         </div>
@@ -165,15 +168,16 @@ export default function AdminLayout() {
       {/* Content */}
       <div className="flex-1 flex flex-col min-w-0 lg:ml-64 h-screen overflow-y-auto">
         {/* Mobile header */}
-        <header className="lg:hidden h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 sticky top-0 z-30">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-slate-100 rounded-lg">
+        <header className="lg:hidden h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 sticky top-0 z-30 shadow-sm">
+          <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-slate-100 rounded-lg transition">
             <Menu size={20} className="text-slate-700" />
           </button>
           <img src="/traffic68_com.gif" alt="Traffic68" className="h-8 w-auto" />
           {admin?.avatar_url ? (
-            <img src={admin.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+            <img src={admin.avatar_url} alt="" className="w-8 h-8 rounded-xl object-cover" />
           ) : (
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-[10px] font-black">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-[10px] font-black"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
               {admin?.name?.charAt(0) || 'A'}
             </div>
           )}

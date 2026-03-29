@@ -184,7 +184,7 @@ export default function AdminConfig() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -199,7 +199,7 @@ export default function AdminConfig() {
         <button onClick={handleSave} disabled={saving}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${saved
             ? 'bg-green-100 text-green-700'
-            : 'bg-orange-500 hover:bg-orange-600 text-white'} disabled:opacity-50`}>
+            : 'bg-indigo-600 hover:bg-indigo-700 text-white'} disabled:opacity-50`}>
           {saved ? <><Check size={16} /> Đã lưu</> : <><Save size={16} /> {saving ? 'Đang lưu...' : 'Lưu cấu hình'}</>}
         </button>
       </div>

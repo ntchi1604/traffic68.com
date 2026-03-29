@@ -78,9 +78,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-black text-slate-900">Referral</h1>
-      </div>
+      <div>      </div>
 
       {/* Commission + Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -123,14 +121,14 @@ export default function AdminReferrals({ type = 'buyers' }) {
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Tìm theo tên, email, mã referral..."
-          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         />
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         {loading ? (
-          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
+          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : data.referrers.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
             <p className="font-medium">Không tìm thấy người dùng</p>
@@ -218,7 +216,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
                   <button
                     key={p}
                     onClick={() => setPage(p)}
-                    className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-orange-500 text-white' : 'hover:bg-white border border-slate-200 text-slate-600'}`}
+                    className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-indigo-600 text-white' : 'hover:bg-white border border-slate-200 text-slate-600'}`}
                   >
                     {p}
                   </button>
@@ -265,7 +263,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
 
               {detailLoading ? (
                 <div className="flex justify-center py-8">
-                  <div className="w-6 h-6 border-3 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-6 h-6 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : referredList.length === 0 ? (
                 <div className="text-center py-8 text-slate-400">

@@ -147,11 +147,6 @@ export default function AdminTickets({ defaultRole = 'all' }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-black text-slate-900">
-          {defaultRole === 'buyer' ? '🛒 Hỗ trợ Buyer' : defaultRole === 'worker' ? '👷 Hỗ trợ Worker' : 'Hỗ trợ khách hàng'}
-        </h1>
-      </div>
 
       {/* Status filter tabs */}
       <div className="flex flex-wrap gap-2">
@@ -161,7 +156,7 @@ export default function AdminTickets({ defaultRole = 'all' }) {
             <button key={f.key} onClick={() => { setStatusFilter(f.key); setPage(1); }}
               className={`px-4 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 ${
                 statusFilter === f.key
-                  ? 'bg-orange-500 text-white'
+                  ? 'bg-indigo-600 text-white'
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}>
               {f.label}
@@ -176,7 +171,7 @@ export default function AdminTickets({ defaultRole = 'all' }) {
       <div className="space-y-3">
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : filteredTickets.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400">
@@ -256,7 +251,7 @@ export default function AdminTickets({ defaultRole = 'all' }) {
               .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
               .reduce((acc, p, i, arr) => { if (i > 0 && arr[i-1] !== p-1) acc.push('...'); acc.push(p); return acc; }, [])
               .map((p, i) => p === '...' ? <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span> : (
-                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-orange-500 text-white' : 'hover:bg-slate-50 text-slate-600'}`}>{p}</button>
+                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-indigo-600 text-white' : 'hover:bg-slate-50 text-slate-600'}`}>{p}</button>
               ))}
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
           </div>

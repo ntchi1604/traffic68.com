@@ -98,7 +98,7 @@ export default function AdminWorkerWithdrawals() {
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
         {loading ? (
-          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
+          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">

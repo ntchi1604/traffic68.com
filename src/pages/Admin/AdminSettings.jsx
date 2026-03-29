@@ -90,7 +90,7 @@ export default function AdminSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -156,7 +156,7 @@ export default function AdminSettings() {
       {/* ── Password Section ── */}
       <form onSubmit={handleUpdatePassword} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
         <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-          <Lock size={18} className="text-orange-500" /> Đổi mật khẩu
+          <Lock size={18} className="text-indigo-500" /> Đổi mật khẩu
         </h2>
 
         <div>
@@ -166,7 +166,7 @@ export default function AdminSettings() {
             <input type={showCurrent ? 'text' : 'password'} value={currentPassword}
               onChange={e => setCurrentPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full pl-10 pr-11 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+              className="w-full pl-10 pr-11 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
             <button type="button" onClick={() => setShowCurrent(!showCurrent)}
               className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
               {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -181,7 +181,7 @@ export default function AdminSettings() {
             <input type={showNew ? 'text' : 'password'} value={newPassword}
               onChange={e => setNewPassword(e.target.value)}
               placeholder="Tối thiểu 6 ký tự"
-              className="w-full pl-10 pr-11 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+              className="w-full pl-10 pr-11 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
             <button type="button" onClick={() => setShowNew(!showNew)}
               className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
               {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -196,7 +196,7 @@ export default function AdminSettings() {
             <input type="password" value={confirmPassword}
               onChange={e => setConfirmPassword(e.target.value)}
               placeholder="Nhập lại mật khẩu mới"
-              className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+              className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
         </div>
 
@@ -208,7 +208,7 @@ export default function AdminSettings() {
         )}
 
         <button type="submit" disabled={savingPw}
-          className="flex items-center gap-2 px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
+          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
           <Lock size={16} /> {savingPw ? 'Đang lưu...' : 'Đổi mật khẩu'}
         </button>
       </form>

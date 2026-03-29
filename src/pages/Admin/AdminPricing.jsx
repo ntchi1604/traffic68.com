@@ -120,7 +120,7 @@ export default function AdminPricing() {
     grouped[t.traffic_type].push(t);
   });
 
-  const inputCls = "w-28 px-2.5 py-2 text-sm font-semibold border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-center";
+  const inputCls = "w-28 px-2.5 py-2 text-sm font-semibold border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-center";
 
   return (
     <div className="space-y-6">
@@ -130,7 +130,7 @@ export default function AdminPricing() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
         <>
@@ -162,7 +162,7 @@ export default function AdminPricing() {
                   <input type="text" value={config.discount_code || ''}
                     onChange={e => setConfig(c => ({ ...c, discount_code: e.target.value }))}
                     placeholder="SALE_ALL_40"
-                    className="w-full px-3 py-2.5 text-sm font-mono font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                    className="w-full px-3 py-2.5 text-sm font-mono font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Phần trăm giảm (%)</label>
@@ -170,7 +170,7 @@ export default function AdminPricing() {
                     <input type="number" value={config.discount_percent || ''}
                       onChange={e => setConfig(c => ({ ...c, discount_percent: e.target.value }))}
                       placeholder="40" min="0" max="100"
-                      className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-10" />
+                      className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent pr-10" />
                     <Percent size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   </div>
                 </div>
@@ -179,14 +179,14 @@ export default function AdminPricing() {
                   <input type="text" value={config.discount_label || ''}
                     onChange={e => setConfig(c => ({ ...c, discount_label: e.target.value }))}
                     placeholder="Khai trương - Giảm giá 40%"
-                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
                 </div>
               </div>
             </div>
 
             <div className="mt-4 flex items-center gap-3">
               <button onClick={recalcAll} disabled={configSaving}
-                className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
+                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
                 <Save size={14} /> {configSaving ? 'Đang lưu...' : 'Lưu & tính lại giá'}
               </button>
               {config.discount_code && discountEnabled && (
@@ -205,7 +205,7 @@ export default function AdminPricing() {
             return (
               <div key={type} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
-                  <DollarSign size={18} className="text-orange-500" />
+                  <DollarSign size={18} className="text-indigo-500" />
                   <span className={`px-3 py-1 text-xs font-bold rounded-full ${typeInfo.color}`}>
                     {typeInfo.label}
                   </span>

@@ -143,14 +143,8 @@ export default function AdminWeb3Payments() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <UsdtIcon size={28} /> Web3 Auto Payment
-          </h1>
-          <p className="text-sm text-slate-500 mt-0.5">Thanh toán tự động USDT (BEP20) trên BSC cho worker</p>
-        </div>
+      {/* Refresh */}
+      <div className="flex justify-end">
         <button onClick={() => { setLoading(true); Promise.all([fetchStatus(), fetchWithdrawals(), fetchPayments()]).finally(() => setLoading(false)); }}
           className="p-2 hover:bg-slate-100 rounded-lg transition">
           <RefreshCw size={18} className="text-slate-500" />

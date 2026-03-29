@@ -183,27 +183,19 @@ export default function AdminUsers({ type }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900">
-            Quản lý
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">{total} {isWorker ? 'worker' : 'buyer'}</p>
-        </div>
-      </div>
 
       <form onSubmit={handleSearch} className="flex gap-3">
         <div className="relative flex-1 max-w-md">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm theo tên, email, SĐT..."
-            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
         </div>
-        <button type="submit" className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition">Tìm kiếm</button>
+        <button type="submit" className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition">Tìm kiếm</button>
       </form>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-visible">
         {loading ? (
-          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
+          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
@@ -298,7 +290,7 @@ export default function AdminUsers({ type }) {
                               onClick={() => { updateUser(u.id, { role: 'admin' }); setOpenMenuId(null); }}
                               className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition text-left"
                             >
-                              <Shield size={14} className="text-orange-500" /> Thăng lên Admin
+                              <Shield size={14} className="text-indigo-500" /> Thăng lên Admin
                             </button>
                           )}
                           {u.role === 'admin' && (

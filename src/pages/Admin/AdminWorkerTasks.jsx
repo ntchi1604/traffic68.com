@@ -55,9 +55,9 @@ export default function AdminWorkerTasks() {
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm worker, chiến dịch..."
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
-          <button type="submit" className="px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition">Tìm</button>
+          <button type="submit" className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition">Tìm</button>
         </form>
         <div className="flex gap-2">
           {[['all', 'Tất cả'], ['completed', 'Hoàn thành'], ['pending', 'Đang chờ'], ['expired', 'Hết hạn']].map(([v, l]) => (
@@ -69,7 +69,7 @@ export default function AdminWorkerTasks() {
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
         {loading ? (
-          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
+          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
