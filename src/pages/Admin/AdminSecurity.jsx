@@ -560,8 +560,9 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header Profile */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="p-5 flex flex-col md:flex-row gap-5 items-start md:items-center justify-between border-b border-slate-100">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden relative group">
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-50/50 via-transparent to-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div className="relative p-6 flex flex-col md:flex-row gap-5 items-start md:items-center justify-between border-b border-slate-100/60 bg-white/60 backdrop-blur-xl">
           <div className="flex items-center gap-4">
             <button onClick={onBack} className="p-2 rounded hover:bg-slate-100 transition-colors text-slate-500">
               <ArrowLeft size={20} />
@@ -569,14 +570,14 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
             <div className="flex items-center gap-4">
               <div className="relative">
                 {u.avatar_url ? (
-                  <img src={u.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover border border-slate-200" />
+                  <img src={u.avatar_url} alt="" className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-md shadow-slate-200" />
                 ) : (
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold bg-gradient-to-tr from-violet-100 to-indigo-50 text-indigo-600 border-2 border-white shadow-md shadow-slate-200">
                     {(u.name || u.email || '?')[0].toUpperCase()}
                   </div>
                 )}
                 {banned && (
-                  <div className="absolute -bottom-1 -right-1 px-1.5 py-0.5 bg-rose-600 rounded text-[9px] font-bold text-white tracking-wider">
+                  <div className="absolute -bottom-1 -right-1 px-1.5 py-0.5 bg-rose-500 rounded text-[9px] font-bold text-white tracking-wider shadow-sm ring-2 ring-white">
                     BANNED
                   </div>
                 )}
@@ -612,38 +613,46 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
         </div>
 
         {/* Global Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 bg-slate-50 rounded-b-xl border-t border-slate-100">
-          <div className="p-5 flex items-center gap-4">
-            <div className="opacity-60 text-slate-400"><Bot size={24} /></div>
+        <div className="relative grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100/60 bg-slate-50/50">
+          <div className="p-6 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-slate-100 text-slate-500 shadow-inner">
+              <Bot size={24} />
+            </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tổng Nhiệm Vụ</p>
-              <p className="text-xl font-bold text-slate-800">{u.total}</p>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tổng Nhiệm Vụ</p>
+              <p className="text-2xl font-black text-slate-700 tracking-tight">{u.total}</p>
             </div>
           </div>
-          <div className="p-5 flex items-center gap-4">
-            <div className="opacity-60 text-slate-400"><CheckCircle size={24} /></div>
+          <div className="p-6 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-emerald-100/50 text-emerald-600 shadow-inner">
+              <CheckCircle size={24} />
+            </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Hoàn thành</p>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Hoàn thành</p>
               <div className="flex items-baseline gap-2">
-                <p className="text-xl font-bold text-slate-800">{u.ok}</p>
-                {u.total > 0 && <span className="text-xs font-semibold text-slate-500">({((u.ok / u.total) * 100).toFixed(1)}%)</span>}
+                <p className="text-2xl font-black text-slate-700 tracking-tight">{u.ok}</p>
+                {u.total > 0 && <span className="text-xs font-bold text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-md">({((u.ok / u.total) * 100).toFixed(1)}%)</span>}
               </div>
             </div>
           </div>
-          <div className="p-5 flex items-center gap-4">
-            <div className="opacity-60 text-slate-400"><AlertTriangle size={24} /></div>
+          <div className="p-6 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-rose-100/50 text-rose-500 shadow-inner">
+              <AlertTriangle size={24} />
+            </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Cảnh báo Bot</p>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cảnh báo Bot</p>
               <div className="flex items-baseline gap-2">
-                <p className="text-xl font-bold text-slate-800">{u.events || 0}</p>
+                <p className="text-2xl font-black text-slate-700 tracking-tight">{u.events || 0}</p>
               </div>
             </div>
           </div>
-          <div className="p-5 flex items-center gap-4">
-            <div className="opacity-60 text-slate-400"><Search size={24} /></div>
+          <div className="p-6 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-indigo-100/50 text-indigo-500 shadow-inner">
+              <Activity size={24} />
+            </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Thu Nhập</p>
-              <p className="text-xl font-bold text-emerald-600">{money(u.earned)}</p>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Thu Nhập</p>
+              <p className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-500 tracking-tight">{money(u.earned)}</p>
             </div>
           </div>
         </div>
@@ -1146,15 +1155,16 @@ export default function AdminSecurity() {
       {/* Header & Global Stats */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+          <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-indigo-600 tracking-tight flex items-center gap-3">
+            <Bot className="text-violet-600" size={32} />
             Hệ thống Anti-Cheat
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Giám sát {total} người dùng · Phát hiện gian lận tự động</p>
+          <p className="text-sm text-slate-500 mt-2 font-medium">Giám sát {total} người dùng · Phân tích hành vi & tự động phát hiện bằng AI</p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 shadow-sm rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors">
-            <RefreshCw size={16} className={loading ? 'animate-spin text-slate-500' : 'text-slate-400'} />
-            {loading ? 'Đang tải...' : 'Làm mới'}
+          <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-50 to-violet-50 text-indigo-700 border border-indigo-100 shadow-sm rounded-xl text-sm font-semibold hover:from-indigo-100 hover:to-violet-100 hover:shadow disabled:opacity-50 transition-all">
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            {loading ? 'Đang phân tích...' : 'Cập nhật DL'}
           </button>
           <button onClick={async () => {
             if (!confirm('Xóa toàn bộ dữ liệu Anti-Cheat?\n(security_logs + bot_detected + security_detail)')) return;
@@ -1209,11 +1219,12 @@ export default function AdminSecurity() {
       </div>
 
       {/* ── USERS LIST ── */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden relative">
+        <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-violet-200 to-transparent"></div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
+              <tr className="bg-slate-50/50 border-b border-slate-100">
                 {['Thông tin User', 'Tỉ Lệ', 'Chi tiết', 'Truy vết IP', 'Tương tác', ''].map((h, i) => (
                   <th key={i} className={`px-4 py-3 font-semibold text-slate-600 uppercase tracking-wider text-xs ${i === 0 || i === 3 ? 'text-left' : 'text-center'}`}>{h}</th>
                 ))}
@@ -1245,14 +1256,14 @@ export default function AdminSecurity() {
                 const dangerLvl = events > 10 ? 'high' : events > 0 ? 'medium' : 'safe';
 
                 return (
-                  <tr key={u.id} className={`group transition-colors ${dangerLvl === 'high' ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-slate-50'}`}>
+                  <tr key={u.id} className={`group transition-all duration-300 ${dangerLvl === 'high' ? 'bg-rose-50/30 hover:bg-rose-50/80' : 'hover:bg-slate-50 hover:shadow-[0_0_15px_rgba(0,0,0,0.03)] relative z-0 hover:z-10'}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="relative">
                           {u.avatar_url ? (
-                            <img src={u.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                            <img src={u.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm" />
                           ) : (
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-gradient-to-br from-violet-100 to-indigo-100 text-indigo-700 border-2 border-white shadow-sm shadow-indigo-100">
                               {(u.name || u.email || '?')[0].toUpperCase()}
                             </div>
                           )}
@@ -1272,15 +1283,15 @@ export default function AdminSecurity() {
 
                     <td className="px-4 py-3">
                       <div className="flex flex-col items-center gap-1.5 w-full max-w-[140px] mx-auto">
-                        <div className="w-full flex justify-between text-[11px] font-semibold">
-                          <span className="text-emerald-600">{ok}</span>
-                          <span className="text-slate-400">{total - ok - events}</span>
-                          <span className="text-red-600">{events}</span>
+                        <div className="w-full flex justify-between text-[11px] font-bold">
+                          <span className="text-emerald-500 drop-shadow-sm">{ok}</span>
+                          <span className="text-slate-300">{total - ok - events}</span>
+                          <span className="text-rose-500 drop-shadow-sm">{events}</span>
                         </div>
-                        <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden flex">
-                          <div style={{ width: `${total ? (ok / total) * 100 : 0}%` }} className="bg-emerald-500 h-full"></div>
-                          <div style={{ width: `${total ? ((total - ok - events) / total) * 100 : 0}%` }} className="bg-slate-300 h-full"></div>
-                          <div style={{ width: `${total ? (events / total) * 100 : 0}%` }} className="bg-red-500 h-full"></div>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
+                          <div style={{ width: `${total ? (ok / total) * 100 : 0}%` }} className="bg-emerald-400 h-full shadow-[0_0_8px_rgba(52,211,153,0.8)] relative"></div>
+                          <div style={{ width: `${total ? ((total - ok - events) / total) * 100 : 0}%` }} className="bg-slate-200 h-full"></div>
+                          <div style={{ width: `${total ? (events / total) * 100 : 0}%` }} className="bg-rose-400 h-full shadow-[0_0_8px_rgba(251,113,133,0.8)] relative"></div>
                         </div>
                       </div>
                     </td>
@@ -1319,8 +1330,8 @@ export default function AdminSecurity() {
 
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => setDetail(u)}
-                        className="opacity-100 lg:opacity-0 group-hover:opacity-100 px-3 py-1.5 rounded bg-slate-800 text-white text-xs font-semibold hover:bg-slate-700 transition-colors ml-auto lg:translate-x-2 group-hover:translate-x-0">
-                        Chi tiết
+                        className="opacity-100 lg:opacity-0 group-hover:opacity-100 px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 shadow-md shadow-indigo-500/20 transition-all ml-auto lg:translate-x-4 group-hover:translate-x-0 flex items-center gap-1.5 focus:outline-none">
+                        <Eye size={14} /> Chi tiết
                       </button>
                     </td>
                   </tr>
