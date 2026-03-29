@@ -217,6 +217,7 @@ async function getDepositSettings() {
        'deposit_crypto_enabled','deposit_crypto_address','deposit_crypto_auto',
        'deposit_crypto_min_usdt','deposit_bank_enabled','deposit_bank_name',
        'deposit_bank_account','deposit_bank_holder','deposit_bank_branch',
+       'deposit_trc20_enabled', 'deposit_trc20_address', 'deposit_trc20_auto',
        'web3_vnd_rate'
      )`
   );
