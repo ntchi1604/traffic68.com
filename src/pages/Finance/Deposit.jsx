@@ -359,45 +359,57 @@ export default function Deposit() {
             { label: 'Nạp tiền' },
           ]} />
 
-          <div className="mt-5 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-            <div>
-              <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-3 py-1 mb-4">
-                <Sparkles size={11} className="text-violet-300" />
-                <span className="text-[11px] font-semibold text-white/80">Quản lý tài chính</span>
-              </div>
-              <h1 className="text-3xl font-black text-white tracking-tight mb-1">Nạp tiền & Ví</h1>
-              <p className="text-sm text-white/50">Nạp tiền vào Ví Traffic hoặc quản lý Ví Hoa Hồng</p>
+          <div className="mt-5">
+            <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-3 py-1 mb-4">
+              <Sparkles size={11} className="text-violet-300" />
+              <span className="text-[11px] font-semibold text-white/80">Quản lý tài chính</span>
             </div>
+            <h1 className="text-3xl font-black text-white tracking-tight mb-1">Nạp tiền & Ví</h1>
+            <p className="text-sm text-white/50">Nạp tiền vào Ví Traffic hoặc quản lý Ví Hoa Hồng</p>
+          </div>
+        </div>
+      </div>
 
-            {/* Balance pills */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-5 py-3.5 min-w-[160px]">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Wallet size={13} className="text-blue-300" />
-                  <span className="text-[11px] text-white/50 font-medium">Ví Traffic</span>
-                </div>
-                <p className="text-2xl font-black text-white tracking-tight"><AnimatedNumber value={wallets.main.balance} /></p>
-                <p className="text-[10px] text-white/40 mt-0.5">VNĐ</p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-5 py-3.5 min-w-[160px]">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Gift size={13} className="text-orange-300" />
-                  <span className="text-[11px] text-white/50 font-medium">Hoa Hồng</span>
-                </div>
-                <p className="text-2xl font-black text-white tracking-tight"><AnimatedNumber value={wallets.commission.balance} /></p>
-                <p className="text-[10px] text-white/40 mt-0.5">VNĐ</p>
-                <div className="flex gap-1.5 mt-2">
-                  <button onClick={() => setModal('transfer')} disabled={wallets.commission.balance <= 0}
-                    className="flex-1 flex items-center justify-center gap-1 py-1 bg-white/15 hover:bg-white/25 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-[10px] font-bold text-white transition">
-                    <ArrowLeftRight size={9} /> Chuyển
-                  </button>
-                  <button onClick={() => setModal('withdraw')} disabled={wallets.commission.balance <= 0}
-                    className="flex-1 flex items-center justify-center gap-1 py-1 bg-white/15 hover:bg-white/25 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-[10px] font-bold text-white transition">
-                    <LogOut size={9} /> Rút
-                  </button>
-                </div>
-              </div>
-            </div>
+      {/* ── Wallet balance strip ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
+        {/* Traffic wallet */}
+        <div className="bg-white rounded-3xl border border-slate-100 p-5 flex items-center gap-5"
+          style={{ boxShadow: '0 2px 20px rgba(15,23,42,0.06)' }}>
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
+            <Wallet size={24} className="text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-400 mb-0.5">Ví Traffic</p>
+            <p className="text-2xl font-black text-slate-900 tracking-tight truncate"><AnimatedNumber value={wallets.main.balance} /></p>
+            <p className="text-[10px] text-slate-400">VNĐ · Dùng để mua traffic</p>
+          </div>
+          <button
+            onClick={() => document.getElementById('deposit-wizard')?.scrollIntoView({ behavior: 'smooth' })}
+            className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm hover:shadow-md">
+            <Zap size={12} /> Nạp
+          </button>
+        </div>
+
+        {/* Commission wallet */}
+        <div className="bg-white rounded-3xl border border-slate-100 p-5 flex items-center gap-5"
+          style={{ boxShadow: '0 2px 20px rgba(15,23,42,0.06)' }}>
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-200 shrink-0">
+            <Gift size={24} className="text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-400 mb-0.5">Ví Hoa Hồng</p>
+            <p className="text-2xl font-black text-slate-900 tracking-tight truncate"><AnimatedNumber value={wallets.commission.balance} /></p>
+            <p className="text-[10px] text-slate-400">VNĐ · Từ chương trình giới thiệu</p>
+          </div>
+          <div className="flex flex-col gap-1.5 shrink-0">
+            <button onClick={() => setModal('transfer')} disabled={wallets.commission.balance <= 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed border border-blue-200">
+              <ArrowLeftRight size={11} /> Chuyển
+            </button>
+            <button onClick={() => setModal('withdraw')} disabled={wallets.commission.balance <= 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 text-[11px] font-bold rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed border border-slate-200">
+              <LogOut size={11} /> Rút tiền
+            </button>
           </div>
         </div>
       </div>
@@ -406,7 +418,7 @@ export default function Deposit() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
         {/* LEFT — Deposit wizard */}
-        <div className="lg:col-span-8 space-y-5">
+        <div id="deposit-wizard" className="lg:col-span-8 space-y-5">
 
           {/* Step navigator */}
           {METHODS.length > 0 && (
@@ -711,22 +723,27 @@ export default function Deposit() {
             </ul>
           </div>
 
-          {/* Commission wallet */}
-          <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-3xl border border-orange-200 p-5"
-            style={{ boxShadow: '0 4px 24px rgba(251,146,60,0.1)' }}>
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="w-8 h-8 rounded-xl bg-orange-200 flex items-center justify-center">
-                <Gift size={14} className="text-orange-700" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-orange-900">Ví Hoa Hồng</h3>
-                <p className="text-[10px] text-orange-500">từ chương trình giới thiệu</p>
-              </div>
+          {/* Nạp nhanh shortcut */}
+          <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl p-5 text-white"
+            style={{ boxShadow: '0 8px 32px rgba(99,102,241,0.25)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Zap size={15} className="text-yellow-300" />
+              <h3 className="text-sm font-black">Nạp nhanh vào Ví Traffic</h3>
             </div>
-            <p className="text-xl font-black text-orange-700 mb-3">{fmt(wallets.commission.balance)} <span className="text-sm font-bold text-orange-400">đ</span></p>
-            <button onClick={() => setModal('transfer')} disabled={wallets.commission.balance <= 0}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/70 hover:bg-white border border-orange-200 text-orange-700 text-xs font-bold rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-              <ArrowLeftRight size={12} /> Chuyển sang Ví Traffic
+            <p className="text-xs text-white/60 mb-4 leading-relaxed">Chọn số tiền và phương thức để nạp tiền ngay</p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {[100000, 500000, 1000000, 2000000].map(q => (
+                <button key={q} type="button"
+                  onClick={() => { document.getElementById('deposit-wizard')?.scrollIntoView({ behavior: 'smooth' }); }}
+                  className="py-2 text-[11px] font-bold bg-white/15 hover:bg-white/25 rounded-xl transition border border-white/20">
+                  {q >= 1000000 ? `${q / 1000000}M` : `${q / 1000}K`} đ
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => document.getElementById('deposit-wizard')?.scrollIntoView({ behavior: 'smooth' })}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-2xl transition border border-white/20">
+              Đến form nạp tiền <ChevronRight size={13} />
             </button>
           </div>
         </div>
