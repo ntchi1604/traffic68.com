@@ -162,6 +162,46 @@ router.post('/deposits', async (req, res) => {
   res.status(201).json({ message: 'Đơn nạp tiền đã gửi, đang chờ admin xác minh', refCode, status: 'pending' });
 });
 
+// ── Summary endpoint ──
+router.get('/summary', async (req, res) => {
+  const pool = getPool();
+  try {
+    // Tổng nạp: deposit vào ví main, đã hoàn tất
+    const [[depositRow]] = await pool.execute(
+      `SELECT COALESCE(SUM(amount), 0) as total FROM transactions
+       WHERE user_id = ? AND wallet_type = 'main' AND type = 'deposit' AND status = 'completed'`,
+      [req.userId]
+    );
+    // Hoa hồng: tất cả giao dịch trong ví commission đã hoàn tất
+    const [[commissionRow]] = await pool.execute(
+      `SELECT COALESCE(SUM(amount), 0) as total FROM transactions
+       WHERE user_id = ? AND wallet_type = 'commission' AND status = 'completed'`,
+      [req.userId]
+    );
+    // Chi campaign: deduct từ ví main, type=campaign
+    const [[campaignRow]] = await pool.execute(
+      `SELECT COALESCE(SUM(amount), 0) as total FROM transactions
+       WHERE user_id = ? AND wallet_type = 'main' AND type = 'campaign' AND status = 'completed'`,
+      [req.userId]
+    );
+    // Rút tiền: từ ví earning, đã hoàn tất
+    const [[withdrawRow]] = await pool.execute(
+      `SELECT COALESCE(SUM(amount), 0) as total FROM transactions
+       WHERE user_id = ? AND wallet_type = 'earning' AND type = 'withdraw' AND status = 'completed'`,
+      [req.userId]
+    );
+
+    res.json({
+      deposit:    Number(depositRow.total),
+      commission: Number(commissionRow.total),
+      campaign:   Number(campaignRow.total),
+      withdraw:   Number(withdrawRow.total),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/transactions', async (req, res) => {
   const pool = getPool();
   const { type, period, scope, page = 1, limit = 20 } = req.query;

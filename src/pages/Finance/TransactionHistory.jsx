@@ -155,12 +155,16 @@ export default function TransactionHistory() {
   }, [filter]);
 
   useEffect(() => {
-    api.get('/finance/transactions?limit=1000&page=1').then(d => {
-      const all = d.transactions || [];
-      const sum = (types) => all.filter(t => types.includes(t.type) && t.status === 'completed').reduce((s, t) => s + Number(t.amount), 0);
-      setSummary({ deposit: sum(['deposit']), commission: sum(['commission']), campaign: sum(['campaign']), withdraw: sum(['withdraw']) });
+    api.get('/finance/summary').then(d => {
+      setSummary({
+        deposit:    Number(d.deposit    || 0),
+        commission: Number(d.commission || 0),
+        campaign:   Number(d.campaign   || 0),
+        withdraw:   Number(d.withdraw   || 0),
+      });
     }).catch(() => {});
   }, []);
+
 
   useEffect(() => { fetchData(1); }, [fetchData]);
 
