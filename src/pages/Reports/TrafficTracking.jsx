@@ -527,134 +527,155 @@ export default function TrafficTracking() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 w-full min-w-0 pb-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <Breadcrumb items={[{ label: 'Dashboard', to: '/buyer/dashboard' }, { label: 'Theo dõi lưu lượng' }]} />
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* ── Page header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Theo dõi lưu lượng</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Theo dõi lưu lượng</h1>
+          <p className="text-sm text-slate-500 mt-1">Phân tích traffic và hiệu suất chiến dịch</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+          <div className="flex bg-white border border-slate-200 rounded-xl p-1 gap-0.5 shadow-sm">
             {PERIODS.map(p => (
               <button key={p.key} onClick={() => setRange(p.key)}
-                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all ${range === p.key ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-700'}`}>
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  range === p.key
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                }`}>
                 {p.label}
               </button>
             ))}
           </div>
-          <button onClick={() => setRefreshKey(k => k + 1)} className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition">
-            <RefreshCw size={16} />
+          <button onClick={() => setRefreshKey(k => k + 1)}
+            className="p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition shadow-sm">
+            <RefreshCw size={15} />
           </button>
         </div>
       </div>
 
-      {/* KPI */}
+      {/* ── KPI cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map(k => (
-          <div key={k.label} className="bg-white rounded-2xl border p-5 flex items-start gap-4 hover:shadow-md transition-shadow" style={{ borderColor: k.border }}>
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: k.bg }}>
-              <k.icon size={20} style={{ color: k.color }} />
+          <div key={k.label} className="bg-white rounded-2xl border border-slate-200/80 p-5 flex items-start gap-3.5 hover:shadow-md transition-all hover:-translate-y-0.5 shadow-sm">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: k.bg }}>
+              <k.icon size={18} style={{ color: k.color }} />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-slate-500 truncate">{k.label}</p>
-              <p className="text-xl font-black text-slate-900 mt-0.5 leading-tight">{k.value}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{k.sub}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{k.label}</p>
+              <p className="text-xl font-black text-slate-900 mt-0.5 leading-tight tabular-nums">{k.value}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">{k.sub}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Insights */}
+      {/* ── Insights strip ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-start gap-4">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0"><Clock size={18} className="text-amber-500" /></div>
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0">
+            <Clock size={17} className="text-amber-500" />
+          </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Ngày đông nhất</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ngày đông nhất</p>
             <p className="text-lg font-black text-slate-900 mt-0.5">{peakDay ? fmtDate(peakDay.date) : '—'}</p>
-            <p className="text-xs text-amber-600 font-medium mt-0.5">{peakDay ? `${fmt(peakDay.clicks)} lượt hoàn thành` : 'Chưa có dữ liệu'}</p>
+            <p className="text-xs text-amber-600 font-semibold mt-0.5">{peakDay ? `${fmt(peakDay.clicks)} lượt hoàn thành` : 'Chưa có dữ liệu'}</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-start gap-4">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${trend.dir === 'up' ? 'bg-green-50' : trend.dir === 'down' ? 'bg-red-50' : 'bg-slate-100'}`}>
-            {trend.dir === 'up' ? <TrendingUp size={18} className="text-green-500" /> : trend.dir === 'down' ? <TrendingDown size={18} className="text-red-500" /> : <Minus size={18} className="text-slate-400" />}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 flex items-start gap-4">
+          <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${
+            trend.dir === 'up' ? 'bg-emerald-50 border-emerald-100' : trend.dir === 'down' ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-200'
+          }`}>
+            {trend.dir === 'up' ? <TrendingUp size={17} className="text-emerald-500" /> : trend.dir === 'down' ? <TrendingDown size={17} className="text-red-500" /> : <Minus size={17} className="text-slate-400" />}
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Xu hướng traffic</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Xu hướng traffic</p>
             <p className="text-lg font-black text-slate-900 mt-0.5">{trend.dir === 'up' ? `+${trend.pct}%` : trend.dir === 'down' ? `-${trend.pct}%` : 'Ổn định'}</p>
-            <p className={`text-xs font-medium mt-0.5 ${trend.dir === 'up' ? 'text-green-600' : trend.dir === 'down' ? 'text-red-500' : 'text-slate-400'}`}>
-              {trend.dir === 'up' ? 'Đang tăng' : trend.dir === 'down' ? 'Đang giảm' : 'Không đổi'} nửa kỳ sau
-            </p>
+            <p className={`text-xs font-semibold mt-0.5 ${
+              trend.dir === 'up' ? 'text-emerald-600' : trend.dir === 'down' ? 'text-red-500' : 'text-slate-400'
+            }`}>{trend.dir === 'up' ? 'Đang tăng' : trend.dir === 'down' ? 'Đang giảm' : 'Không đổi'} nửa kỳ sau</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-start gap-4">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0"><CalendarDays size={18} className="text-blue-500" /></div>
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center flex-shrink-0">
+            <CalendarDays size={17} className="text-indigo-500" />
+          </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Ngày có dữ liệu</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ngày có dữ liệu</p>
             <p className="text-lg font-black text-slate-900 mt-0.5">{traffic.filter(t => Number(t.clicks) > 0).length} ngày</p>
-            <p className="text-xs text-blue-600 font-medium mt-0.5">/ {traffic.length} ngày trong kỳ</p>
+            <p className="text-xs text-indigo-600 font-semibold mt-0.5">/ {traffic.length} ngày trong kỳ</p>
           </div>
         </div>
       </div>
 
-      {/* Main Chart — Dual axis */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <div className="flex items-center justify-between mb-5">
+      {/* ── Main chart ── */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Lượt hoàn thành & Chi phí theo ngày</h2>
+            <h2 className="text-sm font-bold text-slate-800">Lượt hoàn thành & Chi phí theo ngày</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Dual-axis: bars = hoàn thành, line = chi phí</p>
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-500 inline-block" /> Hoàn thành</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-orange-500 inline-block" /> Chi phí</span>
-            <span className="text-slate-400 bg-slate-100 px-2 py-1 rounded-full font-medium">
-              Tổng: {fmt(totalCompleted)} views · {fmt(totalCost)} đ
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-500 inline-block" /> Hoàn thành</span>
+            <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 bg-orange-500 inline-block rounded" /> Chi phí</span>
+            <span className="bg-slate-100 text-slate-500 font-semibold px-2.5 py-1 rounded-full">
+              {fmt(totalCompleted)} views · {fmt(totalCost)} đ
             </span>
           </div>
         </div>
         {chartData.length === 0 ? (
-          <div className="h-64 flex items-center justify-center text-slate-400 text-sm">Chưa có dữ liệu</div>
+          <div className="h-64 flex flex-col items-center justify-center text-slate-300 gap-3">
+            <BarChart2 size={32} className="opacity-40" />
+            <p className="text-sm font-medium text-slate-400">Chưa có dữ liệu trong kỳ này</p>
+          </div>
         ) : (
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData} margin={{ left: 0, right: 20, top: 8, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gViews" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.9} />
-                    <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.5} />
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.9} />
+                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0.5} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <YAxis yAxisId="views" orientation="left"
-                  tick={{ fontSize: 11, fill: '#3B82F6' }} axisLine={false} tickLine={false} width={36}
+                  tick={{ fontSize: 11, fill: '#6366f1' }} axisLine={false} tickLine={false} width={36}
                   tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : v} />
                 <YAxis yAxisId="cost" orientation="right"
-                  tick={{ fontSize: 11, fill: '#F97316' }} axisLine={false} tickLine={false} width={52}
+                  tick={{ fontSize: 11, fill: '#f97316' }} axisLine={false} tickLine={false} width={52}
                   tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : v} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar yAxisId="views" dataKey="Lượt hoàn thành" fill="url(#gViews)" radius={[4, 4, 0, 0]} maxBarSize={36} />
-                <Line yAxisId="cost" type="monotone" dataKey="Chi phí" stroke="#F97316" strokeWidth={2.5}
-                  dot={{ r: 3, fill: '#F97316', stroke: '#fff', strokeWidth: 2 }}
-                  activeDot={{ r: 5, fill: '#F97316', stroke: '#fff', strokeWidth: 2 }} />
+                <Line yAxisId="cost" type="monotone" dataKey="Chi phí" stroke="#f97316" strokeWidth={2.5}
+                  dot={{ r: 3, fill: '#f97316', stroke: '#fff', strokeWidth: 2 }}
+                  activeDot={{ r: 5, fill: '#f97316', stroke: '#fff', strokeWidth: 2 }} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
         )}
       </div>
-      {/* Campaign Progress */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-slate-100 gap-4">
+      {/* ── Campaign Progress ── */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-4 border-b border-slate-100 gap-3">
           <div className="flex items-center gap-2">
-            <Zap size={16} className="text-orange-500" />
-            <h3 className="text-sm font-bold text-slate-800">Tiến độ chiến dịch <span className="ml-1.5 px-2 py-0.5 bg-slate-100 rounded-full text-xs font-semibold text-slate-500">{visibleCampaigns.length}</span></h3>
+            <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
+              <Zap size={13} className="text-indigo-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">Tiến độ chiến dịch</h3>
+              <p className="text-[10px] text-slate-400">{visibleCampaigns.length} chiến dịch</p>
+            </div>
           </div>
-          <div className="flex bg-slate-50 border border-slate-100 p-1.5 rounded-xl gap-1 overflow-x-auto scroller-hide w-full sm:w-auto">
+          <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5 overflow-x-auto">
             {[{id: 'all', label: 'Tất cả'}, {id: 'running', label: 'Đang chạy'}, {id: 'paused', label: 'Tạm dừng'}, {id: 'completed', label: 'Hoàn thành'}].map(f => (
-              <button 
-                key={f.id} 
-                onClick={() => { setCampFilter(f.id); setPageCamp(1); }} 
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap ${campFilter === f.id ? 'bg-white shadow-sm text-blue-600 ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}>
+              <button key={f.id} onClick={() => { setCampFilter(f.id); setPageCamp(1); }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap ${
+                  campFilter === f.id ? 'bg-white shadow-sm text-indigo-700 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'
+                }`}>
                 {f.label}
               </button>
             ))}
@@ -662,71 +683,75 @@ export default function TrafficTracking() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Chiến dịch</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Trạng thái</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Tiến độ</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Tổng Views</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Ngân sách</th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Chi tiết</th>
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="px-5 py-3.5 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest">Chiến dịch</th>
+                <th className="px-5 py-3.5 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest">Trạng thái</th>
+                <th className="px-5 py-3.5 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tiến độ</th>
+                <th className="px-5 py-3.5 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">Views</th>
+                <th className="px-5 py-3.5 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ngân sách</th>
+                <th className="px-5 py-3.5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Chi tiết</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {pagedCamps.length === 0 ? (
-                <tr><td colSpan={7} className="px-6 py-10 text-center text-slate-400">Chưa có chiến dịch nào</td></tr>
+                <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-400 text-sm">Chưa có chiến dịch nào</td></tr>
               ) : pagedCamps.map(c => {
                 const done = Number(c.views_done || 0);
                 const total = Number(c.total_views || 1);
                 const isCompleted = done >= total || c.status === 'completed';
                 const pct = Math.min(Math.round((done / total) * 100), 100);
                 const effStatus = isCompleted ? 'completed' : c.status;
-                const badge = { running: { label: 'Đang chạy', cls: 'bg-green-100 text-green-700' }, paused: { label: 'Tạm dừng', cls: 'bg-amber-100 text-amber-700' }, completed: { label: 'Hoàn thành', cls: 'bg-emerald-100 text-emerald-700' } }[effStatus] || { label: effStatus, cls: 'bg-slate-100 text-slate-600' };
-                const barColor = effStatus === 'completed' ? '#10B981' : effStatus === 'running' ? '#3B82F6' : '#F59E0B';
-                const isExpanded = expandedId === c.id;
+                const statusCfg = {
+                  running:   { label: 'Đang chạy',  cls: 'text-emerald-700 bg-emerald-50 ring-emerald-200', dot: 'bg-emerald-500 animate-pulse' },
+                  paused:    { label: 'Tạm dừng',   cls: 'text-amber-700 bg-amber-50 ring-amber-200',        dot: 'bg-amber-400' },
+                  completed: { label: 'Hoàn thành', cls: 'text-indigo-700 bg-indigo-50 ring-indigo-200',     dot: 'bg-indigo-500' },
+                }[effStatus] || { label: effStatus, cls: 'text-slate-600 bg-slate-100 ring-slate-200', dot: 'bg-slate-400' };
+                const barColor = effStatus === 'completed' ? '#6366f1' : effStatus === 'running' ? '#10b981' : '#f59e0b';
                 return (
-                  <>
-                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <p className="font-semibold text-slate-800 truncate max-w-[180px]">{c.name}</p>
-                        <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[180px]">{c.url}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${badge.cls}`}>{badge.label}</span>
-                      </td>
-                      <td className="px-6 py-4 min-w-[140px]">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-slate-100 rounded-full h-2">
-                            <div className="h-2 rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: barColor }} />
-                          </div>
-                          <span className="text-xs font-bold text-slate-600 flex-shrink-0">{pct}%</span>
+                  <tr key={c.id} className="hover:bg-slate-50/60 transition-colors group">
+                    <td className="px-5 py-4">
+                      <p className="font-bold text-slate-900 text-[13px] truncate max-w-[200px] group-hover:text-indigo-700 transition-colors">{c.name}</p>
+                      <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[200px] font-mono">{c.url}</p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ring-1 ${statusCfg.cls}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusCfg.dot}`} />
+                        {statusCfg.label}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 min-w-[140px]">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: barColor }} />
                         </div>
-                      </td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap">
-                        <span className="font-semibold text-slate-800">{fmt(done)}</span>
-                        <span className="text-slate-400 text-xs">/{fmt(total)}</span>
-                        <p className="text-[10px] font-semibold text-slate-400 mt-1.5 uppercase">Max {fmt(c.daily_views)}/ngày</p>
-                      </td>
-                      <td className="px-6 py-4 text-right font-semibold text-slate-800">{fmt(c.budget)} đ</td>
-                      <td className="px-6 py-4 text-center">
-                        <button onClick={() => openDetail(c)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-700 transition">
-                          Xem
-                        </button>
-                      </td>
-                    </tr>
-                  </>
+                        <span className="text-[11px] font-black flex-shrink-0 tabular-nums" style={{ color: barColor }}>{pct}%</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-right whitespace-nowrap">
+                      <span className="font-bold text-slate-800 tabular-nums">{fmt(done)}</span>
+                      <span className="text-slate-400 text-xs">/{fmt(total)}</span>
+                      <p className="text-[10px] text-slate-400 mt-1">Max {fmt(c.daily_views)}/ngày</p>
+                    </td>
+                    <td className="px-5 py-4 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">{fmt(c.budget)} đ</td>
+                    <td className="px-5 py-4 text-center">
+                      <button onClick={() => openDetail(c)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 border border-indigo-100 transition">
+                        Xem chi tiết
+                      </button>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
         {visibleCampaigns.length > 10 && (
-          <div className="bg-slate-50 border-t border-slate-100 flex justify-between items-center px-6 py-3">
-            <span className="text-xs text-slate-500 font-medium">Trang <b className="text-slate-700">{pageCamp}</b> / {Math.ceil(visibleCampaigns.length / 10)}</span>
-            <div className="flex gap-2">
-              <button onClick={() => setPageCamp(p => Math.max(1, p - 1))} disabled={pageCamp === 1} className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg disabled:opacity-40 transition shadow-sm">‹ Trước</button>
-              <button onClick={() => setPageCamp(p => Math.min(Math.ceil(visibleCampaigns.length / 10), p + 1))} disabled={pageCamp >= Math.ceil(visibleCampaigns.length / 10)} className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg disabled:opacity-40 transition shadow-sm">Sau ›</button>
+          <div className="border-t border-slate-100 flex justify-between items-center px-5 py-3">
+            <span className="text-xs text-slate-500">Trang <b className="text-slate-700">{pageCamp}</b> / {Math.ceil(visibleCampaigns.length / 10)}</span>
+            <div className="flex gap-1.5">
+              <button onClick={() => setPageCamp(p => Math.max(1, p - 1))} disabled={pageCamp === 1} className="px-3 py-1.5 text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50 rounded-xl disabled:opacity-40 transition">‹ Trước</button>
+              <button onClick={() => setPageCamp(p => Math.min(Math.ceil(visibleCampaigns.length / 10), p + 1))} disabled={pageCamp >= Math.ceil(visibleCampaigns.length / 10)} className="px-3 py-1.5 text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50 rounded-xl disabled:opacity-40 transition">Sau ›</button>
             </div>
           </div>
         )}

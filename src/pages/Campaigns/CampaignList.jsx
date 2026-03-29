@@ -540,8 +540,7 @@ export default function CampaignList() {
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {pagedList.map(c => {
+              {pagedList.map(c => {
                   const isDone    = Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0;
                   const effStatus = isDone ? 'completed' : c.status;
                   const pct       = Number(c.total_views) > 0
@@ -653,8 +652,7 @@ export default function CampaignList() {
                       )}
                     </tbody>
                   );
-                })}
-              </tbody>
+              })}
             </table>
           </div>
         </div>
