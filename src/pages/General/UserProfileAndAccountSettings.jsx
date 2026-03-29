@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import usePageTitle from '../../hooks/usePageTitle';
-import { User, Lock, Mail, Phone, Save, Camera, Check } from 'lucide-react';
+import { User, Lock, Save, Camera, Check } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
@@ -23,7 +23,6 @@ export default function UserProfileAndAccountSettings() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Fetch user profile on mount
   useEffect(() => {
     api.get('/users/profile').then(data => {
       const u = data.user;
@@ -31,7 +30,7 @@ export default function UserProfileAndAccountSettings() {
         name: u.name || '',
         email: u.email || '',
         phone: u.phone || '',
-        avatar: u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'U')}&background=3B82F6&color=FFFFFF`,
+        avatar: u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'U')}&background=6366f1&color=FFFFFF`,
       });
     }).catch(err => {
       console.error('Failed to load profile:', err);
@@ -63,6 +62,7 @@ export default function UserProfileAndAccountSettings() {
       await api.put('/users/profile', { name: formData.name, phone: formData.phone });
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
+      toast.success('Cập nhật hồ sơ thành công!');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -88,6 +88,7 @@ export default function UserProfileAndAccountSettings() {
       setShowSuccess(true);
       setPasswordForm({ current: '', new: '', confirm: '' });
       setTimeout(() => setShowSuccess(false), 3000);
+      toast.success('Đổi mật khẩu thành công!');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -118,63 +119,86 @@ export default function UserProfileAndAccountSettings() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <Breadcrumb items={[
-        { label: 'Dashboard', to: '/buyer/dashboard' },
-        { label: 'Hồ sơ & Tài khoản' },
-      ]} />
-      <div className="flex items-center justify-between">
-      </div>
+    <div className="max-w-4xl mx-auto">
+      <Breadcrumb
+        items={[
+          { label: 'Trang chủ', href: '/buyer/dashboard' },
+          { label: 'Hồ sơ của tôi' },
+        ]}
+      />
 
-      {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm font-medium">
-          {error}
+      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
+        <div className="border-b border-slate-100">
+          <nav className="flex">
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`px-6 py-4 text-sm font-medium transition-colors relative ${
+                activeTab === 'profile'
+                  ? 'text-indigo-600'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <User size={16} />
+                Thông tin hồ sơ
+              </span>
+              {activeTab === 'profile' && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('password')}
+              className={`px-6 py-4 text-sm font-medium transition-colors relative ${
+                activeTab === 'password'
+                  ? 'text-indigo-600'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <Lock size={16} />
+                Đổi mật khẩu
+              </span>
+              {activeTab === 'password' && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />
+              )}
+            </button>
+          </nav>
         </div>
-      )}
-      <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'profile'
-            ? 'border-blue-500 text-blue-600'
-            : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-        >
-          <User className="w-4 h-4 inline mr-1" />
-          Hồ sơ cá nhân
-        </button>
-        <button
-          onClick={() => setActiveTab('password')}
-          className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'password'
-            ? 'border-blue-500 text-blue-600'
-            : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-        >
-          <Lock className="w-4 h-4 inline mr-1" />
-          Mật khẩu
-        </button>
-      </div>
 
-      {activeTab === 'profile' ? (
-        <div className="bg-white rounded-lg shadow border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-6">Thông tin cá nhân</h2>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="flex flex-col md:flex-row gap-6">
-              <div className="flex flex-col items-center">
+        <div className="p-6">
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
+          {showSuccess && activeTab === 'profile' && (
+            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <div className="flex items-center text-emerald-700 font-bold text-sm">
+                <Check className="w-5 h-5 mr-2" />
+                Cập nhật hồ sơ thành công!
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'profile' ? (
+            <div className="rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
+              <div className="flex items-center gap-6 p-6 bg-slate-50/50 border-b border-slate-100">
                 <div className="relative">
                   <img
                     src={formData.avatar}
                     alt="Avatar"
-                    className="w-24 h-24 rounded-full object-cover border-2 border-slate-200"
+                    className="w-24 h-24 rounded-2xl object-cover border-4 border-white shadow-md"
                   />
-                  <label className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full p-2 cursor-pointer hover:bg-blue-700 transition-colors">
-                    <Camera className="w-5 h-5" />
+                  <label className="absolute -bottom-1 -right-1 p-2 bg-indigo-500 rounded-xl text-white cursor-pointer hover:bg-indigo-600 transition-colors shadow-lg">
+                    <Camera size={14} />
                     <input
                       type="file"
                       accept="image/*"
@@ -183,178 +207,188 @@ export default function UserProfileAndAccountSettings() {
                     />
                   </label>
                 </div>
-                <p className="text-sm text-slate-500 mt-2">Chọn ảnh đại diện</p>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">{formData.name || 'Người dùng'}</h2>
+                  <p className="text-sm text-slate-500">{formData.email}</p>
+                </div>
               </div>
 
-              <div className="flex-1 space-y-6">
-                <div className="space-y-2">
-                  <label htmlFor="name" className="text-sm font-medium text-slate-700">
-                    Họ và tên
-                  </label>
-                  <input
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium text-slate-700">
-                    Email
-                  </label>
-                  <div className="flex items-center gap-2">
+              <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label htmlFor="name" className="text-sm font-bold text-slate-700">
+                      Họ và tên
+                    </label>
                     <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      value={formData.email}
+                      id="name"
+                      name="name"
+                      value={formData.name}
                       onChange={handleChange}
-                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                       required
                     />
-                    <span className="inline-flex items-center px-3 py-2 text-sm text-green-600 bg-green-50 rounded-lg">
-                      <Check className="w-4 h-4 mr-1" />
-                      Đã xác minh
-                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="email" className="text-sm font-bold text-slate-700">
+                      Email
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        required
+                      />
+                      <span className="inline-flex items-center px-3 py-2 text-xs font-bold text-emerald-600 bg-emerald-50 rounded-xl">
+                        <Check className="w-3.5 h-3.5 mr-1" />
+                        Đã xác minh
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="phone" className="text-sm font-bold text-slate-700">
+                      Số điện thoại
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                      />
+                      <span className="inline-flex items-center px-3 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 rounded-xl">
+                        <Check className="w-3.5 h-3.5 mr-1" />
+                        Đã xác minh
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="phone" className="text-sm font-medium text-slate-700">
-                    Số điện thoại
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <span className="inline-flex items-center px-3 py-2 text-sm text-blue-600 bg-blue-50 rounded-lg">
-                      <Check className="w-4 h-4 mr-1" />
-                      Đã xác minh
-                    </span>
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 border-b border-slate-100">
+                <h2 className="text-lg font-bold text-slate-800">Đổi mật khẩu</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Cập nhật mật khẩu để bảo mật tài khoản</p>
+              </div>
+              <form onSubmit={handlePasswordSubmit} className="p-6 space-y-6">
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <label htmlFor="current" className="text-sm font-bold text-slate-700">
+                      Mật khẩu hiện tại
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="current"
+                        name="current"
+                        type={showPassword ? 'text' : 'password'}
+                        value={passwordForm.current}
+                        onChange={handlePasswordChange}
+                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all pr-12"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors"
+                      >
+                        {showPassword ? 'Ẩn' : 'Hiện'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="new" className="text-sm font-bold text-slate-700">
+                      Mật khẩu mới
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="new"
+                        name="new"
+                        type={showPassword ? 'text' : 'password'}
+                        value={passwordForm.new}
+                        onChange={handlePasswordChange}
+                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all pr-12"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors"
+                      >
+                        {showPassword ? 'Ẩn' : 'Hiện'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-400">Tối thiểu 8 ký tự, bao gồm chữ cái và số</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="confirm" className="text-sm font-bold text-slate-700">
+                      Xác nhận mật khẩu mới
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="confirm"
+                        name="confirm"
+                        type={showPassword ? 'text' : 'password'}
+                        value={passwordForm.confirm}
+                        onChange={handlePasswordChange}
+                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all pr-12"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors"
+                      >
+                        {showPassword ? 'Ẩn' : 'Hiện'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="flex justify-end pt-4">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-6">Đổi mật khẩu</h2>
-          <form onSubmit={handlePasswordSubmit} className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="current" className="text-sm font-medium text-slate-700">
-                  Mật khẩu hiện tại
-                </label>
-                <div className="relative">
-                  <input
-                    id="current"
-                    name="current"
-                    type={showPassword ? 'text' : 'password'}
-                    value={passwordForm.current}
-                    onChange={handlePasswordChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
+                <div className="flex justify-end pt-2">
                   <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-2 text-slate-500 hover:text-slate-700"
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
                   >
-                    {showPassword ? 'Ẩn' : 'Hiện'}
+                    <Lock className="w-4 h-4 mr-2" />
+                    {isSubmitting ? 'Đang lưu...' : 'Đổi mật khẩu'}
                   </button>
                 </div>
-              </div>
+              </form>
 
-              <div className="space-y-2">
-                <label htmlFor="new" className="text-sm font-medium text-slate-700">
-                  Mật khẩu mới
-                </label>
-                <div className="relative">
-                  <input
-                    id="new"
-                    name="new"
-                    type={showPassword ? 'text' : 'password'}
-                    value={passwordForm.new}
-                    onChange={handlePasswordChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-2 text-slate-500 hover:text-slate-700"
-                  >
-                    {showPassword ? 'Ẩn' : 'Hiện'}
-                  </button>
+              {showSuccess && (
+                <div className="mx-6 mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <div className="flex items-center text-emerald-700 font-bold text-sm">
+                    <Check className="w-5 h-5 mr-2" />
+                    Đổi mật khẩu thành công!
+                  </div>
                 </div>
-                <p className="text-sm text-slate-500">Tối thiểu 8 ký tự, bao gồm chữ cái và số</p>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="confirm" className="text-sm font-medium text-slate-700">
-                  Xác nhận mật khẩu mới
-                </label>
-                <div className="relative">
-                  <input
-                    id="confirm"
-                    name="confirm"
-                    type={showPassword ? 'text' : 'password'}
-                    value={passwordForm.confirm}
-                    onChange={handlePasswordChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-2 text-slate-500 hover:text-slate-700"
-                  >
-                    {showPassword ? 'Ẩn' : 'Hiện'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-4">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? 'Đang lưu...' : 'Đổi mật khẩu'}
-              </button>
-            </div>
-          </form>
-
-          {showSuccess && (
-            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center text-green-800">
-                <Check className="w-5 h-5 mr-2" />
-                Đổi mật khẩu thành công!
-              </div>
+              )}
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
