@@ -391,8 +391,8 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
     ? `&from=${dateFrom || ''}&to=${dateTo || ''}`
     : '';
   const [tab, setTab] = useState('tasks');
-  const [tasks, setTasks] = useState([]); const [taskTotal, setTaskTotal] = useState(0);
-  const [events, setEvents] = useState([]); const [eventTotal, setEventTotal] = useState(0);
+  const [tasks, setTasks] = useState([]); const [taskTotal, setTaskTotal] = useState(u.total || 0);
+  const [events, setEvents] = useState([]); const [eventTotal, setEventTotal] = useState(u.events || 0);
   const [loading, setLoading] = useState(true);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [taskPage, setTaskPage] = useState(1);
@@ -503,51 +503,88 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button onClick={onBack} className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50">
-          <ArrowLeft size={16} className="text-slate-600" />
-        </button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-black text-slate-900">{u.name || 'User'}</h2>
-            {banned && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">BANNED</span>}
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Header Profile */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-violet-500/10 to-fuchsia-500/10 blur-3xl -z-10 rounded-full translate-x-1/2 -translate-y-1/2" />
+        
+        <div className="flex flex-col md:flex-row gap-5 items-start md:items-center justify-between z-10">
+          <div className="flex items-center gap-4">
+            <button onClick={onBack} className="p-2.5 rounded-2xl bg-white shadow-sm border border-slate-200/80 hover:bg-slate-50 transition-all text-slate-500 hover:text-slate-800">
+              <ArrowLeft size={18} />
+            </button>
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                {u.avatar_url ? (
+                  <img src={u.avatar_url} alt="" className="w-14 h-14 rounded-full object-cover ring-4 ring-white shadow-md" />
+                ) : (
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-black shadow-inner bg-gradient-to-br from-violet-100 to-violet-200 text-violet-700 ring-4 ring-white">
+                    {(u.name || u.email || '?')[0].toUpperCase()}
+                  </div>
+                )}
+                {banned && (
+                  <div className="absolute -bottom-1 -right-1 px-1.5 py-0.5 bg-rose-500 border-2 border-white rounded shadow-sm flex items-center justify-center">
+                    <span className="text-[8px] font-black text-white">BAN</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight">{u.name || 'Anonymous User'}</h2>
+                  {u.events > 5 && <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200/50 flex items-center gap-1 shadow-sm"><Bot size={10}/> RỦI RO CAO</span>}
+                </div>
+                <p className="text-sm font-medium text-slate-500 flex items-center gap-1.5">
+                  {u.email} <span className="w-1 h-1 rounded-full bg-slate-300"/> ID: {u.id}
+                </p>
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-slate-500">{u.email} · {taskTotal} tasks</p>
+          
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <button onClick={toggleBan}
+              className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all focus:ring-4 focus:outline-none flex items-center justify-center gap-2
+                ${banned ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 focus:ring-emerald-500/20' 
+                         : 'bg-rose-50 text-rose-700 border border-rose-200/80 hover:bg-rose-100 focus:ring-rose-500/20'}`}>
+              {banned ? <><Shield size={16}/> Mở khóa tài khoản</> : <><AlertTriangle size={16}/> Ban tài khoản</>}
+            </button>
+            <button onClick={async () => {
+              if (!confirm(`Xóa ${u.name || u.email}?\nTất cả dữ liệu sẽ bị xóa vĩnh viễn.`)) return;
+              if (!confirm('XÁC NHẬN: Hành động KHÔNG THỂ HOÀN TÁC. Tiếp tục?')) return;
+              try { await api.delete(`/admin/users/${u.id}`); alert('Đã xóa user'); onBack(); }
+              catch (e) { alert('Lỗi: ' + e.message); }
+            }} className="p-2.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200/50 transition-all">
+              <X size={18} />
+            </button>
+          </div>
         </div>
-        <button onClick={toggleBan}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition ${banned ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100' : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'}`}>
-          {banned ? 'Mở ban' : 'Ban'}
-        </button>
-        <button onClick={async () => {
-          if (!confirm(`Xóa ${u.name || u.email}?\nTất cả dữ liệu sẽ bị xóa vĩnh viễn.`)) return;
-          if (!confirm('XÁC NHẬN: Hành động KHÔNG THỂ HOÀN TÁC. Tiếp tục?')) return;
-          try { await api.delete(`/admin/users/${u.id}`); alert('Đã xóa user'); onBack(); }
-          catch (e) { alert('Lỗi: ' + e.message); }
-        }} className="px-4 py-2 rounded-xl text-xs font-bold bg-red-600 text-white hover:bg-red-700 transition">Xóa</button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      {/* Modern Dashboard Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          ['Tổng', u.total, 'text-slate-800'],
-          ['Hoàn thành', u.ok, 'text-emerald-600'],
-          ['Bot', u.events || 0, 'text-red-600'],
-          ['Thu nhập', money(u.earned), 'text-emerald-600'],
-        ].map(([l, v, c]) => (
-          <div key={l} className="bg-white rounded-xl border border-slate-200 p-3 text-center">
-            <p className="text-[9px] text-slate-400 font-bold uppercase">{l}</p>
-            <p className={`text-lg font-black ${c}`}>{v}</p>
+          { label: 'Tổng Tasks', value: u.total, color: 'text-violet-600', bg: 'bg-violet-50', icon: '📝' },
+          { label: 'Hoàn Thành', value: u.ok, color: 'text-emerald-600', bg: 'bg-emerald-50', icon: '✅' },
+          { label: 'Cảnh Báo Bot', value: u.events || 0, color: 'text-rose-600', bg: 'bg-rose-50', icon: '🤖' },
+          { label: 'Tổng Thu Nhập', value: money(u.earned), color: 'text-sky-600', bg: 'bg-sky-50', icon: '💰' },
+        ].map((s, i) => (
+          <div key={i} className="bg-white rounded-3xl p-5 border border-slate-200/60 shadow-sm flex items-center justify-between group hover:shadow-md transition-shadow">
+            <div className="flex flex-col gap-1">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{s.label}</p>
+              <p className={`text-2xl font-black tracking-tight ${s.color}`}>{s.value}</p>
+            </div>
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl ${s.bg}`}>
+              {s.icon}
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 flex-wrap">
-        {[['tasks', `Tasks (${taskTotal})`], ['events', `Bot events (${eventTotal})`], ['ips', `IPs (${allIps.length}${!ipsLoaded && allIps.length >= 5 ? '+' : ''})`]].map(([k, l]) => (
+      {/* Tabs Menu */}
+      <div className="flex items-center bg-white p-1 rounded-2xl border border-slate-200/80 shadow-sm w-fit">
+        {[['tasks', `Nhiệm vụ (${taskTotal})`], ['events', `Log Bot (${eventTotal})`], ['ips', `Địa chỉ IP (${allIps.length}${!ipsLoaded && allIps.length >= 5 ? '+' : ''})`]].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${tab === k ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 relative ${tab === k ? 'text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
+            {tab === k && <span className="absolute inset-0 bg-violet-50 rounded-xl -z-10" />}
             {l}
           </button>
         ))}
@@ -555,79 +592,85 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
 
       {/* Tasks Tab */}
       {tab === 'tasks' && (
-        <div className="space-y-2">
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
           {/* Filter bar */}
-          <div className="flex gap-2 flex-wrap items-center bg-white border border-slate-200 rounded-xl px-3 py-2">
+          <div className="flex gap-3 flex-wrap items-center bg-white border border-slate-200/60 shadow-sm rounded-2xl px-4 py-3">
             {[
-              { key: 'ip', placeholder: 'Lọc theo IP...', icon: '🌐' },
-              { key: 'visitorId', placeholder: 'Lọc theo Visitor ID...', icon: '🔑' },
-              { key: 'slug', placeholder: 'Lọc theo slug link...', icon: '🔗' },
+              { key: 'ip', placeholder: 'Lọc IP...', icon: '🌐' },
+              { key: 'visitorId', placeholder: 'Lọc Fingerprint ID...', icon: '🔑' },
+              { key: 'slug', placeholder: 'Lọc Mã Link...', icon: '🔗' },
             ].map(({ key, placeholder, icon }) => (
-              <div key={key} className="flex items-center gap-1.5 flex-1 min-w-[160px]">
-                <span className="text-[11px]">{icon}</span>
+              <div key={key} className="flex items-center gap-1.5 flex-1 min-w-[180px] bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 hover:border-violet-200 focus-within:ring-2 focus-within:ring-violet-500/20 focus-within:bg-white focus-within:border-violet-400 transition-all">
+                <span className="text-[14px]">{icon}</span>
                 <input
                   value={taskFilterInput[key]}
                   onChange={e => setTaskFilterInput(f => ({ ...f, [key]: e.target.value }))}
                   onKeyDown={e => { if (e.key === 'Enter') { setTaskFilter({ ...taskFilterInput, [key]: taskFilterInput[key] }); setTaskPage(1); } }}
                   placeholder={placeholder}
-                  className="flex-1 text-[11px] outline-none bg-transparent text-slate-700 placeholder-slate-300"
+                  className="flex-1 text-xs outline-none bg-transparent font-medium text-slate-700 placeholder-slate-400"
                 />
                 {taskFilterInput[key] && (
                   <button onClick={() => { const f = { ...taskFilterInput, [key]: '' }; setTaskFilterInput(f); setTaskFilter(f); setTaskPage(1); }}
-                    className="text-slate-300 hover:text-slate-500 text-xs">✕</button>
+                    className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors"><X size={12}/></button>
                 )}
               </div>
             ))}
-            <button onClick={() => { setTaskFilter(taskFilterInput); setTaskPage(1); }}
-              className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-[10px] font-bold hover:bg-violet-700 shrink-0">
-              Lọc
-            </button>
-            {(taskFilter.ip || taskFilter.visitorId || taskFilter.slug) && (
-              <button onClick={() => { const empty = { ip: '', visitorId: '', slug: '' }; setTaskFilter(empty); setTaskFilterInput(empty); setTaskPage(1); }}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-500 text-[10px] font-bold hover:bg-slate-200 shrink-0">
-                Xóa lọc
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => { setTaskFilter(taskFilterInput); setTaskPage(1); }}
+                className="px-5 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold shadow-sm hover:bg-violet-700 hover:shadow transition-all">
+                Áp dụng
               </button>
-            )}
+              {(taskFilter.ip || taskFilter.visitorId || taskFilter.slug) && (
+                <button onClick={() => { const empty = { ip: '', visitorId: '', slug: '' }; setTaskFilter(empty); setTaskFilterInput(empty); setTaskPage(1); }}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-500 hover:text-slate-700 text-xs font-bold hover:bg-slate-200 transition-all">
+                  Thoát lọc
+                </button>
+              )}
+            </div>
           </div>
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          
+          <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    {['Thời gian', 'Nguồn', 'Trạng thái', 'IP', 'Keyword', 'Earning', 'Bot', ''].map(h => (
-                      <th key={h} className="text-left px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px]">{h}</th>
+                  <tr className="bg-slate-50/50 border-b border-slate-100">
+                    {['Bắt đầu lúc', 'Loại Nguồn', 'Tình trạng', 'Device IP', 'Từ khóa', 'Thưởng', 'Kiểm duyệt', ''].map((h, i) => (
+                      <th key={i} className={`text-left px-5 py-4 font-bold text-slate-500 uppercase tracking-wider text-[10px] ${i === 6 ? 'text-center' : ''}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-50">
                   {loading ? (
-                    <tr><td colSpan={8} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
+                    <tr><td colSpan={8} className="text-center py-12"><div className="w-6 h-6 border-2 border-violet-200 border-t-violet-600 rounded-full animate-spin mx-auto" /></td></tr>
                   ) : tasks.length === 0 ? (
-                    <tr><td colSpan={8} className="text-center py-10 text-slate-400">Không có task{(taskFilter.ip || taskFilter.visitorId || taskFilter.slug) ? ' (không khớp bộ lọc)' : ''}</td></tr>
-                  ) : tasks.map(t => {
+                    <tr><td colSpan={8} className="text-center py-12 text-slate-400 font-medium text-sm">Chưa có nhiệm vụ nào {(taskFilter.ip || taskFilter.visitorId || taskFilter.slug) ? 'khớp bộ lọc' : ''}</td></tr>
+                  ) : tasks.map((t, i) => {
                     const s = ST[t.status] || { l: t.status, c: 'bg-slate-100 text-slate-600' };
+                    // Highlight alternating rows lightly
                     return (
-                      <tr key={t.id} className={`border-b border-slate-100 hover:bg-slate-50/50 ${t.bot_detected ? 'bg-red-50/30' : ''}`}>
-                        <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{fmt(t.created_at)}</td>
-                        <td className="px-3 py-2.5">
+                      <tr key={t.id} className={`group transition-colors duration-200 ${t.bot_detected ? 'bg-rose-50/30 hover:bg-rose-50/60' : i % 2 === 0 ? 'bg-white hover:bg-slate-50' : 'bg-slate-50/30 hover:bg-slate-50'}`}>
+                        <td className="px-5 py-3 text-slate-500 text-[11px] font-medium whitespace-nowrap">{fmt(t.created_at)}</td>
+                        <td className="px-5 py-3">
                           {t.worker_link_id
-                            ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-50 text-orange-700">GW{t.gateway_slug ? ` /${t.gateway_slug}` : ''}</span>
-                            : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">VL</span>}
+                            ? <span className="px-2 py-0.5 rounded-md shadow-sm text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-100">GW{t.gateway_slug ? ` /${t.gateway_slug}` : ''}</span>
+                            : <span className="px-2 py-0.5 rounded-md shadow-sm text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-100">Vượt Link</span>}
                         </td>
-                        <td className="px-3 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${s.c}`}>{s.l}</span></td>
-                        <td className="px-3 py-2.5 font-mono text-slate-600 text-[10px]">{t.ip_address}</td>
-                        <td className="px-3 py-2.5 text-slate-700 max-w-[120px] truncate">{t.keyword || '—'}</td>
-                        <td className="px-3 py-2.5 font-bold text-emerald-700">{t.earning ? money(t.earning) : '—'}</td>
-                        <td className="px-3 py-2.5">
+                        <td className="px-5 py-3">
+                          <span className={`px-2.5 py-1 rounded-md shadow-sm text-[10px] font-bold ${s.c} border border-transparent`}>{s.l}</span>
+                        </td>
+                        <td className="px-5 py-3 font-mono text-slate-500 text-[11px]">{t.ip_address}</td>
+                        <td className="px-5 py-3 text-slate-700 font-medium max-w-[150px] truncate text-[12px]">{t.keyword || '—'}</td>
+                        <td className="px-5 py-3 font-black text-emerald-600 text-[12px]">{t.earning ? money(t.earning) : '—'}</td>
+                        <td className="px-5 py-3 text-center">
                           {t.bot_detected
-                            ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit"><Bot size={9} />BOT</span>
+                            ? <span className="px-2.5 py-1 rounded-md shadow-sm text-[10px] font-black bg-rose-500 text-white flex items-center justify-center gap-1 w-fit mx-auto shadow-rose-200/50"><Bot size={12} /> BOT</span>
                             : t.status === 'completed'
-                              ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">✓</span>
+                              ? <span className="px-2.5 py-1 rounded-md border border-emerald-200 text-[10px] font-black bg-emerald-50 text-emerald-600 flex items-center justify-center gap-1 w-fit mx-auto"><CheckCircle size={10}/> PASS</span>
                               : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="px-3 py-2.5">
-                          <button onClick={() => setModal(t)} className="px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 text-[10px] font-bold">
-                            <Eye size={11} className="inline mr-0.5" />Xem
+                        <td className="px-5 py-3 text-right">
+                          <button onClick={() => setModal(t)} className="opacity-0 group-hover:opacity-100 px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-100 text-[11px] font-bold transition-all ml-auto translate-x-2 group-hover:translate-x-0 outline-none flex items-center justify-center gap-1.5 focus:opacity-100">
+                            <Eye size={12} /> Chi tiết
                           </button>
                         </td>
                       </tr>
@@ -636,35 +679,37 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
                 </tbody>
               </table>
             </div>
-            <Pager page={taskPage} total={taskTotal} limit={LIMIT} onChange={setTaskPage} />
+            <div className="bg-slate-50/50">
+              <Pager page={taskPage} total={taskTotal} limit={LIMIT} onChange={setTaskPage} />
+            </div>
           </div>
         </div>
       )}
 
       {/* Events Tab */}
       {tab === 'events' && (
-        <div className="space-y-3">
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="flex justify-end">
             <button onClick={exportEvents} disabled={eventsLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 text-[11px] font-bold rounded-lg transition shadow-sm disabled:opacity-50">
-              📥 Xuất CSV
+              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200/80 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-200 text-[12px] font-black rounded-xl transition-all shadow-sm focus:ring-4 focus:ring-emerald-500/20 disabled:opacity-50">
+              📥 Xuất File CSV
             </button>
           </div>
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="bg-white rounded-3xl border border-rose-200/60 shadow-sm overflow-hidden ring-1 ring-rose-50">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    {['Thời gian', 'Lý do', 'Nguồn', 'Thiết bị', 'IP', 'Visitor ID', ''].map(h => (
-                      <th key={h} className="text-left px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px]">{h}</th>
+                  <tr className="bg-rose-50/50 border-b border-rose-100">
+                    {['Xảy ra lúc', 'Mã lỗi phát hiện', 'Nguồn gốc', 'Nền tảng', 'Device IP', 'Fingerprint ID', ''].map((h, i) => (
+                      <th key={i} className={`text-left px-5 py-4 font-black text-rose-800 uppercase tracking-wider text-[10px] ${i === 6 ? 'text-center' : ''}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-rose-50/50">
                   {eventsLoading ? (
-                    <tr><td colSpan={7} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
+                    <tr><td colSpan={7} className="text-center py-12"><div className="w-6 h-6 border-2 border-rose-200 border-t-rose-600 rounded-full animate-spin mx-auto" /></td></tr>
                   ) : events.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center py-10 text-slate-400">Không có cảnh báo</td></tr>
+                    <tr><td colSpan={7} className="text-center py-12 text-slate-400 font-medium text-sm">Người dùng này chưa có cảnh báo hệ thống nào</td></tr>
                   ) : (() => {
                     const groups = [];
                     events.forEach(ev => {
@@ -677,57 +722,50 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
                     });
 
                     return groups.map((evGroup, idx) => {
-                      // Lấy event gốc
                       const rootEv = evGroup.occurrences[0];
                       const mob = isMobileUA(rootEv.user_agent);
                       const isGroup = evGroup.occurrences.length > 1;
 
-                      // Tổng hợp lý do chung
                       const allReasons = [];
-                      const allSubReasons = [];
                       evGroup.occurrences.forEach(occ => {
                         if (!allReasons.includes(occ.reason)) allReasons.push(occ.reason);
-                        let det = {};
-                        try { det = typeof occ.details === 'string' ? JSON.parse(occ.details || '{}') : (occ.details || {}); } catch { }
-                        const sr = (det.reasons && det.reasons.length > 0) ? det.reasons : (det.detectionLog || []);
-                        sr.forEach(r => { if (!allSubReasons.includes(r)) allSubReasons.push(r); });
                       });
 
                       return (
-                        <tr key={rootEv.id || `${rootEv.created_at}_${idx}`} className="border-b border-slate-100 bg-red-50/20 hover:bg-red-50/40">
-                          <td className="px-3 py-2.5 whitespace-nowrap">
-                            <span className="text-slate-500">{fmt(rootEv.created_at)}</span>
+                        <tr key={rootEv.id || `${rootEv.created_at}_${idx}`} className="group hover:bg-rose-50/40 transition-colors bg-white">
+                          <td className="px-5 py-3 whitespace-nowrap">
+                            <span className="text-slate-600 font-medium text-[11px]">{fmt(rootEv.created_at)}</span>
                             {(rootEv.count > 1 || isGroup) && (
-                              <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-500 text-white">
-                                {isGroup ? `×${evGroup.occurrences.length}` : `×${rootEv.count}`}
+                              <span className="ml-2 px-1.5 py-0.5 rounded shadow-sm text-[10px] font-black bg-rose-500 text-white">
+                                {isGroup ? `×${evGroup.occurrences.length}` : `×${rootEv.count}`} LẦN
                               </span>
                             )}
                           </td>
-                          <td className="px-3 py-2.5 max-w-[220px]">
-                            <div className="flex flex-wrap gap-1">
+                          <td className="px-5 py-3 max-w-[280px]">
+                            <div className="flex flex-wrap gap-1.5">
                               {allReasons.slice(0, 2).map((r, ri) => (
-                                <span key={ri} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 block w-fit">{r}</span>
+                                <span key={ri} className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-rose-100/80 text-rose-700 border border-rose-200 w-fit">{r}</span>
                               ))}
-                              {allReasons.length > 2 && <span className="text-[9px] text-slate-400">+{allReasons.length - 2}</span>}
+                              {allReasons.length > 2 && <span className="text-[10px] text-rose-500 font-bold self-center">+{allReasons.length - 2}</span>}
                             </div>
                           </td>
-                          <td className="px-3 py-2.5">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${rootEv.source === 'widget' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                              {rootEv.source === 'widget' ? 'Script' : rootEv.source === 'vuotlink' ? 'VL' : rootEv.source}
+                          <td className="px-5 py-3">
+                            <span className={`px-2.5 py-1 rounded-md shadow-sm text-[10px] font-bold border ${rootEv.source === 'widget' ? 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+                              {rootEv.source === 'widget' ? 'Core Script' : rootEv.source === 'vuotlink' ? 'Vượt Link' : rootEv.source}
                             </span>
                           </td>
-                          <td className="px-3 py-2.5">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${mob ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-600'}`}>
-                              {mob ? 'Mobile' : 'Desktop'}
+                          <td className="px-5 py-3">
+                            <span className={`px-2.5 py-1 rounded-md shadow-sm text-[10px] font-bold border ${mob ? 'bg-sky-50 text-sky-700 border-sky-100' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                              {mob ? '📱 Mobile' : '💻 Desktop'}
                             </span>
                           </td>
-                          <td className="px-3 py-2.5 font-mono text-slate-600 text-[10px]">{rootEv.ip_address}</td>
-                          <td className="px-3 py-2.5 font-mono text-slate-500 text-[10px] max-w-[80px] truncate">
-                            {rootEv.visitor_id ? rootEv.visitor_id.substring(0, 12) + '...' : '—'}
+                          <td className="px-5 py-3 font-mono text-slate-500 text-[11px] font-medium">{rootEv.ip_address}</td>
+                          <td className="px-5 py-3 font-mono text-slate-400 text-[10px] max-w-[120px] truncate">
+                            {rootEv.visitor_id ? rootEv.visitor_id.substring(0, 16) + '...' : '—'}
                           </td>
-                          <td className="px-3 py-2.5">
-                            <button onClick={() => setEventModal(evGroup)} className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-[10px] font-bold">
-                              <Eye size={11} className="inline mr-0.5" />Xem
+                          <td className="px-5 py-3 text-right">
+                            <button onClick={() => setEventModal(evGroup)} className="opacity-0 group-hover:opacity-100 px-3 py-1.5 rounded-lg bg-rose-100 text-rose-700 font-bold text-[11px] hover:bg-rose-200 transition-all ml-auto translate-x-2 group-hover:translate-x-0 outline-none flex items-center justify-center gap-1.5 focus:opacity-100 shadow-sm border border-rose-200">
+                              <AlertTriangle size={12} /> Phân tích
                             </button>
                           </td>
                         </tr>
@@ -737,7 +775,9 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
                 </tbody>
               </table>
             </div>
-            <Pager page={eventPage} total={eventTotal} limit={LIMIT} onChange={setEventPage} />
+            <div className="bg-rose-50/30 border-t border-rose-100">
+              <Pager page={eventPage} total={eventTotal} limit={LIMIT} onChange={setEventPage} />
+            </div>
           </div>
         </div>
       )}
@@ -992,17 +1032,22 @@ export default function AdminSecurity() {
   if (detail) return <UserDetail user={detail} dateFrom={dateFrom} dateTo={dateTo} onBack={() => { setDetail(null); load(); }} />;
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Header & Global Stats */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <Shield size={20} className="text-violet-600" /> Anti Cheat
+          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2 tracking-tight">
+            <div className="p-2 bg-violet-100 rounded-xl">
+              <Shield size={22} className="text-violet-600" />
+            </div>
+            Hệ thống Anti-Cheat
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">{total} user · Fingerprint + Automation detection</p>
+          <p className="text-sm text-slate-500 mt-1 font-medium">Giám sát {total} người dùng · Fingerprint & AI Automation Detection</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Làm mới
+        <div className="flex items-center gap-3">
+          <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200/80 shadow-sm rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all">
+            <RefreshCw size={16} className={loading ? 'animate-spin text-violet-500' : 'text-slate-400'} /> 
+            {loading ? 'Đang tải...' : 'Làm mới'}
           </button>
           <button onClick={async () => {
             if (!confirm('Xóa toàn bộ dữ liệu Anti-Cheat?\n(security_logs + bot_detected + security_detail)')) return;
@@ -1012,111 +1057,177 @@ export default function AdminSecurity() {
               alert('Đã xóa toàn bộ dữ liệu anti-cheat!');
               load();
             } catch (e) { alert('Lỗi: ' + (e.message || 'Không xóa được')); }
-          }} className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-600 hover:bg-red-100 transition">
-            <AlertTriangle size={14} /> Xóa tất cả data
+          }} className="flex items-center gap-2 px-4 py-2 bg-rose-50 border border-rose-200 shadow-sm rounded-xl text-sm font-bold text-rose-600 hover:bg-rose-100 transition-all">
+            <AlertTriangle size={16} /> Xóa Data
           </button>
         </div>
-
       </div>
 
-      {/* Date filters & Search */}
-      <div className="flex flex-wrap gap-2 items-center justify-between bg-white px-1 py-1 rounded-xl">
-        <div className="flex items-center gap-2">
-          {[['Hôm nay', 1], ['7 ngày', 7], ['30 ngày', 30], ['Tất cả', 0]].map(([l, d]) => (
-            <button key={l} onClick={() => setPreset(d)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${activePreset === d ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-              {l}
-            </button>
-          ))}
-          <div className="flex items-center gap-1 mx-2">
+      {/* Date filters & Search Controller */}
+      <div className="bg-white border border-slate-200/80 shadow-sm rounded-2xl p-4 flex flex-col lg:flex-row gap-4 justify-between items-center">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          <div className="flex bg-slate-100 p-1 rounded-xl">
+            {[['Hôm nay', 1], ['7 Ngày', 7], ['30 Ngày', 30], ['Tất cả', 0]].map(([l, d]) => (
+              <button key={l} onClick={() => setPreset(d)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${activePreset === d ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 mx-1 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100">
             <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-400" />
-            <span className="text-slate-400 text-xs">→</span>
+              className="bg-transparent text-xs text-slate-700 font-medium focus:outline-none" />
+            <span className="text-slate-300">→</span>
             <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-400" />
+              className="bg-transparent text-xs text-slate-700 font-medium focus:outline-none" />
           </div>
         </div>
-        <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}
-          className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 bg-white focus:outline-none shrink-0">
-          <option value="ok">Hoàn thành ↓</option>
-          <option value="blocked">Blocked ↓</option>
-          <option value="earned">Thu nhập ↓</option>
-          <option value="total">Tổng task ↓</option>
-          <option value="last_at">Mới nhất ↓</option>
-        </select>
+
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          <div className="relative flex-1 min-w-[240px]">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input placeholder="Tìm người dùng (Tên, Email, IP)..."
+              value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all placeholder:text-slate-400" />
+          </div>
+          <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}
+            className="px-4 py-2 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-500/20 cursor-pointer transition-all appearance-none pr-8 relative">
+            <option value="ok">Sắp xếp: Hoàn thành ↓</option>
+            <option value="blocked">Sắp xếp: Cảnh báo Bot ↓</option>
+            <option value="earned">Sắp xếp: Thu nhập ↓</option>
+            <option value="total">Sắp xếp: Tổng Link ↓</option>
+            <option value="last_at">Sắp xếp: Mới Tương tác ↓</option>
+          </select>
+        </div>
       </div>
 
       {/* ── USERS LIST ── */}
-      <div className="space-y-4">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input placeholder="Tìm tên, email, ip, visitor_id..."
-            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  {['User', 'Tổng', 'OK', 'Bot', 'IP', 'Hoạt động', ''].map(h => (
-                    <th key={h} className={`px-3 py-2.5 font-bold text-slate-500 uppercase text-[10px] ${['User', 'IP', 'Hoạt động'].includes(h) ? 'text-left' : 'text-center'}`}>{h}</th>
-                  ))}
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200/60 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-100">
+                {['Thông tin User', 'Hiệu suất (OK / Lỗi / Bot)', 'Chi tiết', 'Tracking IPs', 'Tương tác', ''].map((h, i) => (
+                  <th key={i} className={`px-5 py-4 font-bold text-slate-500 uppercase tracking-wider text-[10px] ${i === 0 || i === 3 ? 'text-left' : 'text-center'}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-16">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <div className="w-8 h-8 border-4 border-violet-100 border-t-violet-600 rounded-full animate-spin" />
+                      <p className="text-sm font-bold text-slate-400">Đang đồng bộ dữ liệu...</p>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={8} className="text-center py-10 text-slate-400">Đang tải...</td></tr>
-                ) : users.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-10 text-slate-400">Chưa có dữ liệu</td></tr>
-                ) : users.map(u => {
-                  const danger = u.blocked > 0 || u.events > 0;
-                  return (
-                    <tr key={u.id} className={`border-b ${danger ? 'bg-red-50 border-red-100 hover:bg-red-50/70' : 'border-slate-100 hover:bg-slate-50/50'}`}>
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-2">
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-16">
+                    <div className="flex flex-col items-center justify-center gap-3 text-slate-400">
+                      <Shield size={32} className="opacity-20" />
+                      <p className="text-sm font-bold">Chưa tìm thấy dữ liệu gian lận nào</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : users.map(u => {
+                const total = u.total || 0;
+                const ok = u.ok || 0;
+                const events = u.events || 0;
+                const dangerLvl = events > 10 ? 'high' : events > 0 ? 'medium' : 'safe';
+                
+                return (
+                  <tr key={u.id} className={`group transition-colors duration-200 ${dangerLvl === 'high' ? 'bg-rose-50/20 hover:bg-rose-50/50' : 'hover:bg-slate-50/60'}`}>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
                           {u.avatar_url ? (
-                            <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                            <img src={u.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-sm" />
                           ) : (
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${danger ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                              {(u.name || '?')[0].toUpperCase()}
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shadow-inner
+                              ${dangerLvl === 'safe' ? 'bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700' 
+                                : dangerLvl === 'medium' ? 'bg-gradient-to-br from-amber-100 to-amber-200 text-amber-700'
+                                : 'bg-gradient-to-br from-rose-100 to-rose-200 text-rose-700'}`}>
+                              {(u.name || u.email || '?')[0].toUpperCase()}
                             </div>
                           )}
-                          <div className="min-w-0">
-                            <p className="font-bold text-slate-800 truncate flex items-center gap-1">
-                              {u.name || 'N/A'}
-                              {u.status === 'banned' && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-600">BAN</span>}
-                            </p>
-                            <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
-                          </div>
+                          {u.status === 'banned' && (
+                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-rose-500 border-2 border-white rounded-full flex items-center justify-center">
+                              <X size={8} className="text-white" />
+                            </div>
+                          )}
                         </div>
-                      </td>
-                      <td className="px-3 py-2.5 text-center font-bold text-slate-700">{u.total}</td>
-                      <td className="px-3 py-2.5 text-center font-bold text-emerald-600">{u.ok}</td>
-                      <td className="px-3 py-2.5 text-center">
-                        {(u.events || 0) > 0
-                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 flex items-center gap-1 w-fit mx-auto"><Bot size={9} />{u.events || 0}</span>
-                          : <span className="text-slate-300">0</span>}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex flex-wrap gap-0.5">
-                          {u.ips.slice(0, 2).map((ip, j) => <span key={j} className="font-mono text-[9px] text-slate-500 bg-slate-50 px-1 py-0.5 rounded">{ip}</span>)}
-                          {u.ips.length > 2 && <span className="text-[9px] text-slate-400">+{u.ips.length - 2}</span>}
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-800 truncate text-sm flex items-center gap-1.5">
+                            {u.name || 'Anonymous User'}
+                            {u.status === 'banned' && <span className="px-1.5 py-0.5 rounded shadow-sm text-[9px] font-black bg-rose-600 text-white tracking-widest leading-none">BANNED</span>}
+                          </p>
+                          <p className="text-[11px] font-medium text-slate-500 truncate mt-0.5">{u.email}</p>
                         </div>
-                      </td>
-                      <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{ago(u.last_at)}</td>
-                      <td className="px-3 py-2.5">
-                        <button onClick={() => setDetail(u)} className="px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 text-[10px] font-bold">
-                          <Eye size={11} className="inline mr-0.5" />Xem
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </td>
+                    
+                    <td className="px-5 py-4">
+                      <div className="flex flex-col items-center gap-1.5 w-full max-w-[160px] mx-auto">
+                        <div className="w-full flex justify-between text-[11px] font-black">
+                          <span className="text-emerald-600">{ok}</span>
+                          <span className="text-slate-400">{total - ok - events}</span>
+                          <span className="text-rose-600">{events}</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
+                          <div style={{ width: `${total ? (ok/total)*100 : 0}%` }} className="bg-emerald-500 h-full"></div>
+                          <div style={{ width: `${total ? ((total-ok-events)/total)*100 : 0}%` }} className="bg-slate-300 h-full"></div>
+                          <div style={{ width: `${total ? (events/total)*100 : 0}%` }} className="bg-rose-500 h-full"></div>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4 text-center">
+                      <div className="flex flex-col gap-1 items-center">
+                        <span className="text-xs font-black text-slate-700">{total} <span className="text-[10px] text-slate-400 font-semibold leading-none">TASKS</span></span>
+                        {(events > 0) ? (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-700 flex items-center gap-1 mt-1 border border-rose-200 shadow-sm">
+                            <Bot size={10} /> {events} BOTS
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-emerald-500 mt-1 flex items-center gap-1"><CheckCircle size={10} /> CLEAN</span>
+                        )}
+                      </div>
+                    </td>
+                    
+                    <td className="px-5 py-4">
+                      <div className="flex flex-wrap gap-1.5 max-w-[180px]">
+                        {u.ips.slice(0, 2).map((ip, j) => (
+                          <span key={j} className="font-mono text-[10px] text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md shadow-sm">
+                            {ip}
+                          </span>
+                        ))}
+                        {u.ips.length > 2 && (
+                          <span className="text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded-md">
+                            +{u.ips.length - 2}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    
+                    <td className="px-5 py-4 text-center text-[11px] font-medium text-slate-500">
+                      {ago(u.last_at)}
+                    </td>
+                    
+                    <td className="px-5 py-4 text-right">
+                      <button onClick={() => setDetail(u)} 
+                        className="opacity-0 group-hover:opacity-100 px-3 py-1.5 rounded-xl bg-violet-600 shadow border border-violet-700 text-white text-[11px] font-bold transition-all hover:bg-violet-700 flex items-center justify-center gap-1.5 ml-auto translate-x-2 group-hover:translate-x-0">
+                        <Eye size={12} /> Phân tích
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="bg-slate-50/50">
           <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
         </div>
       </div>
