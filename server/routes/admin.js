@@ -876,8 +876,8 @@ router.get('/security/users', async (req, res) => {
             let vtDateWhere = '';
             const slDateParams = [];
             const vtDateParams = [];
-            if (from) { slDateWhere += ` AND created_at >= ?`; slDateParams.push(from); vtDateWhere += ` AND created_at >= ?`; vtDateParams.push(from); }
-            if (to) { slDateWhere += ` AND created_at <= ?`; slDateParams.push(to + ' 23:59:59'); vtDateWhere += ` AND created_at <= ?`; vtDateParams.push(to + ' 23:59:59'); }
+            if (from) { slDateWhere += ` AND created_at >= ?`; slDateParams.push(from); vtDateWhere += ` AND vt.created_at >= ?`; vtDateParams.push(from); }
+            if (to) { slDateWhere += ` AND created_at <= ?`; slDateParams.push(to + ' 23:59:59'); vtDateWhere += ` AND vt.created_at <= ?`; vtDateParams.push(to + ' 23:59:59'); }
 
             const [dedupRows] = await pool.execute(
               `SELECT COUNT(*) as cnt FROM (
