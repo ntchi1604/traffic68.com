@@ -9,6 +9,7 @@ import {
   Wallet, Plus, TrendingUp, Zap, CreditCard, ArrowUpRight, ArrowDownLeft,
   BarChart2, CheckCircle2, ChevronRight, Target, RefreshCw,
   MousePointerClick, Globe, Activity, Sparkles, Eye, Timer,
+  Gift, ShoppingCart, ArrowDownCircle,
 } from 'lucide-react';
 import { formatMoney as fmt, fmtDateTime } from '../lib/format';
 import api from '../lib/api';
@@ -66,16 +67,19 @@ function ChartTooltip({ active, payload, label }) {
 }
 
 /* ───────────────────────────────────────────── transaction icon */
+const TX_ICON_MAP = {
+  deposit:    { Icon: ArrowDownCircle, bg: 'bg-emerald-50',  ring: 'ring-emerald-200', color: 'text-emerald-600' },
+  commission: { Icon: Gift,            bg: 'bg-violet-50',   ring: 'ring-violet-200',  color: 'text-violet-600' },
+  referral:   { Icon: Gift,            bg: 'bg-violet-50',   ring: 'ring-violet-200',  color: 'text-violet-600' },
+  campaign:   { Icon: ShoppingCart,     bg: 'bg-orange-50',   ring: 'ring-orange-200',  color: 'text-orange-600' },
+  withdraw:   { Icon: ArrowUpRight,     bg: 'bg-rose-50',     ring: 'ring-rose-200',    color: 'text-rose-500' },
+};
 function TxIcon({ type }) {
-  const isIn = ['deposit', 'referral', 'commission'].includes(type);
+  const cfg = TX_ICON_MAP[type] || { Icon: Wallet, bg: 'bg-slate-100', ring: 'ring-slate-200', color: 'text-slate-500' };
+  const { Icon, bg, ring, color } = cfg;
   return (
-    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-      isIn ? 'bg-emerald-50 ring-1 ring-emerald-100' : 'bg-slate-100 ring-1 ring-slate-200'
-    }`}>
-      {isIn
-        ? <ArrowDownLeft size={16} className="text-emerald-600" />
-        : <ArrowUpRight  size={16} className="text-slate-500" />
-      }
+    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ring-1 ${bg} ${ring}`}>
+      <Icon size={16} className={color} />
     </div>
   );
 }
@@ -179,9 +183,12 @@ export default function TrafficDashboard() {
   const typeLabel = {
     deposit:         'Nạp tiền',
     withdraw:        'Rút tiền',
-    campaign_charge: 'Chi phí chiến dịch',
+    campaign:        'Mua traffic',
+    campaign_charge: 'Mua traffic',
     commission:      'Hoa hồng',
     referral:        'Giới thiệu',
+    transfer:        'Chuyển ví',
+    refund:          'Hoàn tiền',
   };
 
   const kpis = [
@@ -594,25 +601,31 @@ export default function TrafficDashboard() {
             </div>
           ) : (
             <div className="divide-y divide-slate-50">
-              {transactions.slice(0, 6).map(t => {
-                const isIn = ['deposit', 'referral', 'commission'].includes(t.type);
+              {transactions.slice(0, 5).map(t => {
+                const isIn = ['deposit', 'referral', 'commission', 'refund'].includes(t.type);
                 const label = typeLabel[t.type] || t.type;
+                // Trích tên chiến dịch từ note (nếu có)
+                const noteMatch = (t.note || '').match(/"(.+?)"/);
+                const subLabel = noteMatch ? noteMatch[1] : (t.ref_code || '');
                 const statusCfg = {
-                  completed: { cls: 'text-emerald-600 bg-emerald-50', label: 'Thành công' },
-                  pending:   { cls: 'text-amber-600 bg-amber-50',     label: 'Đang xử lý' },
-                }[t.status] || { cls: 'text-red-500 bg-red-50', label: 'Từ chối' };
+                  completed: { cls: 'text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200', icon: CheckCircle2, label: 'Thành công' },
+                  pending:   { cls: 'text-amber-700 bg-amber-50 ring-1 ring-amber-200',     icon: RefreshCw,    label: 'Đang xử lý' },
+                }[t.status] || { cls: 'text-red-600 bg-red-50 ring-1 ring-red-200', icon: Target, label: 'Từ chối' };
+                const StIcon = statusCfg.icon;
                 return (
-                  <div key={t.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50/60 transition-colors">
+                  <div key={t.id} className="flex items-center gap-3 px-5 py-3 hover:bg-indigo-50/30 transition-colors cursor-default">
                     <TxIcon type={t.type} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-semibold text-slate-800 truncate">{label}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{fmtDateTime(t.created_at)}</p>
+                      <p className="text-[13px] font-bold text-slate-800 truncate">{label}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate" title={t.note || ''}>{subLabel}</p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className={`text-sm font-black tabular-nums ${isIn ? 'text-emerald-600' : 'text-slate-700'}`}>
-                        {isIn ? '+' : '-'}{fmt(t.amount)} đ
+                    <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                      <p className={`text-[13px] font-black tabular-nums ${isIn ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {isIn ? '+' : '−'}{fmt(t.amount)} đ
                       </p>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${statusCfg.cls}`}>{statusCfg.label}</span>
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${statusCfg.cls}`}>
+                        <StIcon size={9} />{statusCfg.label}
+                      </span>
                     </div>
                   </div>
                 );
