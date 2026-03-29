@@ -3,7 +3,7 @@ const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
 const localDateStr = (d = new Date()) =>
-  d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }); 
+  d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -41,46 +41,50 @@ router.get('/overview', async (req, res) => {
     [req.userId]
   );
 
-  // Chart 7 ngày: views từ vuot_link_tasks + chi phí từ transactions
   const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const fromDate = localDateStr(sevenDaysAgo);
 
-  // Views: đếm task completed (non-bot) theo ngày
   const [viewRows] = await pool.execute(
-    `SELECT DATE(CONVERT_TZ(vlt.completed_at, '+00:00', '+07:00')) as day,
-            COUNT(*) as views
+    `SELECT DATE(completed_at) as day, COUNT(*) as views
      FROM vuot_link_tasks vlt
      JOIN campaigns c ON c.id = vlt.campaign_id
      WHERE c.user_id = ?
        AND vlt.status = 'completed'
        AND vlt.bot_detected = 0
-       AND DATE(CONVERT_TZ(vlt.completed_at, '+00:00', '+07:00')) >= ?
-     GROUP BY day
-     ORDER BY day ASC`,
-    [req.userId, fromDate]
+       AND completed_at >= ?
+     GROUP BY 1
+     ORDER BY 1 ASC`,
+    [req.userId, fromDate + ' 00:00:00']
   );
 
-  // Spent: lấy từ transactions (chính xác nhất)
   const [spentRows] = await pool.execute(
-    `SELECT DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) as day,
-            COALESCE(SUM(amount), 0) as spent
+    `SELECT DATE(created_at) as day, COALESCE(SUM(amount), 0) as spent
      FROM transactions
      WHERE user_id = ?
        AND wallet_type = 'main'
        AND type = 'campaign'
        AND status = 'completed'
-       AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) >= ?
-     GROUP BY day
-     ORDER BY day ASC`,
-    [req.userId, fromDate]
+       AND created_at >= ?
+     GROUP BY 1
+     ORDER BY 1 ASC`,
+    [req.userId, fromDate + ' 00:00:00']
   );
 
-  // Merge và fill đủ 7 ngày
-  const viewMap  = {};
+  console.log(`[Overview Chart] user=${req.userId}, fromDate=${fromDate}`);
+  console.log(`[Overview Chart] viewRows:`, viewRows.slice(0, 10));
+  console.log(`[Overview Chart] spentRows:`, spentRows.slice(0, 10));
+
+  const viewMap = {};
   const spentMap = {};
-  viewRows.forEach(r  => { viewMap[r.day]  = Number(r.views || 0); });
-  spentRows.forEach(r => { spentMap[r.day] = Number(r.spent || 0); });
+  viewRows.forEach(r => {
+    const k = r.day instanceof Date ? localDateStr(r.day) : String(r.day).slice(0, 10);
+    viewMap[k] = Number(r.views || 0);
+  });
+  spentRows.forEach(r => {
+    const k = r.day instanceof Date ? localDateStr(r.day) : String(r.day).slice(0, 10);
+    spentMap[k] = Number(r.spent || 0);
+  });
 
   const chart = [];
   for (let i = 6; i >= 0; i--) {
@@ -88,24 +92,25 @@ router.get('/overview', async (req, res) => {
     d.setDate(d.getDate() - i);
     const key = localDateStr(d);
     chart.push({
-      day:   key,
-      views: viewMap[key]  || 0,
+      day: key,
+      views: viewMap[key] || 0,
       spent: spentMap[key] || 0,
     });
   }
+  console.log(`[Overview Chart] final chart:`, chart);
 
 
   res.json({
     overview: {
-      totalCampaigns:    tc[0].count,
-      runningCampaigns:  rc[0].count,
-      mainBalance:       mw[0]?.balance || 0,
+      totalCampaigns: tc[0].count,
+      runningCampaigns: rc[0].count,
+      mainBalance: mw[0]?.balance || 0,
       commissionBalance: cw[0]?.balance || 0,
-      todayViews:        todayTraffic[0].views,
-      todayClicks:       todayTraffic[0].clicks,
-      totalViews:        totalV[0].total,
-      totalClicks:       totalV[0].totalClicks,
-      totalSpent:        totalS[0].total,
+      todayViews: todayTraffic[0].views,
+      todayClicks: todayTraffic[0].clicks,
+      totalViews: totalV[0].total,
+      totalClicks: totalV[0].totalClicks,
+      totalSpent: totalS[0].total,
       chart,
     },
   });
@@ -168,9 +173,9 @@ router.get('/traffic', async (req, res) => {
   );
   const d = deviceRows[0] || {};
   const byDevice = [
-    { name: 'Mobile',  value: Number(d.mobile  || 0), color: '#3B82F6' },
+    { name: 'Mobile', value: Number(d.mobile || 0), color: '#3B82F6' },
     { name: 'Desktop', value: Number(d.desktop || 0), color: '#F97316' },
-    { name: 'Tablet',  value: Number(d.tablet  || 0), color: '#FACC15' },
+    { name: 'Tablet', value: Number(d.tablet || 0), color: '#FACC15' },
   ].filter(x => x.value > 0);
 
   res.json({ traffic: data, bySource, byDevice, totalCost, period: { from: fromDate, to: toDate } });
@@ -194,7 +199,7 @@ router.get('/tasks', async (req, res) => {
 
     let tasks;
     try {
-      
+
       [tasks] = await pool.execute(
         `SELECT vlt.completed_at, vlt.ip_address, vlt.user_agent, vlt.ip_country, vlt.time_on_site, vlt.keyword
          FROM vuot_link_tasks vlt
@@ -203,7 +208,7 @@ router.get('/tasks', async (req, res) => {
         [campaignId, fromDate]
       );
     } catch (colErr) {
-      
+
       [tasks] = await pool.execute(
         `SELECT vlt.completed_at, vlt.ip_address, vlt.user_agent, NULL as ip_country, vlt.time_on_site, vlt.keyword
          FROM vuot_link_tasks vlt
