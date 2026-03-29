@@ -723,29 +723,6 @@ export default function Deposit() {
             </ul>
           </div>
 
-          {/* Nạp nhanh shortcut */}
-          <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl p-5 text-white"
-            style={{ boxShadow: '0 8px 32px rgba(99,102,241,0.25)' }}>
-            <div className="flex items-center gap-2 mb-3">
-              <Zap size={15} className="text-yellow-300" />
-              <h3 className="text-sm font-black">Nạp nhanh vào Ví Traffic</h3>
-            </div>
-            <p className="text-xs text-white/60 mb-4 leading-relaxed">Chọn số tiền và phương thức để nạp tiền ngay</p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {[100000, 500000, 1000000, 2000000].map(q => (
-                <button key={q} type="button"
-                  onClick={() => { document.getElementById('deposit-wizard')?.scrollIntoView({ behavior: 'smooth' }); }}
-                  className="py-2 text-[11px] font-bold bg-white/15 hover:bg-white/25 rounded-xl transition border border-white/20">
-                  {q >= 1000000 ? `${q / 1000000}M` : `${q / 1000}K`} đ
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => document.getElementById('deposit-wizard')?.scrollIntoView({ behavior: 'smooth' })}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-2xl transition border border-white/20">
-              Đến form nạp tiền <ChevronRight size={13} />
-            </button>
-          </div>
         </div>
       </div>
 
