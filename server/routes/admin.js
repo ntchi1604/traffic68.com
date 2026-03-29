@@ -328,7 +328,7 @@ router.post('/campaigns/:id/sync-views', async (req, res) => {
   try {
     const pool = getPool();
     const cid = req.params.id;
-    
+
     if (cid === 'all') {
       // Sync tất cả campaigns
       const [rows] = await pool.execute(
@@ -354,7 +354,7 @@ router.post('/campaigns/:id/sync-views', async (req, res) => {
     const realViews = rows[0].real_views;
     const [camp] = await pool.execute('SELECT views_done FROM campaigns WHERE id = ?', [cid]);
     const oldViews = camp[0]?.views_done || 0;
-    
+
     await pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, cid]);
     res.json({ message: `Đã đồng bộ: ${oldViews} → ${realViews}`, oldViews, newViews: realViews });
   } catch (err) {
@@ -831,7 +831,7 @@ router.get('/security/users', async (req, res) => {
          MAX(vt.created_at) as last_at,
          GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips
        FROM users u
-       LEFT JOIN vuot_link_tasks vt ON vt.worker_id = u.id ${timeWhere}
+       LEFT JOIN vuot_link_tasks vt ON (vt.worker_id = u.id OR vt.worker_link_id IN (SELECT wl.id FROM worker_links wl WHERE wl.worker_id = u.id))${timeWhere}
        WHERE 1=1${searchWhere}
        GROUP BY u.id
        ORDER BY ${orderCol} DESC, last_at DESC
@@ -847,8 +847,8 @@ router.get('/security/users', async (req, res) => {
       for (const uid of ids) {
         try {
           // Lấy IP của user trong khoảng thời gian được chọn
-          let ipQuery = `SELECT DISTINCT ip_address FROM vuot_link_tasks WHERE worker_id = ?`;
-          const ipQParams = [uid];
+          let ipQuery = `SELECT DISTINCT ip_address FROM vuot_link_tasks WHERE (worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))`;
+          const ipQParams = [uid, uid];
           if (from) { ipQuery += ` AND created_at >= ?`; ipQParams.push(from); }
           if (to) { ipQuery += ` AND created_at <= ?`; ipQParams.push(to + ' 23:59:59'); }
 
@@ -873,10 +873,10 @@ router.get('/security/users', async (req, res) => {
                 UNION
                 SELECT ip_address, COALESCE(visitor_id, '') as vis_id
                 FROM vuot_link_tasks
-                WHERE worker_id = ?
+                WHERE (worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))
                   AND bot_detected = 1${vtDateWhere}
               ) t`,
-              [...ips, ...slDateParams, uid, ...vtDateParams]
+              [...ips, ...slDateParams, uid, uid, ...vtDateParams]
             );
             if (dedupRows[0].cnt > 0) secMap[uid] = Number(dedupRows[0].cnt);
           }
