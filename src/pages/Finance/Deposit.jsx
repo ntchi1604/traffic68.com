@@ -3,7 +3,7 @@ import usePageTitle from '../../hooks/usePageTitle';
 import { useToast } from '../../components/Toast';
 import {
   Wallet, Gift, Banknote, ArrowRight, ArrowLeftRight,
-  Info, LogOut, X, Copy, Check, Clock, ExternalLink, RefreshCw,
+  Info, LogOut, X, Copy, Check, Clock, ExternalLink, RefreshCw, ArrowDownLeft
 } from 'lucide-react';
 import api from '../../lib/api';
 import Breadcrumb from '../../components/Breadcrumb';
