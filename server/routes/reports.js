@@ -41,26 +41,47 @@ router.get('/overview', async (req, res) => {
     [req.userId]
   );
 
-  // Chart 7 ngày: views + chi phí theo ngày từ traffic_logs
+  // Chart 7 ngày: views từ vuot_link_tasks + chi phí từ transactions
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
   const fromDate = localDateStr(sevenDaysAgo);
 
-  const [chartRows] = await pool.execute(
-    `SELECT tl.date as day,
-            COALESCE(SUM(tl.views), 0)              as views,
-            COALESCE(SUM(tl.clicks * c.cpc), 0)    as spent
-     FROM traffic_logs tl
-     JOIN campaigns c ON c.id = tl.campaign_id
-     WHERE c.user_id = ? AND tl.date >= ?
-     GROUP BY tl.date
-     ORDER BY tl.date ASC`,
+  // Views: đếm task completed (non-bot) theo ngày
+  const [viewRows] = await pool.execute(
+    `SELECT DATE(CONVERT_TZ(vlt.completed_at, '+00:00', '+07:00')) as day,
+            COUNT(*) as views
+     FROM vuot_link_tasks vlt
+     JOIN campaigns c ON c.id = vlt.campaign_id
+     WHERE c.user_id = ?
+       AND vlt.status = 'completed'
+       AND vlt.bot_detected = 0
+       AND DATE(CONVERT_TZ(vlt.completed_at, '+00:00', '+07:00')) >= ?
+     GROUP BY day
+     ORDER BY day ASC`,
     [req.userId, fromDate]
   );
 
-  // Điền đủ 7 ngày (ngày nào không có data sẽ là 0)
-  const chartMap = {};
-  chartRows.forEach(r => { chartMap[r.day] = r; });
+  // Spent: lấy từ transactions (chính xác nhất)
+  const [spentRows] = await pool.execute(
+    `SELECT DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) as day,
+            COALESCE(SUM(amount), 0) as spent
+     FROM transactions
+     WHERE user_id = ?
+       AND wallet_type = 'main'
+       AND type = 'campaign'
+       AND status = 'completed'
+       AND DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) >= ?
+     GROUP BY day
+     ORDER BY day ASC`,
+    [req.userId, fromDate]
+  );
+
+  // Merge và fill đủ 7 ngày
+  const viewMap  = {};
+  const spentMap = {};
+  viewRows.forEach(r  => { viewMap[r.day]  = Number(r.views || 0); });
+  spentRows.forEach(r => { spentMap[r.day] = Number(r.spent || 0); });
+
   const chart = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
@@ -68,10 +89,11 @@ router.get('/overview', async (req, res) => {
     const key = localDateStr(d);
     chart.push({
       day:   key,
-      views: Number(chartMap[key]?.views || 0),
-      spent: Number(chartMap[key]?.spent || 0),
+      views: viewMap[key]  || 0,
+      spent: spentMap[key] || 0,
     });
   }
+
 
   res.json({
     overview: {
