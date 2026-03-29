@@ -52,7 +52,14 @@ export default function DashboardHeader({ onMenuClick }) {
   const initials = (user.name || 'U').split(' ').map(w => w[0]).join('').slice(-2).toUpperCase();
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <header
+      className="sticky top-0 z-30"
+      style={{
+        background: 'linear-gradient(90deg, #f8faff 0%, #ffffff 60%)',
+        borderBottom: '1px solid #e2e8f0',
+        boxShadow: '0 2px 12px 0 rgba(99,102,241,0.07)',
+      }}
+    >
       <div className="px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
 
         {/* Left: hamburger */}
