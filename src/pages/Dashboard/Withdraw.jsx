@@ -122,18 +122,14 @@ export default function Withdraw() {
   return (
     <div className="space-y-6 w-full min-w-0">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Rút tiền' }]} />
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Rút tiền</h1>
-        <p className="text-slate-500 text-sm mt-1">Rút thu nhập về tài khoản ngân hàng hoặc ví crypto</p>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 text-white">
-              <div className="flex items-center gap-3 mb-2"><Wallet size={20} /><span className="text-sm font-medium text-blue-100">Ví Thu nhập</span></div>
+            <div className="rounded-xl p-5 text-white" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+              <div className="flex items-center gap-3 mb-2"><Wallet size={20} /><span className="text-sm font-medium text-indigo-100">Ví Thu nhập</span></div>
               <p className="text-3xl font-black">{fmt(balance)} đ</p>
-              <p className="text-xs text-blue-200 mt-1">Tối thiểu rút: {fmt(minWithdraw)} đ</p>
+              <p className="text-xs text-indigo-200 mt-1">Tối thiểu rút: {fmt(minWithdraw)} đ</p>
             </div>
             
             <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-5 text-white flex flex-col justify-between">
@@ -157,7 +153,7 @@ export default function Withdraw() {
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Số tiền rút (VNĐ) *</label>
               <input type="number" value={amount} onChange={e => setAmount(e.target.value)} min={minWithdraw} max={balance} placeholder={`Tối thiểu ${fmt(minWithdraw)} đ`} required
-                className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
               <div className="flex gap-2 mt-2">
                 {[50000, 100000, 200000, 500000].map(v => (
                   <button key={v} type="button" onClick={() => setAmount(v)} className="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 rounded-lg transition">{fmt(v)}</button>
@@ -166,14 +162,14 @@ export default function Withdraw() {
 
               {/* USDT conversion display */}
               {method === 'crypto' && amount && Number(amount) > 0 && usdtRate && (
-                <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-3 mt-2">
+                <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-lg p-3 mt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-orange-700">Quy đổi USDT</span>
-                    <span className="text-lg font-black text-orange-600">
+                    <span className="text-xs font-semibold text-indigo-700">Quy đổi USDT</span>
+                    <span className="text-lg font-black text-indigo-600">
                       {(Number(amount) / usdtRate).toFixed(2)} USDT
                     </span>
                   </div>
-                  <p className="text-[10px] text-orange-500 mt-1">Tỷ giá: 1 USDT ~ {fmt(Math.round(usdtRate))} VNĐ (CoinGecko)</p>
+                  <p className="text-[10px] text-indigo-500 mt-1">Tỷ giá: 1 USDT ~ {fmt(Math.round(usdtRate))} VNĐ (CoinGecko)</p>
                 </div>
               )}
             </div>
@@ -181,12 +177,12 @@ export default function Withdraw() {
             {/* Traffic Source */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
-                <Globe size={13} className="text-blue-500" /> Nguồn lưu lượng truy cập *
+                <Globe size={13} className="text-indigo-500" /> Nguồn lưu lượng truy cập *
               </label>
               <input type="text" value={trafficSource} onChange={e => setTrafficSource(e.target.value)}
                 placeholder="VD: Website cá nhân, Blog, Fanpage Facebook, Telegram..."
                 required
-                className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
               <p className="text-[10px] text-slate-400 mt-1">Cho biết bạn chia sẻ link kiếm tiền ở đâu để chúng tôi xác minh</p>
             </div>
 
@@ -196,15 +192,15 @@ export default function Withdraw() {
               <div className="grid grid-cols-2 gap-3">
                 {bankEnabled && (
                   <button type="button" onClick={() => setMethod('bank')}
-                    className={`flex items-center gap-2 p-3 rounded-lg border-2 transition ${method === 'bank' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                    <Building2 size={18} className={method === 'bank' ? 'text-blue-600' : 'text-slate-400'} />
+                    className={`flex items-center gap-2 p-3 rounded-lg border-2 transition ${method === 'bank' ? 'border-indigo-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                    <Building2 size={18} className={method === 'bank' ? 'text-indigo-600' : 'text-slate-400'} />
                     <span className="text-sm font-semibold">Ngân hàng</span>
                   </button>
                 )}
                 {cryptoEnabled && (
                   <button type="button" onClick={() => setMethod('crypto')}
-                    className={`flex items-center gap-2 p-3 rounded-lg border-2 transition ${method === 'crypto' ? 'border-orange-500 bg-orange-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                    <Bitcoin size={18} className={method === 'crypto' ? 'text-orange-600' : 'text-slate-400'} />
+                    className={`flex items-center gap-2 p-3 rounded-lg border-2 transition ${method === 'crypto' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                    <Bitcoin size={18} className={method === 'crypto' ? 'text-indigo-600' : 'text-slate-400'} />
                     <span className="text-sm font-semibold">Crypto</span>
                   </button>
                 )}
@@ -220,17 +216,17 @@ export default function Withdraw() {
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tên ngân hàng *</label>
                   <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="VD: Vietcombank, MB Bank..." required
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Số tài khoản *</label>
                   <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="Nhập số tài khoản" required
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tên chủ tài khoản *</label>
                   <input type="text" value={accountName} onChange={e => setAccountName(e.target.value)} placeholder="NGUYEN VAN A" required
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
                 </div>
               </>
             )}
@@ -241,7 +237,7 @@ export default function Withdraw() {
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Mạng / Loại coin *</label>
                   <select value={cryptoNetwork} onChange={e => setCryptoNetwork(e.target.value)} required
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white">
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 bg-white">
                     <option value="">Chọn mạng...</option>
                     {CRYPTO_NETWORKS.map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
@@ -249,14 +245,14 @@ export default function Withdraw() {
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Địa chỉ ví *</label>
                   <input type="text" value={cryptoAddress} onChange={e => setCryptoAddress(e.target.value)} placeholder="Nhập địa chỉ ví nhận" required
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 font-mono text-xs" />
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 font-mono text-xs" />
                   <p className="text-[10px] text-red-500 mt-1 font-semibold">Vui lòng kiểm tra kỹ địa chỉ ví. Giao dịch crypto không thể hoàn lại.</p>
                 </div>
               </>
             )}
 
             <button type="submit" disabled={loading || !method || (!bankEnabled && !cryptoEnabled)}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm disabled:opacity-50">
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition text-sm disabled:opacity-50">
               {loading ? 'Đang xử lý...' : 'Gửi yêu cầu rút tiền'}
             </button>
           </form>
@@ -300,7 +296,7 @@ export default function Withdraw() {
                   </div>
                   {txHash && (
                     <a href={`https://bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 mt-1 text-[10px] text-blue-600 hover:text-blue-700 font-mono">
+                      className="inline-flex items-center gap-1 mt-1 text-[10px] text-indigo-600 hover:text-blue-700 font-mono">
                       <svg width="10" height="10" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#F3BA2F"/></svg>
                       TxHash: {txHash.slice(0, 10)}...{txHash.slice(-6)} ↗
                     </a>

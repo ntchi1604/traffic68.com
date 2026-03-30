@@ -66,11 +66,11 @@ export default function WorkerDashboardLayout() {
             <button
               onClick={() => navigate('/worker/dashboard/links')}
               className="fixed bottom-6 right-6 z-50 flex items-center gap-2
-                         bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800
                          text-white font-bold text-sm px-5 py-3.5 rounded-full
-                         shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40
+                         shadow-lg hover:shadow-xl
                          hover:-translate-y-0.5 active:translate-y-0
                          transition-all duration-200 group"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 8px 24px rgba(99,102,241,0.3)' }}
             >
               <Link2 size={18} className="group-hover:rotate-45 transition-transform duration-300" />
               <span>Tạo Link</span>

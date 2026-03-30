@@ -75,16 +75,15 @@ export default function WorkerProfile() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
-  const inputCls = "w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition";
+  const inputCls = "w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition";
 
   return (
     <div className="space-y-6 w-full min-w-0">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Hồ sơ của tôi' }]} />
-      <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Hồ sơ của tôi</h1>
 
       {error && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm font-medium">{error}</div>
@@ -99,7 +98,7 @@ export default function WorkerProfile() {
           <button key={key} onClick={() => setActiveTab(key)}
             className={`flex items-center gap-2 px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors ${
               activeTab === key
-                ? 'border-blue-500 text-blue-600'
+                ? 'border-indigo-500 text-indigo-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}>
             <Icon size={15} /> {label}
@@ -118,7 +117,7 @@ export default function WorkerProfile() {
                 <div className="relative">
                   <img src={formData.avatar} alt="Avatar"
                     className="w-24 h-24 rounded-full object-cover border-2 border-slate-200 shadow-sm" />
-                  <label className="absolute bottom-0 right-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition shadow">
+                  <label className="absolute bottom-0 right-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-indigo-700 transition shadow">
                     <Camera size={14} />
                     <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
                   </label>
@@ -150,7 +149,7 @@ export default function WorkerProfile() {
                 </div>
                 <div className="flex justify-end pt-2">
                   <button type="submit" disabled={isSubmitting}
-                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-blue-200">
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-indigo-200">
                     <Save size={14} />
                     {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
                   </button>
@@ -188,7 +187,7 @@ export default function WorkerProfile() {
 
             <div className="pt-2">
               <button type="submit" disabled={isSubmitting}
-                className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition disabled:opacity-50 shadow-sm shadow-blue-200">
+                className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition disabled:opacity-50 shadow-sm shadow-indigo-200">
                 <Lock size={14} />
                 {isSubmitting ? 'Đang xử lý...' : 'Đổi mật khẩu'}
               </button>

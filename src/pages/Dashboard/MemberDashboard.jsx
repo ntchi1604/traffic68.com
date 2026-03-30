@@ -30,9 +30,9 @@ function StatusBadge({ status }) {
   const cfg = {
     completed: { label: 'Hoàn thành', cls: 'bg-emerald-50 text-emerald-600 ring-emerald-500/20', Icon: CheckCircle2 },
     pending: { label: 'Đang xử lý', cls: 'bg-amber-50 text-amber-600 ring-amber-500/20', Icon: Clock },
-    step1: { label: 'Bước 1', cls: 'bg-blue-50 text-blue-600 ring-blue-500/20', Icon: Clock },
-    step2: { label: 'Bước 2', cls: 'bg-blue-50 text-blue-600 ring-blue-500/20', Icon: Clock },
-    step3: { label: 'Bước 3', cls: 'bg-blue-50 text-blue-600 ring-blue-500/20', Icon: Clock },
+    step1: { label: 'Bước 1', cls: 'bg-blue-50 text-indigo-600 ring-indigo-500/20', Icon: Clock },
+    step2: { label: 'Bước 2', cls: 'bg-blue-50 text-indigo-600 ring-indigo-500/20', Icon: Clock },
+    step3: { label: 'Bước 3', cls: 'bg-blue-50 text-indigo-600 ring-indigo-500/20', Icon: Clock },
     expired: { label: 'Hết hạn', cls: 'bg-slate-50 text-slate-500 ring-slate-500/20', Icon: XCircle },
     failed: { label: 'Thất bại', cls: 'bg-red-50 text-red-500 ring-red-500/20', Icon: XCircle },
   };
@@ -71,7 +71,7 @@ export default function MemberDashboard() {
     {
       label: 'Hôm nay', value: `${data?.today?.tasks || 0} views`,
       subtext: `Thu nhập: ${fmt(data?.today?.earnings || 0)} đ`,
-      Icon: Eye, bg: 'bg-blue-50', iconColor: 'text-blue-600', border: 'border-blue-100',
+      Icon: Eye, bg: 'bg-blue-50', iconColor: 'text-indigo-600', border: 'border-blue-100',
       accent: 'from-blue-500 to-blue-600',
     },
     {
@@ -83,8 +83,8 @@ export default function MemberDashboard() {
     {
       label: 'View khả dụng / đang xử lý', value: `${fmt(data?.remainingDailyViews || 0)} views`,
       subtext: `${data?.pending || 0} nhiệm vụ đang xử lý`,
-      Icon: Zap, bg: 'bg-orange-50', iconColor: 'text-orange-600', border: 'border-orange-100',
-      accent: 'from-orange-400 to-orange-500',
+      Icon: Zap, bg: 'bg-indigo-50', iconColor: 'text-indigo-600', border: 'border-indigo-100',
+      accent: 'from-indigo-400 to-indigo-500',
     },
     {
       label: 'Ví thu nhập', value: `${fmt(data?.balance || 0)} đ`,
@@ -106,7 +106,7 @@ export default function MemberDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -114,10 +114,6 @@ export default function MemberDashboard() {
   return (
     <div className="space-y-6 w-full min-w-0">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Tổng quan' }]} />
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Tổng quan</h1>
-        <p className="text-sm text-slate-400 mt-1">Thống kê hoạt động của bạn</p>
-      </div>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-w-0">
@@ -144,7 +140,7 @@ export default function MemberDashboard() {
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-400 inline-block" /> Views</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-orange-500 inline-block" /> Thu nhập</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-indigo-500 inline-block" /> Thu nhập</span>
           </div>
         </div>
 
@@ -173,16 +169,16 @@ export default function MemberDashboard() {
                 <YAxis
                   yAxisId="earn"
                   orientation="right"
-                  tick={{ fill: '#f97316', fontSize: 11 }}
+                  tick={{ fill: '#6366f1', fontSize: 11 }}
                   axisLine={false} tickLine={false}
                   width={50}
                   tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : v}
                 />
                 <Tooltip content={<ChartTooltip />} />
                 <Bar yAxisId="views" dataKey="views" name="Views" fill="url(#barGrad)" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                <Line yAxisId="earn" type="monotone" dataKey="earn" name="Thu nhập" stroke="#f97316" strokeWidth={2.5}
-                  dot={{ r: 4, fill: '#f97316', stroke: '#fff', strokeWidth: 2 }}
-                  activeDot={{ r: 6, fill: '#f97316', stroke: '#fff', strokeWidth: 2 }}
+                <Line yAxisId="earn" type="monotone" dataKey="earn" name="Thu nhập" stroke="#6366f1" strokeWidth={2.5}
+                  dot={{ r: 4, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
+                  activeDot={{ r: 6, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
                 />
               </ComposedChart>
             </ResponsiveContainer>
@@ -198,7 +194,7 @@ export default function MemberDashboard() {
       {/* Recent Tasks */}
       <div className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-5 min-w-0">
         <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-          <span className="w-1 h-5 bg-orange-500 rounded-full" />
+          <span className="w-1 h-5 bg-indigo-500 rounded-full" />
           Nhiệm vụ gần đây
         </h3>
         <div className="overflow-x-auto">

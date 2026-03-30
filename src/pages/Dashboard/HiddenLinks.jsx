@@ -64,16 +64,12 @@ export default function HiddenLinks() {
       )}
 
       <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Liên kết ẩn' }]} />
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Liên kết ẩn</h1>
-        <p className="text-sm text-slate-500 mt-1">Các link đã ẩn — bạn có thể hiện lại bất cứ lúc nào</p>
-      </div>
 
       <div className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-5">
         <div className="relative mb-4">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input type="text" placeholder="Tìm kiếm..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
         </div>
 
         {loading ? (
@@ -117,7 +113,7 @@ export default function HiddenLinks() {
                     <td className="py-3 px-4 text-right font-bold text-slate-400 text-xs">{fmt(l.earning)} đ</td>
                     <td className="py-3 px-4">
                       <button onClick={() => unhideLink(l.id)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-colors">
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-indigo-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-colors">
                         <Eye size={11} /> Hiện
                       </button>
                     </td>
@@ -139,7 +135,7 @@ export default function HiddenLinks() {
               .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
               .reduce((acc, p, i, arr) => { if (i > 0 && arr[i-1] !== p-1) acc.push('...'); acc.push(p); return acc; }, [])
               .map((p, i) => p === '...' ? <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span> : (
-                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-blue-600 text-white' : 'hover:bg-slate-50 text-slate-600'}`}>{p}</button>
+                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-indigo-600 text-white' : 'hover:bg-slate-50 text-slate-600'}`}>{p}</button>
               ))}
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
           </div>

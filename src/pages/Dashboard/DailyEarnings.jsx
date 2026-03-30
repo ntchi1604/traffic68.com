@@ -52,7 +52,7 @@ export default function DailyEarnings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -61,15 +61,11 @@ export default function DailyEarnings() {
     <div className="space-y-6 w-full min-w-0">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Thu nhập theo ngày' }]} />
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Thu nhập theo ngày</h1>
-          <p className="text-slate-400 text-sm mt-1">Thống kê chi tiết views & thu nhập hàng ngày</p>
-        </div>
-        <div className="flex gap-2">
+      <div className="flex justify-end">
+        <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
           {[7, 14, 30].map(d => (
             <button key={d} onClick={() => setDays(d)}
-              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${days === d ? 'bg-green-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${days === d ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white'}`}>
               {d} ngày
             </button>
           ))}
@@ -90,7 +86,7 @@ export default function DailyEarnings() {
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
-            <TrendingUp size={18} className="text-blue-600" />
+            <TrendingUp size={18} className="text-indigo-600" />
           </div>
           <div className="min-w-0">
             <p className="text-[11px] text-slate-400 font-semibold uppercase">Tổng {days} ngày</p>
@@ -99,8 +95,8 @@ export default function DailyEarnings() {
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center shrink-0">
-            <Calendar size={18} className="text-orange-600" />
+          <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+            <Calendar size={18} className="text-amber-600" />
           </div>
           <div className="min-w-0">
             <p className="text-[11px] text-slate-400 font-semibold uppercase">TB / ngày</p>
@@ -196,7 +192,7 @@ export default function DailyEarnings() {
                     {new Date(d.date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
                   </td>
                   <td className="py-3 text-center">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs font-bold">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-indigo-600 rounded-full text-xs font-bold">
                       <Eye size={10} /> {d.tasks}
                     </span>
                   </td>
@@ -211,7 +207,7 @@ export default function DailyEarnings() {
               <tfoot>
                 <tr className="border-t-2 border-slate-200 bg-slate-50/50">
                   <td className="py-3 text-xs font-bold text-slate-600">Tổng cộng</td>
-                  <td className="py-3 text-center text-xs font-bold text-blue-600">{fmt(totalViews)}</td>
+                  <td className="py-3 text-center text-xs font-bold text-indigo-600">{fmt(totalViews)}</td>
                   <td className="py-3 text-right text-xs font-bold text-green-600">{fmt(data?.summary?.total)} đ</td>
                   <td className="py-3 text-right text-xs text-slate-400">
                     {totalViews > 0 ? `${fmt(Math.round(Number(data?.summary?.total) / totalViews))} đ` : '—'}

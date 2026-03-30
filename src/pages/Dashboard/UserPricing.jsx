@@ -43,14 +43,14 @@ export default function UserPricing() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <Link to="/buyer/dashboard/campaigns/create"
-          className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition">
+          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold rounded-xl transition">
           Tạo chiến dịch <ArrowRight size={14} />
         </Link>
       </div>
 
       {/* Discount banner */}
       {discountEnabled && (
-        <div className="flex items-center gap-3 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl px-5 py-3">
+        <div className="flex items-center gap-3 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl px-5 py-3">
           <Tag size={18} />
           <div className="flex-1">
             <p className="text-sm font-black">{config.discount_label || `Giảm giá ${pct}%`}</p>
@@ -64,7 +64,7 @@ export default function UserPricing() {
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -82,7 +82,7 @@ export default function UserPricing() {
                       <CheckCircle2 size={13} className="text-green-500 shrink-0 mt-0.5" />
                       <span className="text-sm">
                         V1 (2 bước){' '}
-                        <span className="text-[10px] font-bold text-white bg-orange-500 px-1 py-0.5 rounded">Best</span>
+                        <span className="text-[10px] font-bold text-white bg-indigo-500 px-1 py-0.5 rounded">Best</span>
                         :{' '}
                         {discountEnabled ? (
                           <>

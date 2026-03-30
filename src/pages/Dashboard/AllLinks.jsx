@@ -86,19 +86,19 @@ export default function AllLinks() {
               <Globe2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input value={destUrl} onChange={e => setDestUrl(e.target.value)} autoFocus
                 placeholder="https://example.com/noi-dung"
-                className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 ${formErr && !destUrl ? 'border-red-300' : 'border-slate-200'}`}
+                className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 ${formErr && !destUrl ? 'border-red-300' : 'border-slate-200'}`}
                 required />
             </div>
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1.5">Tiêu đề <span className="text-[11px] text-slate-400 font-normal">(tùy chọn)</span></label>
             <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ví dụ: Tải xuống file XYZ"
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
           </div>
           {formErr && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-600 font-semibold">{formErr}</div>}
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5">
             <p className="text-xs font-bold text-blue-700 mb-2">💡 Cách hoạt động</p>
-            <ul className="text-xs text-blue-600 space-y-1 list-disc pl-4">
+            <ul className="text-xs text-indigo-600 space-y-1 list-disc pl-4">
               <li>Hệ thống tạo link <strong>/vuot-link/xxxxxxx</strong></li>
               <li>Người click phải vượt link trước</li>
               <li>Hoàn thành → redirect đến URL của bạn</li>
@@ -108,7 +108,7 @@ export default function AllLinks() {
           <div className="mt-auto flex gap-2.5">
             <button type="submit" disabled={creating}
               className="flex-1 py-3 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-1.5 transition disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg,#3B82F6,#2563EB)' }}>
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
               {creating ? 'Đang tạo...' : <><Plus size={15} /> Tạo link</>}
             </button>
             <button type="button" onClick={closePanel}
@@ -121,11 +121,10 @@ export default function AllLinks() {
 
       <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Tất cả liên kết' }]} />
 
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Tất cả liên kết</h1>
+      <div className="flex justify-end">
         <button onClick={openPanel}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white flex-shrink-0 transition hover:opacity-90 active:scale-95"
-          style={{ background: 'linear-gradient(135deg,#3B82F6,#2563EB)', boxShadow: '0 4px 14px rgba(59,130,246,0.3)' }}>
+          style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 14px rgba(99,102,241,0.3)' }}>
           <Plus size={15} /> Tạo link mới
         </button>
       </div>
@@ -133,10 +132,10 @@ export default function AllLinks() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Tổng link', value: stats.total_links || 0, icon: Link2, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Tổng link', value: stats.total_links || 0, icon: Link2, color: 'text-indigo-600', bg: 'bg-blue-50' },
           { label: 'Lượt vào', value: fmt(stats.total_clicks || 0), icon: MousePointer, color: 'text-purple-600', bg: 'bg-purple-50' },
           { label: 'Hoàn thành', value: fmt(stats.total_completed || 0), icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Thu nhập', value: `${fmt(stats.total_earning || 0)} đ`, icon: Wallet, color: 'text-orange-600', bg: 'bg-orange-50' },
+          { label: 'Thu nhập', value: `${fmt(stats.total_earning || 0)} đ`, icon: Wallet, color: 'text-indigo-600', bg: 'bg-indigo-50' },
         ].map(k => (
           <div key={k.label} className="bg-white rounded-xl border border-slate-200/80 p-4 flex items-center gap-3">
             <div className={`w-10 h-10 ${k.bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
@@ -163,7 +162,7 @@ export default function AllLinks() {
             <Globe size={40} className="text-slate-300 mx-auto mb-3" />
             <p className="font-bold text-slate-600 mb-1">Chưa có link nào</p>
             <p className="text-sm text-slate-400 mb-4">Tạo link đầu tiên để bắt đầu kiếm tiền</p>
-            <button onClick={openPanel} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white" style={{ background: '#3B82F6' }}>
+            <button onClick={openPanel} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white" style={{ background: '#6366f1' }}>
               <Plus size={14} /> Tạo link ngay
             </button>
           </div>
@@ -208,14 +207,14 @@ export default function AllLinks() {
                           className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold border transition-all duration-200 flex-shrink-0 ${
                             copied === l.slug
                               ? 'bg-green-50 border-green-200 text-green-600 scale-95'
-                              : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 hover:scale-105'
+                              : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-indigo-600 hover:bg-blue-50 hover:scale-105'
                           }`}
                         >
                           {copied === l.slug ? <><Check size={10} /> Đã copy!</> : <><Copy size={10} /> Copy</>}
                         </button>
                         {/* Open tab */}
                         <a href={`/vuot-link/${l.slug}`} target="_blank" rel="noreferrer"
-                          className="w-6 h-6 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-400 hover:text-blue-500 hover:border-blue-300 hover:bg-blue-50 transition flex-shrink-0">
+                          className="w-6 h-6 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-400 hover:text-indigo-500 hover:border-blue-300 hover:bg-blue-50 transition flex-shrink-0">
                           <ExternalLink size={11} />
                         </a>
                       </div>
@@ -237,7 +236,7 @@ export default function AllLinks() {
 
                     {/* Thu nhập */}
                     <td className="py-4 px-4 text-right">
-                      <span className="text-sm font-black text-orange-500">+{fmt(l.earning)} đ</span>
+                      <span className="text-sm font-black text-indigo-500">+{fmt(l.earning)} đ</span>
                     </td>
 
                     {/* Ẩn — chỉ hiện khi hover */}
@@ -266,7 +265,7 @@ export default function AllLinks() {
               .filter(p => p === 1 || p === Math.ceil(links.length / LIMIT) || Math.abs(p - page) <= 1)
               .reduce((acc, p, i, arr) => { if (i > 0 && arr[i-1] !== p-1) acc.push('...'); acc.push(p); return acc; }, [])
               .map((p, i) => p === '...' ? <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span> : (
-                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-blue-600 text-white' : 'hover:bg-slate-50 text-slate-600'}`}>{p}</button>
+                <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-indigo-600 text-white' : 'hover:bg-slate-50 text-slate-600'}`}>{p}</button>
               ))}
             <button onClick={() => setPage(p => Math.min(Math.ceil(links.length / LIMIT), p + 1))} disabled={page >= Math.ceil(links.length / LIMIT)} className="px-3 py-1 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
           </div>

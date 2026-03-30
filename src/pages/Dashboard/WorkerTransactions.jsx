@@ -70,7 +70,7 @@ function Pagination({ page, total, limit, onPage }) {
             <button key={p} onClick={() => onPage(p)}
               className={`w-7 h-7 text-[11px] font-bold rounded-lg transition shadow-sm ${
                 page === p
-                  ? 'bg-blue-600 text-white shadow-blue-200'
+                  ? 'bg-indigo-600 text-white shadow-indigo-200'
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}>
               {p}
@@ -141,10 +141,6 @@ export default function WorkerTransactions() {
     <div className="space-y-5 w-full min-w-0">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Lịch sử giao dịch' }]} />
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Lịch sử giao dịch</h1>
-        <span className="text-xs text-slate-400 bg-slate-100 px-3 py-1.5 rounded-full font-medium">{total} giao dịch</span>
-      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-3">
@@ -173,7 +169,7 @@ export default function WorkerTransactions() {
             <button key={val} onClick={() => setFilter(val)}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition ${
                 filter === val
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
               }`}>
               <Icon size={11} /> {label}
@@ -197,7 +193,7 @@ export default function WorkerTransactions() {
               {loading ? (
                 <tr>
                   <td colSpan={5} className="py-16 text-center">
-                    <div className="w-7 h-7 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" style={{ borderWidth: 3 }} />
+                    <div className="w-7 h-7 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" style={{ borderWidth: 3 }} />
                   </td>
                 </tr>
               ) : transactions.length === 0 ? (
