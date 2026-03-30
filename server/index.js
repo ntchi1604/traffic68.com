@@ -185,21 +185,6 @@ app.use((err, req, res, next) => {
     } catch (e) { console.error('  ⚠ Wallet backfill:', e.message); }
 
     
-    try {
-      const [fixed] = await pool.execute(
-        `UPDATE wallets w SET w.balance = (
-           SELECT COALESCE(SUM(CASE WHEN t.type IN ('earning','deposit','bonus') THEN t.amount ELSE -t.amount END), 0)
-           FROM transactions t WHERE t.user_id = w.user_id AND t.wallet_type = 'earning' AND t.status = 'completed'
-         ) WHERE w.type = 'earning' AND w.balance = 0 AND EXISTS (
-           SELECT 1 FROM transactions t2 WHERE t2.user_id = w.user_id AND t2.wallet_type = 'earning' AND t2.status = 'completed'
-         )`
-      );
-      if (fixed.affectedRows > 0) {
-        console.log(`  ✅ Recalculated ${fixed.affectedRows} earning wallet balances from transactions`);
-      }
-    } catch (e) { console.error('  ⚠ Earning balance recalc:', e.message); }
-
-    
     try { await pool.execute(`ALTER TABLE support_tickets ADD COLUMN role VARCHAR(10) DEFAULT 'worker'`); } catch (e) { }
     try { await pool.execute(`ALTER TABLE support_tickets ADD COLUMN admin_reply TEXT DEFAULT NULL`); } catch (e) { }
 
