@@ -61,7 +61,7 @@ function ConfirmDialog({ message, onConfirm, onCancel }) {
             Hủy
           </button>
           <button onClick={onConfirm}
-            className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition">
+            className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition">
             Xác nhận
           </button>
         </div>

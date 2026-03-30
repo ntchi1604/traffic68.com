@@ -176,7 +176,7 @@ export default function AdminWeb3Payments() {
         {/* Pending */}
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Clock size={16} className="text-blue-500" />
+            <Clock size={16} className="text-indigo-500" />
             <span className="text-xs font-semibold text-slate-500">Chờ thanh toán</span>
           </div>
           <p className="text-lg font-black text-slate-800">{status?.pendingWithdrawals?.count || 0}</p>
@@ -310,7 +310,7 @@ export default function AdminWeb3Payments() {
                     <tr key={p.id} className="hover:bg-slate-50/70">
                       <td className="px-4 py-3">
                         <a href={p.explorer_url} target="_blank" rel="noopener noreferrer"
-                          className="font-mono text-xs text-blue-600 hover:underline flex items-center gap-1">
+                          className="font-mono text-xs text-indigo-600 hover:underline flex items-center gap-1">
                           {p.tx_hash?.slice(0, 10)}...{p.tx_hash?.slice(-6)}
                           <ExternalLink size={10} />
                         </a>

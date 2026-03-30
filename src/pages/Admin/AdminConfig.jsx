@@ -170,12 +170,12 @@ export default function AdminConfig() {
             value={config[field.key] || ''}
             onChange={e => updateField(field.key, e.target.value)}
             placeholder={field.defaultValue || '...'}
-            className="w-48 px-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            className="w-48 px-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
         ) : (
           <input type={field.type} min={field.min} max={field.max}
             value={config[field.key] || ''}
             onChange={e => updateField(field.key, e.target.value)}
-            className="w-32 px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 text-right focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            className="w-32 px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 text-right focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
         )}
       </div>
     </div>
@@ -207,7 +207,7 @@ export default function AdminConfig() {
       {/* Vuot Link Settings */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-          <Settings2 size={16} className="text-blue-500" />
+          <Settings2 size={16} className="text-indigo-500" />
           <h2 className="font-bold text-slate-800">Cài đặt Vượt Link</h2>
         </div>
         <div className="divide-y divide-slate-100">
@@ -218,7 +218,7 @@ export default function AdminConfig() {
       {/* Deposit Settings */}
       <div className="bg-white rounded-xl border border-blue-200 overflow-hidden">
         <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200 flex items-center gap-2">
-          <Wallet size={16} className="text-blue-500" />
+          <Wallet size={16} className="text-indigo-500" />
           <h2 className="font-bold text-slate-800">Cài đặt Nạp tiền (Buyer)</h2>
         </div>
         <div className="divide-y divide-slate-100">
@@ -338,7 +338,7 @@ export default function AdminConfig() {
                           <tr key={p.id} className="hover:bg-slate-50/70">
                             <td className="px-3 py-2">
                               <a href={p.explorer_url} target="_blank" rel="noopener noreferrer"
-                                className="font-mono text-blue-600 hover:underline flex items-center gap-1">
+                                className="font-mono text-indigo-600 hover:underline flex items-center gap-1">
                                 {p.tx_hash?.slice(0, 10)}...{p.tx_hash?.slice(-4)}
                                 <ExternalLink size={9} />
                               </a>

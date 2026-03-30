@@ -62,7 +62,7 @@ export default function AdminWorkerTasks() {
         <div className="flex gap-2">
           {[['all', 'Tất cả'], ['completed', 'Hoàn thành'], ['pending', 'Đang chờ'], ['expired', 'Hết hạn']].map(([v, l]) => (
             <button key={v} onClick={() => { setStatus(v); setPage(1); }}
-              className={`px-3 py-2 text-xs font-bold rounded-lg transition ${status === v ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{l}</button>
+              className={`px-3 py-2 text-xs font-bold rounded-lg transition ${status === v ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{l}</button>
           ))}
         </div>
       </div>
@@ -127,7 +127,7 @@ export default function AdminWorkerTasks() {
                 <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span>
               ) : (
                 <button key={p} onClick={() => setPage(p)}
-                  className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-blue-600 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
+                  className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-indigo-600 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
               ))}
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
               className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>

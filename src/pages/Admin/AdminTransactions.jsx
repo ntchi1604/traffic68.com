@@ -12,7 +12,7 @@ const TYPE_MAP = {
   withdraw: { label: 'Rút/Chi', cls: 'bg-red-100 text-red-700' },
   campaign: { label: 'Mua Traffic', cls: 'bg-orange-100 text-orange-700' },
   earning: { label: 'Thu nhập', cls: 'bg-emerald-100 text-emerald-700' },
-  commission: { label: 'Hoa hồng', cls: 'bg-blue-100 text-blue-700' },
+  commission: { label: 'Hoa hồng', cls: 'bg-blue-100 text-indigo-700' },
   refund: { label: 'Hoàn tiền', cls: 'bg-purple-100 text-purple-700' },
 };
 
@@ -145,7 +145,7 @@ export default function AdminTransactions() {
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <p className="text-xs text-slate-500 font-medium">Số dư</p>
-          <p className="text-xl font-black text-blue-600 mt-0.5">{fmt(totalDeposit - totalWithdraw)} đ</p>
+          <p className="text-xl font-black text-indigo-600 mt-0.5">{fmt(totalDeposit - totalWithdraw)} đ</p>
         </div>
       </div>
 
@@ -194,7 +194,7 @@ export default function AdminTransactions() {
             {['all', 'deposit', 'withdraw', 'campaign', 'earning', 'commission'].map(t => (
               <button key={t} onClick={() => setTypeFilter(t)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${typeFilter === t
-                  ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                  ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
                 {t === 'all' ? 'Tất cả' : TYPE_MAP[t]?.label}
               </button>
             ))}

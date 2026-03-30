@@ -23,8 +23,8 @@ const ST = {
   completed: { l: 'Hoàn thành', c: 'bg-emerald-100 text-emerald-700' },
   expired: { l: 'Hết hạn', c: 'bg-slate-100 text-slate-500' },
   pending: { l: 'Đang chờ', c: 'bg-amber-100 text-amber-700' },
-  step1: { l: 'Bước 1', c: 'bg-blue-100 text-blue-700' },
-  step2: { l: 'Bước 2', c: 'bg-blue-100 text-blue-700' },
+  step1: { l: 'Bước 1', c: 'bg-blue-100 text-indigo-700' },
+  step2: { l: 'Bước 2', c: 'bg-blue-100 text-indigo-700' },
   step3: { l: 'Bước 3', c: 'bg-violet-100 text-violet-700' },
 };
 
@@ -289,7 +289,7 @@ function EventModal({ event: ev, onClose }) {
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-lg font-black tracking-tight text-slate-900">Log Gian Lận #{ev.id}</span>
               <span className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-rose-500 text-white shadow-sm flex items-center gap-1.5"><Bot size={12} />{REASON_VI[ev.reason] || ev.reason}</span>
-              <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm border ${ev.source === 'widget' ? 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+              <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm border ${ev.source === 'widget' ? 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100' : 'bg-blue-50 text-indigo-700 border-blue-100'}`}>
                 {ev.source === 'widget' ? 'Core Script' : ev.source === 'vuotlink' ? 'Vượt Link' : ev.source}
               </span>
               <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm border ${mobile ? 'bg-sky-50 text-sky-700 border-sky-100' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
@@ -728,7 +728,7 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
                         <td className="px-4 py-3 text-slate-600 text-xs whitespace-nowrap">{fmt(t.created_at)}</td>
                         <td className="px-4 py-3">
                           {t.worker_link_id
-                            ? <span className="px-2.5 py-1 rounded text-xs font-semibold bg-blue-50 text-blue-700">Gateway {t.gateway_slug ? ` /${t.gateway_slug}` : ''}</span>
+                            ? <span className="px-2.5 py-1 rounded text-xs font-semibold bg-blue-50 text-indigo-700">Gateway {t.gateway_slug ? ` /${t.gateway_slug}` : ''}</span>
                             : <span className="px-2.5 py-1 rounded text-xs font-semibold bg-slate-100 text-slate-700">Vượt Link</span>}
                         </td>
                         <td className="px-4 py-3">
@@ -989,7 +989,7 @@ function UserDetail({ user: u, onBack, dateFrom, dateTo }) {
                                                 RISK SCORE: {ipDetail.riskScore}/100
                                               </span>
                                               {(ipDetail.risks || []).map((r, i) => (
-                                                <span key={i} className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${r.severity === 'high' ? 'bg-rose-50 border-rose-100 text-rose-700' : r.severity === 'medium' ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>{r.label}</span>
+                                                <span key={i} className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${r.severity === 'high' ? 'bg-rose-50 border-rose-100 text-rose-700' : r.severity === 'medium' ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-blue-50 border-blue-100 text-indigo-700'}`}>{r.label}</span>
                                               ))}
                                               {shared && <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-rose-500 text-white shadow-sm shadow-rose-200 flex items-center gap-1.5"><AlertTriangle size={12} /> CHÚ Ý: {shared.worker_names} cùng chung mạng</span>}
                                             </div>

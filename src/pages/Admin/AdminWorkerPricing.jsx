@@ -6,7 +6,7 @@ import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
 
 const TYPE_LABELS = {
-  google_search: { label: 'Google Search Traffic', color: 'bg-blue-100 text-blue-700' },
+  google_search: { label: 'Google Search Traffic', color: 'bg-blue-100 text-indigo-700' },
   social: { label: 'Social Traffic', color: 'bg-pink-100 text-pink-700' },
   direct: { label: 'Direct Traffic', color: 'bg-green-100 text-green-700' },
 };

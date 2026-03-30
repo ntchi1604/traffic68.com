@@ -14,7 +14,7 @@ import Breadcrumb from '../../components/Breadcrumb';
 
 /* ─── Static data ───────────────────────────────────────────── */
 const TRAFFIC_TYPES = [
-  { value: 'google_search', label: 'Google Search',    icon: Search, desc: 'Traffic từ kết quả tìm kiếm Google',       iconBg: 'bg-blue-50',   iconColor: 'text-blue-600',   activeBg: 'bg-blue-50/80',   activeBorder: 'border-blue-500',   activeText: 'text-blue-700' },
+  { value: 'google_search', label: 'Google Search',    icon: Search, desc: 'Traffic từ kết quả tìm kiếm Google',       iconBg: 'bg-blue-50',   iconColor: 'text-indigo-600',   activeBg: 'bg-blue-50/80',   activeBorder: 'border-indigo-500',   activeText: 'text-indigo-700' },
   { value: 'direct',        label: 'Direct / Redirect', icon: Link2,  desc: 'Traffic trực tiếp hoặc redirect URL',       iconBg: 'bg-violet-50', iconColor: 'text-violet-600', activeBg: 'bg-violet-50/80', activeBorder: 'border-violet-500', activeText: 'text-violet-700' },
   { value: 'social',        label: 'Social',            icon: Share2, desc: 'Traffic từ mạng xã hội (Facebook, TikTok…)', iconBg: 'bg-pink-50',   iconColor: 'text-pink-600',   activeBg: 'bg-pink-50/80',   activeBorder: 'border-pink-500',   activeText: 'text-pink-700' },
 ];
@@ -662,7 +662,7 @@ export default function CreateCampaign() {
             </SectionCard>
 
             {/* ── 5. Mã giảm giá & Ghi chú ── */}
-            <SectionCard icon={Tag} iconBg="bg-orange-50" iconColor="text-orange-600" title="Mã giảm giá & Ghi chú">
+            <SectionCard icon={Tag} iconBg="bg-indigo-50" iconColor="text-indigo-600" title="Mã giảm giá & Ghi chú">
               {/* Discount */}
               <div>
                 <Label>Mã giảm giá</Label>
@@ -679,7 +679,7 @@ export default function CreateCampaign() {
                     className={`px-4 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-95 flex-shrink-0 ${
                       discountApplied
                         ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                        : 'bg-orange-500 hover:bg-orange-600 text-white'
+                        : 'bg-indigo-500 hover:bg-indigo-600 text-white'
                     }`}
                   >
                     {discountApplied ? '✓ Đã áp dụng' : 'Áp dụng'}

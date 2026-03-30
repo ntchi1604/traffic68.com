@@ -8,7 +8,7 @@ import api from '../../lib/api';
 const STATUS_MAP = {
   running: { label: 'Đang chạy', cls: 'bg-green-100 text-green-700' },
   paused: { label: 'Tạm dừng', cls: 'bg-amber-100 text-amber-700' },
-  completed: { label: 'Hoàn thành', cls: 'bg-blue-100 text-blue-700' },
+  completed: { label: 'Hoàn thành', cls: 'bg-blue-100 text-indigo-700' },
 };
 
 const parseJsonArray = (val) => {
@@ -231,7 +231,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     }
   };
 
-  const inputCls = "w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition";
+  const inputCls = "w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition";
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -258,7 +258,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 </div>
               ))}
             </div>
-            <button onClick={() => addItem(setKeywords)} className="mt-1.5 flex items-center gap-1 text-xs font-bold text-blue-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm</button>
+            <button onClick={() => addItem(setKeywords)} className="mt-1.5 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm</button>
           </div>
 
           {/* URLs */}
@@ -272,7 +272,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 </div>
               ))}
             </div>
-            <button onClick={() => addItem(setUrls)} className="mt-1.5 flex items-center gap-1 text-xs font-bold text-blue-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm</button>
+            <button onClick={() => addItem(setUrls)} className="mt-1.5 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm</button>
           </div>
 
           {/* Images */}
@@ -283,8 +283,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 <div key={i}>
                   {img && <img src={img} alt="" className="w-full h-28 object-cover rounded-xl border border-slate-200 mb-1.5" onError={e => e.target.style.display = 'none'} />}
                   <div className="flex gap-2">
-                    <label className="flex-1 flex items-center gap-2 border border-dashed border-slate-300 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition group">
-                      <Upload size={14} className={`text-slate-400 group-hover:text-blue-500 ${uploadingIdx === i ? 'animate-spin' : ''}`} />
+                    <label className="flex-1 flex items-center gap-2 border border-dashed border-slate-300 rounded-xl px-3 py-2 cursor-pointer hover:border-indigo-400 hover:bg-blue-50 transition group">
+                      <Upload size={14} className={`text-slate-400 group-hover:text-indigo-500 ${uploadingIdx === i ? 'animate-spin' : ''}`} />
                       <span className="text-xs text-slate-500">{uploadingIdx === i ? 'Đang upload...' : img ? 'Thay ảnh' : 'Chọn ảnh'}</span>
                       <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, i)} />
                     </label>
@@ -295,7 +295,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 </div>
               ))}
             </div>
-            <button onClick={() => addItem(setImageUrls)} className="mt-1.5 flex items-center gap-1 text-xs font-bold text-blue-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm ảnh</button>
+            <button onClick={() => addItem(setImageUrls)} className="mt-1.5 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm ảnh</button>
           </div>
 
           <div>
@@ -311,7 +311,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <button
               type="button"
               onClick={() => setViewByHour(!viewByHour)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${viewByHour ? 'bg-blue-500' : 'bg-slate-300'}`}
+              className={`relative w-11 h-6 rounded-full transition-colors ${viewByHour ? 'bg-indigo-500' : 'bg-slate-300'}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${viewByHour ? 'translate-x-5' : ''}`} />
             </button>
@@ -329,7 +329,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 sticky bottom-0 bg-white">
           <button onClick={onClose} className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Hủy</button>
           <button onClick={handleSave} disabled={saving}
-            className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition disabled:opacity-50">
+            className="px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition disabled:opacity-50">
             {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
           </button>
         </div>
@@ -439,7 +439,7 @@ export default function AdminCampaigns() {
                       <tr className="hover:bg-slate-50/70">
                         <td className="px-5 py-3">
                           <p className="font-semibold text-slate-800">{c.name}</p>
-                          <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                          <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline flex items-center gap-1">
                             {c.url?.slice(0, 40)} <ExternalLink size={10} />
                           </a>
                         </td>
@@ -470,9 +470,9 @@ export default function AdminCampaigns() {
                                 <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[180px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
                                   <button
                                     onClick={() => { setOpenMenuId(null); setEditingCampaign(c); }}
-                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition text-left"
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-indigo-700 transition text-left"
                                   >
-                                    <Pencil size={14} className="text-blue-500" /> Sửa chiến dịch
+                                    <Pencil size={14} className="text-indigo-500" /> Sửa chiến dịch
                                   </button>
                                   {c.status !== 'running' && (
                                     <button
@@ -493,9 +493,9 @@ export default function AdminCampaigns() {
                                   {c.status !== 'completed' && (
                                     <button
                                       onClick={() => updateStatus(c.id, 'completed')}
-                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition text-left"
+                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-indigo-700 transition text-left"
                                     >
-                                      <CheckCircle size={14} className="text-blue-500" /> Hoàn thành
+                                      <CheckCircle size={14} className="text-indigo-500" /> Hoàn thành
                                     </button>
                                   )}
                                 </div>
@@ -530,7 +530,7 @@ export default function AdminCampaigns() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-slate-800 truncate">{c.name}</p>
-                          <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1 truncate">
+                          <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline flex items-center gap-1 truncate">
                             {c.url?.slice(0, 35)} <ExternalLink size={10} className="shrink-0" />
                           </a>
                         </div>
@@ -563,7 +563,7 @@ export default function AdminCampaigns() {
                               <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[180px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
                                 <button onClick={() => { setOpenMenuId(null); setEditingCampaign(c); }}
                                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 text-left">
-                                  <Pencil size={14} className="text-blue-500" /> Sửa
+                                  <Pencil size={14} className="text-indigo-500" /> Sửa
                                 </button>
                                 {c.status !== 'running' && (
                                   <button onClick={() => updateStatus(c.id, 'running')}
@@ -580,7 +580,7 @@ export default function AdminCampaigns() {
                                 {c.status !== 'completed' && (
                                   <button onClick={() => updateStatus(c.id, 'completed')}
                                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 text-left">
-                                    <CheckCircle size={14} className="text-blue-500" /> Xong
+                                    <CheckCircle size={14} className="text-indigo-500" /> Xong
                                   </button>
                                 )}
                               </div>

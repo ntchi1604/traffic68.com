@@ -153,7 +153,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
                       <p className="text-xs text-slate-400">{u.email}</p>
                     </td>
                     <td className="px-5 py-3">
-                      <span className="font-mono text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">{u.referral_code || '—'}</span>
+                      <span className="font-mono text-xs text-indigo-600 bg-blue-50 px-2 py-1 rounded-lg">{u.referral_code || '—'}</span>
                     </td>
                     <td className="px-5 py-3">
                       {u.referred_by_name ? (
@@ -176,7 +176,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
                     </td>
                     <td className="px-5 py-3 text-center">
                       <button onClick={() => openDetail(u)}
-                        className="px-3 py-1.5 text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition">
+                        className="px-3 py-1.5 text-xs font-bold bg-blue-50 hover:bg-blue-100 text-indigo-600 rounded-lg transition">
                         Xem
                       </button>
                     </td>
@@ -241,7 +241,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
               <div>
                 <h3 className="text-lg font-black text-slate-900">{selectedUser.name || selectedUser.email}</h3>
-                <p className="text-xs text-slate-400">{selectedUser.email} · Mã: <span className="font-mono text-blue-600">{selectedUser.referral_code}</span></p>
+                <p className="text-xs text-slate-400">{selectedUser.email} · Mã: <span className="font-mono text-indigo-600">{selectedUser.referral_code}</span></p>
                 {selectedUser.referred_by_name && (
                   <p className="text-xs text-slate-500 mt-1">
                     Được giới thiệu bởi: <strong className="text-amber-600">{selectedUser.referred_by_name}</strong>
@@ -275,7 +275,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
                   {referredList.map((r, i) => (
                     <div key={r.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-indigo-700 font-bold text-xs shrink-0">
                           {i + 1}
                         </div>
                         <div>

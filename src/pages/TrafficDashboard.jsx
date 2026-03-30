@@ -40,7 +40,7 @@ function CampaignBadge({ status }) {
     running:   { label: 'Đang chạy',  cls: 'text-emerald-700 bg-emerald-50  ring-emerald-200', dot: 'bg-emerald-500 animate-pulse' },
     paused:    { label: 'Tạm dừng',   cls: 'text-amber-700  bg-amber-50   ring-amber-200',    dot: 'bg-amber-400' },
     completed: { label: 'Hoàn thành', cls: 'text-slate-600  bg-slate-100  ring-slate-200',    dot: 'bg-slate-400' },
-    draft:     { label: 'Bản nháp',   cls: 'text-blue-700   bg-blue-50    ring-blue-200',     dot: 'bg-blue-400' },
+    draft:     { label: 'Bản nháp',   cls: 'text-indigo-700   bg-blue-50    ring-blue-200',     dot: 'bg-blue-400' },
   };
   const cfg = map[status] || map.paused;
   return (
@@ -71,7 +71,7 @@ const TX_ICON_MAP = {
   deposit:    { Icon: ArrowDownCircle, bg: 'bg-emerald-50',  ring: 'ring-emerald-200', color: 'text-emerald-600' },
   commission: { Icon: Gift,            bg: 'bg-violet-50',   ring: 'ring-violet-200',  color: 'text-violet-600' },
   referral:   { Icon: Gift,            bg: 'bg-violet-50',   ring: 'ring-violet-200',  color: 'text-violet-600' },
-  campaign:   { Icon: ShoppingCart,     bg: 'bg-orange-50',   ring: 'ring-orange-200',  color: 'text-orange-600' },
+  campaign:   { Icon: ShoppingCart,     bg: 'bg-indigo-50',   ring: 'ring-orange-200',  color: 'text-indigo-600' },
   withdraw:   { Icon: ArrowUpRight,     bg: 'bg-rose-50',     ring: 'ring-rose-200',    color: 'text-rose-500' },
 };
 function TxIcon({ type }) {

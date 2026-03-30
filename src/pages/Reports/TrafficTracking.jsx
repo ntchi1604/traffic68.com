@@ -524,7 +524,7 @@ export default function TrafficTracking() {
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-64 gap-3">
-      <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       <p className="text-sm text-slate-500">Đang tải dữ liệu...</p>
     </div>
   );
@@ -611,7 +611,7 @@ export default function TrafficTracking() {
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-500 inline-block" /> Hoàn thành</span>
-            <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 bg-orange-500 inline-block rounded" /> Chi phí</span>
+            <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 bg-indigo-500 inline-block rounded" /> Chi phí</span>
             <span className="bg-slate-100 text-slate-500 font-semibold px-2.5 py-1 rounded-full">
               {fmt(totalCompleted)} views · {fmt(totalCost)} đ
             </span>
@@ -751,7 +751,7 @@ export default function TrafficTracking() {
       {/* Device + Source */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <div className="flex items-center gap-2 mb-4"><Smartphone size={16} className="text-blue-500" /><h3 className="text-sm font-bold text-slate-800">Traffic theo thiết bị</h3></div>
+          <div className="flex items-center gap-2 mb-4"><Smartphone size={16} className="text-indigo-500" /><h3 className="text-sm font-bold text-slate-800">Traffic theo thiết bị</h3></div>
           {byDevice.length === 0 ? (
             <div className="h-44 flex flex-col items-center justify-center gap-2 text-center">
               <Monitor size={32} className="text-slate-200" />
@@ -856,8 +856,8 @@ export default function TrafficTracking() {
                         {isPeak && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">PEAK</span>}
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-right font-bold text-blue-600">{fmt(t.clicks)}</td>
-                    <td className="px-6 py-3 text-right font-semibold text-orange-500">{fmt(Math.round(t.cost || 0))} đ</td>
+                    <td className="px-6 py-3 text-right font-bold text-indigo-600">{fmt(t.clicks)}</td>
+                    <td className="px-6 py-3 text-right font-semibold text-indigo-500">{fmt(Math.round(t.cost || 0))} đ</td>
                     <td className="px-6 py-3 text-right text-slate-400">{fmt(t.unique_ips)}</td>
                   </tr>
                 );
@@ -865,8 +865,8 @@ export default function TrafficTracking() {
               {traffic.length > 0 && (
                 <tr className="border-t-2 border-slate-200 bg-slate-50/60">
                   <td className="px-6 py-3 text-xs font-bold text-slate-600">Tổng cộng</td>
-                  <td className="px-6 py-3 text-right text-xs font-black text-blue-600">{fmt(totalCompleted)}</td>
-                  <td className="px-6 py-3 text-right text-xs font-black text-orange-500">{fmt(Math.round(totalCost))} đ</td>
+                  <td className="px-6 py-3 text-right text-xs font-black text-indigo-600">{fmt(totalCompleted)}</td>
+                  <td className="px-6 py-3 text-right text-xs font-black text-indigo-500">{fmt(Math.round(totalCost))} đ</td>
                   <td className="px-6 py-3 text-right text-xs font-bold text-slate-400">{fmt(traffic.reduce((s, t) => s + Number(t.unique_ips || 0), 0))}</td>
                 </tr>
               )}

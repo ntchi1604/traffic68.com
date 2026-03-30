@@ -162,7 +162,7 @@ export default function NotificationDropdown({ isWorker = false }) {
               <button
                 type="button"
                 onClick={handleMarkAllRead}
-                className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
                 style={{ whiteSpace: 'nowrap', marginLeft: '12px' }}
               >
                 Đánh dấu tất cả đã đọc
@@ -194,7 +194,7 @@ export default function NotificationDropdown({ isWorker = false }) {
                         {notification.title}
                       </p>
                       {!notification.isRead && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                       )}
                     </div>
                     <p className="mt-1 text-xs text-slate-600 line-clamp-2">
@@ -241,7 +241,7 @@ export default function NotificationDropdown({ isWorker = false }) {
               <button
                 type="button"
                 onClick={closeModal}
-                className="w-full inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                className="w-full inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
               >
                 Đóng
               </button>

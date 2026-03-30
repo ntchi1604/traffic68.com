@@ -6,7 +6,7 @@ import api from '../../lib/api';
 
 const STATUS_MAP = {
   open:        { label: 'Mở',       cls: 'bg-amber-100 text-amber-700', icon: Clock },
-  in_progress: { label: 'Đang xử lý', cls: 'bg-blue-100 text-blue-700', icon: Clock },
+  in_progress: { label: 'Đang xử lý', cls: 'bg-blue-100 text-indigo-700', icon: Clock },
   resolved:    { label: 'Đã xử lý', cls: 'bg-green-100 text-green-700', icon: CheckCircle },
   closed:      { label: 'Đã đóng',  cls: 'bg-slate-100 text-slate-500', icon: CheckCircle },
 };
@@ -57,7 +57,7 @@ function ReplyModal({ ticket, onClose, onDone }) {
             <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Phản hồi</label>
             <textarea value={reply} onChange={e => setReply(e.target.value)}
               rows={4} placeholder="Nhập phản hồi cho khách hàng..."
-              className="w-full px-4 py-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-4 py-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
               required />
           </div>
 
@@ -66,7 +66,7 @@ function ReplyModal({ ticket, onClose, onDone }) {
             <div className="flex gap-2">
               {[
                 { value: 'resolved', label: 'Đã xử lý', cls: 'bg-green-500 text-white' },
-                { value: 'in_progress', label: 'Đang xử lý', cls: 'bg-blue-500 text-white' },
+                { value: 'in_progress', label: 'Đang xử lý', cls: 'bg-indigo-500 text-white' },
                 { value: 'closed', label: 'Đóng', cls: 'bg-slate-500 text-white' },
               ].map(s => (
                 <button key={s.value} type="button" onClick={() => setStatus(s.value)}
@@ -79,7 +79,7 @@ function ReplyModal({ ticket, onClose, onDone }) {
           </div>
 
           <button type="submit" disabled={loading || !reply.trim()}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
+            className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
             <Send size={16} /> {loading ? 'Đang gửi...' : 'Gửi phản hồi'}
           </button>
         </form>
@@ -191,7 +191,7 @@ export default function AdminTickets({ defaultRole = 'all' }) {
                     <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${st.cls}`}>{st.label}</span>
                     <span className={`px-2 py-0.5 text-xs font-bold rounded-full
                       ${t.priority === 'high' ? 'bg-red-100 text-red-700' :
-                        t.priority === 'low' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
+                        t.priority === 'low' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-indigo-700'}`}>
                       {t.priority === 'high' ? 'Cao' : t.priority === 'low' ? 'Thấp' : 'Trung bình'}
                     </span>
                   </div>
@@ -213,7 +213,7 @@ export default function AdminTickets({ defaultRole = 'all' }) {
                 </div>
                 <div className="flex flex-col gap-1 flex-shrink-0">
                   <button onClick={() => setReplyTicket(t)}
-                    className="px-3 py-1.5 text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition flex items-center gap-1">
+                    className="px-3 py-1.5 text-xs font-bold bg-blue-50 hover:bg-blue-100 text-indigo-700 rounded-lg transition flex items-center gap-1">
                     <MessageSquare size={12} /> Phản hồi
                   </button>
                   {t.status === 'open' && (

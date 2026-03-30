@@ -94,7 +94,7 @@ export default function WorkerApi() {
           <div className="text-center py-6">
             <p className="text-sm text-slate-400 mb-4">Chưa có API key. Tạo key để bắt đầu.</p>
             <button onClick={createKey} disabled={regenerating}
-              className="px-6 py-2.5 text-sm font-bold bg-blue-500 hover:bg-indigo-600 text-white rounded-xl transition disabled:opacity-50 inline-flex items-center gap-2">
+              className="px-6 py-2.5 text-sm font-bold bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl transition disabled:opacity-50 inline-flex items-center gap-2">
               <Key size={15} /> {regenerating ? 'Đang tạo...' : 'Tạo API key'}
             </button>
           </div>
@@ -109,7 +109,7 @@ export default function WorkerApi() {
                 {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
               <button onClick={() => handleCopy(keyData.api_key, 'key')} title="Copy key"
-                className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold bg-blue-500 hover:bg-indigo-600 text-white rounded-lg transition flex-shrink-0">
+                className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition flex-shrink-0">
                 {copied === 'key' ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
               </button>
               <button onClick={regenerateKey} disabled={regenerating} title="Đổi key mới"
@@ -150,7 +150,7 @@ export default function WorkerApi() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
               {[
                 { step: '1', title: 'Dán URL', desc: 'Thay url= bằng link đích', color: 'bg-indigo-500' },
-                { step: '2', title: 'Auto tạo link', desc: 'Hệ thống tạo shortlink', color: 'bg-blue-500' },
+                { step: '2', title: 'Auto tạo link', desc: 'Hệ thống tạo shortlink', color: 'bg-indigo-500' },
                 { step: '3', title: 'Redirect', desc: 'Vượt link → nhận CPC', color: 'bg-green-500' },
               ].map(s => (
                 <div key={s.step} className="bg-white/80 rounded-xl p-3 border border-indigo-100">

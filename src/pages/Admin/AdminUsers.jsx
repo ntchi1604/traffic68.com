@@ -46,7 +46,7 @@ function BalanceModal({ user, isWorkerPage, onClose, onDone }) {
           <div>
             <h3 className="text-lg font-black text-slate-900">Quản lý số dư</h3>
             <p className="text-xs text-slate-500">{user.name} — {user.email}</p>
-            <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${isWorker ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+            <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${isWorker ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-indigo-700'}`}>
               {isWorker ? <><HardHat size={10} /> Worker</> : <><Briefcase size={10} /> Buyer</>}
             </span>
           </div>
@@ -86,11 +86,11 @@ function BalanceModal({ user, isWorkerPage, onClose, onDone }) {
           <div>
             <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Số tiền (VNĐ)</label>
             <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Nhập số tiền..." min="1"
-              className="w-full px-4 py-3 text-lg font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              className="w-full px-4 py-3 text-lg font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
             <div className="flex flex-wrap gap-1.5 mt-2">
               {QUICK_AMOUNTS.map(a => (
                 <button key={a} type="button" onClick={() => setAmount(String(a))}
-                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition ${Number(amount) === a ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition ${Number(amount) === a ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
                   {fmt(a)}
                 </button>
               ))}
@@ -100,7 +100,7 @@ function BalanceModal({ user, isWorkerPage, onClose, onDone }) {
           <div>
             <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Ghi chú (tuỳ chọn)</label>
             <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Lý do cộng/trừ tiền..."
-              className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
 
           {amount && Number(amount) > 0 && (
@@ -227,7 +227,7 @@ export default function AdminUsers({ type }) {
                   <td className="px-5 py-3">
                     <p className="font-semibold text-slate-800">{u.name}</p>
                     <p className="text-xs text-slate-400">{u.email}</p>
-                    {u.username && <p className="text-[10px] text-blue-500 font-medium">@{u.username}</p>}
+                    {u.username && <p className="text-[10px] text-indigo-500 font-medium">@{u.username}</p>}
                     {isWorker && u.trusted === 1 && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700 mt-0.5">
                         <ShieldCheck size={9} /> Tin tưởng
@@ -236,7 +236,7 @@ export default function AdminUsers({ type }) {
                   </td>
                   <td className="px-5 py-3 text-slate-600">{u.phone || '—'}</td>
                   <td className="px-5 py-3">
-                    <span className={`px-2 py-1 text-xs font-bold rounded-full ${u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                    <span className={`px-2 py-1 text-xs font-bold rounded-full ${u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-indigo-700'}`}>
                       {u.role === 'admin' ? 'Admin' : 'User'}
                     </span>
                   </td>
@@ -355,7 +355,7 @@ export default function AdminUsers({ type }) {
                 <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span>
               ) : (
                 <button key={p} onClick={() => fetchUsers(search, p)}
-                  className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-blue-600 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
+                  className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-indigo-600 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
               ))}
             <button onClick={() => fetchUsers(search, page + 1)} disabled={page >= totalPages}
               className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>

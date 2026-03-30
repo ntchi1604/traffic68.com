@@ -72,7 +72,7 @@ export default function AdminWorkerWithdrawals() {
         <div className="flex gap-2">
           {[['pending', 'Chờ duyệt'], ['completed', 'Đã duyệt'], ['rejected', 'Từ chối'], ['all', 'Tất cả']].map(([v, l]) => (
             <button key={v} onClick={() => setFilter(v)} disabled={processingBatch}
-              className={`px-3 py-2 text-xs font-bold rounded-lg transition ${filter === v ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'} disabled:opacity-50`}>{l}</button>
+              className={`px-3 py-2 text-xs font-bold rounded-lg transition ${filter === v ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'} disabled:opacity-50`}>{l}</button>
           ))}
         </div>
 
@@ -130,7 +130,7 @@ export default function AdminWorkerWithdrawals() {
                       return (
                         <>
                           <p className="truncate font-medium">{parts[0] || '—'}</p>
-                          {parts[1] && <p className="text-[10px] text-blue-600 mt-0.5 truncate">Nguồn: {parts[1].split(' | ')[0]}</p>}
+                          {parts[1] && <p className="text-[10px] text-indigo-600 mt-0.5 truncate">Nguồn: {parts[1].split(' | ')[0]}</p>}
                           {txMatch && (
                             <a href={`https://bscscan.com/tx/${txMatch[1]}`} target="_blank" rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 mt-1 text-[10px] text-amber-600 hover:text-amber-700 font-mono">
@@ -192,7 +192,7 @@ export default function AdminWorkerWithdrawals() {
                 <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span>
               ) : (
                 <button key={p} onClick={() => fetch(p)}
-                  className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-blue-600 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
+                  className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page === p ? 'bg-indigo-600 text-white' : 'hover:bg-slate-50 border border-slate-200 text-slate-600'}`}>{p}</button>
               ))
             }
             <button onClick={() => fetch(page + 1)} disabled={page >= Math.ceil(total / LIMIT)}

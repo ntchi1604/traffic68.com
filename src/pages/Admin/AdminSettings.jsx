@@ -107,7 +107,7 @@ export default function AdminSettings() {
       {/* ── Info Section ── */}
       <form onSubmit={handleUpdateInfo} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
         <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-          <User size={18} className="text-blue-500" /> Thông tin tài khoản
+          <User size={18} className="text-indigo-500" /> Thông tin tài khoản
         </h2>
 
         <div>
@@ -116,7 +116,7 @@ export default function AdminSettings() {
             <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input type="text" value={name} onChange={e => setName(e.target.value)}
               placeholder="Tên hiển thị"
-              className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
         </div>
 
@@ -126,7 +126,7 @@ export default function AdminSettings() {
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">@</span>
             <input type="text" value={username} onChange={e => setUsername(e.target.value)}
               placeholder="username"
-              className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
         </div>
 
@@ -136,7 +136,7 @@ export default function AdminSettings() {
             <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input type="email" value={email} onChange={e => setEmail(e.target.value)}
               placeholder="admin@example.com"
-              className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
         </div>
 
@@ -148,7 +148,7 @@ export default function AdminSettings() {
         )}
 
         <button type="submit" disabled={savingInfo}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
+          className="flex items-center gap-2 px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
           <Save size={16} /> {savingInfo ? 'Đang lưu...' : 'Lưu thông tin'}
         </button>
       </form>

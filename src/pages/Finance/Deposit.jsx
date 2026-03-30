@@ -103,7 +103,7 @@ function CommissionModal({ mode, balance, onConfirm, onClose }) {
         <h3 className="text-xl font-black text-slate-900 mb-1">
           {isTransfer ? 'Chuyển sang Ví Traffic' : 'Rút tiền về tài khoản'}
         </h3>
-        <p className="text-sm text-slate-400 mb-6">Số dư khả dụng: <span className="font-bold text-orange-500">{fmt(balance)} đ</span></p>
+        <p className="text-sm text-slate-400 mb-6">Số dư khả dụng: <span className="font-bold text-indigo-500">{fmt(balance)} đ</span></p>
 
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-2">
@@ -215,11 +215,11 @@ function CryptoDepositPanel({ data, onClose }) {
           <div className="flex gap-3">
             <div className="flex-1 bg-blue-50 border border-blue-200 rounded-2xl p-3.5 flex items-center gap-3">
               <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
-                <Clock size={16} className="text-blue-600 animate-pulse" />
+                <Clock size={16} className="text-indigo-600 animate-pulse" />
               </div>
               <div>
-                <p className="text-[10px] text-blue-500 font-medium">Đang chờ</p>
-                <p className="text-xl font-black text-blue-700 font-mono">{min}:{sec}</p>
+                <p className="text-[10px] text-indigo-500 font-medium">Đang chờ</p>
+                <p className="text-xl font-black text-indigo-700 font-mono">{min}:{sec}</p>
               </div>
             </div>
             {data.auto && (
@@ -279,7 +279,7 @@ export default function Deposit() {
   const trc20Enabled = depositConfig?.trc20?.enabled;
 
   const METHODS = [
-    ...(bankEnabled ? [{ id: 'bank', label: 'Chuyển khoản ngân hàng', sub: 'Xác nhận 5–15 phút', Icon: Building2, gradient: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', ring: 'ring-blue-400' }] : []),
+    ...(bankEnabled ? [{ id: 'bank', label: 'Chuyển khoản ngân hàng', sub: 'Xác nhận 5–15 phút', Icon: Building2, gradient: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-indigo-700', ring: 'ring-blue-400' }] : []),
     ...(cryptoEnabled ? [{ id: 'bep20', label: 'USDT (BEP20)', sub: 'BSC Network · Nhanh & tự động', icon: 'usdt', gradient: 'from-emerald-500 to-teal-600', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', ring: 'ring-emerald-400' }] : []),
     ...(trc20Enabled ? [{ id: 'trc20', label: 'USDT (TRC20)', sub: 'Tron Network · Nhanh & tự động', icon: 'usdt', gradient: 'from-violet-500 to-purple-700', bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700', ring: 'ring-violet-400' }] : []),
   ];
@@ -346,7 +346,7 @@ export default function Deposit() {
         {/* Traffic wallet */}
         <div className="bg-white rounded-3xl border border-slate-100 p-5 flex items-center gap-5"
           style={{ boxShadow: '0 2px 20px rgba(15,23,42,0.06)' }}>
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200 shrink-0">
             <Wallet size={24} className="text-white" />
           </div>
           <div className="flex-1 min-w-0">
@@ -364,7 +364,7 @@ export default function Deposit() {
         {/* Commission wallet */}
         <div className="bg-white rounded-3xl border border-slate-100 p-5 flex items-center gap-5"
           style={{ boxShadow: '0 2px 20px rgba(15,23,42,0.06)' }}>
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-200 shrink-0">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-200 shrink-0">
             <Gift size={24} className="text-white" />
           </div>
           <div className="flex-1 min-w-0">
@@ -374,7 +374,7 @@ export default function Deposit() {
           </div>
           <div className="flex flex-col gap-1.5 shrink-0">
             <button onClick={() => setModal('transfer')} disabled={wallets.commission.balance <= 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed border border-blue-200">
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-indigo-700 text-[11px] font-bold rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed border border-blue-200">
               <ArrowLeftRight size={11} /> Chuyển
             </button>
             <button onClick={() => setModal('withdraw')} disabled={wallets.commission.balance <= 0}
@@ -567,7 +567,7 @@ export default function Deposit() {
                 {/* Bank info if bank method */}
                 {method === 'bank' && bankEnabled && depositConfig?.bank && (
                   <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-5">
-                    <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                       <Building2 size={12} /> Thông tin chuyển khoản
                     </p>
                     <BankRow label="Ngân hàng" value={depositConfig.bank.bankName} />
@@ -652,7 +652,7 @@ export default function Deposit() {
               style={{ boxShadow: '0 2px 20px rgba(15,23,42,0.05)' }}>
               <div className="flex items-center gap-2.5 mb-4">
                 <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center">
-                  <Building2 size={14} className="text-blue-600" />
+                  <Building2 size={14} className="text-indigo-600" />
                 </div>
                 <h3 className="text-sm font-black text-slate-800">Thông tin NH</h3>
               </div>

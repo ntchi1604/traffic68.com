@@ -257,14 +257,14 @@ function TextInput({ value, onChange, placeholder, mono }) {
   return (
     <input type="text" value={value} onChange={onChange} placeholder={placeholder}
       className={`w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none
-                  focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-white
+                  focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white
                   ${mono ? 'font-mono' : ''}`} />
   );
 }
 function Toggle({ checked, onChange, label }) {
   return (
     <label className="flex items-center gap-3 cursor-pointer">
-      <div className={`relative w-10 h-6 rounded-full transition-colors ${checked ? 'bg-blue-600' : 'bg-gray-200'}`}
+      <div className={`relative w-10 h-6 rounded-full transition-colors ${checked ? 'bg-indigo-600' : 'bg-gray-200'}`}
         onClick={() => onChange(!checked)}>
         <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
       </div>
@@ -425,7 +425,7 @@ export default function ScriptGenerator() {
                 <button key={key} onClick={() => setTab(key)}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-bold rounded-lg whitespace-nowrap transition-all
                               ${tab === key
-                      ? 'bg-blue-600 text-white shadow-md'
+                      ? 'bg-indigo-600 text-white shadow-md'
                       : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700'}`}>
                   <Icon size={13} /> {label}
                 </button>
@@ -528,7 +528,7 @@ export default function ScriptGenerator() {
                 {/* Step 1: Place div */}
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-black text-sm">1</div>
+                    <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center text-indigo-600 font-black text-sm">1</div>
                     <div>
                       <h3 className="text-sm font-bold text-gray-800">Đặt div vào vị trí bạn muốn</h3>
                       <p className="text-[11px] text-gray-400">Thêm đoạn HTML này vào bất kỳ đâu trên trang web của bạn</p>
@@ -542,7 +542,7 @@ export default function ScriptGenerator() {
                       <CopyButton text='<div id="API_SEO_TRAFFIC68"></div>' />
                     </div>
                   </div>
-                  <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-700">
+                  <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-indigo-700">
                     <Info size={13} className="mt-0.5 flex-shrink-0" />
                     <span>Nút "Lấy Mã" sẽ xuất hiện đúng tại vị trí bạn đặt thẻ <code className="bg-blue-100 px-1 rounded font-mono">&lt;div&gt;</code> này.</span>
                   </div>
@@ -616,8 +616,8 @@ export default function ScriptGenerator() {
                       return (
                         <button key={th.id} type="button" onClick={() => set('theme', th.id)}
                           className={`relative p-4 rounded-2xl border-2 text-left transition-all
-                                      ${sel ? 'border-blue-500 shadow-sm scale-[1.02]' : 'border-gray-200 hover:border-gray-300'}`}>
-                          {sel && <span className="absolute top-2 right-2 text-blue-500 text-sm">✓</span>}
+                                      ${sel ? 'border-indigo-500 shadow-sm scale-[1.02]' : 'border-gray-200 hover:border-gray-300'}`}>
+                          {sel && <span className="absolute top-2 right-2 text-indigo-500 text-sm">✓</span>}
                           <div className="rounded-xl p-3 mb-2.5"
                             style={{
                               background: th.preview.modal, border: th.id === 'glass' ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e5e7eb',
@@ -652,7 +652,7 @@ export default function ScriptGenerator() {
 
                 {/* Custom CSS */}
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
-                  <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-700">
+                  <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-indigo-700">
                     <Info size={13} className="mt-0.5 flex-shrink-0" />
                     <span>Ghi đè CSS mặc định. Selector chính: <code className="bg-blue-100 px-1 rounded font-mono">#laynut-btn</code> và <code className="bg-blue-100 px-1 rounded font-mono">#laynut-modal</code>.</span>
                   </div>
@@ -660,12 +660,12 @@ export default function ScriptGenerator() {
                     <textarea rows={6} value={cfg.customCSS} onChange={e => set('customCSS', e.target.value)}
                       placeholder={`/* Ví dụ */\n#laynut-btn {\n  border: 2px solid rgba(255,255,255,0.4);\n}`}
                       className="w-full px-3 py-2.5 text-xs border border-gray-200 rounded-xl focus:outline-none
-                                 focus:ring-2 focus:ring-blue-500 transition resize-y font-mono leading-relaxed bg-white" />
+                                 focus:ring-2 focus:ring-indigo-500 transition resize-y font-mono leading-relaxed bg-white" />
                   </Field>
                 </div>
 
                 {/* Generated code */}
-                <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 text-xs text-blue-700">
+                <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 text-xs text-indigo-700">
                   <Info size={14} className="mt-0.5 flex-shrink-0" />
                   Dán đoạn code này trước thẻ <code className="font-mono bg-blue-100 px-1 rounded">&lt;/body&gt;</code>
                 </div>
@@ -691,8 +691,8 @@ export default function ScriptGenerator() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-bold text-gray-800 text-sm">Xem trước trực tiếp</h2>
                 <button onClick={startPreview} disabled={running}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 hover:bg-orange-600
-                             disabled:bg-orange-300 text-white text-xs font-bold rounded-xl transition active:scale-95">
+                  className="flex items-center gap-1.5 px-3 py-2 bg-indigo-500 hover:bg-indigo-600
+                             disabled:bg-indigo-300 text-white text-xs font-bold rounded-xl transition active:scale-95">
                   {running
                     ? <><RefreshCw size={12} className="animate-spin" />{countdown}s</>
                     : <><Play size={12} />Chạy thử</>}
@@ -701,13 +701,13 @@ export default function ScriptGenerator() {
               <LivePreview cfg={cfg} countdown={countdown} revealed={revealed} />
               {!running && !revealed && (
                 <p className="text-center text-xs text-gray-400 mt-3">
-                  Nhấn <strong className="text-orange-500">Chạy thử</strong> để xem countdown
+                  Nhấn <strong className="text-indigo-500">Chạy thử</strong> để xem countdown
                 </p>
               )}
 
               {/* Save button — always visible */}
               <button onClick={saveWidget} disabled={saving}
-                className="w-full mt-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition disabled:opacity-50">
+                className="w-full mt-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition disabled:opacity-50">
                 {saving ? 'Đang lưu...' : 'Lưu Script'}
               </button>
             </div>
