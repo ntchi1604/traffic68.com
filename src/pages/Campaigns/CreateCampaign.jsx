@@ -223,7 +223,7 @@ export default function CreateCampaign() {
     totalViews:      1000,
     viewByHour:      false,
     useKeywordViews: false,          // ← new: toggle per-keyword traffic
-    keywords:        [{ keyword: '', views: 1000, domain: '', image: '' }],  // ← now objects
+    keywords:        [{ keyword: '', views: 1000, url: '', image: '' }],  // ← now objects
     urls:            [''],
     imageUrls:       [''],
     devices:         ['desktop', 'mobile'],
@@ -239,7 +239,7 @@ export default function CreateCampaign() {
     ...f,
     keywords: [...f.keywords, {
       keyword: '',
-      domain: '',
+      url: '',
       image: '',
       views: f.useKeywordViews
         ? Math.max(1, Math.floor(keywordTotalViews / (f.keywords.length + 1)))
@@ -251,9 +251,9 @@ export default function CreateCampaign() {
     ...f,
     keywords: f.keywords.map((k, i) => i === idx ? { ...k, keyword: val } : k),
   }));
-  const updateKeywordDomain = (idx, val) => setForm(f => ({
+  const updateKeywordUrl = (idx, val) => setForm(f => ({
     ...f,
-    keywords: f.keywords.map((k, i) => i === idx ? { ...k, domain: val } : k),
+    keywords: f.keywords.map((k, i) => i === idx ? { ...k, url: val } : k),
   }));
   const updateKeywordImage = (idx, val) => setForm(f => ({
     ...f,
@@ -363,8 +363,8 @@ export default function CreateCampaign() {
       const images = form.imageUrls.filter(u => u.trim());
       // Build keyword_config – each keyword with its own view target
       const keywordConfig = form.useKeywordViews
-        ? validKeywords.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, domain: k.domain || '', image: k.image || '' }))
-        : validKeywords.map(k => ({ keyword: k.keyword, views: keywordTotalViews, domain: k.domain || '', image: k.image || '' }));
+        ? validKeywords.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, url: k.url || '', image: k.image || '' }))
+        : validKeywords.map(k => ({ keyword: k.keyword, views: keywordTotalViews, url: k.url || '', image: k.image || '' }));
 
       await api.post('/campaigns', {
         name:             form.campaignName,
@@ -651,9 +651,9 @@ export default function CreateCampaign() {
                       </div>
                       <div className="flex gap-2 items-center mt-1">
                         <TextInput
-                          placeholder="Domain gợi ý (Tuỳ chọn)"
-                          value={kw.domain}
-                          onChange={e => updateKeywordDomain(i, e.target.value)}
+                          placeholder="URL đích (Tuỳ chọn)"
+                          value={kw.url}
+                          onChange={e => updateKeywordUrl(i, e.target.value)}
                           className="flex-1 text-xs"
                         />
                         <div className="flex-1 flex gap-2">

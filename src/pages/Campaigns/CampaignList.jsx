@@ -232,11 +232,11 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         // merge: use keyword_config views, fill missing from kwList
         return kwList.map(kw => {
           const found = cfg.find(c => c.keyword === kw);
-          return { keyword: kw, views: found ? Number(found.views) : Number(campaign.total_views) || 1000, domain: found?.domain || '', image: found?.image || '' };
+          return { keyword: kw, views: found ? Number(found.views) : Number(campaign.total_views) || 1000, url: found?.url || found?.domain || '', image: found?.image || '' };
         });
       }
     } catch { }
-    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, domain: '', image: '' }));
+    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, url: '', image: '' }));
   });
 
   const [urls, setUrls] = useState(() => {
@@ -257,13 +257,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
   const addKeyword = () => setKeywords(prev => [...prev, {
     keyword: '',
-    domain: '',
+    url: '',
     image: '',
     views: useKeywordViews ? Math.max(1, Math.floor(keywordTotal / (prev.length + 1))) : (Number(campaign.total_views) || 1000),
   }]);
   const removeKeyword = (idx) => setKeywords(prev => prev.filter((_, i) => i !== idx));
   const updateKeywordText = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, keyword: val } : k));
-  const updateKeywordDomain = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, domain: val } : k));
+  const updateKeywordUrl = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, url: val } : k));
   const updateKeywordImage = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, image: val } : k));
   const updateKeywordViews = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, views: Number(val) || 0 } : k));
 
@@ -327,8 +327,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         ? validKws.reduce((s, k) => s + (Number(k.views) || 0), 0)
         : Number(campaign.total_views);
       const keywordConfig = useKeywordViews
-        ? validKws.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, domain: k.domain || '', image: k.image || '' }))
-        : validKws.map(k => ({ keyword: k.keyword, views: computedTotal, domain: k.domain || '', image: k.image || '' }));
+        ? validKws.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, url: k.url || '', image: k.image || '' }))
+        : validKws.map(k => ({ keyword: k.keyword, views: computedTotal, url: k.url || '', image: k.image || '' }));
 
       await api.put(`/campaigns/${campaign.id}`, {
         dailyViews:     Number(dailyViews),
@@ -422,9 +422,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                   </div>
                   <div className="flex gap-2 items-center mt-1">
                     <input
-                      type="text" value={kw.domain}
-                      onChange={e => updateKeywordDomain(i, e.target.value)}
-                      placeholder="Domain gợi ý (Tuỳ chọn)"
+                      type="text" value={kw.url}
+                      onChange={e => updateKeywordUrl(i, e.target.value)}
+                      placeholder="URL đích (Tuỳ chọn)"
                       className={input + ' flex-1 text-xs'}
                     />
                     <div className="flex-1 flex gap-2">

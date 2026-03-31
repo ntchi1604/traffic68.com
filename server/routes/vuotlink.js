@@ -318,7 +318,7 @@ async function _handleTaskPost(req, res) {
   };
 
   let selectedKeyword;
-  let selectedKwDomain = null;
+  let selectedKwUrl = null;
   let selectedKwImage = null;
 
   try {
@@ -360,9 +360,9 @@ async function _handleTaskPost(req, res) {
 
       if (selectedObj) {
         selectedKeyword = selectedObj.keyword;
-        selectedKwDomain = selectedObj.domain;
+        selectedKwUrl = selectedObj.url || selectedObj.domain; // domain for backwards compatibility if needed
         selectedKwImage = selectedObj.image;
-        console.log(`[VuotLink] Keyword config selected: "${selectedKeyword}" (Domain: ${selectedKwDomain || 'None'}, Image: ${selectedKwImage ? 'Yes' : 'No'})`);
+        console.log(`[VuotLink] Keyword config selected: "${selectedKeyword}" (URL: ${selectedKwUrl || 'None'}, Image: ${selectedKwImage ? 'Yes' : 'No'})`);
       } else {
         selectedKeyword = pickRandom(campaign.keyword) || campaign.keyword;
       }
@@ -375,7 +375,7 @@ async function _handleTaskPost(req, res) {
     selectedKeyword = pickRandom(campaign.keyword) || campaign.keyword;
   }
 
-  const selectedUrl = (selectedKwDomain && selectedKwDomain.trim()) ? selectedKwDomain.trim() : campaign.url; // primary URL always used as target
+  const selectedUrl = (selectedKwUrl && selectedKwUrl.trim()) ? selectedKwUrl.trim() : campaign.url; // primary URL always used as target
   const allImages = [...parseImgArray(campaign.image1_url), ...parseImgArray(campaign.image2_url)].filter(Boolean);
   const selectedImage1 = (selectedKwImage && selectedKwImage.trim()) ? selectedKwImage.trim() : (allImages.length > 0 ? allImages[Math.floor(Math.random() * allImages.length)] : '');
   const selectedImage2 = allImages.length > 1 ? allImages.filter(u => u !== selectedImage1)[Math.floor(Math.random() * Math.max(1, allImages.length - 1))] || '' : '';
