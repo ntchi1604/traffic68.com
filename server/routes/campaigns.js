@@ -15,7 +15,14 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
+    let ext = path.extname(file.originalname).toLowerCase();
+    if (!ext) {
+      if (file.mimetype === 'image/jpeg') ext = '.jpg';
+      else if (file.mimetype === 'image/png') ext = '.png';
+      else if (file.mimetype === 'image/gif') ext = '.gif';
+      else if (file.mimetype === 'image/webp') ext = '.webp';
+      else ext = '.png'; // default fallback
+    }
     cb(null, `campaign-${req.userId}-${Date.now()}${ext}`);
   },
 });
@@ -25,9 +32,13 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const allowedMime = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     const ext = path.extname(file.originalname).toLowerCase();
-    if (allowed.includes(ext)) cb(null, true);
-    else cb(new Error('Chỉ chấp nhận file ảnh (jpg, png, gif, webp)'));
+    if (allowed.includes(ext) || allowedMime.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Chỉ chấp nhận file ảnh (jpg, png, gif, webp)'));
+    }
   },
 });
 
@@ -237,16 +248,7 @@ router.put('/:id', async (req, res) => {
     const { name, url, url2, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, keyword_config, targetPage, timeOnSite, status, image1_url, image2_url } = req.body;
     const n = (v) => v === undefined ? null : v;
 
-    const oldImage1 = existing[0].image1_url;
-    const oldImage2 = existing[0].image2_url;
-    if (image1_url !== undefined && oldImage1 && oldImage1 !== image1_url) {
-      const p = path.join(__dirname, '..', '..', oldImage1);
-      if (fs.existsSync(p)) fs.unlinkSync(p);
-    }
-    if (image2_url !== undefined && oldImage2 && oldImage2 !== image2_url) {
-      const p = path.join(__dirname, '..', '..', oldImage2);
-      if (fs.existsSync(p)) fs.unlinkSync(p);
-    }
+    // No longer safely unlinking images here because they are JSON arrays and might be shared across campaigns/keywords.
 
     try {
       // Try with keyword_config column
@@ -287,8 +289,6 @@ router.put('/:id/status', async (req, res) => {
   if (status === 'completed') {
     const [rows] = await pool.execute('SELECT image1_url FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
     if (rows[0]?.image1_url) {
-      const imgPath = path.join(__dirname, '..', '..', rows[0].image1_url);
-      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
       await pool.execute('UPDATE campaigns SET image1_url = NULL WHERE id = ?', [req.params.id]);
     }
   }
