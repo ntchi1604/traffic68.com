@@ -232,11 +232,11 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         // merge: use keyword_config views, fill missing from kwList
         return kwList.map(kw => {
           const found = cfg.find(c => c.keyword === kw);
-          return { keyword: kw, views: found ? Number(found.views) : Number(campaign.total_views) || 1000 };
+          return { keyword: kw, views: found ? Number(found.views) : Number(campaign.total_views) || 1000, domain: found?.domain || '', image: found?.image || '' };
         });
       }
     } catch { }
-    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000 }));
+    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, domain: '', image: '' }));
   });
 
   const [urls, setUrls] = useState(() => {
@@ -257,10 +257,14 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
   const addKeyword = () => setKeywords(prev => [...prev, {
     keyword: '',
+    domain: '',
+    image: '',
     views: useKeywordViews ? Math.max(1, Math.floor(keywordTotal / (prev.length + 1))) : (Number(campaign.total_views) || 1000),
   }]);
   const removeKeyword = (idx) => setKeywords(prev => prev.filter((_, i) => i !== idx));
   const updateKeywordText = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, keyword: val } : k));
+  const updateKeywordDomain = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, domain: val } : k));
+  const updateKeywordImage = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, image: val } : k));
   const updateKeywordViews = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, views: Number(val) || 0 } : k));
 
   const toggleKeywordViews = () => {
@@ -296,6 +300,23 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     finally { setUploadingIdx(-1); }
   };
 
+  const [uploadingKwIdx, setUploadingKwIdx] = useState(-1);
+  const handleKeywordImageUpload = async (e, idx) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingKwIdx(idx);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload thất bại');
+      updateKeywordImage(idx, data.imageUrl);
+    } catch (err) { toast.error(err.message); }
+    finally { setUploadingKwIdx(-1); }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -306,8 +327,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         ? validKws.reduce((s, k) => s + (Number(k.views) || 0), 0)
         : Number(campaign.total_views);
       const keywordConfig = useKeywordViews
-        ? validKws.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0 }))
-        : validKws.map(k => ({ keyword: k.keyword, views: computedTotal }));
+        ? validKws.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, domain: k.domain || '', image: k.image || '' }))
+        : validKws.map(k => ({ keyword: k.keyword, views: computedTotal, domain: k.domain || '', image: k.image || '' }));
 
       await api.put(`/campaigns/${campaign.id}`, {
         dailyViews:     Number(dailyViews),
@@ -370,33 +391,55 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-4">
               {keywords.map((kw, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input
-                    type="text" value={kw.keyword}
-                    onChange={e => updateKeywordText(i, e.target.value)}
-                    placeholder={`Từ khóa ${i + 1}`}
-                    className={input + ' flex-1'}
-                  />
-                  {useKeywordViews && (
-                    <div className="relative w-36 flex-shrink-0">
+                <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text" value={kw.keyword}
+                      onChange={e => updateKeywordText(i, e.target.value)}
+                      placeholder={`Từ khóa ${i + 1}`}
+                      className={input + ' flex-1'}
+                    />
+                    {useKeywordViews && (
+                      <div className="relative w-36 flex-shrink-0">
+                        <input
+                          type="number" min="1"
+                          value={kw.views}
+                          onChange={e => updateKeywordViews(i, e.target.value)}
+                          className="w-full px-3 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
+                                     focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
+                                     transition pr-12 font-black text-amber-900 text-right"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                      </div>
+                    )}
+                    {keywords.length > 1 && (
+                      <button onClick={() => removeKeyword(i)} className="p-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 bg-white border border-red-200 hover:bg-red-50 rounded-xl transition flex-shrink-0 absolute -top-2 -right-2 shadow-sm z-10">
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 items-center mt-1">
+                    <input
+                      type="text" value={kw.domain}
+                      onChange={e => updateKeywordDomain(i, e.target.value)}
+                      placeholder="Domain gợi ý (Tuỳ chọn)"
+                      className={input + ' flex-1 text-xs'}
+                    />
+                    <div className="flex-1 flex gap-2">
                       <input
-                        type="number" min="1"
-                        value={kw.views}
-                        onChange={e => updateKeywordViews(i, e.target.value)}
-                        className="w-full px-3 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
-                                   focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
-                                   transition pr-12 font-black text-amber-900 text-right"
+                        type="text" value={kw.image}
+                        onChange={e => updateKeywordImage(i, e.target.value)}
+                        placeholder="Link Image (Tuỳ chọn)"
+                        className={input + ' flex-1 text-xs'}
                       />
-                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                      <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0">
+                        {uploadingKwIdx === i ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
+                        <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
+                      </label>
                     </div>
-                  )}
-                  {keywords.length > 1 && (
-                    <button onClick={() => removeKeyword(i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
-                      <Trash2 size={15} />
-                    </button>
-                  )}
+                  </div>
                 </div>
               ))}
             </div>

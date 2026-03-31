@@ -160,7 +160,19 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
   const [name, setName] = useState(campaign.name || '');
   const [dailyViews, setDailyViews] = useState(campaign.daily_views || 500);
-  const [keywords, setKeywords] = useState(() => parseJsonArray(campaign.keyword));
+  const [keywords, setKeywords] = useState(() => {
+    const kwList = parseJsonArray(campaign.keyword);
+    try {
+      const cfg = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
+      if (Array.isArray(cfg) && cfg.length > 0) {
+        return kwList.map(kw => {
+          const found = cfg.find(c => c.keyword === kw);
+          return { keyword: kw, views: found ? Number(found.views) : Number(campaign.total_views) || 1000, domain: found?.domain || '', image: found?.image || '' };
+        });
+      }
+    } catch { }
+    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, domain: '', image: '' }));
+  });
   const [urls, setUrls] = useState(() => {
     const main = campaign.url || '';
     const extras = parseJsonArray(campaign.url2);
@@ -180,6 +192,30 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const addItem = (setter) => setter(prev => [...prev, '']);
   const removeItem = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
   const updateItem = (setter, idx, val) => setter(prev => prev.map((v, i) => i === idx ? val : v));
+
+  const addKeyword = () => setKeywords(prev => [...prev, { keyword: '', domain: '', image: '', views: Number(campaign.total_views) || 1000 }]);
+  const removeKeyword = (idx) => setKeywords(prev => prev.filter((_, i) => i !== idx));
+  const updateKeywordText = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, keyword: val } : k));
+  const updateKeywordDomain = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, domain: val } : k));
+  const updateKeywordImage = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, image: val } : k));
+  const updateKeywordViews = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, views: Number(val) || 0 } : k));
+
+  const [uploadingKwIdx, setUploadingKwIdx] = useState(-1);
+  const handleKeywordImageUpload = async (e, idx) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingKwIdx(idx);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload thất bại');
+      updateKeywordImage(idx, data.imageUrl);
+    } catch (err) { toast.error(err.message); }
+    finally { setUploadingKwIdx(-1); }
+  };
 
   const handleImageUpload = async (e, idx) => {
     const file = e.target.files[0];
@@ -207,12 +243,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const kws = keywords.filter(k => k.trim());
+      const kws = keywords.filter(k => k.keyword.trim());
       const u = urls.filter(u => u.trim());
       const imgs = imageUrls.filter(u => u.trim());
       await api.put(`/admin/campaigns/${campaign.id}`, {
         name,
-        keyword: JSON.stringify(kws.length ? kws : [campaign.keyword || '']),
+        keyword: JSON.stringify(kws.length ? kws.map(k => k.keyword) : [campaign.keyword || '']),
+        keyword_config: JSON.stringify(kws.length ? kws.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, domain: k.domain || '', image: k.image || '' })) : []),
         url: u[0] || campaign.url,
         url2: JSON.stringify(u.slice(1)),
         dailyViews: Number(dailyViews),
@@ -250,15 +287,37 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           {/* Keywords */}
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Từ khóa</label>
-            <div className="space-y-2">
+            <div className="space-y-4">
               {keywords.map((kw, i) => (
-                <div key={i} className="flex gap-2">
-                  <input type="text" value={kw} onChange={e => updateItem(setKeywords, i, e.target.value)} placeholder={`Từ khóa ${i + 1}`} className={inputCls} />
-                  {keywords.length > 1 && <button onClick={() => removeItem(setKeywords, i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"><Trash2 size={16} /></button>}
+                <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
+                  <div className="flex gap-2 items-center">
+                    <input type="text" value={kw.keyword} onChange={e => updateKeywordText(i, e.target.value)} placeholder={`Từ khóa ${i + 1}`} className={inputCls + ' flex-1'} />
+                    {keywords.length > 1 && <button onClick={() => removeKeyword(i)} className="p-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 bg-white border border-red-200 hover:bg-red-50 rounded-xl cursor-pointer transition flex-shrink-0 absolute -top-2 -right-2 shadow-sm z-10"><Trash2 size={13} /></button>}
+                  </div>
+                  <div className="flex gap-2 items-center mt-1">
+                    <input
+                      type="text" value={kw.domain}
+                      onChange={e => updateKeywordDomain(i, e.target.value)}
+                      placeholder="Domain gợi ý (Tuỳ chọn)"
+                      className={inputCls + ' flex-1 text-xs py-2'}
+                    />
+                    <div className="flex-1 flex gap-2">
+                      <input
+                        type="text" value={kw.image}
+                        onChange={e => updateKeywordImage(i, e.target.value)}
+                        placeholder="Link Image (Tuỳ chọn)"
+                        className={inputCls + ' flex-1 text-xs py-2'}
+                      />
+                      <label className="flex items-center justify-center p-2 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-slate-100 transition flex-shrink-0">
+                        {uploadingKwIdx === i ? <span className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin"/> : <Upload size={14} className="text-slate-500" />}
+                        <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
+                      </label>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
-            <button onClick={() => addItem(setKeywords)} className="mt-1.5 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm</button>
+            <button onClick={addKeyword} className="mt-2.5 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm</button>
           </div>
 
           {/* URLs */}

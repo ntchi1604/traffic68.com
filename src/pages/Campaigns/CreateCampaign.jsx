@@ -223,7 +223,7 @@ export default function CreateCampaign() {
     totalViews:      1000,
     viewByHour:      false,
     useKeywordViews: false,          // ← new: toggle per-keyword traffic
-    keywords:        [{ keyword: '', views: 1000 }],  // ← now objects
+    keywords:        [{ keyword: '', views: 1000, domain: '', image: '' }],  // ← now objects
     urls:            [''],
     imageUrls:       [''],
     devices:         ['desktop', 'mobile'],
@@ -239,6 +239,8 @@ export default function CreateCampaign() {
     ...f,
     keywords: [...f.keywords, {
       keyword: '',
+      domain: '',
+      image: '',
       views: f.useKeywordViews
         ? Math.max(1, Math.floor(keywordTotalViews / (f.keywords.length + 1)))
         : f.totalViews,
@@ -248,6 +250,14 @@ export default function CreateCampaign() {
   const updateKeywordText = (idx, val) => setForm(f => ({
     ...f,
     keywords: f.keywords.map((k, i) => i === idx ? { ...k, keyword: val } : k),
+  }));
+  const updateKeywordDomain = (idx, val) => setForm(f => ({
+    ...f,
+    keywords: f.keywords.map((k, i) => i === idx ? { ...k, domain: val } : k),
+  }));
+  const updateKeywordImage = (idx, val) => setForm(f => ({
+    ...f,
+    keywords: f.keywords.map((k, i) => i === idx ? { ...k, image: val } : k),
   }));
   const updateKeywordViews = (idx, val) => setForm(f => ({
     ...f,
@@ -318,6 +328,26 @@ export default function CreateCampaign() {
     }
   };
 
+  const [uploadingKwIdx, setUploadingKwIdx] = useState(-1);
+  const handleKeywordImageUpload = async (e, idx) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingKwIdx(idx);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const token = localStorage.getItem('token');
+      const res   = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+      const data  = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload thất bại');
+      updateKeywordImage(idx, data.imageUrl);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setUploadingKwIdx(-1);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validKeywords = form.keywords.filter(k => k.keyword.trim());
@@ -333,8 +363,8 @@ export default function CreateCampaign() {
       const images = form.imageUrls.filter(u => u.trim());
       // Build keyword_config – each keyword with its own view target
       const keywordConfig = form.useKeywordViews
-        ? validKeywords.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0 }))
-        : validKeywords.map(k => ({ keyword: k.keyword, views: keywordTotalViews }));
+        ? validKeywords.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, domain: k.domain || '', image: k.image || '' }))
+        : validKeywords.map(k => ({ keyword: k.keyword, views: keywordTotalViews, domain: k.domain || '', image: k.image || '' }));
 
       await api.post('/campaigns', {
         name:             form.campaignName,
@@ -583,42 +613,62 @@ export default function CreateCampaign() {
                   </div>
                 )}
 
-                <div className="space-y-2">
+                <div className="space-y-4">
                   {form.keywords.map((kw, i) => (
-                    <div key={i} className="flex gap-2 items-center">
-                      {/* Keyword text input */}
-                      <div className="relative flex-1">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">{i + 1}</span>
-                        <TextInput
-                          placeholder={`Từ khóa ${i + 1}`}
-                          value={kw.keyword}
-                          onChange={e => updateKeywordText(i, e.target.value)}
-                          className="pl-10"
-                        />
-                      </div>
-
-                      {/* Per-keyword view count input (shown only when toggle on) */}
-                      {form.useKeywordViews && (
-                        <div className="relative w-36 flex-shrink-0">
-                          <input
-                            type="number"
-                            min="1"
-                            value={kw.views}
-                            onChange={e => updateKeywordViews(i, e.target.value)}
-                            className="w-full px-3 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
-                                       focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
-                                       transition pr-12 font-black text-amber-900 text-right"
+                    <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
+                      <div className="flex gap-2 items-center">
+                        <div className="relative flex-1">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">{i + 1}</span>
+                          <TextInput
+                            placeholder={`Từ khóa ${i + 1}`}
+                            value={kw.keyword}
+                            onChange={e => updateKeywordText(i, e.target.value)}
+                            className="pl-10"
                           />
-                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
                         </div>
-                      )}
 
-                      {form.keywords.length > 1 && (
-                        <button type="button" onClick={() => removeKeyword(i)}
-                          className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
-                          <Trash2 size={15} />
-                        </button>
-                      )}
+                        {form.useKeywordViews && (
+                          <div className="relative w-36 flex-shrink-0">
+                            <input
+                              type="number"
+                              min="1"
+                              value={kw.views}
+                              onChange={e => updateKeywordViews(i, e.target.value)}
+                              className="w-full px-3 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
+                                         focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
+                                         transition pr-12 font-black text-amber-900 text-right"
+                            />
+                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                          </div>
+                        )}
+
+                        {form.keywords.length > 1 && (
+                          <button type="button" onClick={() => removeKeyword(i)}
+                            className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0 absolute -top-2 -right-2 bg-white border border-red-100 shadow-sm z-10 w-8 h-8 flex items-center justify-center">
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex gap-2 items-center mt-1">
+                        <TextInput
+                          placeholder="Domain gợi ý (Tuỳ chọn)"
+                          value={kw.domain}
+                          onChange={e => updateKeywordDomain(i, e.target.value)}
+                          className="flex-1 text-xs"
+                        />
+                        <div className="flex-1 flex gap-2">
+                          <TextInput
+                            placeholder="Link Image (Tuỳ chọn)"
+                            value={kw.image}
+                            onChange={e => updateKeywordImage(i, e.target.value)}
+                            className="flex-1 text-xs"
+                          />
+                          <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
+                            {uploadingKwIdx === i ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
+                            <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

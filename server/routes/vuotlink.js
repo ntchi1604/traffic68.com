@@ -318,6 +318,9 @@ async function _handleTaskPost(req, res) {
   };
 
   let selectedKeyword;
+  let selectedKwDomain = null;
+  let selectedKwImage = null;
+
   try {
     const kwConfig = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
     if (Array.isArray(kwConfig) && kwConfig.length > 0) {
@@ -335,27 +338,34 @@ async function _handleTaskPost(req, res) {
       const weighted = kwConfig
         .filter(k => k.keyword && k.keyword.trim())
         .map(k => ({
-          keyword: k.keyword,
+          ...k,
           weight: Math.max(0, (Number(k.views) || 0) - (doneMap[k.keyword] || 0)),
         }));
 
       const totalWeight = weighted.reduce((s, w) => s + w.weight, 0);
 
+      let selectedObj = null;
       if (totalWeight > 0) {
         // Pick random weighted keyword
         let rand = Math.random() * totalWeight;
-        selectedKeyword = weighted[weighted.length - 1].keyword; // fallback to last
+        selectedObj = weighted[weighted.length - 1]; // fallback to last
         for (const item of weighted) {
           rand -= item.weight;
-          if (rand <= 0) { selectedKeyword = item.keyword; break; }
+          if (rand <= 0) { selectedObj = item; break; }
         }
       } else {
         // All keywords have hit their targets — pick round-robin among all
-        const allKws = kwConfig.map(k => k.keyword).filter(Boolean);
-        selectedKeyword = allKws[Math.floor(Math.random() * allKws.length)] || pickRandom(campaign.keyword) || campaign.keyword;
+        selectedObj = kwConfig[Math.floor(Math.random() * kwConfig.length)];
       }
 
-      console.log(`[VuotLink] Keyword selected: "${selectedKeyword}" | weights: ${JSON.stringify(weighted.map(w => `${w.keyword}:${w.weight}`))}`);
+      if (selectedObj) {
+        selectedKeyword = selectedObj.keyword;
+        selectedKwDomain = selectedObj.domain;
+        selectedKwImage = selectedObj.image;
+        console.log(`[VuotLink] Keyword config selected: "${selectedKeyword}" (Domain: ${selectedKwDomain || 'None'}, Image: ${selectedKwImage ? 'Yes' : 'No'})`);
+      } else {
+        selectedKeyword = pickRandom(campaign.keyword) || campaign.keyword;
+      }
     } else {
       // No config — original random behavior
       selectedKeyword = pickRandom(campaign.keyword) || campaign.keyword;
@@ -365,9 +375,9 @@ async function _handleTaskPost(req, res) {
     selectedKeyword = pickRandom(campaign.keyword) || campaign.keyword;
   }
 
-  const selectedUrl = campaign.url; // primary URL always used as target
+  const selectedUrl = (selectedKwDomain && selectedKwDomain.trim()) ? selectedKwDomain.trim() : campaign.url; // primary URL always used as target
   const allImages = [...parseImgArray(campaign.image1_url), ...parseImgArray(campaign.image2_url)].filter(Boolean);
-  const selectedImage1 = allImages.length > 0 ? allImages[Math.floor(Math.random() * allImages.length)] : '';
+  const selectedImage1 = (selectedKwImage && selectedKwImage.trim()) ? selectedKwImage.trim() : (allImages.length > 0 ? allImages[Math.floor(Math.random() * allImages.length)] : '');
   const selectedImage2 = allImages.length > 1 ? allImages.filter(u => u !== selectedImage1)[Math.floor(Math.random() * Math.max(1, allImages.length - 1))] || '' : '';
 
   // Extra URLs for url2 (pick random from JSON array)
