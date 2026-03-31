@@ -246,15 +246,18 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       const kws = keywords.filter(k => k.keyword.trim());
       const u = kws.map(k => k.url).filter(x => x && x.trim());
       const imgs = kws.map(k => k.image).filter(x => x && x.trim());
+      const globalUrl = urls[0]?.trim();
+      const globalImg = imageUrls[0]?.trim();
+      const allImages = globalImg ? [globalImg, ...imgs] : imgs;
       await api.put(`/admin/campaigns/${campaign.id}`, {
         name,
         keyword: JSON.stringify(kws.length ? kws.map(k => k.keyword) : [campaign.keyword || '']),
         keyword_config: JSON.stringify(kws.length ? kws.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, url: k.url || '', image: k.image || '' })) : []),
-        url: u[0] || 'https://traffic68.com', // fallback
-        url2: JSON.stringify(u.slice(1)),
+        url: globalUrl || u[0] || 'https://traffic68.com', // fallback
+        url2: JSON.stringify([]),
         dailyViews: Number(dailyViews),
         viewByHour: viewByHour ? 1 : 0,
-        image1_url: imgs.length ? JSON.stringify(imgs) : null,
+        image1_url: allImages.length ? JSON.stringify(allImages) : null,
         image2_url: null,
         version: Number(version),
       });
@@ -284,9 +287,53 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputCls} />
           </div>
 
+          <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-4">
+            <h4 className="text-sm font-bold text-indigo-900 mb-1">Cấu hình URL và Hình ảnh (Mặc định dùng chung)</h4>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Mặc định: URL đích</label>
+                <input
+                  type="text"
+                  placeholder="https://example.com"
+                  value={urls[0] || ''}
+                  onChange={e => updateItem(setUrls, 0, e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Mặc định: Hình ảnh</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Link ảnh hoặc Dán ảnh (Ctrl+V)"
+                    value={imageUrls[0] || ''}
+                    onChange={e => updateItem(setImageUrls, 0, e.target.value)}
+                    onPaste={async e => {
+                      const items = e.clipboardData?.items;
+                      if (!items) return;
+                      for (const item of items) {
+                        if (item.type.startsWith('image/')) {
+                          e.preventDefault();
+                          const file = item.getAsFile();
+                          if (file) handleImageUpload({ target: { files: [file] } }, 0);
+                          break;
+                        }
+                      }
+                    }}
+                    className={inputCls}
+                  />
+                  <label className="flex items-center justify-center p-2 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-slate-100 transition flex-shrink-0">
+                    {uploadingIdx === 0 ? <span className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin"/> : <Upload size={14} className="text-slate-500" />}
+                    <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 0)} />
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Keywords */}
           <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">Từ khóa</label>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">Từ khóa (và cấu hình riêng)</label>
             <div className="space-y-4">
               {keywords.map((kw, i) => (
                 <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
@@ -305,7 +352,19 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                       <input
                         type="text" value={kw.image}
                         onChange={e => updateKeywordImage(i, e.target.value)}
-                        placeholder="Link Image (Tuỳ chọn)"
+                        onPaste={async e => {
+                          const items = e.clipboardData?.items;
+                          if (!items) return;
+                          for (const item of items) {
+                            if (item.type.startsWith('image/')) {
+                              e.preventDefault();
+                              const file = item.getAsFile();
+                              if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
+                              break;
+                            }
+                          }
+                        }}
+                        placeholder="Link Image (Tuỳ chọn) - Ctrl+V"
                         className={inputCls + ' flex-1 text-xs py-2'}
                       />
                       <label className="flex items-center justify-center p-2 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-slate-100 transition flex-shrink-0">

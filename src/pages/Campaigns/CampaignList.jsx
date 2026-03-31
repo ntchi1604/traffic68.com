@@ -323,6 +323,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       const validKws = keywords.filter(k => k.keyword.trim());
       const u   = validKws.map(k => k.url).filter(x => x && x.trim());
       const imgs = validKws.map(k => k.image).filter(x => x && x.trim());
+      const globalUrl = urls[0]?.trim();
+      const globalImg = imageUrls[0]?.trim();
+      const allImages = globalImg ? [globalImg, ...imgs] : imgs;
       const computedTotal = useKeywordViews
         ? validKws.reduce((s, k) => s + (Number(k.views) || 0), 0)
         : Number(campaign.total_views);
@@ -335,9 +338,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         keyword:        JSON.stringify(validKws.map(k => k.keyword)),
         keyword_config: JSON.stringify(keywordConfig),
         totalViews:     computedTotal,
-        url:            u[0] || 'https://traffic68.com', // fallback
-        url2:           JSON.stringify(u.slice(1)),
-        image1_url:     imgs.length ? JSON.stringify(imgs) : null,
+        url:            globalUrl || u[0] || 'https://traffic68.com', // fallback
+        url2:           JSON.stringify([]),
+        image1_url:     allImages.length ? JSON.stringify(allImages) : null,
         image2_url:     null,
       });
       toast.success('Cập nhật chiến dịch thành công');
@@ -371,8 +374,55 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
           {/* Keywords with per-keyword traffic config */}
           <div>
+            <div className="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Globe size={16} className="text-indigo-600" />
+                <h4 className="text-sm font-bold text-indigo-900">Cấu hình URL và Hình ảnh (Mặc định dùng chung)</h4>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Mặc định: URL đích</label>
+                  <input
+                    type="text"
+                    placeholder="https://example.com"
+                    value={urls[0] || ''}
+                    onChange={e => updateUrlItem(0, e.target.value)}
+                    className={input}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Mặc định: Hình ảnh</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Link ảnh hoặc Dán ảnh (Ctrl+V)"
+                      value={imageUrls[0] || ''}
+                      onChange={e => updateImgItem(0, e.target.value)}
+                      onPaste={async e => {
+                        const items = e.clipboardData?.items;
+                        if (!items) return;
+                        for (const item of items) {
+                          if (item.type.startsWith('image/')) {
+                            e.preventDefault();
+                            const file = item.getAsFile();
+                            if (file) handleImageUpload({ target: { files: [file] } }, 0);
+                            break;
+                          }
+                        }
+                      }}
+                      className={input + " flex-1"}
+                    />
+                    <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
+                      {uploadingIdx === 0 ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
+                      <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 0)} />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Từ khóa</label>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Từ khóa tìm kiếm (và cấu hình rẽ nhánh)</label>
               <div className="flex items-center gap-2">
                 <span className={`text-xs font-semibold transition-colors ${useKeywordViews ? 'text-amber-600' : 'text-slate-400'}`}>
                   Config traffic / từ khóa
@@ -431,7 +481,19 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                       <input
                         type="text" value={kw.image}
                         onChange={e => updateKeywordImage(i, e.target.value)}
-                        placeholder="Link Image (Tuỳ chọn)"
+                        onPaste={async e => {
+                          const items = e.clipboardData?.items;
+                          if (!items) return;
+                          for (const item of items) {
+                            if (item.type.startsWith('image/')) {
+                              e.preventDefault();
+                              const file = item.getAsFile();
+                              if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
+                              break;
+                            }
+                          }
+                        }}
+                        placeholder="Link Image (Tuỳ chọn) - Hoặc Ctrl+V dán ảnh"
                         className={input + ' flex-1 text-xs'}
                       />
                       <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0">

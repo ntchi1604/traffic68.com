@@ -456,9 +456,9 @@ async function _handleTaskPost(req, res) {
   let widgetConfig = null;
   try {
     let wRows;
-    // Priority 1: Auto-match by domain from campaign URL
+    // Priority 1: Auto-match by domain from selectedUrl
     try {
-      const campaignDomain = new URL(campaign.url).hostname.replace(/^www\./, '');
+      const campaignDomain = new URL(selectedUrl).hostname.replace(/^www\./, '');
       [wRows] = await pool.execute(
         `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 AND website_url LIKE ? ORDER BY created_at DESC LIMIT 1`,
         [campaign.user_id, `%${campaignDomain}%`]

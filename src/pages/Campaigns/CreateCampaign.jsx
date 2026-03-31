@@ -354,9 +354,10 @@ export default function CreateCampaign() {
     
     // Auto-extract urls from validKeywords
     const extractedUrls = validKeywords.map(k => k.url).filter(u => u && u.trim());
+    const validGlobalUrl = form.urls[0]?.trim();
     
-    if (!form.campaignName || !form.trafficType || !form.duration || validKeywords.length === 0 || extractedUrls.length === 0) {
-      setError('Vui lòng điền đầy đủ Tên, Loại traffic, Thời gian và ít nhất 1 từ khoá kèm 1 URL đích.');
+    if (!form.campaignName || !form.trafficType || !form.duration || validKeywords.length === 0 || (!validGlobalUrl && extractedUrls.length === 0)) {
+      setError('Vui lòng điền đầy đủ Tên, Loại traffic, Thời gian và ít nhất 1 từ khoá kèm 1 URL đích (chung hoặc riêng).');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -364,6 +365,9 @@ export default function CreateCampaign() {
     setSubmitting(true);
     try {
       const images = validKeywords.map(k => k.image).filter(u => u && u.trim());
+      const globalImage = form.imageUrls[0]?.trim();
+      const allImages = globalImage ? [globalImage, ...images] : images;
+      
       // Build keyword_config – each keyword with its own view target
       const keywordConfig = form.useKeywordViews
         ? validKeywords.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, url: k.url || '', image: k.image || '' }))
@@ -371,8 +375,8 @@ export default function CreateCampaign() {
 
       await api.post('/campaigns', {
         name:             form.campaignName,
-        url:              extractedUrls[0] || 'https://traffic68.com', // fallback
-        url2:             JSON.stringify(extractedUrls.slice(1)),
+        url:              validGlobalUrl || extractedUrls[0] || 'https://traffic68.com', // fallback
+        url2:             JSON.stringify([]),
         traffic_type:     form.trafficType,
         keyword:          JSON.stringify(validKeywords.map(k => k.keyword)),
         keyword_config:   JSON.stringify(keywordConfig),
@@ -386,7 +390,7 @@ export default function CreateCampaign() {
         budget:           totalPrice,
         device:           form.devices.join(','),
         country:          form.countries.join(','),
-        image1_url:       images.length > 0 ? JSON.stringify(images) : '',
+        image1_url:       allImages.length > 0 ? JSON.stringify(allImages) : '',
         image2_url:       '',
         note:             form.note,
       });
@@ -590,11 +594,56 @@ export default function CreateCampaign() {
 
             {/* ── 2. Từ khóa & URL ── */}
             <SectionCard icon={Globe} iconBg="bg-amber-50" iconColor="text-amber-600" title="Từ khóa & Địa chỉ web">
+              {/* Default Target Configs */}
+              <div className="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Globe size={16} className="text-indigo-600" />
+                  <h4 className="text-sm font-bold text-indigo-900">Cấu hình URL và Hình ảnh (Mặc định dùng chung)</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label hint="Sử dụng làm URL đích nếu từ khóa không có cấu hình URL riêng">Mặc định: URL đích</Label>
+                    <TextInput
+                      placeholder="https://example.com"
+                      value={form.urls[0]}
+                      onChange={e => updateArrayItem('urls', 0, e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label hint="Sử dụng làm Hình ảnh nếu từ khóa không cài ảnh riêng">Mặc định: Hình ảnh</Label>
+                    <div className="flex gap-2">
+                      <TextInput
+                        placeholder="Link ảnh hoặc Dán ảnh (Ctrl+V)"
+                        value={form.imageUrls[0]}
+                        onChange={e => updateArrayItem('imageUrls', 0, e.target.value)}
+                        onPaste={async e => {
+                          const items = e.clipboardData?.items;
+                          if (!items) return;
+                          for (const item of items) {
+                            if (item.type.startsWith('image/')) {
+                              e.preventDefault();
+                              const file = item.getAsFile();
+                              if (file) handleImageUpload({ target: { files: [file] } }, 0);
+                              break;
+                            }
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                      <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
+                        {uploadingIdx === 0 ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
+                        <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 0)} />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Keywords */}
               <div>
                 {/* Header row with toggle */}
                 <div className="flex items-center justify-between mb-2">
-                  <Label required>Từ khóa tìm kiếm</Label>
+                  <Label required>Từ khóa tìm kiếm (và cấu hình riêng)</Label>
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className={`text-xs font-semibold transition-colors ${form.useKeywordViews ? 'text-amber-600' : 'text-slate-400'}`}>
                       Config traffic / từ khóa
@@ -661,9 +710,21 @@ export default function CreateCampaign() {
                         />
                         <div className="flex-1 flex gap-2">
                           <TextInput
-                            placeholder="Link Image (Tuỳ chọn)"
+                            placeholder="Link Image (Tuỳ chọn) - Hoặc Ctrl+V dán ảnh"
                             value={kw.image}
                             onChange={e => updateKeywordImage(i, e.target.value)}
+                            onPaste={async e => {
+                              const items = e.clipboardData?.items;
+                              if (!items) return;
+                              for (const item of items) {
+                                if (item.type.startsWith('image/')) {
+                                  e.preventDefault();
+                                  const file = item.getAsFile();
+                                  if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
+                                  break;
+                                }
+                              }
+                            }}
                             className="flex-1 text-xs"
                           />
                           <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
