@@ -43,17 +43,16 @@ export default function Withdraw() {
   const fetchWithdrawals = (p = 1) => {
     api.get(`/finance/withdrawals?page=${p}&limit=${WD_LIMIT}`)
       .then(d => { setWithdrawals(d.withdrawals || []); setWdTotal(d.total || 0); setWdPage(p); })
-      .catch(() => {});
+      .catch(() => { });
   };
 
   useEffect(() => {
     fetchBalance();
     fetchWithdrawals(1);
     // Fetch withdraw method settings
-    api.get('/admin/settings/site').then(d => {
-      const c = d.config || {};
-      const bank = c.withdraw_bank_enabled !== 'false';
-      const crypto = c.withdraw_crypto_enabled !== 'false';
+    api.get('/finance/withdraw-config').then(d => {
+      const bank = d.bank_enabled;
+      const crypto = d.crypto_enabled;
       setBankEnabled(bank);
       setCryptoEnabled(crypto);
       // Auto-select first available method
@@ -61,13 +60,11 @@ export default function Withdraw() {
       else if (crypto) setMethod('crypto');
       setConfigLoaded(true);
     }).catch(() => {
-      // API admin không truy cập được (user thường) → mặc định bật cả 2
       setBankEnabled(true);
       setCryptoEnabled(true);
       setMethod('bank');
       setConfigLoaded(true);
     });
-    // Fetch USDT/VND rate from Binance
     fetch('https://api.binance.com/api/v3/ticker/price?symbol=USDTBRL')
       .catch(() => null);
     fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=vnd')
@@ -84,7 +81,7 @@ export default function Withdraw() {
   const handleTransferCommission = async () => {
     if (commission <= 0) return;
     if (!window.confirm(`Bạn muốn chuyển ${fmt(commission)} VNĐ từ Ví Hoa Hồng sang Ví Thu nhập để rút tiền?`)) return;
-    
+
     setTransferring(true);
     try {
       const d = await api.post('/finance/transfer', { amount: commission, targetWallet: 'earning' });
@@ -137,14 +134,14 @@ export default function Withdraw() {
               <p className="text-3xl font-black">{fmt(balance)} đ</p>
               <p className="text-xs text-indigo-200 mt-1">Tối thiểu rút: {fmt(minWithdraw)} đ</p>
             </div>
-            
+
             <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-5 text-white flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-3 mb-2"><Gift size={20} /><span className="text-sm font-medium text-emerald-100">Ví Hoa hồng</span></div>
                 <p className="text-3xl font-black">{fmt(commission)} đ</p>
               </div>
-              <button 
-                onClick={handleTransferCommission} 
+              <button
+                onClick={handleTransferCommission}
                 disabled={commission <= 0 || transferring}
                 className="mt-3 w-full bg-white/20 hover:bg-white/30 disabled:opacity-50 text-white text-sm font-bold py-2 rounded-lg transition cursor-pointer disabled:cursor-not-allowed">
                 {transferring ? 'Đang chuyển...' : 'Chuyển sang Thu nhập'}
@@ -294,26 +291,26 @@ export default function Withdraw() {
                 const txMatch = (w.note || '').match(/TxHash:\s*(0x[a-fA-F0-9]+)/);
                 const txHash = txMatch ? txMatch[1] : null;
                 return (
-                <div key={w.id} className="py-2 border-b border-slate-50 last:border-0">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-700">{fmt(w.amount)} đ</p>
-                      <p className="text-[10px] text-slate-400">
-                        {w.method === 'crypto' ? 'Crypto' : 'Bank'} • {new Date(w.created_at).toLocaleDateString('vi-VN')}
-                      </p>
+                  <div key={w.id} className="py-2 border-b border-slate-50 last:border-0">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-700">{fmt(w.amount)} đ</p>
+                        <p className="text-[10px] text-slate-400">
+                          {w.method === 'crypto' ? 'Crypto' : 'Bank'} • {new Date(w.created_at).toLocaleDateString('vi-VN')}
+                        </p>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${w.status === 'completed' ? 'bg-green-50 text-green-600' : w.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}>
+                        {w.status === 'completed' ? <><CheckCircle2 size={10} /> Thành công</> : w.status === 'pending' ? <><Clock size={10} /> Đang xử lý</> : 'Từ chối'}
+                      </span>
                     </div>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${w.status === 'completed' ? 'bg-green-50 text-green-600' : w.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}>
-                      {w.status === 'completed' ? <><CheckCircle2 size={10} /> Thành công</> : w.status === 'pending' ? <><Clock size={10} /> Đang xử lý</> : 'Từ chối'}
-                    </span>
+                    {txHash && (
+                      <a href={`https://bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 mt-1 text-[10px] text-indigo-600 hover:text-blue-700 font-mono">
+                        <svg width="10" height="10" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#F3BA2F" /></svg>
+                        TxHash: {txHash.slice(0, 10)}...{txHash.slice(-6)} ↗
+                      </a>
+                    )}
                   </div>
-                  {txHash && (
-                    <a href={`https://bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 mt-1 text-[10px] text-indigo-600 hover:text-blue-700 font-mono">
-                      <svg width="10" height="10" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#F3BA2F"/></svg>
-                      TxHash: {txHash.slice(0, 10)}...{txHash.slice(-6)} ↗
-                    </a>
-                  )}
-                </div>
                 );
               })}
             </div>

@@ -22,8 +22,23 @@ router.get('/', async (req, res) => {
   res.json({ wallets: result });
 });
 
-// ── Deposit config (public for buyers) ──
+router.get('/withdraw-config', async (req, res) => {
+  const pool = getPool();
+  try {
+    const [rows] = await pool.execute("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('withdraw_bank_enabled', 'withdraw_crypto_enabled')");
+    const config = {};
+    rows.forEach(r => { config[r.setting_key] = r.setting_value; });
+    res.json({
+      bank_enabled: config.withdraw_bank_enabled !== 'false',
+      crypto_enabled: config.withdraw_crypto_enabled !== 'false',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/deposit-config', async (req, res) => {
+
   try {
     const w3 = getWeb3Pay();
     const config = w3 ? await w3.getDepositSettings() : {};
@@ -75,10 +90,10 @@ router.post('/deposits', async (req, res) => {
       const w3 = getWeb3Pay();
       if (!w3) return res.status(400).json({ error: 'Hệ thống crypto chưa sẵn sàng' });
       const config = await w3.getDepositSettings();
-      
+
       const isConfigEnabled = method === 'bep20' ? config.deposit_crypto_enabled : config.deposit_trc20_enabled;
       if (isConfigEnabled !== 'true') return res.status(400).json({ error: 'Nạp crypto mạng này đang tắt' });
-      
+
       const depositAddress = method === 'bep20' ? config.deposit_crypto_address : config.deposit_trc20_address;
       if (!depositAddress) return res.status(400).json({ error: 'Chưa cấu hình ví nhận' });
 
@@ -192,10 +207,10 @@ router.get('/summary', async (req, res) => {
     );
 
     res.json({
-      deposit:    Number(depositRow.total),
+      deposit: Number(depositRow.total),
       commission: Number(commissionRow.total),
-      campaign:   Number(campaignRow.total),
-      withdraw:   Number(withdrawRow.total),
+      campaign: Number(campaignRow.total),
+      withdraw: Number(withdrawRow.total),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
