@@ -190,21 +190,27 @@ export default function Withdraw() {
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Phương thức *</label>
               <div className="grid grid-cols-2 gap-3">
-                {bankEnabled && (
+                {!configLoaded && (
+                  <>
+                    <div className="h-12 rounded-lg bg-slate-100 animate-pulse" />
+                    <div className="h-12 rounded-lg bg-slate-100 animate-pulse" />
+                  </>
+                )}
+                {configLoaded && bankEnabled && (
                   <button type="button" onClick={() => setMethod('bank')}
                     className={`flex items-center gap-2 p-3 rounded-lg border-2 transition ${method === 'bank' ? 'border-indigo-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
                     <Building2 size={18} className={method === 'bank' ? 'text-indigo-600' : 'text-slate-400'} />
                     <span className="text-sm font-semibold">Ngân hàng</span>
                   </button>
                 )}
-                {cryptoEnabled && (
+                {configLoaded && cryptoEnabled && (
                   <button type="button" onClick={() => setMethod('crypto')}
                     className={`flex items-center gap-2 p-3 rounded-lg border-2 transition ${method === 'crypto' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}>
                     <Bitcoin size={18} className={method === 'crypto' ? 'text-indigo-600' : 'text-slate-400'} />
                     <span className="text-sm font-semibold">Crypto</span>
                   </button>
                 )}
-                {!bankEnabled && !cryptoEnabled && (
+                {configLoaded && !bankEnabled && !cryptoEnabled && (
                   <p className="col-span-2 text-sm text-red-500 font-semibold py-3 text-center">Tạm thời không có phương thức rút tiền nào khả dụng</p>
                 )}
               </div>
