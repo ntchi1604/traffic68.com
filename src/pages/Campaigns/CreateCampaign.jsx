@@ -351,16 +351,19 @@ export default function CreateCampaign() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validKeywords = form.keywords.filter(k => k.keyword.trim());
-    const urls          = form.urls.filter(u => u.trim());
-    if (!form.campaignName || !form.trafficType || !form.duration || validKeywords.length === 0 || urls.length === 0) {
-      setError('Vui lòng điền đầy đủ các trường bắt buộc (*).');
+    
+    // Auto-extract urls from validKeywords
+    const extractedUrls = validKeywords.map(k => k.url).filter(u => u && u.trim());
+    
+    if (!form.campaignName || !form.trafficType || !form.duration || validKeywords.length === 0 || extractedUrls.length === 0) {
+      setError('Vui lòng điền đầy đủ Tên, Loại traffic, Thời gian và ít nhất 1 từ khoá kèm 1 URL đích.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     setError('');
     setSubmitting(true);
     try {
-      const images = form.imageUrls.filter(u => u.trim());
+      const images = validKeywords.map(k => k.image).filter(u => u && u.trim());
       // Build keyword_config – each keyword with its own view target
       const keywordConfig = form.useKeywordViews
         ? validKeywords.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, url: k.url || '', image: k.image || '' }))
@@ -368,8 +371,8 @@ export default function CreateCampaign() {
 
       await api.post('/campaigns', {
         name:             form.campaignName,
-        url:              urls[0],
-        url2:             JSON.stringify(urls.slice(1)),
+        url:              extractedUrls[0] || 'https://traffic68.com', // fallback
+        url2:             JSON.stringify(extractedUrls.slice(1)),
         traffic_type:     form.trafficType,
         keyword:          JSON.stringify(validKeywords.map(k => k.keyword)),
         keyword_config:   JSON.stringify(keywordConfig),
@@ -697,73 +700,6 @@ export default function CreateCampaign() {
                     : 'Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt truy cập'}
                 </Hint>
               </div>
-
-              {/* URLs */}
-              <div>
-                <Label required>Địa chỉ trang web (URL đích)</Label>
-                <div className="space-y-2">
-                  {form.urls.map((url, i) => (
-                    <div key={i} className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Globe size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <TextInput
-                          type="url"
-                          placeholder={i === 0 ? 'https://example.com/trang-can-tang-traffic' : `URL phụ ${i + 1}`}
-                          value={url}
-                          onChange={e => updateArrayItem('urls', i, e.target.value)}
-                          className="pl-9"
-                        />
-                      </div>
-                      {form.urls.length > 1 && (
-                        <button type="button" onClick={() => removeArrayItem('urls', i)}
-                          className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
-                          <Trash2 size={15} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <button type="button" onClick={() => addArrayItem('urls')}
-                  className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
-                  <Plus size={13} /> Thêm URL
-                </button>
-                <Hint>URL đầu tiên là trang chính. Các URL tiếp theo được chọn ngẫu nhiên.</Hint>
-              </div>
-            </SectionCard>
-
-            {/* ── 3. Hình ảnh ── */}
-            <SectionCard icon={Upload} iconBg="bg-violet-50" iconColor="text-violet-600" title="Hình ảnh chiến dịch" badge="Tuỳ chọn">
-              <div className="space-y-3">
-                {form.imageUrls.map((imgUrl, i) => (
-                  <div key={i}>
-                    {imgUrl && (
-                      <img src={imgUrl} alt="" className="w-full h-28 object-cover rounded-xl border border-slate-200 mb-2" onError={e => e.target.style.display='none'} />
-                    )}
-                    <div className="flex gap-2">
-                      <label className="flex-1 flex items-center gap-3 border-2 border-dashed border-slate-200 rounded-xl px-4 py-3 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/50 transition-all group">
-                        <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center flex-shrink-0 transition-colors">
-                          <Upload size={14} className={`text-slate-400 group-hover:text-indigo-500 transition-colors ${uploadingIdx === i ? 'animate-spin' : ''}`} />
-                        </div>
-                        <span className="text-xs text-slate-500 group-hover:text-indigo-600 transition-colors">
-                          {uploadingIdx === i ? 'Đang tải lên...' : imgUrl ? 'Thay ảnh khác' : `Chọn ảnh ${i + 1}`}
-                        </span>
-                        <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, i)} />
-                      </label>
-                      {form.imageUrls.length > 1 && (
-                        <button type="button" onClick={() => removeArrayItem('imageUrls', i)}
-                          className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
-                          <Trash2 size={15} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button type="button" onClick={() => addArrayItem('imageUrls')}
-                className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
-                <Plus size={13} /> Thêm ảnh
-              </button>
-              <Hint>Upload ảnh thumbnail hoặc ảnh đại diện chiến dịch. Không giới hạn số lượng.</Hint>
             </SectionCard>
 
             {/* ── 4. Thiết bị & Quốc gia ── */}

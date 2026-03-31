@@ -321,8 +321,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     setSaving(true);
     try {
       const validKws = keywords.filter(k => k.keyword.trim());
-      const u   = urls.filter(u => u.trim());
-      const imgs = imageUrls.filter(u => u.trim());
+      const u   = validKws.map(k => k.url).filter(x => x && x.trim());
+      const imgs = validKws.map(k => k.image).filter(x => x && x.trim());
       const computedTotal = useKeywordViews
         ? validKws.reduce((s, k) => s + (Number(k.views) || 0), 0)
         : Number(campaign.total_views);
@@ -335,7 +335,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         keyword:        JSON.stringify(validKws.map(k => k.keyword)),
         keyword_config: JSON.stringify(keywordConfig),
         totalViews:     computedTotal,
-        url:            u[0] || campaign.url,
+        url:            u[0] || 'https://traffic68.com', // fallback
         url2:           JSON.stringify(u.slice(1)),
         image1_url:     imgs.length ? JSON.stringify(imgs) : null,
         image2_url:     null,
@@ -461,51 +461,6 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             </button>
           </div>
 
-          {/* URLs */}
-          <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">URL đích</label>
-            <div className="space-y-2">
-              {urls.map((u, i) => (
-                <div key={i} className="flex gap-2">
-                  <input type="url" value={u} onChange={e => updateUrlItem(i, e.target.value)}
-                    placeholder={i === 0 ? 'URL chính' : `URL ${i + 1}`} className={input} />
-                  {urls.length > 1 && (
-                    <button onClick={() => removeUrlItem(i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition">
-                      <Trash2 size={15} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <button onClick={addUrlItem} className="mt-2 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition">
-              <Plus size={13} /> Thêm URL
-            </button>
-          </div>
-
-          {/* Images */}
-          <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Hình ảnh</label>
-            <div className="space-y-2">
-              {imageUrls.map((img, i) => (
-                <div key={i}>
-                  {img && <img src={img} alt="" className="w-full h-24 object-cover rounded-xl border border-slate-200 mb-2" onError={e => e.target.style.display = 'none'} />}
-                  <div className="flex gap-2">
-                    <label className="flex-1 flex items-center gap-2 border-2 border-dashed border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/50 transition group">
-                      <Upload size={13} className={`text-slate-400 group-hover:text-indigo-500 transition ${uploadingIdx === i ? 'animate-spin' : ''}`} />
-                      <span className="text-xs text-slate-500 group-hover:text-indigo-600 transition">{uploadingIdx === i ? 'Đang upload...' : img ? 'Thay ảnh' : 'Chọn ảnh'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, i)} />
-                    </label>
-                    {imageUrls.length > 1 && (
-                      <button onClick={() => removeImgItem(i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"><Trash2 size={15} /></button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button onClick={addImgItem} className="mt-2 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition">
-              <Plus size={13} /> Thêm ảnh
-            </button>
-          </div>
 
           {/* Daily views */}
           <div>

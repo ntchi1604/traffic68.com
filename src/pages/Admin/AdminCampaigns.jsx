@@ -244,13 +244,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     setSaving(true);
     try {
       const kws = keywords.filter(k => k.keyword.trim());
-      const u = urls.filter(u => u.trim());
-      const imgs = imageUrls.filter(u => u.trim());
+      const u = kws.map(k => k.url).filter(x => x && x.trim());
+      const imgs = kws.map(k => k.image).filter(x => x && x.trim());
       await api.put(`/admin/campaigns/${campaign.id}`, {
         name,
         keyword: JSON.stringify(kws.length ? kws.map(k => k.keyword) : [campaign.keyword || '']),
         keyword_config: JSON.stringify(kws.length ? kws.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, url: k.url || '', image: k.image || '' })) : []),
-        url: u[0] || campaign.url,
+        url: u[0] || 'https://traffic68.com', // fallback
         url2: JSON.stringify(u.slice(1)),
         dailyViews: Number(dailyViews),
         viewByHour: viewByHour ? 1 : 0,
@@ -320,42 +320,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <button onClick={addKeyword} className="mt-2.5 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm</button>
           </div>
 
-          {/* URLs */}
-          <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích</label>
-            <div className="space-y-2">
-              {urls.map((u, i) => (
-                <div key={i} className="flex gap-2">
-                  <input type="url" value={u} onChange={e => updateItem(setUrls, i, e.target.value)} placeholder={i === 0 ? 'URL chính' : `URL ${i + 1}`} className={inputCls} />
-                  {urls.length > 1 && <button onClick={() => removeItem(setUrls, i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"><Trash2 size={16} /></button>}
-                </div>
-              ))}
-            </div>
-            <button onClick={() => addItem(setUrls)} className="mt-1.5 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm</button>
-          </div>
 
-          {/* Images */}
-          <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">Hình ảnh</label>
-            <div className="space-y-3">
-              {imageUrls.map((img, i) => (
-                <div key={i}>
-                  {img && <img src={img} alt="" className="w-full h-28 object-cover rounded-xl border border-slate-200 mb-1.5" onError={e => e.target.style.display = 'none'} />}
-                  <div className="flex gap-2">
-                    <label className="flex-1 flex items-center gap-2 border border-dashed border-slate-300 rounded-xl px-3 py-2 cursor-pointer hover:border-indigo-400 hover:bg-blue-50 transition group">
-                      <Upload size={14} className={`text-slate-400 group-hover:text-indigo-500 ${uploadingIdx === i ? 'animate-spin' : ''}`} />
-                      <span className="text-xs text-slate-500">{uploadingIdx === i ? 'Đang upload...' : img ? 'Thay ảnh' : 'Chọn ảnh'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, i)} />
-                    </label>
-                    {imageUrls.length > 1 && (
-                      <button onClick={() => removeItem(setImageUrls, i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"><Trash2 size={16} /></button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button onClick={() => addItem(setImageUrls)} className="mt-1.5 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm ảnh</button>
-          </div>
 
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Số lượng view/ngày</label>
