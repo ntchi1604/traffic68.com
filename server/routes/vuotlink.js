@@ -317,7 +317,58 @@ async function _handleTaskPost(req, res) {
     return [val];
   };
 
-  const selectedKeyword = pickRandom(campaign.keyword) || campaign.keyword;
+  // ── Smart keyword selection: weighted by remaining deficit ──
+  // If keyword_config exists, pick keyword that is most "under-served" (has most views remaining).
+  // This ensures each keyword reaches its configured target.
+  let selectedKeyword;
+  try {
+    const kwConfig = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
+    if (Array.isArray(kwConfig) && kwConfig.length > 0) {
+      // Count completed tasks per keyword for this campaign
+      const [kwCounts] = await pool.execute(
+        `SELECT keyword, COUNT(*) as done
+         FROM vuot_link_tasks
+         WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0
+         GROUP BY keyword`,
+        [campaign.id]
+      );
+      const doneMap = {};
+      kwCounts.forEach(r => { doneMap[r.keyword] = Number(r.done); });
+
+      // Build weighted list: weight = max(0, target_views - done_views)
+      const weighted = kwConfig
+        .filter(k => k.keyword && k.keyword.trim())
+        .map(k => ({
+          keyword: k.keyword,
+          weight: Math.max(0, (Number(k.views) || 0) - (doneMap[k.keyword] || 0)),
+        }));
+
+      const totalWeight = weighted.reduce((s, w) => s + w.weight, 0);
+
+      if (totalWeight > 0) {
+        // Pick random weighted keyword
+        let rand = Math.random() * totalWeight;
+        selectedKeyword = weighted[weighted.length - 1].keyword; // fallback to last
+        for (const item of weighted) {
+          rand -= item.weight;
+          if (rand <= 0) { selectedKeyword = item.keyword; break; }
+        }
+      } else {
+        // All keywords have hit their targets — pick round-robin among all
+        const allKws = kwConfig.map(k => k.keyword).filter(Boolean);
+        selectedKeyword = allKws[Math.floor(Math.random() * allKws.length)] || pickRandom(campaign.keyword) || campaign.keyword;
+      }
+
+      console.log(`[VuotLink] Keyword selected: "${selectedKeyword}" | weights: ${JSON.stringify(weighted.map(w => `${w.keyword}:${w.weight}`))}`);
+    } else {
+      // No config — original random behavior
+      selectedKeyword = pickRandom(campaign.keyword) || campaign.keyword;
+    }
+  } catch (kwErr) {
+    console.error('[VuotLink] Keyword config parse error:', kwErr.message);
+    selectedKeyword = pickRandom(campaign.keyword) || campaign.keyword;
+  }
+
   const selectedUrl = campaign.url; // primary URL always used as target
   const allImages = [...parseImgArray(campaign.image1_url), ...parseImgArray(campaign.image2_url)].filter(Boolean);
   const selectedImage1 = allImages.length > 0 ? allImages[Math.floor(Math.random() * allImages.length)] : '';
@@ -325,6 +376,7 @@ async function _handleTaskPost(req, res) {
 
   // Extra URLs for url2 (pick random from JSON array)
   const selectedUrl2 = pickRandom(campaign.url2) || '';
+
 
   // Generate random verification code
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
