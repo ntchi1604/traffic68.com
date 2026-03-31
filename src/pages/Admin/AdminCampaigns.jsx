@@ -311,7 +311,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                     onPaste={async e => {
                       const items = e.clipboardData?.items;
                       if (!items) return;
-                      for (const item of items) {
+                      for (let j = 0; j < items.length; j++) {
+                        const item = items[j];
                         if (item.type.startsWith('image/')) {
                           e.preventDefault();
                           const file = item.getAsFile();
@@ -355,7 +356,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                         onPaste={async e => {
                           const items = e.clipboardData?.items;
                           if (!items) return;
-                          for (const item of items) {
+                          for (let j = 0; j < items.length; j++) {
+                            const item = items[j];
                             if (item.type.startsWith('image/')) {
                               e.preventDefault();
                               const file = item.getAsFile();

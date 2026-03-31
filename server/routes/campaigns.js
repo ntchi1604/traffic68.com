@@ -15,7 +15,8 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
-    let ext = path.extname(file.originalname).toLowerCase();
+    const origName = file.originalname || '';
+    let ext = path.extname(origName).toLowerCase();
     if (!ext) {
       if (file.mimetype === 'image/jpeg') ext = '.jpg';
       else if (file.mimetype === 'image/png') ext = '.png';
@@ -33,7 +34,8 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     const allowedMime = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    const ext = path.extname(file.originalname).toLowerCase();
+    const origName = file.originalname || '';
+    const ext = path.extname(origName).toLowerCase();
     if (allowed.includes(ext) || allowedMime.includes(file.mimetype)) {
       cb(null, true);
     } else {
