@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
   daily_views  INT NOT NULL DEFAULT 500,
   total_views  INT NOT NULL DEFAULT 1000,
   view_by_hour INT NOT NULL DEFAULT 0,
-  keyword      VARCHAR(255) DEFAULT '',
+  keyword      TEXT DEFAULT NULL,
+  keyword_config TEXT DEFAULT NULL,
   target_page  VARCHAR(500) DEFAULT '',
   time_on_site VARCHAR(50)  DEFAULT '60-120',
   image1_url   TEXT DEFAULT NULL,
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
 
 -- Migration for existing databases:
 -- ALTER TABLE campaigns ADD COLUMN discount_applied TINYINT NOT NULL DEFAULT 0;
+-- ALTER TABLE campaigns ADD COLUMN keyword_config TEXT DEFAULT NULL AFTER keyword;
 
 -- Migration for existing databases (run once if columns don't exist):
 -- ALTER TABLE campaigns ADD COLUMN url2 TEXT DEFAULT NULL AFTER url;

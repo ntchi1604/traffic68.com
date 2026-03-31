@@ -195,11 +195,50 @@ function KeywordStats({ campaignId }) {
   );
 }
 
+/* ── Toggle switch (reused in modal) ── */
+function ToggleSwitch({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onChange}
+      className={`relative inline-flex h-5 w-10 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer
+                  transition-colors duration-200 ease-in-out focus:outline-none ${checked ? 'bg-indigo-600' : 'bg-slate-200'}`}
+    >
+      <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+    </button>
+  );
+}
+
 /* ── Edit Modal ── */
 function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
   const [dailyViews, setDailyViews] = useState(campaign.daily_views || 500);
-  const [keywords, setKeywords] = useState(() => parseJsonArray(campaign.keyword));
+
+  // Parse existing keyword_config or build from keyword list
+  const [useKeywordViews, setUseKeywordViews] = useState(() => {
+    try {
+      const cfg = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
+      return Array.isArray(cfg) && cfg.some(k => k.views && k.views > 0);
+    } catch { return false; }
+  });
+
+  const [keywords, setKeywords] = useState(() => {
+    const kwList = parseJsonArray(campaign.keyword);
+    try {
+      const cfg = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
+      if (Array.isArray(cfg) && cfg.length > 0) {
+        // merge: use keyword_config views, fill missing from kwList
+        return kwList.map(kw => {
+          const found = cfg.find(c => c.keyword === kw);
+          return { keyword: kw, views: found ? Number(found.views) : Number(campaign.total_views) || 1000 };
+        });
+      }
+    } catch { }
+    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000 }));
+  });
+
   const [urls, setUrls] = useState(() => {
     const main = campaign.url || '';
     const extras = parseJsonArray(campaign.url2);
@@ -214,9 +253,32 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [uploadingIdx, setUploadingIdx] = useState(-1);
 
-  const addItem = (setter) => setter(prev => [...prev, '']);
-  const removeItem = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
-  const updateItem = (setter, idx, val) => setter(prev => prev.map((v, i) => i === idx ? val : v));
+  const keywordTotal = keywords.reduce((s, k) => s + (Number(k.views) || 0), 0);
+
+  const addKeyword = () => setKeywords(prev => [...prev, {
+    keyword: '',
+    views: useKeywordViews ? Math.max(1, Math.floor(keywordTotal / (prev.length + 1))) : (Number(campaign.total_views) || 1000),
+  }]);
+  const removeKeyword = (idx) => setKeywords(prev => prev.filter((_, i) => i !== idx));
+  const updateKeywordText = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, keyword: val } : k));
+  const updateKeywordViews = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, views: Number(val) || 0 } : k));
+
+  const toggleKeywordViews = () => {
+    const next = !useKeywordViews;
+    if (next) {
+      const perKw = Math.max(1, Math.floor((Number(campaign.total_views) || 1000) / Math.max(1, keywords.length)));
+      setKeywords(prev => prev.map(k => ({ ...k, views: perKw })));
+    }
+    setUseKeywordViews(next);
+  };
+
+  const addUrlItem    = () => setUrls(prev => [...prev, '']);
+  const removeUrlItem = (idx) => setUrls(prev => prev.filter((_, i) => i !== idx));
+  const updateUrlItem = (idx, val) => setUrls(prev => prev.map((v, i) => i === idx ? val : v));
+
+  const addImgItem    = () => setImageUrls(prev => [...prev, '']);
+  const removeImgItem = (idx) => setImageUrls(prev => prev.filter((_, i) => i !== idx));
+  const updateImgItem = (idx, val) => setImageUrls(prev => prev.map((v, i) => i === idx ? val : v));
 
   const handleImageUpload = async (e, idx) => {
     const file = e.target.files[0];
@@ -229,7 +291,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       const res = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload thất bại');
-      updateItem(setImageUrls, idx, data.imageUrl);
+      updateImgItem(idx, data.imageUrl);
     } catch (err) { toast.error(err.message); }
     finally { setUploadingIdx(-1); }
   };
@@ -237,16 +299,25 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const kws = keywords.filter(k => k.trim());
-      const u = urls.filter(u => u.trim());
+      const validKws = keywords.filter(k => k.keyword.trim());
+      const u   = urls.filter(u => u.trim());
       const imgs = imageUrls.filter(u => u.trim());
+      const computedTotal = useKeywordViews
+        ? validKws.reduce((s, k) => s + (Number(k.views) || 0), 0)
+        : Number(campaign.total_views);
+      const keywordConfig = useKeywordViews
+        ? validKws.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0 }))
+        : validKws.map(k => ({ keyword: k.keyword, views: computedTotal }));
+
       await api.put(`/campaigns/${campaign.id}`, {
-        dailyViews: Number(dailyViews),
-        keyword: JSON.stringify(kws.length ? kws : [campaign.keyword || '']),
-        url: u[0] || campaign.url,
-        url2: JSON.stringify(u.slice(1)),
-        image1_url: imgs.length ? JSON.stringify(imgs) : null,
-        image2_url: null,
+        dailyViews:     Number(dailyViews),
+        keyword:        JSON.stringify(validKws.map(k => k.keyword)),
+        keyword_config: JSON.stringify(keywordConfig),
+        totalViews:     computedTotal,
+        url:            u[0] || campaign.url,
+        url2:           JSON.stringify(u.slice(1)),
+        image1_url:     imgs.length ? JSON.stringify(imgs) : null,
+        image2_url:     null,
       });
       toast.success('Cập nhật chiến dịch thành công');
       onSaved(); onClose();
@@ -258,12 +329,12 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Modal header */}
         <div className="flex items-center justify-between px-6 py-4 sticky top-0 bg-white z-10 border-b border-slate-100">
           <div>
             <h3 className="text-base font-black text-slate-900">Sửa chiến dịch</h3>
-            <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[280px]">{campaign.name}</p>
+            <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[320px]">{campaign.name}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition">
             <X size={16} className="text-slate-500" />
@@ -277,23 +348,72 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 font-medium">{campaign.name}</div>
           </div>
 
-          {/* Keywords */}
+          {/* Keywords with per-keyword traffic config */}
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Từ khóa</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Từ khóa</label>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-semibold transition-colors ${useKeywordViews ? 'text-amber-600' : 'text-slate-400'}`}>
+                  Config traffic / từ khóa
+                </span>
+                <ToggleSwitch checked={useKeywordViews} onChange={toggleKeywordViews} />
+              </div>
+            </div>
+
+            {useKeywordViews && (
+              <div className="mb-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                <BarChart3 size={13} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-amber-700">
+                  <strong>Chế độ phân bổ traffic theo từ khóa.</strong> Mỗi từ khóa nhận đúng số view đã cấu hình.
+                  Tổng view mới = tổng của tất cả từ khóa.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               {keywords.map((kw, i) => (
-                <div key={i} className="flex gap-2">
-                  <input type="text" value={kw} onChange={e => updateItem(setKeywords, i, e.target.value)}
-                    placeholder={`Từ khóa ${i + 1}`} className={input} />
+                <div key={i} className="flex gap-2 items-center">
+                  <input
+                    type="text" value={kw.keyword}
+                    onChange={e => updateKeywordText(i, e.target.value)}
+                    placeholder={`Từ khóa ${i + 1}`}
+                    className={input + ' flex-1'}
+                  />
+                  {useKeywordViews && (
+                    <div className="relative w-36 flex-shrink-0">
+                      <input
+                        type="number" min="1"
+                        value={kw.views}
+                        onChange={e => updateKeywordViews(i, e.target.value)}
+                        className="w-full px-3 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
+                                   focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
+                                   transition pr-12 font-black text-amber-900 text-right"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                    </div>
+                  )}
                   {keywords.length > 1 && (
-                    <button onClick={() => removeItem(setKeywords, i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition">
+                    <button onClick={() => removeKeyword(i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
                       <Trash2 size={15} />
                     </button>
                   )}
                 </div>
               ))}
             </div>
-            <button onClick={() => addItem(setKeywords)} className="mt-2 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition">
+
+            {useKeywordViews && (
+              <div className="mt-2.5 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl px-4 py-2">
+                <div className="flex items-center gap-1.5">
+                  <BarChart3 size={12} className="text-indigo-500" />
+                  <span className="text-xs font-bold text-indigo-600">Tổng view (tất cả từ khóa)</span>
+                </div>
+                <span className="text-sm font-black text-indigo-700 tabular-nums">
+                  {keywordTotal.toLocaleString()} <span className="text-xs font-semibold text-indigo-400">view</span>
+                </span>
+              </div>
+            )}
+
+            <button onClick={addKeyword} className="mt-2 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition">
               <Plus size={13} /> Thêm từ khóa
             </button>
           </div>
@@ -304,17 +424,17 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <div className="space-y-2">
               {urls.map((u, i) => (
                 <div key={i} className="flex gap-2">
-                  <input type="url" value={u} onChange={e => updateItem(setUrls, i, e.target.value)}
+                  <input type="url" value={u} onChange={e => updateUrlItem(i, e.target.value)}
                     placeholder={i === 0 ? 'URL chính' : `URL ${i + 1}`} className={input} />
                   {urls.length > 1 && (
-                    <button onClick={() => removeItem(setUrls, i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition">
+                    <button onClick={() => removeUrlItem(i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition">
                       <Trash2 size={15} />
                     </button>
                   )}
                 </div>
               ))}
             </div>
-            <button onClick={() => addItem(setUrls)} className="mt-2 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition">
+            <button onClick={addUrlItem} className="mt-2 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition">
               <Plus size={13} /> Thêm URL
             </button>
           </div>
@@ -333,13 +453,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                       <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, i)} />
                     </label>
                     {imageUrls.length > 1 && (
-                      <button onClick={() => removeItem(setImageUrls, i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"><Trash2 size={15} /></button>
+                      <button onClick={() => removeImgItem(i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"><Trash2 size={15} /></button>
                     )}
                   </div>
                 </div>
               ))}
             </div>
-            <button onClick={() => addItem(setImageUrls)} className="mt-2 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition">
+            <button onClick={addImgItem} className="mt-2 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition">
               <Plus size={13} /> Thêm ảnh
             </button>
           </div>
@@ -351,6 +471,21 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
               <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={input + ' pr-24'} />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view/ngày</span>
             </div>
+          </div>
+
+          {/* Total views info */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+            <p className="text-xs font-bold text-slate-500 mb-1">Thông tin tổng view</p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-500">Hiện tại đã thực hiện</span>
+              <span className="text-xs font-bold text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()} / {Number(campaign.total_views || 0).toLocaleString()} view</span>
+            </div>
+            {useKeywordViews && (
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-slate-500">Tổng view mới (theo từ khóa)</span>
+                <span className="text-xs font-black text-indigo-600">{keywordTotal.toLocaleString()} view</span>
+              </div>
+            )}
           </div>
         </div>
 

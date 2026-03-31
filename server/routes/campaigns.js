@@ -145,8 +145,8 @@ router.post('/', async (req, res) => {
     const calculatedCpc = _totalViews > 0 ? Math.round(realBudget / _totalViews) : (cpc || 0);
 
     const [result] = await pool.execute(
-      `INSERT INTO campaigns (user_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, target_page, time_on_site, image1_url, image2_url, discount_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0]
+      `INSERT INTO campaigns (user_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, keyword_config, target_page, time_on_site, image1_url, image2_url, discount_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', req.body.keyword_config || null, _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0]
     );
 
 
@@ -219,9 +219,8 @@ router.put('/:id', async (req, res) => {
     const [existing] = await pool.execute('SELECT * FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
     if (existing.length === 0) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
 
-    const { name, url, url2, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, targetPage, timeOnSite, status, image1_url, image2_url } = req.body;
+    const { name, url, url2, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, keyword_config, targetPage, timeOnSite, status, image1_url, image2_url } = req.body;
     const n = (v) => v === undefined ? null : v;
-
 
     const oldImage1 = existing[0].image1_url;
     const oldImage2 = existing[0].image2_url;
@@ -235,8 +234,8 @@ router.put('/:id', async (req, res) => {
     }
 
     await pool.execute(
-      `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), url2=COALESCE(?,url2), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url) WHERE id = ? AND user_id = ?`,
-      [n(name), n(url), n(url2), n(trafficType), n(version), n(budget), n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(targetPage), n(timeOnSite), n(status), n(image1_url), n(image2_url), req.params.id, req.userId]
+      `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), url2=COALESCE(?,url2), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), keyword_config=COALESCE(?,keyword_config), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url) WHERE id = ? AND user_id = ?`,
+      [n(name), n(url), n(url2), n(trafficType), n(version), n(budget), n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(keyword_config), n(targetPage), n(timeOnSite), n(status), n(image1_url), n(image2_url), req.params.id, req.userId]
     );
 
     const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [req.params.id]);

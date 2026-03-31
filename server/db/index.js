@@ -77,6 +77,8 @@ async function initDb() {
   try {
     const p2 = getPool();
     await p2.execute("ALTER TABLE notifications ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'all' AFTER type").catch(() => {});
+    await p2.execute("ALTER TABLE campaigns ADD COLUMN keyword_config TEXT DEFAULT NULL AFTER keyword").catch(() => {});
+    await p2.execute("ALTER TABLE campaigns MODIFY COLUMN keyword TEXT DEFAULT NULL").catch(() => {});
   } catch (_) {}
 }
 

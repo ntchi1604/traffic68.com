@@ -215,23 +215,62 @@ export default function CreateCampaign() {
   }, []);
 
   const [form, setForm] = useState({
-    campaignName: '',
-    trafficType:  '',
-    version:      'v1',
-    duration:     '',
-    dailyViews:   500,
-    totalViews:   1000,
-    viewByHour:   false,
-    keywords:     [''],
-    urls:         [''],
-    imageUrls:    [''],
-    devices:      ['desktop', 'mobile'],
-    countries:    ['VN'],
-    discountCode: '',
-    note:         '',
+    campaignName:    '',
+    trafficType:     '',
+    version:         'v1',
+    duration:        '',
+    dailyViews:      500,
+    totalViews:      1000,
+    viewByHour:      false,
+    useKeywordViews: false,          // ← new: toggle per-keyword traffic
+    keywords:        [{ keyword: '', views: 1000 }],  // ← now objects
+    urls:            [''],
+    imageUrls:       [''],
+    devices:         ['desktop', 'mobile'],
+    countries:       ['VN'],
+    discountCode:    '',
+    note:            '',
   });
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
+
+  /* ── Keyword helpers ── */
+  const addKeyword = () => setForm(f => ({
+    ...f,
+    keywords: [...f.keywords, {
+      keyword: '',
+      views: f.useKeywordViews
+        ? Math.max(1, Math.floor(keywordTotalViews / (f.keywords.length + 1)))
+        : f.totalViews,
+    }],
+  }));
+  const removeKeyword = (idx) => setForm(f => ({ ...f, keywords: f.keywords.filter((_, i) => i !== idx) }));
+  const updateKeywordText = (idx, val) => setForm(f => ({
+    ...f,
+    keywords: f.keywords.map((k, i) => i === idx ? { ...k, keyword: val } : k),
+  }));
+  const updateKeywordViews = (idx, val) => setForm(f => ({
+    ...f,
+    keywords: f.keywords.map((k, i) => i === idx ? { ...k, views: Number(val) || 0 } : k),
+  }));
+  const toggleKeywordViews = () => setForm(f => {
+    const next = !f.useKeywordViews;
+    if (next) {
+      const perKw = Math.max(1, Math.floor(f.totalViews / Math.max(1, f.keywords.length)));
+      return { ...f, useKeywordViews: next, keywords: f.keywords.map(k => ({ ...k, views: perKw })) };
+    }
+    return { ...f, useKeywordViews: next };
+  });
+
+  /* ── URL / image helpers ── */
+  const addArrayItem    = (key) => setForm(f => ({ ...f, [key]: [...f[key], ''] }));
+  const removeArrayItem = (key, idx) => setForm(f => ({ ...f, [key]: f[key].filter((_, i) => i !== idx) }));
+  const updateArrayItem = (key, idx, val) => setForm(f => ({ ...f, [key]: f[key].map((v, i) => i === idx ? val : v) }));
+
+  /* ── Computed totals ── */
+  const keywordTotalViews = form.useKeywordViews
+    ? form.keywords.reduce((s, k) => s + (Number(k.views) || 0), 0)
+    : form.totalViews;
 
   const adminDiscountEnabled = pricingConfig.discount_enabled === 'true';
   const applyDiscount = () => {
@@ -257,12 +296,8 @@ export default function CreateCampaign() {
     if (discountApplied) return form.version === 'v1' ? tier.v1_discount : tier.v2_discount;
     return form.version === 'v1' ? tier.v1_price : tier.v2_price;
   })();
-  const totalPrice = hasPricing ? Math.round(form.totalViews * pricePerView) : 0;
+  const totalPrice = hasPricing ? Math.round(keywordTotalViews * pricePerView) : 0;
   const budgetOk   = totalPrice <= walletBalance;
-
-  const addArrayItem    = (key) => setForm(f => ({ ...f, [key]: [...f[key], ''] }));
-  const removeArrayItem = (key, idx) => setForm(f => ({ ...f, [key]: f[key].filter((_, i) => i !== idx) }));
-  const updateArrayItem = (key, idx, val) => setForm(f => ({ ...f, [key]: f[key].map((v, i) => i === idx ? val : v) }));
 
   const handleImageUpload = async (e, idx) => {
     const file = e.target.files[0];
@@ -285,9 +320,9 @@ export default function CreateCampaign() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const keywords = form.keywords.filter(k => k.trim());
-    const urls     = form.urls.filter(u => u.trim());
-    if (!form.campaignName || !form.trafficType || !form.duration || keywords.length === 0 || urls.length === 0) {
+    const validKeywords = form.keywords.filter(k => k.keyword.trim());
+    const urls          = form.urls.filter(u => u.trim());
+    if (!form.campaignName || !form.trafficType || !form.duration || validKeywords.length === 0 || urls.length === 0) {
       setError('Vui lòng điền đầy đủ các trường bắt buộc (*).');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -296,25 +331,31 @@ export default function CreateCampaign() {
     setSubmitting(true);
     try {
       const images = form.imageUrls.filter(u => u.trim());
+      // Build keyword_config – each keyword with its own view target
+      const keywordConfig = form.useKeywordViews
+        ? validKeywords.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0 }))
+        : validKeywords.map(k => ({ keyword: k.keyword, views: keywordTotalViews }));
+
       await api.post('/campaigns', {
-        name: form.campaignName,
-        url: urls[0],
-        url2: JSON.stringify(urls.slice(1)),
-        traffic_type: form.trafficType,
-        keyword: JSON.stringify(keywords),
-        total_views: form.totalViews,
-        daily_views: form.dailyViews,
-        duration: Number(form.duration),
-        version: form.version,
+        name:             form.campaignName,
+        url:              urls[0],
+        url2:             JSON.stringify(urls.slice(1)),
+        traffic_type:     form.trafficType,
+        keyword:          JSON.stringify(validKeywords.map(k => k.keyword)),
+        keyword_config:   JSON.stringify(keywordConfig),
+        total_views:      keywordTotalViews,
+        daily_views:      form.dailyViews,
+        duration:         Number(form.duration),
+        version:          form.version,
         discount_applied: discountApplied,
-        discount_code: discountApplied ? form.discountCode.trim() : '',
-        cpc: pricePerView,
-        budget: totalPrice,
-        device: form.devices.join(','),
-        country: form.countries.join(','),
-        image1_url: images.length > 0 ? JSON.stringify(images) : '',
-        image2_url: '',
-        note: form.note,
+        discount_code:    discountApplied ? form.discountCode.trim() : '',
+        cpc:              pricePerView,
+        budget:           totalPrice,
+        device:           form.devices.join(','),
+        country:          form.countries.join(','),
+        image1_url:       images.length > 0 ? JSON.stringify(images) : '',
+        image2_url:       '',
+        note:             form.note,
       });
       setSubmitted(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -487,12 +528,19 @@ export default function CreateCampaign() {
                   <Hint>Giới hạn phân phối hàng ngày</Hint>
                 </div>
                 <div>
-                  <Label required hint="Tổng số view cần mua cho chiến dịch">Tổng view mua</Label>
-                  <NumberInput
-                    value={form.totalViews}
-                    onChange={e => set('totalViews', Number(e.target.value))}
-                    suffix="view"
-                  />
+                  <Label required={!form.useKeywordViews} hint="Tổng số view cần mua cho chiến dịch">Tổng view mua</Label>
+                  {form.useKeywordViews ? (
+                    <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm flex items-center justify-between">
+                      <span className="text-slate-400 text-xs">Tự động từ cấu hình từ khóa</span>
+                      <span className="font-black text-indigo-700 tabular-nums">{keywordTotalViews.toLocaleString()} view</span>
+                    </div>
+                  ) : (
+                    <NumberInput
+                      value={form.totalViews}
+                      onChange={e => set('totalViews', Number(e.target.value))}
+                      suffix="view"
+                    />
+                  )}
                   <Hint>View dư ngày trước sẽ chuyển sang ngày sau</Hint>
                 </div>
               </div>
@@ -511,21 +559,62 @@ export default function CreateCampaign() {
             <SectionCard icon={Globe} iconBg="bg-amber-50" iconColor="text-amber-600" title="Từ khóa & Địa chỉ web">
               {/* Keywords */}
               <div>
-                <Label required>Từ khóa tìm kiếm</Label>
+                {/* Header row with toggle */}
+                <div className="flex items-center justify-between mb-2">
+                  <Label required>Từ khóa tìm kiếm</Label>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className={`text-xs font-semibold transition-colors ${form.useKeywordViews ? 'text-amber-600' : 'text-slate-400'}`}>
+                      Config traffic / từ khóa
+                    </span>
+                    <Toggle checked={form.useKeywordViews} onChange={toggleKeywordViews} />
+                  </div>
+                </div>
+
+                {form.useKeywordViews && (
+                  <div className="mb-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                    <BarChart2 size={13} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-amber-700 mb-0.5">Chế độ phân bổ traffic theo từ khóa</p>
+                      <p className="text-xs text-amber-600 leading-relaxed">
+                        Mỗi từ khóa có số view riêng. Tổng view = tổng của tất cả từ khóa.
+                        Hệ thống sẽ đảm bảo mỗi từ khóa đạt đúng số view đã cấu hình.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   {form.keywords.map((kw, i) => (
-                    <div key={i} className="flex gap-2">
+                    <div key={i} className="flex gap-2 items-center">
+                      {/* Keyword text input */}
                       <div className="relative flex-1">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">{i + 1}</span>
                         <TextInput
                           placeholder={`Từ khóa ${i + 1}`}
-                          value={kw}
-                          onChange={e => updateArrayItem('keywords', i, e.target.value)}
+                          value={kw.keyword}
+                          onChange={e => updateKeywordText(i, e.target.value)}
                           className="pl-10"
                         />
                       </div>
+
+                      {/* Per-keyword view count input (shown only when toggle on) */}
+                      {form.useKeywordViews && (
+                        <div className="relative w-36 flex-shrink-0">
+                          <input
+                            type="number"
+                            min="1"
+                            value={kw.views}
+                            onChange={e => updateKeywordViews(i, e.target.value)}
+                            className="w-full px-3 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
+                                       focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
+                                       transition pr-12 font-black text-amber-900 text-right"
+                          />
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                        </div>
+                      )}
+
                       {form.keywords.length > 1 && (
-                        <button type="button" onClick={() => removeArrayItem('keywords', i)}
+                        <button type="button" onClick={() => removeKeyword(i)}
                           className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
                           <Trash2 size={15} />
                         </button>
@@ -533,11 +622,30 @@ export default function CreateCampaign() {
                     </div>
                   ))}
                 </div>
-                <button type="button" onClick={() => addArrayItem('keywords')}
+
+                {/* Total summary bar when keyword views mode is active */}
+                {form.useKeywordViews && (
+                  <div className="mt-3 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <BarChart2 size={13} className="text-indigo-500" />
+                      <span className="text-xs font-bold text-indigo-600">Tổng view tất cả từ khóa</span>
+                    </div>
+                    <span className="text-base font-black text-indigo-700 tabular-nums">
+                      {keywordTotalViews.toLocaleString()}
+                      <span className="text-xs font-semibold text-indigo-400 ml-1">view</span>
+                    </span>
+                  </div>
+                )}
+
+                <button type="button" onClick={addKeyword}
                   className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
                   <Plus size={13} /> Thêm từ khóa
                 </button>
-                <Hint>Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt truy cập</Hint>
+                <Hint>
+                  {form.useKeywordViews
+                    ? 'Mỗi từ khóa đạt đúng số view đã cấu hình. Tổng view = tổng cộng tất cả.'
+                    : 'Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt truy cập'}
+                </Hint>
               </div>
 
               {/* URLs */}
@@ -740,13 +848,41 @@ export default function CreateCampaign() {
                 <SummaryRow label="Version"        value={form.version === 'v1' ? 'Version 1 (2 bước)' : 'Version 2 (1 bước)'} />
                 <SummaryRow label="Thời gian"      value={DURATIONS.find(d => d.value === form.duration)?.label || '—'} />
                 <SummaryRow label="View/ngày"      value={`${fmt(form.dailyViews)} view`} />
-                <SummaryRow label="Tổng view"      value={`${fmt(form.totalViews)} view`} />
+                <SummaryRow label="Tổng view"      value={`${fmt(keywordTotalViews)} view`} />
                 <SummaryRow
                   label="Đơn giá/view"
                   value={hasPricing ? `${fmt(pricePerView)} đ` : 'Chọn loại & thời gian'}
                 />
                 {discountApplied && (
                   <SummaryRow label="Giảm giá" value={`✓ -${pricingConfig.discount_percent}%`} accent />
+                )}
+
+                {/* Per-keyword breakdown */}
+                {form.useKeywordViews && form.keywords.filter(k => k.keyword.trim()).length > 0 && (
+                  <div className="py-2.5 border-b border-slate-50">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold mb-2 flex items-center gap-1.5">
+                      <BarChart2 size={10} /> Phân bổ theo từ khóa
+                    </p>
+                    <div className="space-y-1.5">
+                      {form.keywords.filter(k => k.keyword.trim()).map((k, i) => {
+                        const pct = keywordTotalViews > 0 ? Math.round((Number(k.views) || 0) / keywordTotalViews * 100) : 0;
+                        return (
+                          <div key={i}>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-[10px] text-slate-600 font-medium truncate max-w-[55%]">{k.keyword}</span>
+                              <span className="text-[10px] font-black text-indigo-600 tabular-nums">
+                                {(Number(k.views) || 0).toLocaleString()}v
+                                <span className="text-slate-400 font-normal ml-1">({pct}%)</span>
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
+                              <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-violet-500 transition-all" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </div>
 
