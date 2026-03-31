@@ -253,7 +253,7 @@ export default function Deposit() {
   const toast = useToast();
   const [wallets, setWallets] = useState({ main: { balance: 0 }, commission: { balance: 0 } });
   const [step, setStep] = useState(1); // 1=method, 2=amount, 3=confirm
-  const [method, setMethod] = useState('bank');
+  const [method, setMethod] = useState(null);
   const [amount, setAmount] = useState('');
   const [processing, setProcessing] = useState(false);
   const [modal, setModal] = useState(null);
@@ -285,7 +285,8 @@ export default function Deposit() {
   ];
 
   useEffect(() => {
-    if (METHODS.length > 0 && !METHODS.find(m => m.id === method)) setMethod(METHODS[0].id);
+    if (depositConfig !== null && METHODS.length > 0 && !METHODS.find(m => m.id === method)) setMethod(METHODS[0].id);
+    if (depositConfig !== null && METHODS.length === 0) setMethod(null);
   }, [depositConfig]);
 
   const activeMeta = METHODS.find(m => m.id === method) || METHODS[0];

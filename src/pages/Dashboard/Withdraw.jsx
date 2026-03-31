@@ -26,8 +26,8 @@ export default function Withdraw() {
   const WD_LIMIT = 5;
   const [loading, setLoading] = useState(false);
   const [transferring, setTransferring] = useState(false);
-  const [bankEnabled, setBankEnabled] = useState(true);
-  const [cryptoEnabled, setCryptoEnabled] = useState(true);
+  const [bankEnabled, setBankEnabled] = useState(false);
+  const [cryptoEnabled, setCryptoEnabled] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
   const [usdtRate, setUsdtRate] = useState(null);
 
