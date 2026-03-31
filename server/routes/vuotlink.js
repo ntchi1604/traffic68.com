@@ -317,14 +317,10 @@ async function _handleTaskPost(req, res) {
     return [val];
   };
 
-  // ── Smart keyword selection: weighted by remaining deficit ──
-  // If keyword_config exists, pick keyword that is most "under-served" (has most views remaining).
-  // This ensures each keyword reaches its configured target.
   let selectedKeyword;
   try {
     const kwConfig = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
     if (Array.isArray(kwConfig) && kwConfig.length > 0) {
-      // Count completed tasks per keyword for this campaign
       const [kwCounts] = await pool.execute(
         `SELECT keyword, COUNT(*) as done
          FROM vuot_link_tasks
