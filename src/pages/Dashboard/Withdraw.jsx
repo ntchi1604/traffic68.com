@@ -60,7 +60,13 @@ export default function Withdraw() {
       if (bank) setMethod('bank');
       else if (crypto) setMethod('crypto');
       setConfigLoaded(true);
-    }).catch(() => setConfigLoaded(true));
+    }).catch(() => {
+      // API admin không truy cập được (user thường) → mặc định bật cả 2
+      setBankEnabled(true);
+      setCryptoEnabled(true);
+      setMethod('bank');
+      setConfigLoaded(true);
+    });
     // Fetch USDT/VND rate from Binance
     fetch('https://api.binance.com/api/v3/ticker/price?symbol=USDTBRL')
       .catch(() => null);
