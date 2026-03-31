@@ -5,7 +5,7 @@ import {
   ChevronRight, Info, Upload, X, Tag, Globe, Monitor, Smartphone,
   BarChart2, Wallet, Gift, Star, CheckCircle2, AlertCircle, Plus, Trash2,
   Zap, MousePointerClick, Sparkles, ArrowRight, CreditCard,
-  Search, Link2, Share2,
+  Search, Link2, Share2, RefreshCw
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useToast } from '../../components/Toast';
