@@ -222,7 +222,8 @@ export default function CreateCampaign() {
     dailyViews:      500,
     totalViews:      1000,
     viewByHour:      false,
-    useKeywordViews: false,          // ← new: toggle per-keyword traffic
+    useKeywordViews: false,
+    useKeywordUrls: false,          // ← new: toggle per-keyword traffic
     keywords:        [{ keyword: '', views: 1000, url: '', image: '' }],  // ← now objects
     urls:            [''],
     imageUrls:       [''],
@@ -368,10 +369,13 @@ export default function CreateCampaign() {
       const globalImage = form.imageUrls[0]?.trim();
       const allImages = globalImage ? [globalImage, ...images] : images;
       
-      // Build keyword_config – each keyword with its own view target
-      const keywordConfig = form.useKeywordViews
-        ? validKeywords.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, url: k.url || '', image: k.image || '' }))
-        : validKeywords.map(k => ({ keyword: k.keyword, views: keywordTotalViews, url: k.url || '', image: k.image || '' }));
+      // Build keyword_config
+      const keywordConfig = validKeywords.map(k => ({
+        keyword: k.keyword,
+        views: form.useKeywordViews ? (Number(k.views) || 0) : keywordTotalViews,
+        url: form.useKeywordUrls ? (k.url || '') : '',
+        image: form.useKeywordUrls ? (k.image || '') : ''
+      }));
 
       await api.post('/campaigns', {
         name:             form.campaignName,
@@ -644,12 +648,20 @@ export default function CreateCampaign() {
               <div>
                 {/* Header row with toggle */}
                 <div className="flex items-center justify-between mb-2">
-                  <Label required>Từ khóa tìm kiếm (và cấu hình riêng)</Label>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className={`text-xs font-semibold transition-colors ${form.useKeywordViews ? 'text-amber-600' : 'text-slate-400'}`}>
-                      Config traffic / từ khóa
-                    </span>
-                    <Toggle checked={form.useKeywordViews} onChange={toggleKeywordViews} />
+                  <Label required>Từ khóa tìm kiếm</Label>
+                  <div className="flex items-center gap-4 mb-1.5">
+                    <div className="flex items-center gap-2 border-r border-slate-200 pr-4">
+                      <span className={`text-xs font-semibold transition-colors ${form.useKeywordUrls ? 'text-indigo-600' : 'text-slate-400'}`}>
+                        Cài Link/Ảnh riêng
+                      </span>
+                      <Toggle checked={form.useKeywordUrls} onChange={() => setForm(f => ({ ...f, useKeywordUrls: !f.useKeywordUrls }))} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-semibold transition-colors ${form.useKeywordViews ? 'text-amber-600' : 'text-slate-400'}`}>
+                        Cài chia view riêng
+                      </span>
+                      <Toggle checked={form.useKeywordViews} onChange={toggleKeywordViews} />
+                    </div>
                   </div>
                 </div>
 
@@ -702,39 +714,41 @@ export default function CreateCampaign() {
                           </button>
                         )}
                       </div>
-                      <div className="flex gap-2 items-center mt-1">
-                        <TextInput
-                          placeholder="URL đích (Tuỳ chọn)"
-                          value={kw.url}
-                          onChange={e => updateKeywordUrl(i, e.target.value)}
-                          className="flex-1 text-xs"
-                        />
-                        <div className="flex-1 flex gap-2">
+                      {form.useKeywordUrls && (
+                        <div className="flex gap-2 items-center mt-1">
                           <TextInput
-                            placeholder="Link Image (Tuỳ chọn) - Hoặc Ctrl+V dán ảnh"
-                            value={kw.image}
-                            onChange={e => updateKeywordImage(i, e.target.value)}
-                            onPaste={async e => {
-                              const items = e.clipboardData?.items;
-                              if (!items) return;
-                              for (let j = 0; j < items.length; j++) {
-                                const item = items[j];
-                                if (item.type.startsWith('image/')) {
-                                  e.preventDefault();
-                                  const file = item.getAsFile();
-                                  if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
-                                  break;
-                                }
-                              }
-                            }}
+                            placeholder="URL đích riêng (Tuỳ chọn)"
+                            value={kw.url}
+                            onChange={e => updateKeywordUrl(i, e.target.value)}
                             className="flex-1 text-xs"
                           />
-                          <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
-                            {uploadingKwIdx === i ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
-                            <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
-                          </label>
+                          <div className="flex-1 flex gap-2">
+                            <TextInput
+                              placeholder="Link Image riêng - Hoặc Ctrl+V dán ảnh"
+                              value={kw.image}
+                              onChange={e => updateKeywordImage(i, e.target.value)}
+                              onPaste={async e => {
+                                const items = e.clipboardData?.items;
+                                if (!items) return;
+                                for (let j = 0; j < items.length; j++) {
+                                  const item = items[j];
+                                  if (item.type.startsWith('image/')) {
+                                    e.preventDefault();
+                                    const file = item.getAsFile();
+                                    if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
+                                    break;
+                                  }
+                                }
+                              }}
+                              className="flex-1 text-xs"
+                            />
+                            <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
+                              {uploadingKwIdx === i ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
+                              <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
+                            </label>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>

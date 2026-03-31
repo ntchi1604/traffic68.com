@@ -160,6 +160,14 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
   const [name, setName] = useState(campaign.name || '');
   const [dailyViews, setDailyViews] = useState(campaign.daily_views || 500);
+
+  const [useKeywordUrls, setUseKeywordUrls] = useState(() => {
+    try {
+      const cfg = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
+      return Array.isArray(cfg) && cfg.some(k => (k.url && k.url.trim()) || (k.image && k.image.trim()));
+    } catch { return false; }
+  });
+
   const [keywords, setKeywords] = useState(() => {
     const kwList = parseJsonArray(campaign.keyword);
     try {
@@ -252,7 +260,12 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       await api.put(`/admin/campaigns/${campaign.id}`, {
         name,
         keyword: JSON.stringify(kws.length ? kws.map(k => k.keyword) : [campaign.keyword || '']),
-        keyword_config: JSON.stringify(kws.length ? kws.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, url: k.url || '', image: k.image || '' })) : []),
+        keyword_config: JSON.stringify(kws.length ? kws.map(k => ({
+          keyword: k.keyword,
+          views: Number(k.views) || 0,
+          url: useKeywordUrls ? (k.url || '') : '',
+          image: useKeywordUrls ? (k.image || '') : ''
+        })) : []),
         url: globalUrl || u[0] || 'https://traffic68.com', // fallback
         url2: JSON.stringify([]),
         dailyViews: Number(dailyViews),
@@ -334,7 +347,23 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
           {/* Keywords */}
           <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">Từ khóa (và cấu hình riêng)</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm font-semibold text-slate-600">Từ khóa tìm kiếm</label>
+              <div className="flex items-center gap-2">
+                <span className={`text-[11px] font-semibold transition-colors ${useKeywordUrls ? 'text-indigo-600' : 'text-slate-400'}`}>
+                  Cài Link/Ảnh riêng
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={useKeywordUrls}
+                  onClick={() => setUseKeywordUrls(!useKeywordUrls)}
+                  className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none ${useKeywordUrls ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                >
+                  <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordUrls ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            </div>
             <div className="space-y-4">
               {keywords.map((kw, i) => (
                 <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
@@ -342,39 +371,41 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                     <input type="text" value={kw.keyword} onChange={e => updateKeywordText(i, e.target.value)} placeholder={`Từ khóa ${i + 1}`} className={inputCls + ' flex-1'} />
                     {keywords.length > 1 && <button onClick={() => removeKeyword(i)} className="p-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 bg-white border border-red-200 hover:bg-red-50 rounded-xl cursor-pointer transition flex-shrink-0 absolute -top-2 -right-2 shadow-sm z-10"><Trash2 size={13} /></button>}
                   </div>
-                  <div className="flex gap-2 items-center mt-1">
-                    <input
-                      type="text" value={kw.url}
-                      onChange={e => updateKeywordUrl(i, e.target.value)}
-                      placeholder="URL đích (Tuỳ chọn)"
-                      className={inputCls + ' flex-1 text-xs py-2'}
-                    />
-                    <div className="flex-1 flex gap-2">
+                  {useKeywordUrls && (
+                    <div className="flex gap-2 items-center mt-1">
                       <input
-                        type="text" value={kw.image}
-                        onChange={e => updateKeywordImage(i, e.target.value)}
-                        onPaste={async e => {
-                          const items = e.clipboardData?.items;
-                          if (!items) return;
-                          for (let j = 0; j < items.length; j++) {
-                            const item = items[j];
-                            if (item.type.startsWith('image/')) {
-                              e.preventDefault();
-                              const file = item.getAsFile();
-                              if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
-                              break;
-                            }
-                          }
-                        }}
-                        placeholder="Link Image (Tuỳ chọn) - Ctrl+V"
+                        type="text" value={kw.url}
+                        onChange={e => updateKeywordUrl(i, e.target.value)}
+                        placeholder="URL đích riêng (Tuỳ chọn)"
                         className={inputCls + ' flex-1 text-xs py-2'}
                       />
-                      <label className="flex items-center justify-center p-2 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-slate-100 transition flex-shrink-0">
-                        {uploadingKwIdx === i ? <span className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin"/> : <Upload size={14} className="text-slate-500" />}
-                        <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
-                      </label>
+                      <div className="flex-1 flex gap-2">
+                        <input
+                          type="text" value={kw.image}
+                          onChange={e => updateKeywordImage(i, e.target.value)}
+                          onPaste={async e => {
+                            const items = e.clipboardData?.items;
+                            if (!items) return;
+                            for (let j = 0; j < items.length; j++) {
+                              const item = items[j];
+                              if (item.type.startsWith('image/')) {
+                                e.preventDefault();
+                                const file = item.getAsFile();
+                                if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
+                                break;
+                              }
+                            }
+                          }}
+                          placeholder="Link Image riêng - Ctrl+V"
+                          className={inputCls + ' flex-1 text-xs py-2'}
+                        />
+                        <label className="flex items-center justify-center p-2 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-slate-100 transition flex-shrink-0">
+                          {uploadingKwIdx === i ? <span className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin"/> : <Upload size={14} className="text-slate-500" />}
+                          <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
+                        </label>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
