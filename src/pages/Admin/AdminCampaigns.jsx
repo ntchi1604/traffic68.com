@@ -168,6 +168,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     } catch { return false; }
   });
 
+  const [useKeywordViews, setUseKeywordViews] = useState(() => {
+    try {
+      const cfg = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
+      return Array.isArray(cfg) && cfg.some(k => k.views && k.views > 0);
+    } catch { return false; }
+  });
+
   const [keywords, setKeywords] = useState(() => {
     const kwList = parseJsonArray(campaign.keyword);
     try {
@@ -207,6 +214,15 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const updateKeywordUrl = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, url: val } : k));
   const updateKeywordImage = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, image: val } : k));
   const updateKeywordViews = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, views: Number(val) || 0 } : k));
+
+  const toggleKeywordViews = () => {
+    const next = !useKeywordViews;
+    if (next) {
+      const perKw = Math.max(1, Math.floor((Number(campaign.total_views) || 1000) / Math.max(1, keywords.length)));
+      setKeywords(prev => prev.map(k => ({ ...k, views: perKw })));
+    }
+    setUseKeywordViews(next);
+  };
 
   const [uploadingKwIdx, setUploadingKwIdx] = useState(-1);
   const handleKeywordImageUpload = async (e, idx) => {
@@ -262,7 +278,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         keyword: JSON.stringify(kws.length ? kws.map(k => k.keyword) : [campaign.keyword || '']),
         keyword_config: JSON.stringify(kws.length ? kws.map(k => ({
           keyword: k.keyword,
-          views: Number(k.views) || 0,
+          views: useKeywordViews ? (Number(k.views) || 0) : Math.max(1, Math.floor((Number(campaign.total_views) || 1000) / kws.length)),
           url: useKeywordUrls ? (k.url || '') : '',
           image: useKeywordUrls ? (k.image || '') : ''
         })) : []),
@@ -349,19 +365,35 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-sm font-semibold text-slate-600">Từ khóa tìm kiếm</label>
-              <div className="flex items-center gap-2">
-                <span className={`text-[11px] font-semibold transition-colors ${useKeywordUrls ? 'text-indigo-600' : 'text-slate-400'}`}>
-                  Cài Link/Ảnh riêng
-                </span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={useKeywordUrls}
-                  onClick={() => setUseKeywordUrls(!useKeywordUrls)}
-                  className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none ${useKeywordUrls ? 'bg-indigo-600' : 'bg-slate-200'}`}
-                >
-                  <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordUrls ? 'translate-x-4' : 'translate-x-0'}`} />
-                </button>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 border-r border-slate-200 pr-4">
+                  <span className={`text-[11px] font-semibold transition-colors ${useKeywordUrls ? 'text-indigo-600' : 'text-slate-400'}`}>
+                    Cài Link/Ảnh riêng
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={useKeywordUrls}
+                    onClick={() => setUseKeywordUrls(!useKeywordUrls)}
+                    className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none ${useKeywordUrls ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordUrls ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] font-semibold transition-colors ${useKeywordViews ? 'text-amber-600' : 'text-slate-400'}`}>
+                    Cài view riêng
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={useKeywordViews}
+                    onClick={toggleKeywordViews}
+                    className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none ${useKeywordViews ? 'bg-amber-500' : 'bg-slate-200'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordViews ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
               </div>
             </div>
             <div className="space-y-4">
@@ -369,6 +401,16 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
                   <div className="flex gap-2 items-center">
                     <input type="text" value={kw.keyword} onChange={e => updateKeywordText(i, e.target.value)} placeholder={`Từ khóa ${i + 1}`} className={inputCls + ' flex-1'} />
+                    {useKeywordViews && (
+                      <div className="relative w-28 flex-shrink-0">
+                        <input
+                          type="number" min="1" value={kw.views}
+                          onChange={e => updateKeywordViews(i, e.target.value)}
+                          className={inputCls + ' pr-10 text-right font-bold text-amber-900 bg-amber-50'}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                      </div>
+                    )}
                     {keywords.length > 1 && <button onClick={() => removeKeyword(i)} className="p-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 bg-white border border-red-200 hover:bg-red-50 rounded-xl cursor-pointer transition flex-shrink-0 absolute -top-2 -right-2 shadow-sm z-10"><Trash2 size={13} /></button>}
                   </div>
                   {useKeywordUrls && (
