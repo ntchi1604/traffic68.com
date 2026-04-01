@@ -219,7 +219,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const [useKeywordViews, setUseKeywordViews] = useState(() => {
     try {
       const cfg = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
-      return Array.isArray(cfg) && cfg.some(k => k.views && k.views > 0);
+      return Array.isArray(cfg) && cfg.some(k => Number(k.daily_views) > 0);
     } catch { return false; }
   });
 
@@ -266,7 +266,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     url: '',
     image: '',
     daily_views: 0,
-    views: useKeywordViews ? Math.max(1, Math.floor(keywordTotal / (prev.length + 1))) : (Number(campaign.total_views) || 1000),
+    views: Number(campaign.total_views) || 1000,
   }]);
   const removeKeyword = (idx) => setKeywords(prev => prev.filter((_, i) => i !== idx));
   const updateKeywordText = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, keyword: val } : k));
@@ -278,8 +278,11 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toggleKeywordViews = () => {
     const next = !useKeywordViews;
     if (next) {
-      const perKw = Math.max(1, Math.floor((Number(campaign.total_views) || 1000) / Math.max(1, keywords.length)));
-      setKeywords(prev => prev.map(k => ({ ...k, views: perKw })));
+      // Auto-split campaign daily_views equally among keywords
+      const perKw = Number(dailyViews) > 0 ? Math.floor(Number(dailyViews) / Math.max(1, keywords.length)) : 0;
+      setKeywords(prev => prev.map(k => ({ ...k, daily_views: perKw })));
+    } else {
+      setKeywords(prev => prev.map(k => ({ ...k, daily_views: 0 })));
     }
     setUseKeywordViews(next);
   };
@@ -334,12 +337,15 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       const globalUrl = urls[0]?.trim();
       const globalImg = imageUrls[0]?.trim();
       const allImages = globalImg ? [globalImg, ...imgs] : imgs;
-      const computedTotal = useKeywordViews
-        ? validKws.reduce((s, k) => s + (Number(k.views) || 0), 0)
-        : Number(campaign.total_views);
-      const keywordConfig = useKeywordViews
-        ? validKws.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, daily_views: Number(k.daily_views) || 0, url: k.url || '', image: k.image || '' }))
-        : validKws.map(k => ({ keyword: k.keyword, views: computedTotal, daily_views: 0, url: k.url || '', image: k.image || '' }));
+      const computedTotal = Number(campaign.total_views);
+      const numKw = validKws.length || 1;
+      const keywordConfig = validKws.map(k => ({
+        keyword: k.keyword,
+        views: Math.floor(computedTotal / numKw),
+        daily_views: useKeywordViews ? (Number(k.daily_views) || 0) : 0,
+        url: k.url || '',
+        image: k.image || '',
+      }));
 
       await api.put(`/campaigns/${campaign.id}`, {
         dailyViews:     Number(dailyViews),
@@ -440,23 +446,28 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                   <ToggleSwitch checked={useKeywordUrls} onChange={() => setUseKeywordUrls(!useKeywordUrls)} />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs font-semibold transition-colors ${useKeywordViews ? 'text-amber-600' : 'text-slate-400'}`}>
-                    Cài chia view riêng
+                  <span className={`text-xs font-semibold transition-colors ${useKeywordViews ? 'text-sky-600' : 'text-slate-400'}`}>
+                    Cài view/ngày riêng
                   </span>
                   <ToggleSwitch checked={useKeywordViews} onChange={toggleKeywordViews} />
                 </div>
               </div>
             </div>
 
-            {useKeywordViews && (
-              <div className="mb-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                <BarChart3 size={13} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-amber-700">
-                  <strong>Chế độ phân bổ traffic theo từ khóa.</strong> <b>Tổng</b> = tổng view mỗi keyword; <b>/ngày</b> = giới hạn view mỗi ngày (0 = không giới hạn).
-                  Hệ thống đảm bảo mỗi từ khóa đạt đúng số view và không vượt giới hạn ngày.
-                </p>
-              </div>
-            )}
+            {(() => {
+              const allocDV = useKeywordViews ? keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0) : 0;
+              const remDV = Math.max(0, Number(dailyViews) - allocDV);
+              const unsetCount = keywords.filter(k => !(Number(k.daily_views) > 0)).length;
+              return useKeywordViews && (
+                <div className="mb-3 flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
+                  <BarChart3 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-sky-700">
+                    <strong>Giới hạn view/ngày theo từ khóa.</strong> Từ khóa để <b>0</b> tự nhận phần còn lại
+                    ({remDV.toLocaleString()} view/ngày ÷ {unsetCount} từ khóa).
+                  </p>
+                </div>
+              );
+            })()}
 
             <div className="space-y-4">
               {keywords.map((kw, i) => (
@@ -469,29 +480,16 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                       className={input + ' flex-1'}
                     />
                     {useKeywordViews && (
-                      <div className="flex gap-1 flex-shrink-0">
-                        <div className="relative w-[6.5rem]">
-                          <input
-                            type="number" min="1"
-                            value={kw.views}
-                            onChange={e => updateKeywordViews(i, e.target.value)}
-                            className="w-full px-2 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
-                                       focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
-                                       transition pr-10 font-black text-amber-900 text-right"
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">tổng</span>
-                        </div>
-                        <div className="relative w-[6.5rem]">
-                          <input
-                            type="number" min="0"
-                            value={kw.daily_views || 0}
-                            onChange={e => updateKeywordDailyViews(i, e.target.value)}
-                            className="w-full px-2 py-2.5 text-sm border-2 border-sky-300 rounded-xl bg-sky-50
-                                       focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-500
-                                       transition pr-10 font-black text-sky-900 text-right"
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
-                        </div>
+                      <div className="relative w-32 flex-shrink-0">
+                        <input
+                          type="number" min="0"
+                          value={kw.daily_views || 0}
+                          onChange={e => updateKeywordDailyViews(i, e.target.value)}
+                          className="w-full px-2 py-2.5 text-sm border-2 border-sky-300 rounded-xl bg-sky-50
+                                     focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-500
+                                     transition pr-14 font-black text-sky-900 text-right"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
                       </div>
                     )}
                     {keywords.length > 1 && (
@@ -539,17 +537,22 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
               ))}
             </div>
 
-            {useKeywordViews && (
-              <div className="mt-2.5 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl px-4 py-2">
-                <div className="flex items-center gap-1.5">
-                  <BarChart3 size={12} className="text-indigo-500" />
-                  <span className="text-xs font-bold text-indigo-600">Tổng view (tất cả từ khóa)</span>
+            {useKeywordViews && (() => {
+              const allocDV = keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
+              const remDV = Math.max(0, Number(dailyViews) - allocDV);
+              return (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="flex items-center justify-between bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
+                    <span className="text-xs font-bold text-sky-600">Đã phân bổ</span>
+                    <span className="text-sm font-black text-sky-700 tabular-nums">{allocDV.toLocaleString()}<span className="text-[10px] font-semibold text-sky-400 ml-1">/ngày</span></span>
+                  </div>
+                  <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                    <span className="text-xs font-bold text-emerald-600">Còn lại</span>
+                    <span className="text-sm font-black text-emerald-700 tabular-nums">{remDV.toLocaleString()}<span className="text-[10px] font-semibold text-emerald-400 ml-1">/ngày</span></span>
+                  </div>
                 </div>
-                <span className="text-sm font-black text-indigo-700 tabular-nums">
-                  {keywordTotal.toLocaleString()} <span className="text-xs font-semibold text-indigo-400">view</span>
-                </span>
-              </div>
-            )}
+              );
+            })()}
 
             <button onClick={addKeyword} className="mt-2 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition">
               <Plus size={13} /> Thêm từ khóa
@@ -568,18 +571,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
           {/* Total views info */}
           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-            <p className="text-xs font-bold text-slate-500 mb-1">Thông tin tổng view</p>
+            <p className="text-xs font-bold text-slate-500 mb-1">Thông tin view</p>
             <div className="flex items-center justify-between">
               <span className="text-xs text-slate-500">Hiện tại đã thực hiện</span>
               <span className="text-xs font-bold text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()} / {Number(campaign.total_views || 0).toLocaleString()} view</span>
             </div>
-            {useKeywordViews && (
-              <div className="flex items-center justify-between mt-1">
-                <span className="text-xs text-slate-500">Tổng view mới (theo từ khóa)</span>
-                <span className="text-xs font-black text-indigo-600">{keywordTotal.toLocaleString()} view</span>
-              </div>
-            )}
           </div>
+
         </div>
 
         {/* Footer */}

@@ -272,10 +272,11 @@ export default function CreateCampaign() {
   const toggleKeywordViews = () => setForm(f => {
     const next = !f.useKeywordViews;
     if (next) {
-      const perKw = Math.max(1, Math.floor(f.totalViews / Math.max(1, f.keywords.length)));
-      return { ...f, useKeywordViews: next, keywords: f.keywords.map(k => ({ ...k, views: perKw })) };
+      // Auto-split campaign daily_views equally among keywords
+      const perKw = f.dailyViews > 0 ? Math.floor(f.dailyViews / Math.max(1, f.keywords.length)) : 0;
+      return { ...f, useKeywordViews: next, keywords: f.keywords.map(k => ({ ...k, daily_views: perKw })) };
     }
-    return { ...f, useKeywordViews: next };
+    return { ...f, useKeywordViews: next, keywords: f.keywords.map(k => ({ ...k, daily_views: 0 })) };
   });
 
   /* ── URL / image helpers ── */
@@ -284,9 +285,11 @@ export default function CreateCampaign() {
   const updateArrayItem = (key, idx, val) => setForm(f => ({ ...f, [key]: f[key].map((v, i) => i === idx ? val : v) }));
 
   /* ── Computed totals ── */
-  const keywordTotalViews = form.useKeywordViews
-    ? form.keywords.reduce((s, k) => s + (Number(k.views) || 0), 0)
-    : form.totalViews;
+  const keywordTotalViews = form.totalViews; // always campaign-level total
+  const allocatedDailyViews = form.useKeywordViews
+    ? form.keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)
+    : 0;
+  const remainingDailyViews = Math.max(0, form.dailyViews - allocatedDailyViews);
 
   const adminDiscountEnabled = pricingConfig.discount_enabled === 'true';
   const applyDiscount = () => {
@@ -374,10 +377,11 @@ export default function CreateCampaign() {
       const globalImage = form.imageUrls[0]?.trim();
       const allImages = globalImage ? [globalImage, ...images] : images;
       
-      // Build keyword_config
+      // Build keyword_config — views = equal split of total; daily_views = per-keyword daily limit
+      const numKw = validKeywords.length || 1;
       const keywordConfig = validKeywords.map(k => ({
         keyword: k.keyword,
-        views: form.useKeywordViews ? (Number(k.views) || 0) : keywordTotalViews,
+        views: Math.floor(form.totalViews / numKw),
         daily_views: form.useKeywordViews ? (Number(k.daily_views) || 0) : 0,
         url: form.useKeywordUrls ? (k.url || '') : '',
         image: form.useKeywordUrls ? (k.image || '') : ''
@@ -575,19 +579,12 @@ export default function CreateCampaign() {
                   <Hint>Giới hạn phân phối hàng ngày</Hint>
                 </div>
                 <div>
-                  <Label required={!form.useKeywordViews} hint="Tổng số view cần mua cho chiến dịch">Tổng view mua</Label>
-                  {form.useKeywordViews ? (
-                    <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm flex items-center justify-between">
-                      <span className="text-slate-400 text-xs">Tự động từ cấu hình từ khóa</span>
-                      <span className="font-black text-indigo-700 tabular-nums">{keywordTotalViews.toLocaleString()} view</span>
-                    </div>
-                  ) : (
-                    <NumberInput
-                      value={form.totalViews}
-                      onChange={e => set('totalViews', Number(e.target.value))}
-                      suffix="view"
-                    />
-                  )}
+                  <Label required hint="Tổng số view cần mua cho chiến dịch">Tổng view mua</Label>
+                  <NumberInput
+                    value={form.totalViews}
+                    onChange={e => set('totalViews', Number(e.target.value))}
+                    suffix="view"
+                  />
                   <Hint>View dư ngày trước sẽ chuyển sang ngày sau</Hint>
                 </div>
               </div>
@@ -663,8 +660,8 @@ export default function CreateCampaign() {
                       <Toggle checked={form.useKeywordUrls} onChange={() => setForm(f => ({ ...f, useKeywordUrls: !f.useKeywordUrls }))} />
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs font-semibold transition-colors ${form.useKeywordViews ? 'text-amber-600' : 'text-slate-400'}`}>
-                        Cài chia view riêng
+                      <span className={`text-xs font-semibold transition-colors ${form.useKeywordViews ? 'text-sky-600' : 'text-slate-400'}`}>
+                        Cài view/ngày riêng
                       </span>
                       <Toggle checked={form.useKeywordViews} onChange={toggleKeywordViews} />
                     </div>
@@ -672,13 +669,12 @@ export default function CreateCampaign() {
                 </div>
 
                 {form.useKeywordViews && (
-                  <div className="mb-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                    <BarChart2 size={13} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div className="mb-3 flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
+                    <BarChart2 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-xs font-bold text-amber-700 mb-0.5">Chế độ phân bổ traffic theo từ khóa</p>
-                      <p className="text-xs text-amber-600 leading-relaxed">
-                        <b>Tổng</b> = tổng số view cần mua cho từ khóa. <b>/ngày</b> = giới hạn per-keyword mỗi ngày (0 = không giới hạn).
-                        Hệ thống đảm bảo mỗi từ khóa đạt đúng số view và không vượt giới hạn ngày.
+                      <p className="text-xs font-bold text-sky-700 mb-0.5">Giới hạn view/ngày cho từng từ khóa</p>
+                      <p className="text-xs text-sky-600 leading-relaxed">
+                        Đặt số view tối đa mỗi ngày cho từng từ khóa. Từ khóa để <b>0</b> sẽ tự nhận phần còn lại ({remainingDailyViews.toLocaleString()} view/ngày ÷ {form.keywords.filter(k => !(Number(k.daily_views) > 0)).length} từ khóa).
                       </p>
                     </div>
                   </div>
@@ -699,31 +695,17 @@ export default function CreateCampaign() {
                         </div>
 
                         {form.useKeywordViews && (
-                          <div className="flex gap-1 flex-shrink-0">
-                            <div className="relative w-[6.5rem]">
-                              <input
-                                type="number"
-                                min="1"
-                                value={kw.views}
-                                onChange={e => updateKeywordViews(i, e.target.value)}
-                                className="w-full px-2 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
-                                           focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
-                                           transition pr-10 font-black text-amber-900 text-right"
-                              />
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">tổng</span>
-                            </div>
-                            <div className="relative w-[6.5rem]">
-                              <input
-                                type="number"
-                                min="0"
-                                value={kw.daily_views || 0}
-                                onChange={e => updateKeywordDailyViews(i, e.target.value)}
-                                className="w-full px-2 py-2.5 text-sm border-2 border-sky-300 rounded-xl bg-sky-50
-                                           focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-500
-                                           transition pr-10 font-black text-sky-900 text-right"
-                              />
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
-                            </div>
+                          <div className="relative w-32 flex-shrink-0">
+                            <input
+                              type="number"
+                              min="0"
+                              value={kw.daily_views || 0}
+                              onChange={e => updateKeywordDailyViews(i, e.target.value)}
+                              className="w-full px-2 py-2.5 text-sm border-2 border-sky-300 rounded-xl bg-sky-50
+                                         focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-500
+                                         transition pr-14 font-black text-sky-900 text-right"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
                           </div>
                         )}
 
@@ -773,17 +755,21 @@ export default function CreateCampaign() {
                   ))}
                 </div>
 
-                {/* Total summary bar when keyword views mode is active */}
+                {/* Daily views budget summary */}
                 {form.useKeywordViews && (
-                  <div className="mt-3 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <BarChart2 size={13} className="text-indigo-500" />
-                      <span className="text-xs font-bold text-indigo-600">Tổng view tất cả từ khóa</span>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="flex items-center justify-between bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
+                      <span className="text-xs font-bold text-sky-600">Đã phân bổ</span>
+                      <span className="text-sm font-black text-sky-700 tabular-nums">
+                        {allocatedDailyViews.toLocaleString()}<span className="text-[10px] font-semibold text-sky-400 ml-1">/ngày</span>
+                      </span>
                     </div>
-                    <span className="text-base font-black text-indigo-700 tabular-nums">
-                      {keywordTotalViews.toLocaleString()}
-                      <span className="text-xs font-semibold text-indigo-400 ml-1">view</span>
-                    </span>
+                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                      <span className="text-xs font-bold text-emerald-600">Còn lại (tự động)</span>
+                      <span className="text-sm font-black text-emerald-700 tabular-nums">
+                        {remainingDailyViews.toLocaleString()}<span className="text-[10px] font-semibold text-emerald-400 ml-1">/ngày</span>
+                      </span>
+                    </div>
                   </div>
                 )}
 
@@ -793,7 +779,7 @@ export default function CreateCampaign() {
                 </button>
                 <Hint>
                   {form.useKeywordViews
-                    ? 'Mỗi từ khóa đạt đúng số view đã cấu hình. Tổng view = tổng cộng tất cả.'
+                    ? 'Từ khóa để 0 sẽ tự nhận phần còn lại chia đều. Tổng view mua không thay đổi.'
                     : 'Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt truy cập'}
                 </Hint>
               </div>
