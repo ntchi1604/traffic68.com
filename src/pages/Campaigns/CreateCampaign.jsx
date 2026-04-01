@@ -224,7 +224,7 @@ export default function CreateCampaign() {
     viewByHour:      false,
     useKeywordViews: false,
     useKeywordUrls: false,          // ← new: toggle per-keyword traffic
-    keywords:        [{ keyword: '', views: 1000, url: '', image: '' }],  // ← now objects
+    keywords:        [{ keyword: '', views: 1000, daily_views: 0, url: '', image: '' }],  // ← now objects
     urls:            [''],
     imageUrls:       [''],
     devices:         ['desktop', 'mobile'],
@@ -242,6 +242,7 @@ export default function CreateCampaign() {
       keyword: '',
       url: '',
       image: '',
+      daily_views: 0,
       views: f.useKeywordViews
         ? Math.max(1, Math.floor(keywordTotalViews / (f.keywords.length + 1)))
         : f.totalViews,
@@ -263,6 +264,10 @@ export default function CreateCampaign() {
   const updateKeywordViews = (idx, val) => setForm(f => ({
     ...f,
     keywords: f.keywords.map((k, i) => i === idx ? { ...k, views: Number(val) || 0 } : k),
+  }));
+  const updateKeywordDailyViews = (idx, val) => setForm(f => ({
+    ...f,
+    keywords: f.keywords.map((k, i) => i === idx ? { ...k, daily_views: Number(val) || 0 } : k),
   }));
   const toggleKeywordViews = () => setForm(f => {
     const next = !f.useKeywordViews;
@@ -373,6 +378,7 @@ export default function CreateCampaign() {
       const keywordConfig = validKeywords.map(k => ({
         keyword: k.keyword,
         views: form.useKeywordViews ? (Number(k.views) || 0) : keywordTotalViews,
+        daily_views: form.useKeywordViews ? (Number(k.daily_views) || 0) : 0,
         url: form.useKeywordUrls ? (k.url || '') : '',
         image: form.useKeywordUrls ? (k.image || '') : ''
       }));
@@ -671,8 +677,8 @@ export default function CreateCampaign() {
                     <div>
                       <p className="text-xs font-bold text-amber-700 mb-0.5">Chế độ phân bổ traffic theo từ khóa</p>
                       <p className="text-xs text-amber-600 leading-relaxed">
-                        Mỗi từ khóa có số view riêng. Tổng view = tổng của tất cả từ khóa.
-                        Hệ thống sẽ đảm bảo mỗi từ khóa đạt đúng số view đã cấu hình.
+                        <b>Tổng</b> = tổng số view cần mua cho từ khóa. <b>/ngày</b> = giới hạn per-keyword mỗi ngày (0 = không giới hạn).
+                        Hệ thống đảm bảo mỗi từ khóa đạt đúng số view và không vượt giới hạn ngày.
                       </p>
                     </div>
                   </div>
@@ -693,17 +699,31 @@ export default function CreateCampaign() {
                         </div>
 
                         {form.useKeywordViews && (
-                          <div className="relative w-36 flex-shrink-0">
-                            <input
-                              type="number"
-                              min="1"
-                              value={kw.views}
-                              onChange={e => updateKeywordViews(i, e.target.value)}
-                              className="w-full px-3 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
-                                         focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
-                                         transition pr-12 font-black text-amber-900 text-right"
-                            />
-                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <div className="relative w-[6.5rem]">
+                              <input
+                                type="number"
+                                min="1"
+                                value={kw.views}
+                                onChange={e => updateKeywordViews(i, e.target.value)}
+                                className="w-full px-2 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
+                                           focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
+                                           transition pr-10 font-black text-amber-900 text-right"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">tổng</span>
+                            </div>
+                            <div className="relative w-[6.5rem]">
+                              <input
+                                type="number"
+                                min="0"
+                                value={kw.daily_views || 0}
+                                onChange={e => updateKeywordDailyViews(i, e.target.value)}
+                                className="w-full px-2 py-2.5 text-sm border-2 border-sky-300 rounded-xl bg-sky-50
+                                           focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-500
+                                           transition pr-10 font-black text-sky-900 text-right"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
+                            </div>
                           </div>
                         )}
 

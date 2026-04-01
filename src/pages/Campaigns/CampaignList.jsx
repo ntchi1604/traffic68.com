@@ -238,11 +238,11 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         // merge: use keyword_config views, fill missing from kwList
         return kwList.map(kw => {
           const found = cfg.find(c => c.keyword === kw);
-          return { keyword: kw, views: found ? Number(found.views) : Number(campaign.total_views) || 1000, url: found?.url || found?.domain || '', image: found?.image || '' };
+          return { keyword: kw, views: found ? Number(found.views) : Number(campaign.total_views) || 1000, daily_views: found ? Number(found.daily_views) || 0 : 0, url: found?.url || found?.domain || '', image: found?.image || '' };
         });
       }
     } catch { }
-    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, url: '', image: '' }));
+    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, daily_views: 0, url: '', image: '' }));
   });
 
   const [urls, setUrls] = useState(() => {
@@ -265,6 +265,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     keyword: '',
     url: '',
     image: '',
+    daily_views: 0,
     views: useKeywordViews ? Math.max(1, Math.floor(keywordTotal / (prev.length + 1))) : (Number(campaign.total_views) || 1000),
   }]);
   const removeKeyword = (idx) => setKeywords(prev => prev.filter((_, i) => i !== idx));
@@ -272,6 +273,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const updateKeywordUrl = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, url: val } : k));
   const updateKeywordImage = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, image: val } : k));
   const updateKeywordViews = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, views: Number(val) || 0 } : k));
+  const updateKeywordDailyViews = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, daily_views: Number(val) || 0 } : k));
 
   const toggleKeywordViews = () => {
     const next = !useKeywordViews;
@@ -336,8 +338,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         ? validKws.reduce((s, k) => s + (Number(k.views) || 0), 0)
         : Number(campaign.total_views);
       const keywordConfig = useKeywordViews
-        ? validKws.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, url: k.url || '', image: k.image || '' }))
-        : validKws.map(k => ({ keyword: k.keyword, views: computedTotal, url: k.url || '', image: k.image || '' }));
+        ? validKws.map(k => ({ keyword: k.keyword, views: Number(k.views) || 0, daily_views: Number(k.daily_views) || 0, url: k.url || '', image: k.image || '' }))
+        : validKws.map(k => ({ keyword: k.keyword, views: computedTotal, daily_views: 0, url: k.url || '', image: k.image || '' }));
 
       await api.put(`/campaigns/${campaign.id}`, {
         dailyViews:     Number(dailyViews),
@@ -450,8 +452,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
               <div className="mb-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
                 <BarChart3 size={13} className="text-amber-500 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-amber-700">
-                  <strong>Chế độ phân bổ traffic theo từ khóa.</strong> Mỗi từ khóa nhận đúng số view đã cấu hình.
-                  Tổng view mới = tổng của tất cả từ khóa.
+                  <strong>Chế độ phân bổ traffic theo từ khóa.</strong> <b>Tổng</b> = tổng view mỗi keyword; <b>/ngày</b> = giới hạn view mỗi ngày (0 = không giới hạn).
+                  Hệ thống đảm bảo mỗi từ khóa đạt đúng số view và không vượt giới hạn ngày.
                 </p>
               </div>
             )}
@@ -467,16 +469,29 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                       className={input + ' flex-1'}
                     />
                     {useKeywordViews && (
-                      <div className="relative w-36 flex-shrink-0">
-                        <input
-                          type="number" min="1"
-                          value={kw.views}
-                          onChange={e => updateKeywordViews(i, e.target.value)}
-                          className="w-full px-3 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
-                                     focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
-                                     transition pr-12 font-black text-amber-900 text-right"
-                        />
-                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <div className="relative w-[6.5rem]">
+                          <input
+                            type="number" min="1"
+                            value={kw.views}
+                            onChange={e => updateKeywordViews(i, e.target.value)}
+                            className="w-full px-2 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
+                                       focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
+                                       transition pr-10 font-black text-amber-900 text-right"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">tổng</span>
+                        </div>
+                        <div className="relative w-[6.5rem]">
+                          <input
+                            type="number" min="0"
+                            value={kw.daily_views || 0}
+                            onChange={e => updateKeywordDailyViews(i, e.target.value)}
+                            className="w-full px-2 py-2.5 text-sm border-2 border-sky-300 rounded-xl bg-sky-50
+                                       focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-500
+                                       transition pr-10 font-black text-sky-900 text-right"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
+                        </div>
                       </div>
                     )}
                     {keywords.length > 1 && (

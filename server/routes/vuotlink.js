@@ -334,13 +334,31 @@ async function _handleTaskPost(req, res) {
       const doneMap = {};
       kwCounts.forEach(r => { doneMap[r.keyword] = Number(r.done); });
 
-      // Build weighted list: weight = max(0, target_views - done_views)
+      // Today's completed per keyword (for daily_views limit check)
+      const [kwTodayCounts] = await pool.execute(
+        `SELECT keyword, COUNT(*) as today_done
+         FROM vuot_link_tasks
+         WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0
+           AND completed_at >= '${todayVn} 00:00:00' AND completed_at <= '${todayVn} 23:59:59'
+         GROUP BY keyword`,
+        [campaign.id]
+      );
+      const todayMap = {};
+      kwTodayCounts.forEach(r => { todayMap[r.keyword] = Number(r.today_done); });
+
+      // Build weighted list:
+      //   weight = total remaining views for this keyword
+      //   weight forced to 0 if keyword's daily_views limit is reached today
       const weighted = kwConfig
         .filter(k => k.keyword && k.keyword.trim())
-        .map(k => ({
-          ...k,
-          weight: Math.max(0, (Number(k.views) || 0) - (doneMap[k.keyword] || 0)),
-        }));
+        .map(k => {
+          const totalDone  = doneMap[k.keyword]  || 0;
+          const todayDone  = todayMap[k.keyword] || 0;
+          const totalRemaining = Math.max(0, (Number(k.views) || 0) - totalDone);
+          const dailyLimit = Number(k.daily_views) || 0;
+          const dailyOk    = dailyLimit <= 0 || todayDone < dailyLimit;
+          return { ...k, weight: dailyOk ? totalRemaining : 0 };
+        });
 
       const totalWeight = weighted.reduce((s, w) => s + w.weight, 0);
 
@@ -354,8 +372,10 @@ async function _handleTaskPost(req, res) {
           if (rand <= 0) { selectedObj = item; break; }
         }
       } else {
-        // All keywords have hit their targets — pick round-robin among all
-        selectedObj = kwConfig[Math.floor(Math.random() * kwConfig.length)];
+        // All keywords hit daily limit or total → fallback: pick from keywords still with total remaining
+        const stillRemaining = kwConfig.filter(k => (doneMap[k.keyword] || 0) < (Number(k.views) || 0));
+        const fallbackPool = stillRemaining.length > 0 ? stillRemaining : kwConfig;
+        selectedObj = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
       }
 
       if (selectedObj) {
