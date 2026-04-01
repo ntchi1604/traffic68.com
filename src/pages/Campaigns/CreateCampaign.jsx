@@ -377,11 +377,10 @@ export default function CreateCampaign() {
       const globalImage = form.imageUrls[0]?.trim();
       const allImages = globalImage ? [globalImage, ...images] : images;
       
-      // Build keyword_config — views = equal split of total; daily_views = per-keyword daily limit
-      const numKw = validKeywords.length || 1;
+      // Build keyword_config — views = campaign total (daily_views controls rate, not per-keyword budget)
       const keywordConfig = validKeywords.map(k => ({
         keyword: k.keyword,
-        views: Math.floor(form.totalViews / numKw),
+        views: form.totalViews,
         daily_views: form.useKeywordViews ? (Number(k.daily_views) || 0) : 0,
         url: form.useKeywordUrls ? (k.url || '') : '',
         image: form.useKeywordUrls ? (k.image || '') : ''

@@ -338,10 +338,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       const globalImg = imageUrls[0]?.trim();
       const allImages = globalImg ? [globalImg, ...imgs] : imgs;
       const computedTotal = Number(campaign.total_views);
-      const numKw = validKws.length || 1;
       const keywordConfig = validKws.map(k => ({
         keyword: k.keyword,
-        views: Math.floor(computedTotal / numKw),
+        views: computedTotal,
         daily_views: useKeywordViews ? (Number(k.daily_views) || 0) : 0,
         url: k.url || '',
         image: k.image || '',
