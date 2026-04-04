@@ -346,15 +346,17 @@ async function _handleTaskPost(req, res) {
       const todayMap = {};
       kwTodayCounts.forEach(r => { todayMap[r.keyword] = Number(r.today_done); });
 
-      // Auto-calculate daily limit for keywords with daily_views=0
-      // Mirrors frontend UI: "remaining = campaign.daily_views - sum(explicit keywords)"
+      // Auto-calculate daily limit for keywords with daily_views=0 — ONLY when toggle ON
+      // (i.e. at least 1 keyword has explicit daily_views > 0)
+      // If ALL keywords have daily_views=0 (toggle OFF), no per-keyword limit applies.
       const campaignDailyViews = Number(campaign.daily_views) || 0;
+      const hasAnyExplicitDaily = kwConfig.some(k => Number(k.daily_views) > 0);
       const totalExplicitDaily = kwConfig.reduce((s, k) => s + (Number(k.daily_views) > 0 ? Number(k.daily_views) : 0), 0);
       const unsetCount = kwConfig.filter(k => !(Number(k.daily_views) > 0)).length;
       const remainingDaily = Math.max(0, campaignDailyViews - totalExplicitDaily);
-      const autoDaily = (campaignDailyViews > 0 && unsetCount > 0)
+      const autoDaily = (hasAnyExplicitDaily && campaignDailyViews > 0 && unsetCount > 0)
         ? Math.floor(remainingDaily / unsetCount)
-        : 0; // 0 = no per-keyword limit (use campaign-level limit only)
+        : 0; // 0 = no per-keyword daily limit (toggle OFF or all keywords explicitly set)
 
       // Build weighted list:
       //   weight = total remaining views for this keyword

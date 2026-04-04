@@ -215,6 +215,7 @@ function ToggleSwitch({ checked, onChange }) {
 function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
   const [dailyViews, setDailyViews] = useState(campaign.daily_views || 500);
+  const [totalViews, setTotalViews] = useState(Number(campaign.total_views) || 1000);
 
   const [useKeywordViews, setUseKeywordViews] = useState(() => {
     try {
@@ -337,7 +338,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       const globalUrl = urls[0]?.trim();
       const globalImg = imageUrls[0]?.trim();
       const allImages = globalImg ? [globalImg, ...imgs] : imgs;
-      const computedTotal = Number(campaign.total_views);
+      const computedTotal = Number(totalViews) || Number(campaign.total_views);
       const keywordConfig = validKws.map(k => ({
         keyword: k.keyword,
         views: computedTotal,
@@ -351,6 +352,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         keyword:        JSON.stringify(validKws.map(k => k.keyword)),
         keyword_config: JSON.stringify(keywordConfig),
         totalViews:     computedTotal,
+        total_views:    computedTotal,
         url:            globalUrl || u[0] || 'https://traffic68.com', // fallback
         url2:           JSON.stringify([]),
         image1_url:     allImages.length ? JSON.stringify(allImages) : null,
@@ -559,21 +561,28 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           </div>
 
 
-          {/* Daily views */}
-          <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Số view / ngày</label>
-            <div className="relative">
-              <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={input + ' pr-24'} />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view/ngày</span>
+          {/* Daily views + Total views */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Số view / ngày</label>
+              <div className="relative">
+                <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={input + ' pr-24'} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view/ngày</span>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">Giới hạn phân phối hàng ngày</p>
             </div>
-          </div>
-
-          {/* Total views info */}
-          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-            <p className="text-xs font-bold text-slate-500 mb-1">Thông tin view</p>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500">Hiện tại đã thực hiện</span>
-              <span className="text-xs font-bold text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()} / {Number(campaign.total_views || 0).toLocaleString()} view</span>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Tổng view mua</label>
+              <div className="relative">
+                <input
+                  type="number" min="1"
+                  value={totalViews}
+                  onChange={e => setTotalViews(Number(e.target.value) || 0)}
+                  className={input + ' pr-16'}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view</span>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> / {Number(campaign.total_views || 0).toLocaleString()} view</p>
             </div>
           </div>
 

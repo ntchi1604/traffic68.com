@@ -252,18 +252,43 @@ router.put('/:id', async (req, res) => {
 
     // No longer safely unlinking images here because they are JSON arrays and might be shared across campaigns/keywords.
 
+    // ── Handle totalViews change: recalculate budget & adjust buyer wallet ──
+    const oldCampaign = existing[0];
+    let newBudget = n(budget);
+    if (totalViews !== undefined && Number(totalViews) !== Number(oldCampaign.total_views)) {
+      const newTotal = Number(totalViews) || 0;
+      const cpcValue = Number(oldCampaign.cpc) || 0;
+      if (cpcValue > 0) {
+        const oldBudgetVal = Number(oldCampaign.budget) || 0;
+        const newCalcBudget = Math.round(newTotal * cpcValue);
+        const diff = newCalcBudget - oldBudgetVal;
+        if (diff > 0) {
+          const [wallets] = await pool.execute("SELECT balance FROM wallets WHERE user_id = ? AND type = 'main'", [req.userId]);
+          const balance = wallets[0]?.balance || 0;
+          if (balance < diff) {
+            return res.status(400).json({ error: `Số dư ví không đủ. Cần thêm ${diff.toLocaleString('vi-VN')} đ để tăng view. Số dư hiện có: ${balance.toLocaleString('vi-VN')} đ` });
+          }
+          await pool.execute("UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main'", [diff, req.userId]);
+        } else if (diff < 0) {
+          const refund = Math.abs(diff);
+          await pool.execute("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'main'", [refund, req.userId]);
+        }
+        newBudget = newCalcBudget;
+      }
+    }
+
     try {
       // Try with keyword_config column
       await pool.execute(
         `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), url2=COALESCE(?,url2), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), keyword_config=COALESCE(?,keyword_config), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url) WHERE id = ? AND user_id = ?`,
-        [n(name), n(url), n(url2), n(trafficType), n(version), n(budget), n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(keyword_config), n(targetPage), n(timeOnSite), n(status), n(image1_url), n(image2_url), req.params.id, req.userId]
+        [n(name), n(url), n(url2), n(trafficType), n(version), newBudget, n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(keyword_config), n(targetPage), n(timeOnSite), n(status), n(image1_url), n(image2_url), req.params.id, req.userId]
       );
     } catch (colErr) {
       if (colErr.message && colErr.message.includes('keyword_config')) {
         // Fallback without keyword_config
         await pool.execute(
           `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), url2=COALESCE(?,url2), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url) WHERE id = ? AND user_id = ?`,
-          [n(name), n(url), n(url2), n(trafficType), n(version), n(budget), n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(targetPage), n(timeOnSite), n(status), n(image1_url), n(image2_url), req.params.id, req.userId]
+          [n(name), n(url), n(url2), n(trafficType), n(version), newBudget, n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(targetPage), n(timeOnSite), n(status), n(image1_url), n(image2_url), req.params.id, req.userId]
         );
         // Auto-migrate
         pool.execute('ALTER TABLE campaigns ADD COLUMN keyword_config TEXT DEFAULT NULL AFTER keyword').catch(() => { });

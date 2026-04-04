@@ -160,6 +160,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
   const [name, setName] = useState(campaign.name || '');
   const [dailyViews, setDailyViews] = useState(campaign.daily_views || 500);
+  const [totalViews, setTotalViews] = useState(Number(campaign.total_views) || 1000);
 
   const [useKeywordUrls, setUseKeywordUrls] = useState(() => {
     try {
@@ -278,13 +279,14 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         keyword: JSON.stringify(kws.length ? kws.map(k => k.keyword) : [campaign.keyword || '']),
         keyword_config: JSON.stringify(kws.length ? kws.map(k => ({
           keyword: k.keyword,
-          views: useKeywordViews ? (Number(k.views) || 0) : Math.max(1, Math.floor((Number(campaign.total_views) || 1000) / kws.length)),
+          views: useKeywordViews ? (Number(k.views) || 0) : Math.max(1, Math.floor((Number(totalViews) || 1000) / kws.length)),
           url: useKeywordUrls ? (k.url || '') : '',
           image: useKeywordUrls ? (k.image || '') : ''
         })) : []),
         url: globalUrl || u[0] || 'https://traffic68.com', // fallback
         url2: JSON.stringify([]),
         dailyViews: Number(dailyViews),
+        totalViews: Number(totalViews),
         viewByHour: viewByHour ? 1 : 0,
         image1_url: allImages.length ? JSON.stringify(allImages) : null,
         image2_url: null,
@@ -456,9 +458,23 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
 
 
-          <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">Số lượng view/ngày</label>
-            <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={inputCls} />
+          {/* Daily views + Total views */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-semibold text-slate-600 mb-1 block">Số view / ngày</label>
+              <div className="relative">
+                <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={inputCls + ' pr-20'} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">v/ngày</span>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view mua</label>
+              <div className="relative">
+                <input type="number" min="1" value={totalViews} onChange={e => setTotalViews(Number(e.target.value) || 0)} className={inputCls + ' pr-14'} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">view</span>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view</p>
+            </div>
           </div>
 
           <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
