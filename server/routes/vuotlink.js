@@ -225,16 +225,23 @@ async function _handleTaskPost(req, res) {
   // Explicitly calculate Vietnam Day and Hour string to enforce limits flawlessly
   // This bypasses any bugs in MySQL server's global or session timezone defaults
   const vnOpts = { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' };
-  const todayVn = new Intl.DateTimeFormat('en-CA', vnOpts).format(new Date()); // e.g. "2026-03-26"
+  const todayVn = new Intl.DateTimeFormat('en-CA', vnOpts).format(new Date()); // e.g. "2026-04-05"
   const hourVnRaw = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', hour12: false }).format(new Date());
-  const hourStartVn = `${todayVn} ${hourVnRaw.padStart(2, '0')}:00:00`;
+
+  // Tính UTC tương đương của các mốc thời gian VN (để so sánh với timestamp UTC trong MySQL)
+  const toUtcStr = (d) => d.toISOString().replace('T', ' ').substring(0, 19);
+  const vnDayStart = toUtcStr(new Date(`${todayVn}T00:00:00+07:00`));   // VN 00:00 → UTC -7h
+  const vnDayEnd   = toUtcStr(new Date(`${todayVn}T23:59:59+07:00`));   // VN 23:59 → UTC -7h
+  const hourPad = hourVnRaw.padStart(2, '0');
+  const vnHourStart = toUtcStr(new Date(`${todayVn}T${hourPad}:00:00+07:00`)); // VN giờ hiện tại → UTC
+  const hourStartVn = vnHourStart; // giữ tên cũ để không sửa thêm
 
   // Count completed views today for this device (visitorId)
   let deviceViewsToday = 0;
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
       `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND created_at >= ? AND created_at <= ? AND status = 'completed'`,
-      [visitorId, `${todayVn} 00:00:00`, `${todayVn} 23:59:59`]
+      [visitorId, vnDayStart, vnDayEnd]
     );
     deviceViewsToday = vCount[0].cnt;
     if (deviceViewsToday >= maxViewsPerIp) {
@@ -246,7 +253,7 @@ async function _handleTaskPost(req, res) {
   // Count completed views today for this IP
   const [ipCount] = await pool.execute(
     `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND created_at >= ? AND created_at <= ? AND status = 'completed'`,
-    [ip, `${todayVn} 00:00:00`, `${todayVn} 23:59:59`]
+    [ip, vnDayStart, vnDayEnd]
   );
   const ipViewsToday = ipCount[0].cnt;
   if (ipViewsToday >= maxViewsPerIp) {
@@ -266,13 +273,13 @@ async function _handleTaskPost(req, res) {
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
       FROM vuot_link_tasks
-      WHERE status = 'completed' AND completed_at >= '${todayVn} 00:00:00' AND completed_at <= '${todayVn} 23:59:59'
+      WHERE status = 'completed' AND completed_at >= '${vnDayStart}' AND completed_at <= '${vnDayEnd}'
       GROUP BY campaign_id
     ) td ON td.campaign_id = c.id
     LEFT JOIN (
       SELECT campaign_id, COUNT(*) as hour_done
       FROM vuot_link_tasks
-      WHERE status = 'completed' AND completed_at >= '${hourStartVn}'
+      WHERE status = 'completed' AND completed_at >= '${vnHourStart}'
       GROUP BY campaign_id
     ) th ON th.campaign_id = c.id`;
 
