@@ -351,14 +351,14 @@ async function _handleTaskPost(req, res) {
       const doneMap = {};
       kwCounts.forEach(r => { doneMap[r.keyword] = Number(r.done); });
 
-      // Today's completed per keyword (for daily_views limit check)
+      // Today's completed per keyword (for daily_views limit check) - dùng UTC tương đương của VN timezone
       const [kwTodayCounts] = await pool.execute(
         `SELECT keyword, COUNT(*) as today_done
          FROM vuot_link_tasks
          WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0
-           AND completed_at >= '${todayVn} 00:00:00' AND completed_at <= '${todayVn} 23:59:59'
+           AND completed_at >= ? AND completed_at <= ?
          GROUP BY keyword`,
-        [campaign.id]
+        [campaign.id, vnDayStart, vnDayEnd]
       );
       const todayMap = {};
       kwTodayCounts.forEach(r => { todayMap[r.keyword] = Number(r.today_done); });

@@ -390,7 +390,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-[11px] font-semibold transition-colors ${useKeywordViews ? 'text-amber-600' : 'text-slate-400'}`}>
-                    Cài view riêng/ngày
+                    Cài view riêng
                   </span>
                   <button
                     type="button"
