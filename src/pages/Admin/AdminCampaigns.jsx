@@ -11,6 +11,12 @@ const STATUS_MAP = {
   completed: { label: 'Hoàn thành', cls: 'bg-blue-100 text-indigo-700' },
 };
 
+const TRAFFIC_TYPE_MAP = {
+  google_search: { label: 'Google Search', cls: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
+  direct:        { label: 'Direct',         cls: 'bg-violet-50 text-violet-700', dot: 'bg-violet-500' },
+  social:        { label: 'Social',         cls: 'bg-pink-50 text-pink-700', dot: 'bg-pink-500' },
+};
+
 const parseJsonArray = (val) => {
   if (!val) return [''];
   try { const a = JSON.parse(val); if (Array.isArray(a)) return a.length ? a : ['']; } catch { }
@@ -597,6 +603,7 @@ export default function AdminCampaigns() {
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Chiến dịch</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Loại</th>
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Chủ sở hữu</th>
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Ngân sách</th>
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Views</th>
@@ -616,6 +623,17 @@ export default function AdminCampaigns() {
                           <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline flex items-center gap-1">
                             {c.url?.slice(0, 40)} <ExternalLink size={10} />
                           </a>
+                        </td>
+                        <td className="px-5 py-3">
+                          {(() => {
+                            const tt = TRAFFIC_TYPE_MAP[c.traffic_type] || { label: c.traffic_type || '—', cls: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' };
+                            return (
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-bold rounded-full ${tt.cls}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${tt.dot}`} />
+                                {tt.label}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-5 py-3">
                           <p className="text-slate-700 font-medium">{c.user_name || '—'}</p>
@@ -707,6 +725,15 @@ export default function AdminCampaigns() {
                           <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline flex items-center gap-1 truncate">
                             {c.url?.slice(0, 35)} <ExternalLink size={10} className="shrink-0" />
                           </a>
+                          {(() => {
+                            const tt = TRAFFIC_TYPE_MAP[c.traffic_type] || { label: c.traffic_type || '—', cls: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' };
+                            return (
+                              <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 text-[10px] font-bold rounded-full ${tt.cls}`}>
+                                <span className={`w-1 h-1 rounded-full ${tt.dot}`} />
+                                {tt.label}
+                              </span>
+                            );
+                          })()}
                         </div>
                         <span className={`px-2 py-1 text-[10px] font-bold rounded-full shrink-0 ${st.cls}`}>{st.label}</span>
                       </div>

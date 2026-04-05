@@ -357,13 +357,57 @@ export default function CreateCampaign() {
     }
   };
 
+  const isDirect = form.trafficType === 'direct';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const validKeywords = form.keywords.filter(k => k.keyword.trim());
-    
-    // Auto-extract urls from validKeywords
-    const extractedUrls = validKeywords.map(k => k.url).filter(u => u && u.trim());
     const validGlobalUrl = form.urls[0]?.trim();
+
+    if (isDirect) {
+      // Direct traffic: chỉ cần tên, loại, thời gian, URL
+      if (!form.campaignName || !form.trafficType || !form.duration || !validGlobalUrl) {
+        setError('Vui lòng điền đầy đủ Tên chiến dịch, Thời gian và URL đích.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      setError('');
+      setSubmitting(true);
+      try {
+        await api.post('/campaigns', {
+          name:             form.campaignName,
+          url:              validGlobalUrl,
+          url2:             JSON.stringify([]),
+          traffic_type:     'direct',
+          keyword:          JSON.stringify([]),
+          keyword_config:   JSON.stringify([]),
+          total_views:      keywordTotalViews,
+          daily_views:      form.dailyViews,
+          duration:         Number(form.duration),
+          version:          form.version,
+          discount_applied: discountApplied,
+          discount_code:    discountApplied ? form.discountCode.trim() : '',
+          cpc:              pricePerView,
+          budget:           totalPrice,
+          device:           form.devices.join(','),
+          country:          form.countries.join(','),
+          image1_url:       '',
+          image2_url:       '',
+          note:             form.note,
+        });
+        setSubmitted(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) {
+        setError(err.message);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // Non-direct: Google Search / Social cần từ khóa
+    const validKeywords = form.keywords.filter(k => k.keyword.trim());
+    const extractedUrls = validKeywords.map(k => k.url).filter(u => u && u.trim());
     
     if (!form.campaignName || !form.trafficType || !form.duration || validKeywords.length === 0 || (!validGlobalUrl && extractedUrls.length === 0)) {
       setError('Vui lòng điền đầy đủ Tên, Loại traffic, Thời gian và ít nhất 1 từ khoá kèm 1 URL đích (chung hoặc riêng).');
@@ -598,191 +642,213 @@ export default function CreateCampaign() {
               </div>
             </SectionCard>
 
-            {/* ── 2. Từ khóa & URL ── */}
-            <SectionCard icon={Globe} iconBg="bg-amber-50" iconColor="text-amber-600" title="Từ khóa & Địa chỉ web">
-              {/* Default Target Configs */}
-              <div className="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Globe size={16} className="text-indigo-600" />
-                  <h4 className="text-sm font-bold text-indigo-900">Cấu hình URL và Hình ảnh (Mặc định dùng chung)</h4>
+            {/* ── 2. URL đích (Direct) hoặc Từ khóa & URL ── */}
+            {isDirect ? (
+              /* ── Direct: chỉ cần URL đích ── */
+              <SectionCard icon={Link2} iconBg="bg-violet-50" iconColor="text-violet-600" title="URL đích" badge="Direct">
+                <div className="flex items-start gap-3 mb-4 p-3.5 bg-violet-50 border border-violet-200 rounded-xl">
+                  <Link2 size={15} className="text-violet-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-violet-700 leading-relaxed">
+                    <strong>Direct / Redirect traffic</strong> — Không cần từ khóa hay hình ảnh. Visitor sẽ truy cập trực tiếp vào URL bên dưới.
+                  </p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label hint="Sử dụng làm URL đích nếu từ khóa không có cấu hình URL riêng">Mặc định: URL đích</Label>
-                    <TextInput
-                      placeholder="https://example.com"
-                      value={form.urls[0]}
-                      onChange={e => updateArrayItem('urls', 0, e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label hint="Sử dụng làm Hình ảnh nếu từ khóa không cài ảnh riêng">Mặc định: Hình ảnh</Label>
-                    <div className="flex gap-2">
-                      <TextInput
-                        placeholder="Link ảnh hoặc Dán ảnh (Ctrl+V)"
-                        value={form.imageUrls[0]}
-                        onChange={e => updateArrayItem('imageUrls', 0, e.target.value)}
-                        onPaste={async e => {
-                          const items = e.clipboardData?.items;
-                          if (!items) return;
-                          for (let i = 0; i < items.length; i++) {
-                            const item = items[i];
-                            if (item.type.startsWith('image/')) {
-                              e.preventDefault();
-                              const file = item.getAsFile();
-                              if (file) handleImageUpload({ target: { files: [file] } }, 0);
-                              break;
-                            }
-                          }
-                        }}
-                        className="flex-1"
-                      />
-                      <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
-                        {uploadingIdx === 0 ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
-                        <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 0)} />
-                      </label>
-                    </div>
-                  </div>
+                <div>
+                  <Label required hint="URL đích mà visitor sẽ truy cập trực tiếp">URL đích</Label>
+                  <TextInput
+                    placeholder="https://example.com"
+                    value={form.urls[0]}
+                    onChange={e => updateArrayItem('urls', 0, e.target.value)}
+                  />
+                  <Hint>Visitor sẽ được điều hướng thẳng đến URL này, không qua bước tìm kiếm.</Hint>
                 </div>
-              </div>
-
-              {/* Keywords */}
-              <div>
-                {/* Header row with toggle */}
-                <div className="flex items-center justify-between mb-2">
-                  <Label required>Từ khóa tìm kiếm</Label>
-                  <div className="flex items-center gap-4 mb-1.5">
-                    <div className="flex items-center gap-2 border-r border-slate-200 pr-4">
-                      <span className={`text-xs font-semibold transition-colors ${form.useKeywordUrls ? 'text-indigo-600' : 'text-slate-400'}`}>
-                        Cài Link/Ảnh riêng
-                      </span>
-                      <Toggle checked={form.useKeywordUrls} onChange={() => setForm(f => ({ ...f, useKeywordUrls: !f.useKeywordUrls }))} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-semibold transition-colors ${form.useKeywordViews ? 'text-sky-600' : 'text-slate-400'}`}>
-                        Cài view/ngày riêng
-                      </span>
-                      <Toggle checked={form.useKeywordViews} onChange={toggleKeywordViews} />
-                    </div>
+              </SectionCard>
+            ) : (
+              /* ── Google Search / Social: cần từ khóa & URL ── */
+              <SectionCard icon={Globe} iconBg="bg-amber-50" iconColor="text-amber-600" title="Từ khóa & Địa chỉ web">
+                {/* Default Target Configs */}
+                <div className="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Globe size={16} className="text-indigo-600" />
+                    <h4 className="text-sm font-bold text-indigo-900">Cấu hình URL và Hình ảnh (Mặc định dùng chung)</h4>
                   </div>
-                </div>
-
-                {form.useKeywordViews && (
-                  <div className="mb-3 flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
-                    <BarChart2 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs font-bold text-sky-700 mb-0.5">Giới hạn view/ngày cho từng từ khóa</p>
-                      <p className="text-xs text-sky-600 leading-relaxed">
-                        Đặt số view tối đa mỗi ngày cho từng từ khóa. Từ khóa để <b>0</b> sẽ tự nhận phần còn lại ({remainingDailyViews.toLocaleString()} view/ngày ÷ {form.keywords.filter(k => !(Number(k.daily_views) > 0)).length} từ khóa).
-                      </p>
+                      <Label hint="Sử dụng làm URL đích nếu từ khóa không có cấu hình URL riêng">Mặc định: URL đích</Label>
+                      <TextInput
+                        placeholder="https://example.com"
+                        value={form.urls[0]}
+                        onChange={e => updateArrayItem('urls', 0, e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label hint="Sử dụng làm Hình ảnh nếu từ khóa không cài ảnh riêng">Mặc định: Hình ảnh</Label>
+                      <div className="flex gap-2">
+                        <TextInput
+                          placeholder="Link ảnh hoặc Dán ảnh (Ctrl+V)"
+                          value={form.imageUrls[0]}
+                          onChange={e => updateArrayItem('imageUrls', 0, e.target.value)}
+                          onPaste={async e => {
+                            const items = e.clipboardData?.items;
+                            if (!items) return;
+                            for (let i = 0; i < items.length; i++) {
+                              const item = items[i];
+                              if (item.type.startsWith('image/')) {
+                                e.preventDefault();
+                                const file = item.getAsFile();
+                                if (file) handleImageUpload({ target: { files: [file] } }, 0);
+                                break;
+                              }
+                            }
+                          }}
+                          className="flex-1"
+                        />
+                        <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
+                          {uploadingIdx === 0 ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
+                          <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 0)} />
+                        </label>
+                      </div>
                     </div>
                   </div>
-                )}
+                </div>
 
-                <div className="space-y-4">
-                  {form.keywords.map((kw, i) => (
-                    <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
-                      <div className="flex gap-2 items-center">
-                        <div className="relative flex-1">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">{i + 1}</span>
-                          <TextInput
-                            placeholder={`Từ khóa ${i + 1}`}
-                            value={kw.keyword}
-                            onChange={e => updateKeywordText(i, e.target.value)}
-                            className="pl-10"
-                          />
-                        </div>
-
-                        {form.useKeywordViews && (
-                          <div className="relative w-32 flex-shrink-0">
-                            <input
-                              type="number"
-                              min="0"
-                              value={kw.daily_views || 0}
-                              onChange={e => updateKeywordDailyViews(i, e.target.value)}
-                              className="w-full px-2 py-2.5 text-sm border-2 border-sky-300 rounded-xl bg-sky-50
-                                         focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-500
-                                         transition pr-14 font-black text-sky-900 text-right"
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
-                          </div>
-                        )}
-
-                        {form.keywords.length > 1 && (
-                          <button type="button" onClick={() => removeKeyword(i)}
-                            className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0 absolute -top-2 -right-2 bg-white border border-red-100 shadow-sm z-10 w-8 h-8 flex items-center justify-center">
-                            <Trash2 size={13} />
-                          </button>
-                        )}
+                {/* Keywords */}
+                <div>
+                  {/* Header row with toggle */}
+                  <div className="flex items-center justify-between mb-2">
+                    <Label required>Từ khóa tìm kiếm</Label>
+                    <div className="flex items-center gap-4 mb-1.5">
+                      <div className="flex items-center gap-2 border-r border-slate-200 pr-4">
+                        <span className={`text-xs font-semibold transition-colors ${form.useKeywordUrls ? 'text-indigo-600' : 'text-slate-400'}`}>
+                          Cài Link/Ảnh riêng
+                        </span>
+                        <Toggle checked={form.useKeywordUrls} onChange={() => setForm(f => ({ ...f, useKeywordUrls: !f.useKeywordUrls }))} />
                       </div>
-                      {form.useKeywordUrls && (
-                        <div className="flex gap-2 items-center mt-1">
-                          <TextInput
-                            placeholder="URL đích riêng (Tuỳ chọn)"
-                            value={kw.url}
-                            onChange={e => updateKeywordUrl(i, e.target.value)}
-                            className="flex-1 text-xs"
-                          />
-                          <div className="flex-1 flex gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-semibold transition-colors ${form.useKeywordViews ? 'text-sky-600' : 'text-slate-400'}`}>
+                          Cài view/ngày riêng
+                        </span>
+                        <Toggle checked={form.useKeywordViews} onChange={toggleKeywordViews} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {form.useKeywordViews && (
+                    <div className="mb-3 flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
+                      <BarChart2 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-bold text-sky-700 mb-0.5">Giới hạn view/ngày cho từng từ khóa</p>
+                        <p className="text-xs text-sky-600 leading-relaxed">
+                          Đặt số view tối đa mỗi ngày cho từng từ khóa. Từ khóa để <b>0</b> sẽ tự nhận phần còn lại ({remainingDailyViews.toLocaleString()} view/ngày ÷ {form.keywords.filter(k => !(Number(k.daily_views) > 0)).length} từ khóa).
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    {form.keywords.map((kw, i) => (
+                      <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
+                        <div className="flex gap-2 items-center">
+                          <div className="relative flex-1">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">{i + 1}</span>
                             <TextInput
-                              placeholder="Link Image riêng - Hoặc Ctrl+V dán ảnh"
-                              value={kw.image}
-                              onChange={e => updateKeywordImage(i, e.target.value)}
-                              onPaste={async e => {
-                                const items = e.clipboardData?.items;
-                                if (!items) return;
-                                for (let j = 0; j < items.length; j++) {
-                                  const item = items[j];
-                                  if (item.type.startsWith('image/')) {
-                                    e.preventDefault();
-                                    const file = item.getAsFile();
-                                    if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
-                                    break;
-                                  }
-                                }
-                              }}
+                              placeholder={`Từ khóa ${i + 1}`}
+                              value={kw.keyword}
+                              onChange={e => updateKeywordText(i, e.target.value)}
+                              className="pl-10"
+                            />
+                          </div>
+
+                          {form.useKeywordViews && (
+                            <div className="relative w-32 flex-shrink-0">
+                              <input
+                                type="number"
+                                min="0"
+                                value={kw.daily_views || 0}
+                                onChange={e => updateKeywordDailyViews(i, e.target.value)}
+                                className="w-full px-2 py-2.5 text-sm border-2 border-sky-300 rounded-xl bg-sky-50
+                                           focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-500
+                                           transition pr-14 font-black text-sky-900 text-right"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
+                            </div>
+                          )}
+
+                          {form.keywords.length > 1 && (
+                            <button type="button" onClick={() => removeKeyword(i)}
+                              className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0 absolute -top-2 -right-2 bg-white border border-red-100 shadow-sm z-10 w-8 h-8 flex items-center justify-center">
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                        {form.useKeywordUrls && (
+                          <div className="flex gap-2 items-center mt-1">
+                            <TextInput
+                              placeholder="URL đích riêng (Tuỳ chọn)"
+                              value={kw.url}
+                              onChange={e => updateKeywordUrl(i, e.target.value)}
                               className="flex-1 text-xs"
                             />
-                            <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
-                              {uploadingKwIdx === i ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
-                              <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
-                            </label>
+                            <div className="flex-1 flex gap-2">
+                              <TextInput
+                                placeholder="Link Image riêng - Hoặc Ctrl+V dán ảnh"
+                                value={kw.image}
+                                onChange={e => updateKeywordImage(i, e.target.value)}
+                                onPaste={async e => {
+                                  const items = e.clipboardData?.items;
+                                  if (!items) return;
+                                  for (let j = 0; j < items.length; j++) {
+                                    const item = items[j];
+                                    if (item.type.startsWith('image/')) {
+                                      e.preventDefault();
+                                      const file = item.getAsFile();
+                                      if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
+                                      break;
+                                    }
+                                  }
+                                }}
+                                className="flex-1 text-xs"
+                              />
+                              <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
+                                {uploadingKwIdx === i ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
+                                <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
+                              </label>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Daily views budget summary */}
-                {form.useKeywordViews && (
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <div className="flex items-center justify-between bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
-                      <span className="text-xs font-bold text-sky-600">Đã phân bổ</span>
-                      <span className="text-sm font-black text-sky-700 tabular-nums">
-                        {allocatedDailyViews.toLocaleString()}<span className="text-[10px] font-semibold text-sky-400 ml-1">/ngày</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-                      <span className="text-xs font-bold text-emerald-600">Còn lại (tự động)</span>
-                      <span className="text-sm font-black text-emerald-700 tabular-nums">
-                        {remainingDailyViews.toLocaleString()}<span className="text-[10px] font-semibold text-emerald-400 ml-1">/ngày</span>
-                      </span>
-                    </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                )}
 
-                <button type="button" onClick={addKeyword}
-                  className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
-                  <Plus size={13} /> Thêm từ khóa
-                </button>
-                <Hint>
-                  {form.useKeywordViews
-                    ? 'Từ khóa để 0 sẽ tự nhận phần còn lại chia đều. Tổng view mua không thay đổi.'
-                    : 'Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt truy cập'}
-                </Hint>
-              </div>
-            </SectionCard>
+                  {/* Daily views budget summary */}
+                  {form.useKeywordViews && (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="flex items-center justify-between bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
+                        <span className="text-xs font-bold text-sky-600">Đã phân bổ</span>
+                        <span className="text-sm font-black text-sky-700 tabular-nums">
+                          {allocatedDailyViews.toLocaleString()}<span className="text-[10px] font-semibold text-sky-400 ml-1">/ngày</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                        <span className="text-xs font-bold text-emerald-600">Còn lại (tự động)</span>
+                        <span className="text-sm font-black text-emerald-700 tabular-nums">
+                          {remainingDailyViews.toLocaleString()}<span className="text-[10px] font-semibold text-emerald-400 ml-1">/ngày</span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <button type="button" onClick={addKeyword}
+                    className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
+                    <Plus size={13} /> Thêm từ khóa
+                  </button>
+                  <Hint>
+                    {form.useKeywordViews
+                      ? 'Từ khóa để 0 sẽ tự nhận phần còn lại chia đều. Tổng view mua không thay đổi.'
+                      : 'Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt truy cập'}
+                  </Hint>
+                </div>
+              </SectionCard>
+            )}
 
             {/* ── 4. Thiết bị & Quốc gia ── */}
             <SectionCard icon={MousePointerClick} iconBg="bg-teal-50" iconColor="text-teal-600" title="Thiết bị & Quốc gia">
