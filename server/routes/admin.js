@@ -85,6 +85,22 @@ router.get('/overview', async (req, res) => {
 });
 
 
+// ── Source Approval: stats ──
+router.get('/source-approval/stats', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN source_status = 'pending' OR source_status IS NULL OR source_status = '' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN source_status = 'approved' THEN 1 ELSE 0 END) as approved,
+        SUM(CASE WHEN source_status = 'rejected' THEN 1 ELSE 0 END) as rejected
+      FROM users WHERE service_type = 'shortlink'
+    `);
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/users', async (req, res) => {
   const pool = getPool();
   const { search, role, service_type, page = 1, limit = 20 } = req.query;
@@ -120,6 +136,17 @@ router.get('/users', async (req, res) => {
     } else {
       sql += ' AND u.service_type = ?'; countSql += ' AND u.service_type = ?';
       params.push(service_type); countParams.push(service_type);
+    }
+  }
+  // Filter by source_status (for source approval page)
+  const { source_status } = req.query;
+  if (source_status && source_status !== 'all') {
+    if (source_status === 'pending') {
+      const pCond = " AND (u.source_status = 'pending' OR u.source_status IS NULL OR u.source_status = '')";
+      sql += pCond; countSql += pCond;
+    } else {
+      sql += ' AND u.source_status = ?'; countSql += ' AND u.source_status = ?';
+      params.push(source_status); countParams.push(source_status);
     }
   }
 

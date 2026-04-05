@@ -44,13 +44,15 @@ async function apiFetch(endpoint, options = {}) {
     throw new Error('Phiên đăng nhập hết hạn');
   }
   if (res.status === 403) {
+    // Read body ONCE — avoid "body stream already read" error
     const data = await res.json().catch(() => ({}));
-    // Only force logout if it's an account suspension (not a permissions error)
     if (data.error && data.error.includes('tạm ngưng')) {
       clearAuth();
       window.location.href = '/dang-nhap?banned=1';
       throw new Error(data.error);
     }
+    // Other 403 (e.g. not admin) — throw immediately, do NOT fall through
+    throw new Error(data.error || 'Không có quyền truy cập');
   }
 
   const data = await res.json();
