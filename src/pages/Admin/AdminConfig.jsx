@@ -53,9 +53,9 @@ const WEB3_DB_FIELDS = [
 ];
 
 const ANNOUNCEMENT_FIELDS = [
-  { key: 'worker_announcement_enabled', label: 'Hiển thị thông báo cho Worker', description: 'Bật/tắt banner thông báo trên trang tổng quan của worker', type: 'toggle', defaultValue: 'false' },
+  { key: 'worker_announcement_enabled', label: 'Hiển thị thông báo cho Worker', description: 'Bật/tắt banner thông báo trên trang Tổng quan của worker', type: 'toggle', defaultValue: 'false' },
   {
-    key: 'worker_announcement_type', label: 'Loại thông báo', description: 'Màu sắc và kiểu thông báo: info (xanh), warning (vàng), success (xanh lá), error (đỏ)', type: 'select', defaultValue: 'info', options: [
+    key: 'worker_announcement_type', label: 'Loại thông báo Worker', description: 'Màu sắc và kiểu thông báo worker', type: 'select', defaultValue: 'info', options: [
       { value: 'info', label: '🔵 Info (Xanh dương)' },
       { value: 'warning', label: '🟡 Warning (Vàng)' },
       { value: 'success', label: '🟢 Success (Xanh lá)' },
@@ -64,7 +64,19 @@ const ANNOUNCEMENT_FIELDS = [
   },
 ];
 
-const ALL_CONFIG_FIELDS = [...VUOTLINK_FIELDS, ...DEPOSIT_FIELDS, ...WITHDRAW_FIELDS, ...WEB3_DB_FIELDS, ...ANNOUNCEMENT_FIELDS];
+const BUYER_ANNOUNCEMENT_FIELDS = [
+  { key: 'buyer_announcement_enabled', label: 'Hiển thị thông báo cho Buyer', description: 'Bật/tắt banner thông báo trên trang Tổng quan của buyer', type: 'toggle', defaultValue: 'false' },
+  {
+    key: 'buyer_announcement_type', label: 'Loại thông báo Buyer', description: 'Màu sắc và kiểu thông báo buyer', type: 'select', defaultValue: 'info', options: [
+      { value: 'info', label: '🔵 Info (Xanh dương)' },
+      { value: 'warning', label: '🟡 Warning (Vàng)' },
+      { value: 'success', label: '🟢 Success (Xanh lá)' },
+      { value: 'error', label: '🔴 Error (Đỏ)' },
+    ]
+  },
+];
+
+const ALL_CONFIG_FIELDS = [...VUOTLINK_FIELDS, ...DEPOSIT_FIELDS, ...WITHDRAW_FIELDS, ...WEB3_DB_FIELDS, ...ANNOUNCEMENT_FIELDS, ...BUYER_ANNOUNCEMENT_FIELDS];
 
 // LocalStorage key for private key
 const PK_STORAGE_KEY = 'web3_hot_wallet_pk';
@@ -131,6 +143,7 @@ export default function AdminConfig() {
       const settings = {};
       ALL_CONFIG_FIELDS.forEach(f => { settings[f.key] = config[f.key] ?? f.defaultValue; });
       settings.worker_announcement = config.worker_announcement || '';
+      settings.buyer_announcement = config.buyer_announcement || '';
       await api.put('/admin/settings/site', { settings });
       toast.success('Cấu hình đã được lưu');
       setSaved(true);
@@ -420,6 +433,43 @@ export default function AdminConfig() {
               }`}>
               <Bell size={15} className="mt-0.5 flex-shrink-0" />
               <p className="leading-relaxed whitespace-pre-line">{config.worker_announcement}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Buyer Announcement */}
+      <div className="bg-white rounded-xl border border-indigo-200 overflow-hidden">
+        <div className="px-6 py-4 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-200 flex items-center gap-2">
+          <Bell size={16} className="text-indigo-600" />
+          <h2 className="font-bold text-slate-800">Thông báo cho Buyer</h2>
+          <span className="ml-auto text-xs font-semibold text-indigo-400 bg-indigo-100 px-2 py-0.5 rounded-full">Hiển trên dashboard buyer</span>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {BUYER_ANNOUNCEMENT_FIELDS.map(renderField)}
+        </div>
+        <div className="px-6 py-4 border-t border-slate-100">
+          <p className="font-semibold text-sm text-slate-700 mb-1">Nội dung thông báo</p>
+          <p className="text-xs text-slate-400 mb-3">Hiển thị trên trang Tổng quan của buyer. Hỗ trợ nhiều dòng.</p>
+          <textarea
+            rows={4}
+            value={config.buyer_announcement || ''}
+            onChange={e => updateField('buyer_announcement', e.target.value)}
+            placeholder="VD: Chúng tôi đang nâng cấp hệ thống. Một số tính năng có thể bị ảnh hưởng tạm thời."
+            className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all resize-none"
+          />
+        </div>
+        {config.buyer_announcement && (
+          <div className="px-6 pb-5">
+            <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Preview</p>
+            <div className={`flex items-start gap-3 px-4 py-3.5 rounded-xl border text-sm font-medium ${
+              config.buyer_announcement_type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+              config.buyer_announcement_type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
+              config.buyer_announcement_type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
+              'bg-blue-50 border-blue-200 text-blue-800'
+            }`}>
+              <Bell size={15} className="mt-0.5 flex-shrink-0" />
+              <p className="leading-relaxed whitespace-pre-line">{config.buyer_announcement}</p>
             </div>
           </div>
         )}

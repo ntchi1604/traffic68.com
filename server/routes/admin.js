@@ -2190,4 +2190,185 @@ router.get('/security/fingerprint-clusters', async (req, res) => {
   }
 });
 
+
+// ─────────────────────────────────────────────────────────────────────
+// WORKER PRICING GROUPS — CRUD + member assignment
+// ─────────────────────────────────────────────────────────────────────
+
+// Auto-create table nếu chưa có (chạy 1 lần khi route được dùng)
+let _pgTableReady = false;
+async function ensurePgTables(pool) {
+  if (_pgTableReady) return;
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS worker_pricing_groups (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      description TEXT,
+      created_at DATETIME DEFAULT NOW()
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS worker_pricing_group_rates (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      group_id INT NOT NULL,
+      traffic_type VARCHAR(50) NOT NULL,
+      duration VARCHAR(20) NOT NULL,
+      v1_price DECIMAL(15,0) DEFAULT 0,
+      v2_price DECIMAL(15,0) DEFAULT 0,
+      UNIQUE KEY uniq_rate (group_id, traffic_type, duration),
+      FOREIGN KEY (group_id) REFERENCES worker_pricing_groups(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  // Add pricing_group_id to users if missing
+  try {
+    await pool.execute(`ALTER TABLE users ADD COLUMN pricing_group_id INT NULL DEFAULT NULL`);
+  } catch (e) { /* column already exists */ }
+  _pgTableReady = true;
+}
+
+// GET /admin/pricing-groups — list all groups with member count
+router.get('/pricing-groups', async (req, res) => {
+  const pool = getPool();
+  try {
+    await ensurePgTables(pool);
+    const [groups] = await pool.execute(`
+      SELECT g.*, COUNT(u.id) as member_count
+      FROM worker_pricing_groups g
+      LEFT JOIN users u ON u.pricing_group_id = g.id
+      GROUP BY g.id ORDER BY g.created_at DESC`);
+    res.json({ groups });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /admin/pricing-groups — create group
+router.post('/pricing-groups', async (req, res) => {
+  const pool = getPool();
+  const { name, description } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Tên nhóm không được để trống' });
+  try {
+    await ensurePgTables(pool);
+    const [r] = await pool.execute(
+      'INSERT INTO worker_pricing_groups (name, description) VALUES (?, ?)',
+      [name.trim(), description || '']
+    );
+    // Clone default rates from worker_pricing_tiers
+    let tiers = [];
+    try {
+      [tiers] = await pool.execute('SELECT * FROM worker_pricing_tiers');
+    } catch (e) {}
+    for (const t of tiers) {
+      await pool.execute(
+        'INSERT IGNORE INTO worker_pricing_group_rates (group_id, traffic_type, duration, v1_price, v2_price) VALUES (?,?,?,?,?)',
+        [r.insertId, t.traffic_type, t.duration, t.v1_price || 0, t.v2_price || 0]
+      );
+    }
+    const [rows] = await pool.execute('SELECT * FROM worker_pricing_groups WHERE id = ?', [r.insertId]);
+    res.status(201).json({ group: rows[0] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /admin/pricing-groups/:id — rename/desc group
+router.put('/pricing-groups/:id', async (req, res) => {
+  const pool = getPool();
+  const { name, description } = req.body;
+  try {
+    await pool.execute('UPDATE worker_pricing_groups SET name=COALESCE(?,name), description=COALESCE(?,description) WHERE id=?',
+      [name || null, description !== undefined ? description : null, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /admin/pricing-groups/:id — delete group (unassign members)
+router.delete('/pricing-groups/:id', async (req, res) => {
+  const pool = getPool();
+  try {
+    await pool.execute('UPDATE users SET pricing_group_id = NULL WHERE pricing_group_id = ?', [req.params.id]);
+    await pool.execute('DELETE FROM worker_pricing_groups WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /admin/pricing-groups/:id/rates — get rates for group
+router.get('/pricing-groups/:id/rates', async (req, res) => {
+  const pool = getPool();
+  try {
+    await ensurePgTables(pool);
+    const [rates] = await pool.execute('SELECT * FROM worker_pricing_group_rates WHERE group_id = ?', [req.params.id]);
+    res.json({ rates });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /admin/pricing-groups/:id/rates — bulk update rates
+router.put('/pricing-groups/:id/rates', async (req, res) => {
+  const pool = getPool();
+  const { rates } = req.body; // [{traffic_type, duration, v1_price, v2_price}]
+  if (!Array.isArray(rates)) return res.status(400).json({ error: 'rates must be array' });
+  try {
+    await ensurePgTables(pool);
+    for (const r of rates) {
+      await pool.execute(
+        `INSERT INTO worker_pricing_group_rates (group_id, traffic_type, duration, v1_price, v2_price)
+         VALUES (?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE v1_price=VALUES(v1_price), v2_price=VALUES(v2_price)`,
+        [req.params.id, r.traffic_type, r.duration, Number(r.v1_price) || 0, Number(r.v2_price) || 0]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /admin/pricing-groups/:id/members — list workers in group
+router.get('/pricing-groups/:id/members', async (req, res) => {
+  const pool = getPool();
+  try {
+    const [members] = await pool.execute(
+      `SELECT id, name, email, created_at FROM users WHERE pricing_group_id = ? ORDER BY name ASC`,
+      [req.params.id]
+    );
+    res.json({ members });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /admin/pricing-groups/:id/members — assign worker(s) to group
+router.post('/pricing-groups/:id/members', async (req, res) => {
+  const pool = getPool();
+  const { userIds } = req.body; // array of user IDs
+  if (!Array.isArray(userIds) || userIds.length === 0)
+    return res.status(400).json({ error: 'userIds array required' });
+  try {
+    const ph = userIds.map(() => '?').join(',');
+    await pool.execute(
+      `UPDATE users SET pricing_group_id = ? WHERE id IN (${ph})`,
+      [req.params.id, ...userIds]
+    );
+    res.json({ ok: true, updated: userIds.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /admin/pricing-groups/:id/members/:userId — remove worker from group
+router.delete('/pricing-groups/:id/members/:userId', async (req, res) => {
+  const pool = getPool();
+  try {
+    await pool.execute(
+      'UPDATE users SET pricing_group_id = NULL WHERE id = ? AND pricing_group_id = ?',
+      [req.params.userId, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /admin/pricing-groups/workers-without-group — users not in any group
+router.get('/pricing-groups-unassigned', async (req, res) => {
+  const pool = getPool();
+  const search = (req.query.search || '').trim();
+  try {
+    await ensurePgTables(pool);
+    let sql = `SELECT id, name, email FROM users WHERE (pricing_group_id IS NULL) AND role != 'admin'`;
+    const params = [];
+    if (search) { sql += ' AND (name LIKE ? OR email LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+    sql += ' ORDER BY name ASC LIMIT 50';
+    const [rows] = await pool.execute(sql, params);
+    res.json({ users: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
+

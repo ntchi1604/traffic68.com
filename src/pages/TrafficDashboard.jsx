@@ -9,7 +9,7 @@ import {
   Wallet, Plus, TrendingUp, Zap, CreditCard, ArrowUpRight, ArrowDownLeft,
   BarChart2, CheckCircle2, ChevronRight, Target, RefreshCw,
   MousePointerClick, Globe, Activity, Sparkles, Eye, Timer,
-  Gift, ShoppingCart, ArrowDownCircle,
+  Gift, ShoppingCart, ArrowDownCircle, Bell, X,
 } from 'lucide-react';
 import { formatMoney as fmt, fmtDateTime } from '../lib/format';
 import api from '../lib/api';
@@ -118,6 +118,8 @@ export default function TrafficDashboard() {
   const [greeting, setGreeting]         = useState('');
   const [userName, setUserName]         = useState('');
   const [currentTime, setCurrentTime]   = useState(new Date());
+  const [announcement, setAnnouncement] = useState(null);
+  const [announcementDismissed, setAnnouncementDismissed] = useState(false);
 
   useEffect(() => {
     const h = new Date().getHours();
@@ -143,6 +145,12 @@ export default function TrafficDashboard() {
       setTransactions(tx.transactions || []);
       if (me?.user?.name) setUserName(me.user.name);
     }).catch(console.error).finally(() => setLoading(false));
+
+    // Fetch buyer announcement
+    fetch('/api/announcement?role=buyer')
+      .then(r => r.json())
+      .then(d => { if (d.enabled && d.message) setAnnouncement(d); })
+      .catch(() => {});
   }, []);
 
   if (loading) return (
@@ -221,6 +229,29 @@ export default function TrafficDashboard() {
 
   return (
     <div className="space-y-5 w-full min-w-0 pb-6" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+
+      {/* ── Admin Announcement Banner ── */}
+      {announcement && !announcementDismissed && (() => {
+        const styles = {
+          info:    { wrap: 'bg-blue-50 border-blue-200 text-blue-800',    icon: 'text-blue-500' },
+          warning: { wrap: 'bg-amber-50 border-amber-200 text-amber-800', icon: 'text-amber-500' },
+          success: { wrap: 'bg-emerald-50 border-emerald-200 text-emerald-800', icon: 'text-emerald-500' },
+          error:   { wrap: 'bg-red-50 border-red-200 text-red-800',       icon: 'text-red-500' },
+        };
+        const s = styles[announcement.type] || styles.info;
+        return (
+          <div className={`flex items-start gap-3 px-5 py-4 rounded-2xl border shadow-sm ${s.wrap}`}>
+            <Bell size={18} className={`${s.icon} flex-shrink-0 mt-0.5`} />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wide mb-1 opacity-60">Thông báo từ Admin</p>
+              <p className="text-sm font-semibold leading-relaxed whitespace-pre-line">{announcement.message}</p>
+            </div>
+            <button onClick={() => setAnnouncementDismissed(true)} className="flex-shrink-0 p-1 rounded-lg hover:bg-black/10 transition" title="Đóng">
+              <X size={15} />
+            </button>
+          </div>
+        );
+      })()}
 
       {/* ── Quick actions ── */}
       <div className="flex items-center justify-end gap-2.5 flex-wrap">

@@ -62,19 +62,22 @@ app.get('/api/worker-pricing', async (req, res) => {
   }
 });
 
-// ── Public: Worker announcement from admin ──
+// ── Public: Worker/Buyer announcement from admin ──
 app.get('/api/announcement', async (req, res) => {
   try {
+    const role = req.query.role === 'buyer' ? 'buyer' : 'worker';
+    const prefix = `${role}_announcement`;
     const pool = getPool();
     const [rows] = await pool.execute(
-      "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('worker_announcement','worker_announcement_type','worker_announcement_enabled')"
+      `SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN (?,?,?)`,
+      [prefix, prefix + '_type', prefix + '_enabled']
     );
     const cfg = {};
     rows.forEach(r => { cfg[r.setting_key] = r.setting_value; });
     res.json({
-      enabled: cfg.worker_announcement_enabled === 'true',
-      message: cfg.worker_announcement || '',
-      type: cfg.worker_announcement_type || 'info',
+      enabled: cfg[prefix + '_enabled'] === 'true',
+      message: cfg[prefix] || '',
+      type: cfg[prefix + '_type'] || 'info',
     });
   } catch (err) {
     res.json({ enabled: false, message: '', type: 'info' });
@@ -251,12 +254,15 @@ app.use((err, req, res, next) => {
       console.log('  ✅ security_logs table ready');
     } catch (e) { console.error('  ⚠ security_logs:', e.message); }
 
-    // ── Seed worker announcement settings nếu chưa có ──
+    // ── Seed worker + buyer announcement settings nếu chưa có ──
     try {
       const defaultSettings = [
         ['worker_announcement_enabled', 'false'],
         ['worker_announcement_type', 'info'],
         ['worker_announcement', ''],
+        ['buyer_announcement_enabled', 'false'],
+        ['buyer_announcement_type', 'info'],
+        ['buyer_announcement', ''],
       ];
       for (const [key, val] of defaultSettings) {
         await pool.execute(
@@ -264,8 +270,8 @@ app.use((err, req, res, next) => {
           [key, val]
         );
       }
-      console.log('  ✅ worker_announcement settings ready');
-    } catch (e) { console.error('  ⚠ worker_announcement seed:', e.message); }
+      console.log('  ✅ announcement settings ready (worker + buyer)');
+    } catch (e) { console.error('  ⚠ announcement seed:', e.message); }
 
     app.listen(PORT, () => {
 
