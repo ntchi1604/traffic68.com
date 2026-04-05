@@ -251,6 +251,22 @@ app.use((err, req, res, next) => {
       console.log('  ✅ security_logs table ready');
     } catch (e) { console.error('  ⚠ security_logs:', e.message); }
 
+    // ── Seed worker announcement settings nếu chưa có ──
+    try {
+      const defaultSettings = [
+        ['worker_announcement_enabled', 'false'],
+        ['worker_announcement_type', 'info'],
+        ['worker_announcement', ''],
+      ];
+      for (const [key, val] of defaultSettings) {
+        await pool.execute(
+          'INSERT IGNORE INTO site_settings (setting_key, setting_value) VALUES (?, ?)',
+          [key, val]
+        );
+      }
+      console.log('  ✅ worker_announcement settings ready');
+    } catch (e) { console.error('  ⚠ worker_announcement seed:', e.message); }
+
     app.listen(PORT, () => {
 
       console.log(`
