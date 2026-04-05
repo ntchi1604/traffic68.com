@@ -309,23 +309,13 @@ function GroupCard({ group, allGroups, defaultTiers, onRefresh, onEdit, onDelete
   const saveRates = async () => {
     setSavingRates(true);
     try {
-      // Build full rates array from defaultTiers merged with edits
-      const rateArr = [];
-      const grouped = {};
-      defaultTiers.forEach(t => {
-        if (!grouped[t.traffic_type]) grouped[t.traffic_type] = [];
-        grouped[t.traffic_type].push(t);
-      });
-      Object.keys(grouped).forEach(tt => {
-        grouped[tt].forEach(t => {
-          rateArr.push({
-            traffic_type: t.traffic_type,
-            duration: t.duration,
-            v1_price: getRate(t.traffic_type, t.duration, 'v1_price'),
-            v2_price: getRate(t.traffic_type, t.duration, 'v2_price'),
-          });
-        });
-      });
+      // Build rate array from current rates merged with edits
+      const rateArr = rates.map(t => ({
+        traffic_type: t.traffic_type,
+        duration: t.duration,
+        v1_price: getRate(t.traffic_type, t.duration, 'v1_price'),
+        v2_price: getRate(t.traffic_type, t.duration, 'v2_price'),
+      }));
       await api.put(`/admin/pricing-groups/${group.id}/rates`, { rates: rateArr });
       toast.success('Đã lưu bảng giá nhóm');
       setEditedRates({});
@@ -346,9 +336,9 @@ function GroupCard({ group, allGroups, defaultTiers, onRefresh, onEdit, onDelete
     setRemovingId(null);
   };
 
-  // Group defaultTiers by traffic_type
+  // Group rates by traffic_type (dùng rates của chính nhóm)
   const tiersGrouped = {};
-  defaultTiers.forEach(t => { (tiersGrouped[t.traffic_type] = tiersGrouped[t.traffic_type] || []).push(t); });
+  rates.forEach(t => { (tiersGrouped[t.traffic_type] = tiersGrouped[t.traffic_type] || []).push(t); });
 
   const inputCls = 'w-24 px-2 py-1.5 text-xs font-bold text-center border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-transparent';
 
@@ -422,8 +412,6 @@ function GroupCard({ group, allGroups, defaultTiers, onRefresh, onEdit, onDelete
                                   <th className="px-4 py-2 text-left font-semibold text-slate-500">Thời gian</th>
                                   <th className="px-4 py-2 text-center font-semibold text-indigo-600">Giá V1 (đ)</th>
                                   <th className="px-4 py-2 text-center font-semibold text-indigo-600">Giá V2 (đ)</th>
-                                  <th className="px-4 py-2 text-center font-semibold text-slate-400">V1 mặc định</th>
-                                  <th className="px-4 py-2 text-center font-semibold text-slate-400">V2 mặc định</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
@@ -444,8 +432,6 @@ function GroupCard({ group, allGroups, defaultTiers, onRefresh, onEdit, onDelete
                                           onChange={e => setRate(tt, tier.duration, 'v2_price', e.target.value)}
                                           className={`${inputCls} ${changed ? 'border-indigo-300 bg-white' : ''}`} />
                                       </td>
-                                      <td className="px-4 py-2 text-center text-slate-400">{fmt(tier.v1_price)}</td>
-                                      <td className="px-4 py-2 text-center text-slate-400">{fmt(tier.v2_price)}</td>
                                     </tr>
                                   );
                                 })}
@@ -525,19 +511,14 @@ export default function AdminPricingGroups() {
   usePageTitle('Admin - Nhóm giá Worker');
   const toast = useToast();
   const [groups, setGroups] = useState([]);
-  const [defaultTiers, setDefaultTiers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editingGroup, setEditingGroup] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [gData, tData] = await Promise.all([
-        api.get('/admin/pricing-groups'),
-        api.get('/admin/worker-pricing'),
-      ]);
+      const gData = await api.get('/admin/pricing-groups');
       setGroups(gData.groups || []);
-      setDefaultTiers(tData.tiers || []);
     } catch (err) { console.error(err); }
     setLoading(false);
   }, []);
@@ -573,10 +554,10 @@ export default function AdminPricingGroups() {
         <div className="text-sm text-indigo-700">
           <p className="font-bold mb-1">Cách hoạt động</p>
           <ul className="text-xs space-y-1 text-indigo-600">
-            <li>• Worker không thuộc nhóm nào → áp dụng <strong>bảng giá mặc định</strong> (trang Bảng giá)</li>
-            <li>• Worker thuộc nhóm → áp dụng <strong>giá của nhóm đó</strong> (override hoàn toàn)</li>
-            <li>• Mỗi worker chỉ thuộc 1 nhóm — thêm vào nhóm mới sẽ tự động <strong>chuyển nhóm</strong></li>
-            <li>• Khi tạo nhóm mới, giá được clone từ bảng giá mặc định, bạn chỉnh sau</li>
+            <li>• Mọi worker đều phải thuộc 1 nhóm giá — nhóm <strong>Thường</strong> là mặc định.</li>
+            <li>• Worker được trả theo giá của nhóm mình đang thuộc.</li>
+            <li>• Mỗi worker chỉ thuộc 1 nhóm — thêm vào nhóm mới sẽ tự động <strong>chuyển nhóm</strong>.</li>
+            <li>• Khi tạo nhóm mới, giá được clone từ nhóm Thường, bạn chỉnh sau.</li>
           </ul>
         </div>
       </div>
