@@ -1773,10 +1773,15 @@ router.get('/referrals/:type', async (req, res) => {
       `SELECT r.id, r.name, r.email, r.referral_code, r.service_type, r.referred_by,
        (SELECT COUNT(*) FROM users WHERE referred_by = r.id) as ref_count,
        (SELECT name FROM users WHERE id = r.referred_by) as referred_by_name,
-       (SELECT email FROM users WHERE id = r.referred_by) as referred_by_email
+       (SELECT email FROM users WHERE id = r.referred_by) as referred_by_email,
+       COALESCE((
+         SELECT SUM(t.amount) FROM transactions t
+         WHERE t.user_id = r.id AND t.wallet_type = 'commission'
+           AND t.type = 'commission' AND t.status = 'completed'
+       ), 0) as total_commission
        FROM users r
        WHERE ${where}
-       ORDER BY ref_count DESC, r.created_at DESC
+       ORDER BY total_commission DESC, ref_count DESC, r.created_at DESC
        LIMIT ${Number(limit)} OFFSET ${offset}`,
       params
     );
@@ -1789,6 +1794,13 @@ router.get('/referrals/:type', async (req, res) => {
       `SELECT COUNT(*) as c FROM users u INNER JOIN users r ON u.referred_by = r.id WHERE r.service_type = ?`,
       [serviceType]
     );
+    const [[commRow]] = await pool.execute(
+      `SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t
+       INNER JOIN users u ON t.user_id = u.id
+       WHERE u.service_type = ? AND t.wallet_type = 'commission'
+         AND t.type = 'commission' AND t.status = 'completed'`,
+      [serviceType]
+    );
 
     res.json({
       referrers,
@@ -1797,6 +1809,7 @@ router.get('/referrals/:type', async (req, res) => {
       limit: Number(limit),
       totalReferrers: totalReferrers[0].c,
       totalReferred: totalReferred[0].c,
+      totalCommissionPaid: Number(commRow.total),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1808,10 +1821,112 @@ router.get('/referrals/:type/:userId', async (req, res) => {
   try {
     const pool = getPool();
     const [referred] = await pool.execute(
-      'SELECT id, name, email, service_type, status, created_at FROM users WHERE referred_by = ? ORDER BY created_at DESC',
+      `SELECT u.id, u.name, u.email, u.service_type, u.status, u.created_at,
+       COALESCE((
+         SELECT SUM(t.amount) FROM transactions t
+         WHERE t.user_id = ? AND t.wallet_type = 'commission'
+           AND t.type = 'commission' AND t.status = 'completed'
+           AND t.note LIKE CONCAT('%', u.email, '%')
+       ), 0) as contributed_commission
+       FROM users u WHERE u.referred_by = ? ORDER BY u.created_at DESC`,
+      [req.params.userId, req.params.userId]
+    );
+    // Also get referrer's total commission
+    const [[commRow]] = await pool.execute(
+      `SELECT COALESCE(SUM(amount), 0) as total FROM transactions
+       WHERE user_id = ? AND wallet_type = 'commission' AND type = 'commission' AND status = 'completed'`,
       [req.params.userId]
     );
-    res.json({ referred });
+    res.json({ referred, totalCommission: Number(commRow.total) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ── Withdrawal addresses: admin xem & phát hiện trùng lặp ──
+router.get('/withdrawal-addresses', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { duplicates_only } = req.query;
+
+    // Lấy tất cả địa chỉ rút tiền gần nhất từ note của transactions
+    const [rows] = await pool.execute(
+      `SELECT
+         u.id as user_id, u.name as user_name, u.email as user_email,
+         t.method,
+         t.note,
+         t.created_at as last_used
+       FROM transactions t
+       INNER JOIN users u ON t.user_id = u.id
+       WHERE t.type = 'withdraw' AND t.wallet_type = 'earning'
+         AND t.note IS NOT NULL
+       ORDER BY t.created_at DESC`
+    );
+
+    // Parse địa chỉ từ note
+    const addressMap = {}; // address -> [{user_id, user_name, user_email, method, last_used}]
+    const userLatest = {}; // user_id+method -> already captured
+
+    for (const row of rows) {
+      const note = row.note || '';
+      let address = null;
+      let displayInfo = null;
+
+      if (note.startsWith('[Bank]')) {
+        // [Bank] BankName - AccountNumber - AccountName | Nguồn: ...
+        const match = note.match(/^\[Bank\]\s*(.+?)\s*\|/);
+        if (match) {
+          const parts = match[1].split(' - ');
+          address = parts[1]?.trim(); // account number
+          displayInfo = match[1].trim();
+        }
+      } else if (note.startsWith('[Crypto]')) {
+        // [Crypto] Network - WalletAddress | Nguồn: ...
+        const match = note.match(/^\[Crypto\]\s*(.+?)\s*\|/);
+        if (match) {
+          const parts = match[1].split(' - ');
+          address = parts[1]?.trim(); // wallet address
+          displayInfo = match[1].trim();
+        }
+      }
+
+      if (!address) continue;
+      const key = `${row.user_id}-${row.method}`;
+      if (userLatest[key]) continue; // chỉ lấy giao dịch mới nhất mỗi user/method
+      userLatest[key] = true;
+
+      if (!addressMap[address]) addressMap[address] = [];
+      addressMap[address].push({
+        user_id: row.user_id,
+        user_name: row.user_name,
+        user_email: row.user_email,
+        method: row.method,
+        display_info: displayInfo,
+        address,
+        last_used: row.last_used,
+      });
+    }
+
+    const allAddresses = Object.entries(addressMap).map(([addr, users]) => ({
+      address: addr,
+      users,
+      count: users.length,
+      is_duplicate: users.length > 1,
+      method: users[0]?.method,
+    }));
+
+    const result = duplicates_only === '1'
+      ? allAddresses.filter(a => a.is_duplicate)
+      : allAddresses;
+
+    result.sort((a, b) => b.count - a.count || b.address.localeCompare(a.address));
+
+    res.json({
+      addresses: result,
+      total: result.length,
+      duplicateCount: allAddresses.filter(a => a.is_duplicate).length,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

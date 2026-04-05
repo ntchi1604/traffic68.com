@@ -290,19 +290,37 @@ export default function Withdraw() {
               ) : withdrawals.map(w => {
                 const txMatch = (w.note || '').match(/TxHash:\s*(0x[a-fA-F0-9]+)/);
                 const txHash = txMatch ? txMatch[1] : null;
+                // Parse note: "[Bank] MB Bank - 123456 - Nguyen Van A | Nguồn: ..."
+                // or "[Crypto] USDT (BEP20) - 0xabc... | Nguồn: ..."
+                const noteBody = (w.note || '').replace(/\s*\|?\s*TxHash:\s*0x[a-fA-F0-9]+/, '').trim();
+                const sourceSplit = noteBody.split(' | Nguồn: ');
+                const accountInfo = sourceSplit[0] || '';
+                const trafficInfo = sourceSplit[1] ? sourceSplit[1].split(' | ')[0] : '';
+                // Strip prefix [Bank] or [Crypto]
+                const accountDisplay = accountInfo.replace(/^\[(Bank|Crypto)\]\s*/, '');
                 return (
-                  <div key={w.id} className="py-2 border-b border-slate-50 last:border-0">
-                    <div className="flex items-center justify-between">
-                      <div>
+                  <div key={w.id} className="py-2.5 border-b border-slate-50 last:border-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
                         <p className="text-xs font-semibold text-slate-700">{fmt(w.amount)} đ</p>
                         <p className="text-[10px] text-slate-400">
                           {w.method === 'crypto' ? 'Crypto' : 'Bank'} • {new Date(w.created_at).toLocaleDateString('vi-VN')}
                         </p>
                       </div>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${w.status === 'completed' ? 'bg-green-50 text-green-600' : w.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}>
+                      <span className={`flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${w.status === 'completed' ? 'bg-green-50 text-green-600' : w.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}>
                         {w.status === 'completed' ? <><CheckCircle2 size={10} /> Thành công</> : w.status === 'pending' ? <><Clock size={10} /> Đang xử lý</> : 'Từ chối'}
                       </span>
                     </div>
+                    {accountDisplay && (
+                      <p className="text-[10px] text-slate-500 mt-1 truncate" title={accountDisplay}>
+                        🏦 {accountDisplay}
+                      </p>
+                    )}
+                    {trafficInfo && (
+                      <p className="text-[10px] text-indigo-500 mt-0.5 truncate" title={trafficInfo}>
+                        🌐 Nguồn: {trafficInfo}
+                      </p>
+                    )}
                     {txHash && (
                       <a href={`https://bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 mt-1 text-[10px] text-indigo-600 hover:text-blue-700 font-mono">

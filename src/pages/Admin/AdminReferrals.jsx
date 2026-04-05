@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Save, Check, Users, UserPlus, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Save, Check, Users, UserPlus, X, ChevronLeft, ChevronRight, DollarSign, AlertTriangle } from 'lucide-react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
@@ -11,7 +11,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
   usePageTitle('Admin - Referral');
   const toast = useToast();
 
-  const [data, setData] = useState({ referrers: [], totalReferred: 0, totalReferrers: 0, total: 0 });
+  const [data, setData] = useState({ referrers: [], totalReferred: 0, totalReferrers: 0, total: 0, totalCommissionPaid: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -23,6 +23,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [referredList, setReferredList] = useState([]);
+  const [detailTotalCommission, setDetailTotalCommission] = useState(0);
 
   const settingKey = type === 'workers' ? 'referral_commission_worker' : 'referral_commission_buyer';
 
@@ -60,11 +61,13 @@ export default function AdminReferrals({ type = 'buyers' }) {
 
   const openDetail = async (user) => {
     setSelectedUser(user);
+    setDetailTotalCommission(0);
     if (user.ref_count > 0) {
       setDetailLoading(true);
       try {
         const d = await api.get(`/admin/referrals/${type}/${user.id}`);
         setReferredList(d.referred || []);
+        setDetailTotalCommission(d.totalCommission || 0);
       } catch { setReferredList([]); }
       setDetailLoading(false);
     } else {
@@ -81,7 +84,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
       <div>      </div>
 
       {/* Commission + Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 font-semibold uppercase mb-2">Hoa hồng {label}</p>
           <div className="flex items-center gap-2">
@@ -114,6 +117,10 @@ export default function AdminReferrals({ type = 'buyers' }) {
           <p className="text-xs text-slate-500 font-semibold uppercase">Được giới thiệu</p>
           <p className="text-3xl font-black text-green-600 mt-1">{data.totalReferred}</p>
         </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 font-semibold uppercase flex items-center gap-1"><DollarSign size={12} className="text-amber-500" />Tổng hoa hồng đã trả</p>
+          <p className="text-2xl font-black text-amber-600 mt-1">{Number(data.totalCommissionPaid || 0).toLocaleString('vi-VN')}đ</p>
+        </div>
       </div>
 
       {/* Search */}
@@ -142,6 +149,7 @@ export default function AdminReferrals({ type = 'buyers' }) {
                   <th className="px-5 py-3 text-left font-semibold text-slate-500">Mã giới thiệu</th>
                   <th className="px-5 py-3 text-left font-semibold text-slate-500">Được giới thiệu bởi</th>
                   <th className="px-5 py-3 text-center font-semibold text-slate-500">Số người ref</th>
+                  <th className="px-5 py-3 text-right font-semibold text-slate-500">Hoa hồng kiếm được</th>
                   <th className="px-5 py-3 text-center font-semibold text-slate-500">Chi tiết</th>
                 </tr>
               </thead>
@@ -172,6 +180,15 @@ export default function AdminReferrals({ type = 'buyers' }) {
                         </span>
                       ) : (
                         <span className="text-xs text-slate-300">0</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      {Number(u.total_commission) > 0 ? (
+                        <span className="text-sm font-black text-amber-600">
+                          {Number(u.total_commission).toLocaleString('vi-VN')}đ
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-300">0đ</span>
                       )}
                     </td>
                     <td className="px-5 py-3 text-center">
@@ -245,6 +262,15 @@ export default function AdminReferrals({ type = 'buyers' }) {
                 {selectedUser.referred_by_name && (
                   <p className="text-xs text-slate-500 mt-1">
                     Được giới thiệu bởi: <strong className="text-amber-600">{selectedUser.referred_by_name}</strong>
+                  </p>
+                )}
+                {Number(selectedUser.total_commission) > 0 && (
+                  <p className="text-xs mt-1">
+                    <span className="text-slate-500">Tổng hoa hồng đã kiếm: </span>
+                    <strong className="text-amber-600">{Number(selectedUser.total_commission).toLocaleString('vi-VN')}đ</strong>
+                    {detailTotalCommission > 0 && detailTotalCommission !== Number(selectedUser.total_commission) && (
+                      <span className="text-slate-400 text-[10px] ml-1">(đã xác nhận: {detailTotalCommission.toLocaleString('vi-VN')}đ)</span>
+                    )}
                   </p>
                 )}
               </div>

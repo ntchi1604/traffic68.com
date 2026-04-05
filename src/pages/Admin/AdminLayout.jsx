@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Megaphone, Receipt, LifeBuoy,
   ChevronLeft, Shield, Settings, Settings2, Menu, X, DollarSign, LogOut,
-  ChevronDown, Briefcase, HardHat, Gift, ShieldAlert,
+  ChevronDown, Briefcase, HardHat, Gift, ShieldAlert, Fingerprint,
 } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -16,13 +16,14 @@ const BUYER_NAV = [
 ];
 
 const WORKER_NAV = [
-  { to: '/admin/worker-users',       icon: Users,        label: 'Người dùng' },
-  { to: '/admin/worker-tasks',       icon: HardHat,      label: 'Nhiệm vụ' },
-  { to: '/admin/worker-withdrawals', icon: Receipt,      label: 'Rút tiền' },
-  { to: '/admin/worker-pricing',     icon: DollarSign,   label: 'Bảng giá' },
-  { to: '/admin/worker-tickets',     icon: LifeBuoy,     label: 'Hỗ trợ' },
-  { to: '/admin/referrals/workers',  icon: Gift,         label: 'Referral' },
-  { to: '/admin/security',           icon: ShieldAlert,  label: 'Anti Cheat' },
+  { to: '/admin/worker-users',          icon: Users,         label: 'Người dùng' },
+  { to: '/admin/worker-tasks',          icon: HardHat,       label: 'Nhiệm vụ' },
+  { to: '/admin/worker-withdrawals',    icon: Receipt,       label: 'Rút tiền' },
+  { to: '/admin/withdrawal-addresses',  icon: Fingerprint,   label: 'Địa chỉ rút' },
+  { to: '/admin/worker-pricing',        icon: DollarSign,    label: 'Bảng giá' },
+  { to: '/admin/worker-tickets',        icon: LifeBuoy,      label: 'Hỗ trợ' },
+  { to: '/admin/referrals/workers',     icon: Gift,          label: 'Referral' },
+  { to: '/admin/security',              icon: ShieldAlert,   label: 'Anti Cheat' },
 ];
 
 const SYSTEM_NAV = [

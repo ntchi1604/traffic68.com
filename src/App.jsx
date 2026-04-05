@@ -68,6 +68,7 @@ import AdminWorkerTasks from './pages/Admin/AdminWorkerTasks';
 import AdminWorkerWithdrawals from './pages/Admin/AdminWorkerWithdrawals';
 import AdminWorkerPricing from './pages/Admin/AdminWorkerPricing';
 import AdminConfig from './pages/Admin/AdminConfig';
+import AdminWithdrawalAddresses from './pages/Admin/AdminWithdrawalAddresses';
 
 const DASHBOARD_ROUTES = ['/buyer', '/worker', '/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/admin'];
 
@@ -168,6 +169,7 @@ function Layout() {
           <Route path="worker-users" element={<AdminUsers type="workers" />} />
           <Route path="worker-tasks" element={<AdminWorkerTasks />} />
           <Route path="worker-withdrawals" element={<AdminWorkerWithdrawals />} />
+          <Route path="withdrawal-addresses" element={<AdminWithdrawalAddresses />} />
           <Route path="worker-pricing" element={<AdminWorkerPricing />} />
           <Route path="worker-tickets" element={<AdminTickets defaultRole="worker" />} />
           <Route path="config" element={<AdminConfig />} />
