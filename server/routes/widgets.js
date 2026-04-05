@@ -108,18 +108,36 @@ router.get('/public/:token', async (req, res) => {
     } catch { }
   }
   let campaignInfo = null;
+  let dailyFull = false;
 
   if (pageUrl) {
     try {
       const normalize = (u) => decodeURIComponent(u).replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').toLowerCase();
       const normalPage = normalize(pageUrl);
 
+      // Check 1: campaign still has total quota
       const [campaigns] = await pool.execute(
-        `SELECT id, url, url2, time_on_site, keyword, version, target_page, traffic_type FROM campaigns 
+        `SELECT id, url, url2, time_on_site, keyword, version, target_page, traffic_type, daily_views FROM campaigns 
          WHERE user_id = ? AND status = 'running' AND views_done < total_views 
          ORDER BY created_at DESC`,
         [widgets[0].user_id]
       );
+
+      // Build today's done count per campaign
+      const campIds = campaigns.map(c => c.id);
+      let todayDoneMap = {};
+      if (campIds.length > 0) {
+        const ph = campIds.map(() => '?').join(',');
+        const vnDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+        const [tdRows] = await pool.execute(
+          `SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks
+           WHERE campaign_id IN (${ph}) AND status = 'completed'
+             AND completed_at >= '${vnDate} 00:00:00' AND completed_at <= '${vnDate} 23:59:59'
+           GROUP BY campaign_id`,
+          campIds
+        );
+        tdRows.forEach(r => { todayDoneMap[r.campaign_id] = Number(r.done); });
+      }
 
       for (const camp of campaigns) {
         const normalUrl1 = normalize(camp.url || '');
@@ -134,6 +152,13 @@ router.get('/public/:token', async (req, res) => {
             waitTime = parseInt(tos.split('-')[0]) || 30;
           } else {
             waitTime = parseInt(tos) || 30;
+          }
+          // Check daily quota
+          const dailyViews = Number(camp.daily_views) || 0;
+          const todayDone = todayDoneMap[camp.id] || 0;
+          if (dailyViews > 0 && todayDone >= dailyViews) {
+            dailyFull = true; // daily done, but campaign still has total quota
+            break;
           }
           campaignInfo = { campaignId: camp.id, waitTime, version: camp.version || 0, targetPage: camp.target_page || '', trafficType: camp.traffic_type || 'google_search' };
           break;
@@ -190,6 +215,7 @@ router.get('/public/:token', async (req, res) => {
   }
 
   const resp = { campaignFound: !!campaignInfo, captchaEnabled };
+  if (dailyFull && !campaignInfo) resp.dailyFull = true; // hôm nay đã đủ, nhưng campaign vẫn còn quota tổng
   if (campaignInfo && campaignInfo.trafficType) resp.trafficType = campaignInfo.trafficType;
   if (campaignInfo && campaignInfo.trafficType === 'direct') resp.isDirect = true;
   if (Object.keys(overrides).length > 0) resp.config = overrides;
