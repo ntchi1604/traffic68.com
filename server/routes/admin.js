@@ -267,7 +267,7 @@ router.get('/campaigns', async (req, res) => {
   const offset = (page - 1) * limit;
   let sql = `SELECT c.*, u.name as user_name, u.email as user_email FROM campaigns c LEFT JOIN users u ON c.user_id = u.id WHERE 1=1`;
   const params = [];
-  if (search) { sql += ' AND (c.name LIKE ? OR c.url LIKE ? OR u.email LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+  if (search) { sql += ' AND (c.name LIKE ? OR c.url LIKE ? OR u.email LIKE ? OR c.keyword LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`); }
   if (status && status !== 'all') { sql += ' AND c.status = ?'; params.push(status); }
   sql += ' ORDER BY c.created_at DESC LIMIT ? OFFSET ?';
   params.push(Number(limit), Number(offset));
