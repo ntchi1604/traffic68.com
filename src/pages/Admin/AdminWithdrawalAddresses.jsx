@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { AlertTriangle, Building2, Bitcoin, RefreshCw, Search, Copy, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Building2, Bitcoin, RefreshCw, Search, Copy, CheckCircle2, TrendingDown, Clock } from 'lucide-react';
 import api from '../../lib/api';
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
@@ -11,6 +11,7 @@ export default function AdminWithdrawalAddresses() {
   const [addresses, setAddresses] = useState([]);
   const [total, setTotal] = useState(0);
   const [duplicateCount, setDuplicateCount] = useState(0);
+  const [totalDuplicateWithdrawn, setTotalDuplicateWithdrawn] = useState(0);
   const [loading, setLoading] = useState(true);
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
   const [search, setSearch] = useState('');
@@ -25,6 +26,7 @@ export default function AdminWithdrawalAddresses() {
       setAddresses(d.addresses || []);
       setTotal(d.total || 0);
       setDuplicateCount(d.duplicateCount || 0);
+      setTotalDuplicateWithdrawn(d.totalDuplicateWithdrawn || 0);
     } catch { }
     setLoading(false);
   };
@@ -41,7 +43,11 @@ export default function AdminWithdrawalAddresses() {
   const filtered = search
     ? addresses.filter(a =>
       a.address.toLowerCase().includes(search.toLowerCase()) ||
-      a.users.some(u => u.user_email?.toLowerCase().includes(search.toLowerCase()) || u.user_name?.toLowerCase().includes(search.toLowerCase()) || u.display_info?.toLowerCase().includes(search.toLowerCase()))
+      a.users.some(u =>
+        u.user_email?.toLowerCase().includes(search.toLowerCase()) ||
+        u.user_name?.toLowerCase().includes(search.toLowerCase()) ||
+        u.display_info?.toLowerCase().includes(search.toLowerCase())
+      )
     )
     : addresses;
 
@@ -53,7 +59,7 @@ export default function AdminWithdrawalAddresses() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900">Địa chỉ rút tiền</h1>
-          <p className="text-sm text-slate-500 mt-1">Theo dõi địa chỉ ngân hàng & crypto từ lịch sử rút tiền</p>
+          <p className="text-sm text-slate-500 mt-1">Theo dõi địa chỉ ngân hàng & crypto — phát hiện tài khoản dùng chung</p>
         </div>
         <button onClick={fetchData} disabled={loading}
           className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition disabled:opacity-50">
@@ -63,7 +69,7 @@ export default function AdminWithdrawalAddresses() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 font-semibold uppercase">Tổng địa chỉ</p>
           <p className="text-3xl font-black text-slate-800 mt-1">{total}</p>
@@ -74,7 +80,16 @@ export default function AdminWithdrawalAddresses() {
             Địa chỉ trùng lặp
           </p>
           <p className={`text-3xl font-black mt-1 ${duplicateCount > 0 ? 'text-red-600' : 'text-slate-300'}`}>{duplicateCount}</p>
-          {duplicateCount > 0 && <p className="text-[11px] text-red-400 mt-1">⚠ Cần xem xét — nhiều tài khoản dùng chung địa chỉ</p>}
+          {duplicateCount > 0 && <p className="text-[11px] text-red-400 mt-1">⚠ Nhiều TK dùng chung địa chỉ</p>}
+        </div>
+        <div className={`rounded-xl border p-5 ${totalDuplicateWithdrawn > 0 ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200'}`}>
+          <p className={`text-xs font-semibold uppercase flex items-center gap-1 ${totalDuplicateWithdrawn > 0 ? 'text-orange-600' : 'text-slate-500'}`}>
+            <TrendingDown size={12} /> Đã rút (trùng)
+          </p>
+          <p className={`text-xl font-black mt-1 ${totalDuplicateWithdrawn > 0 ? 'text-orange-700' : 'text-slate-300'}`}>
+            {fmt(totalDuplicateWithdrawn)}đ
+          </p>
+          <p className="text-[11px] text-orange-400 mt-1">Tổng đã duyệt từ địa chỉ trùng</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 font-semibold uppercase">Địa chỉ duy nhất</p>
@@ -144,9 +159,11 @@ export default function AdminWithdrawalAddresses() {
 function AddressCard({ item, isDuplicate, copiedAddr, onCopy }) {
   const isCopied = copiedAddr === item.address;
   const isCrypto = item.method === 'crypto';
+  const groupTotal = item.group_total_withdrawn || 0;
 
   return (
     <div className={`rounded-xl border p-4 ${isDuplicate ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
+      {/* Header row */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
           {isCrypto
@@ -161,7 +178,7 @@ function AddressCard({ item, isDuplicate, copiedAddr, onCopy }) {
             {isCopied ? <CheckCircle2 size={14} className="text-green-500" /> : <Copy size={14} />}
           </button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isCrypto ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
             {isCrypto ? 'Crypto' : 'Bank'}
           </span>
@@ -170,27 +187,50 @@ function AddressCard({ item, isDuplicate, copiedAddr, onCopy }) {
               <AlertTriangle size={9} /> {item.count} tài khoản
             </span>
           )}
+          {isDuplicate && groupTotal > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 flex items-center gap-1">
+              <TrendingDown size={9} /> Nhóm đã rút: {fmt(groupTotal)}đ
+            </span>
+          )}
         </div>
       </div>
 
       {/* Users using this address */}
       <div className="mt-3 space-y-2">
         {item.users.map((u, i) => (
-          <div key={u.user_id} className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs ${isDuplicate ? 'bg-red-100/60' : 'bg-slate-50'}`}>
-            <div className="flex items-center gap-2 min-w-0">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${isDuplicate ? 'bg-red-200 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                {i + 1}
+          <div key={u.user_id} className={`rounded-lg px-3 py-2.5 text-xs ${isDuplicate ? 'bg-red-100/60' : 'bg-slate-50'}`}>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              {/* Left: user info */}
+              <div className="flex items-center gap-2 min-w-0">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${isDuplicate ? 'bg-red-200 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                  {i + 1}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-800 truncate">{u.user_name || u.user_email}</p>
+                  <p className="text-slate-400 truncate">{u.user_email}</p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-slate-800 truncate">{u.user_name || u.user_email}</p>
-                <p className="text-slate-400 truncate">{u.user_email}</p>
+              {/* Right: withdrawal stats */}
+              <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                {u.total_withdrawn_completed > 0 && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold text-[10px]">
+                    <CheckCircle2 size={9} /> Đã duyệt: {fmt(u.total_withdrawn_completed)}đ
+                  </span>
+                )}
+                {u.total_withdrawn_pending > 0 && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-bold text-[10px]">
+                    <Clock size={9} /> Chờ: {fmt(u.total_withdrawn_pending)}đ
+                  </span>
+                )}
+                {u.withdraw_count > 0 && (
+                  <span className="text-slate-400 text-[10px]">{u.withdraw_count} lần rút</span>
+                )}
               </div>
             </div>
-            <div className="text-right shrink-0 ml-2">
-              <p className="text-slate-500 truncate max-w-[160px]" title={u.display_info}>{u.display_info}</p>
-              <p className="text-slate-400">
-                {new Date(u.last_used).toLocaleDateString('vi-VN')}
-              </p>
+            {/* Account detail + last used date */}
+            <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-black/5">
+              <p className="text-slate-500 truncate max-w-[200px]" title={u.display_info}>{u.display_info}</p>
+              <p className="text-slate-400 text-[10px] shrink-0">{new Date(u.last_used).toLocaleDateString('vi-VN')}</p>
             </div>
           </div>
         ))}

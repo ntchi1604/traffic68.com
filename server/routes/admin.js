@@ -1864,6 +1864,28 @@ router.get('/withdrawal-addresses', async (req, res) => {
        ORDER BY t.created_at DESC`
     );
 
+    // Tổng tiền rút theo user_id (all statuses & completed only)
+    const [withdrawTotals] = await pool.execute(
+      `SELECT
+         user_id,
+         COALESCE(SUM(amount), 0) as total_all,
+         COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0) as total_completed,
+         COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) as total_pending,
+         COUNT(*) as withdraw_count
+       FROM transactions
+       WHERE type = 'withdraw' AND wallet_type = 'earning'
+       GROUP BY user_id`
+    );
+    const withdrawMap = {};
+    withdrawTotals.forEach(r => {
+      withdrawMap[r.user_id] = {
+        total_all: Number(r.total_all),
+        total_completed: Number(r.total_completed),
+        total_pending: Number(r.total_pending),
+        withdraw_count: Number(r.withdraw_count),
+      };
+    });
+
     // Parse địa chỉ từ note
     const addressMap = {}; // address -> [{user_id, user_name, user_email, method, last_used}]
     const userLatest = {}; // user_id+method -> already captured
@@ -1896,6 +1918,8 @@ router.get('/withdrawal-addresses', async (req, res) => {
       if (userLatest[key]) continue; // chỉ lấy giao dịch mới nhất mỗi user/method
       userLatest[key] = true;
 
+      const wStats = withdrawMap[row.user_id] || { total_all: 0, total_completed: 0, total_pending: 0, withdraw_count: 0 };
+
       if (!addressMap[address]) addressMap[address] = [];
       addressMap[address].push({
         user_id: row.user_id,
@@ -1905,6 +1929,10 @@ router.get('/withdrawal-addresses', async (req, res) => {
         display_info: displayInfo,
         address,
         last_used: row.last_used,
+        total_withdrawn: wStats.total_all,
+        total_withdrawn_completed: wStats.total_completed,
+        total_withdrawn_pending: wStats.total_pending,
+        withdraw_count: wStats.withdraw_count,
       });
     }
 

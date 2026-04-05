@@ -17,6 +17,7 @@ export default function AdminWorkerWithdrawals() {
   const [loading, setLoading] = useState(true);
   const [processingBatch, setProcessingBatch] = useState(false);
   const [processingId, setProcessingId] = useState(null);
+  const [expandedNote, setExpandedNote] = useState(null);
 
   const fetch = (p = 1) => {
     setLoading(true);
@@ -127,10 +128,21 @@ export default function AdminWorkerWithdrawals() {
                     {(() => {
                       const parts = (r.note || '').split(' | Nguồn: ');
                       const txMatch = (r.note || '').match(/TxHash:\s*(0x[a-fA-F0-9]+)/);
+                      const sourceRaw = parts[1] ? parts[1].split(' | TxHash')[0] : '';
+                      const sourcePreview = sourceRaw.split('\n')[0]; // first line only
+                      const hasMoreLines = sourceRaw.includes('\n');
                       return (
                         <>
                           <p className="truncate font-medium">{parts[0] || '—'}</p>
-                          {parts[1] && <p className="text-[10px] text-indigo-600 mt-0.5 truncate">Nguồn: {parts[1].split(' | ')[0]}</p>}
+                          {sourceRaw && (
+                            <div className="flex items-start gap-1 mt-0.5">
+                              <p className="text-[10px] text-indigo-600 truncate flex-1">Nguồn: {sourcePreview}{hasMoreLines ? '...' : ''}</p>
+                              <button
+                                onClick={() => setExpandedNote({ account: parts[0], source: sourceRaw, ref: r.ref_code })}
+                                className="shrink-0 text-[9px] font-bold text-indigo-400 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-1.5 py-0.5 rounded transition"
+                              >chi tiết</button>
+                            </div>
+                          )}
                           {txMatch && (
                             <a href={`https://bscscan.com/tx/${txMatch[1]}`} target="_blank" rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 mt-1 text-[10px] text-amber-600 hover:text-amber-700 font-mono">
@@ -199,6 +211,32 @@ export default function AdminWorkerWithdrawals() {
               className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition">
               Sau ›
             </button>
+          </div>
+        </div>
+      )}
+      {/* Source detail modal */}
+      {expandedNote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setExpandedNote(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Thông tin nguồn</h3>
+                <p className="text-[10px] text-slate-400 font-mono mt-0.5">{expandedNote.ref}</p>
+              </div>
+              <button onClick={() => setExpandedNote(null)} className="p-1.5 hover:bg-slate-100 rounded-lg transition text-slate-400">
+                ✕
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <p className="text-[10px] font-semibold text-slate-500 uppercase mb-1">Thông tin tài khoản</p>
+                <p className="text-sm font-semibold text-slate-800">{expandedNote.account}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-slate-500 uppercase mb-1">Nguồn lưu lượng</p>
+                <pre className="text-xs text-indigo-700 bg-indigo-50 rounded-lg px-3 py-2.5 whitespace-pre-wrap font-sans leading-relaxed">{expandedNote.source}</pre>
+              </div>
+            </div>
           </div>
         </div>
       )}

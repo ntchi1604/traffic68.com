@@ -182,11 +182,12 @@ export default function Withdraw() {
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
                 <Globe size={13} className="text-indigo-500" /> Nguồn lưu lượng truy cập *
               </label>
-              <input type="text" value={trafficSource} onChange={e => setTrafficSource(e.target.value)}
-                placeholder="VD: Website cá nhân, Blog, Fanpage Facebook, Telegram..."
+              <textarea value={trafficSource} onChange={e => setTrafficSource(e.target.value)}
+                placeholder={"VD: Website cá nhân tại domain.com\nFanpage Facebook: fb.com/page\nGroup Telegram: t.me/group\n..."}
                 required
-                className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
-              <p className="text-[10px] text-slate-400 mt-1">Cho biết bạn chia sẻ link kiếm tiền ở đâu để chúng tôi xác minh</p>
+                rows={3}
+                className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 resize-y min-h-[80px]" />
+              <p className="text-[10px] text-slate-400 mt-1">Mô tả chi tiết nơi bạn chia sẻ link để chúng tôi xác minh (có thể nhiều dòng)</p>
             </div>
 
             {/* Method selection */}
