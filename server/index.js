@@ -323,6 +323,59 @@ app.use((err, req, res, next) => {
       console.log('  ✅ announcement settings ready (worker + buyer)');
     } catch (e) { console.error('  ⚠ announcement seed:', e.message); }
 
+    // ── Tạo nhóm giá mặc định "Thường" nếu chưa có ──
+    try {
+      // Đảm bảo bảng tồn tại
+      await pool.execute(`CREATE TABLE IF NOT EXISTS worker_pricing_groups (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        created_at DATETIME DEFAULT NOW()
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+      await pool.execute(`CREATE TABLE IF NOT EXISTS worker_pricing_group_rates (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        group_id INT NOT NULL,
+        traffic_type VARCHAR(50) NOT NULL,
+        duration VARCHAR(20) NOT NULL,
+        v1_price DECIMAL(15,0) DEFAULT 0,
+        v2_price DECIMAL(15,0) DEFAULT 0,
+        UNIQUE KEY uniq_rate (group_id, traffic_type, duration),
+        FOREIGN KEY (group_id) REFERENCES worker_pricing_groups(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+      try { await pool.execute(`ALTER TABLE users ADD COLUMN pricing_group_id INT NULL DEFAULT NULL`); } catch (_) {}
+
+      // Lấy nhóm đầu tiên hoặc tạo mới "Thường"
+      let [existingGroups] = await pool.execute('SELECT id FROM worker_pricing_groups ORDER BY id ASC LIMIT 1');
+      let defaultGroupId;
+      if (existingGroups.length === 0) {
+        const [ins] = await pool.execute(
+          `INSERT INTO worker_pricing_groups (name, description) VALUES ('Thường', 'Nhóm giá mặc định cho tất cả worker')`,
+        );
+        defaultGroupId = ins.insertId;
+        // Clone từ worker_pricing_tiers nếu có
+        const [tiers] = await pool.execute('SELECT * FROM worker_pricing_tiers').catch(() => [[]]);
+        for (const t of tiers) {
+          await pool.execute(
+            'INSERT IGNORE INTO worker_pricing_group_rates (group_id, traffic_type, duration, v1_price, v2_price) VALUES (?,?,?,?,?)',
+            [defaultGroupId, t.traffic_type, t.duration, t.v1_price || 0, t.v2_price || 0]
+          );
+        }
+        console.log(`  ✅ Created default pricing group "Thường" (id=${defaultGroupId})`);
+      } else {
+        defaultGroupId = existingGroups[0].id;
+      }
+
+      // Gán tất cả user chưa có nhóm vào nhóm mặc định
+      const [assignRes] = await pool.execute(
+        'UPDATE users SET pricing_group_id = ? WHERE pricing_group_id IS NULL',
+        [defaultGroupId]
+      );
+      if (assignRes.affectedRows > 0) {
+        console.log(`  ✅ Assigned ${assignRes.affectedRows} users to default pricing group`);
+      }
+      console.log(`  ✅ Default pricing group ready (id=${defaultGroupId})`);
+    } catch (e) { console.error('  ⚠ default pricing group seed:', e.message); }
+
     app.listen(PORT, () => {
 
       console.log(`

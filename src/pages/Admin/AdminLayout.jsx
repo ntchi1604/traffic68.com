@@ -20,7 +20,6 @@ const WORKER_NAV = [
   { to: '/admin/worker-tasks',          icon: HardHat,       label: 'Nhiệm vụ' },
   { to: '/admin/worker-withdrawals',    icon: Receipt,       label: 'Rút tiền' },
   { to: '/admin/withdrawal-addresses',  icon: Fingerprint,   label: 'Địa chỉ rút' },
-  { to: '/admin/worker-pricing',        icon: DollarSign,    label: 'Bảng giá' },
   { to: '/admin/worker-pricing-groups', icon: Tags,          label: 'Nhóm giá' },
   { to: '/admin/worker-tickets',        icon: LifeBuoy,      label: 'Hỗ trợ' },
   { to: '/admin/referrals/workers',     icon: Gift,          label: 'Referral' },

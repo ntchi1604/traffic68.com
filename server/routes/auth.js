@@ -91,6 +91,16 @@ router.post('/register', async (req, res) => {
       [userId, 'Chào mừng bạn!', 'Tài khoản của bạn đã được tạo thành công. Hãy bắt đầu tạo chiến dịch đầu tiên!', 'success', 'all']
     );
 
+    // ── Gán vào nhóm giá mặc định (nhóm đầu tiên trong DB) ──
+    try {
+      const [defGroups] = await pool.execute(
+        `SELECT id FROM worker_pricing_groups ORDER BY id ASC LIMIT 1`
+      );
+      if (defGroups.length > 0) {
+        await pool.execute('UPDATE users SET pricing_group_id = ? WHERE id = ?', [defGroups[0].id, userId]);
+      }
+    } catch (_) { /* bảng chưa tồn tại thì bỏ qua */ }
+
     
     const token = jwt.sign({ userId, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
 

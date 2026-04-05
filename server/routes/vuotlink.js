@@ -783,36 +783,24 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     return res.json({ success: true, message: 'Chiến dịch hết ngân sách', earning: 0, destinationUrl: null });
   }
 
-  // ── Worker earning: look up from worker_pricing_tiers (giá admin set cho worker) ──
-  let earning = campaign.cpc;
+  // ── Worker earning: lấy từ nhóm giá của worker ──
+  let earning = 0;
   try {
     const duration = (campaign.time_on_site || '60').split('-')[0] + 's';
-    const [wptRows] = await pool.execute(
-      'SELECT v1_price, v2_price FROM worker_pricing_tiers WHERE traffic_type = ? AND duration = ?',
-      [campaign.traffic_type || 'google_search', duration]
-    );
-    if (wptRows.length > 0) {
-      earning = campaign.version === 2 ? wptRows[0].v2_price : wptRows[0].v1_price;
-    }
-
-    // ── Override: check if worker belongs to a pricing group ──
     const workerIdToCheck = task.ref_worker_id || task.worker_id || req.userId;
     if (workerIdToCheck) {
-      try {
-        const [pgRows] = await pool.execute(
-          `SELECT r.v1_price, r.v2_price FROM users u
-           JOIN worker_pricing_group_rates r ON r.group_id = u.pricing_group_id
-           WHERE u.id = ? AND r.traffic_type = ? AND r.duration = ?
-           LIMIT 1`,
-          [workerIdToCheck, campaign.traffic_type || 'google_search', duration]
-        );
-        if (pgRows.length > 0) {
-          const groupEarning = campaign.version === 2 ? pgRows[0].v2_price : pgRows[0].v1_price;
-          console.log(`[VuotLink] Pricing group override: worker=${workerIdToCheck}, default=${earning} → group=${groupEarning}`);
-          earning = groupEarning;
-        }
-      } catch (pgErr) {
-        // Table may not exist yet — ignore silently
+      const [pgRows] = await pool.execute(
+        `SELECT r.v1_price, r.v2_price FROM users u
+         JOIN worker_pricing_group_rates r ON r.group_id = u.pricing_group_id
+         WHERE u.id = ? AND r.traffic_type = ? AND r.duration = ?
+         LIMIT 1`,
+        [workerIdToCheck, campaign.traffic_type || 'google_search', duration]
+      );
+      if (pgRows.length > 0) {
+        earning = campaign.version === 2 ? pgRows[0].v2_price : pgRows[0].v1_price;
+        console.log(`[VuotLink] Group pricing: worker=${workerIdToCheck}, earning=${earning}`);
+      } else {
+        console.log(`[VuotLink] Worker ${workerIdToCheck} has no pricing group — earning=0`);
       }
     }
   } catch (e) {
