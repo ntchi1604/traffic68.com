@@ -32,7 +32,7 @@ router.get('/st', async (req, res) => {
     
     const pool = getPool();
     const [keyRows] = await pool.execute(
-      'SELECT ak.id, ak.user_id FROM api_keys ak JOIN users u ON u.id = ak.user_id WHERE ak.api_key = ? AND ak.active = 1 AND u.status = \'active\'',
+      "SELECT ak.id, ak.user_id, u.source_status FROM api_keys ak JOIN users u ON u.id = ak.user_id WHERE ak.api_key = ? AND ak.active = 1 AND u.status = 'active'",
       [api]
     );
     if (!keyRows.length) return res.status(401).json({ error: 'API key không hợp lệ, đã bị thu hồi, hoặc tài khoản đã bị khóa' });
