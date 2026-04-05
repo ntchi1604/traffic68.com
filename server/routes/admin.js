@@ -2361,7 +2361,7 @@ router.get('/pricing-groups-unassigned', async (req, res) => {
   const search = (req.query.search || '').trim();
   try {
     await ensurePgTables(pool);
-    let sql = `SELECT id, name, email FROM users WHERE (pricing_group_id IS NULL) AND role != 'admin'`;
+    let sql = `SELECT id, name, email FROM users WHERE (pricing_group_id IS NULL)`;
     const params = [];
     if (search) { sql += ' AND (name LIKE ? OR email LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
     sql += ' ORDER BY name ASC LIMIT 50';
@@ -2380,7 +2380,7 @@ router.get('/pricing-groups-all-workers', async (req, res) => {
                  g.name as group_name
                FROM users u
                LEFT JOIN worker_pricing_groups g ON g.id = u.pricing_group_id
-               WHERE u.role != 'admin'`;
+               WHERE 1=1`;
     const params = [];
     if (search) { sql += ' AND (u.name LIKE ? OR u.email LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
     sql += ' ORDER BY u.name ASC LIMIT 100';
