@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Megaphone, Receipt, LifeBuoy,
   ChevronLeft, Shield, Settings, Settings2, Menu, X, DollarSign, LogOut,
-  ChevronDown, Briefcase, HardHat, Gift, ShieldAlert, Fingerprint, Tags,
+  ChevronDown, Briefcase, HardHat, Gift, ShieldAlert, ShieldCheck, Fingerprint, Tags,
 } from 'lucide-react';
 import api from '../../lib/api';
 
