@@ -38,10 +38,14 @@ router.post('/create', authMiddleware, async (req, res) => {
     const { destination_url, title } = req.body;
     if (!destination_url) return res.status(400).json({ error: 'Vui lòng nhập URL đích' });
 
-    
+    // Kiểm tra nguồn đã được duyệt chưa
+    const [userRows] = await pool.execute('SELECT source_status FROM users WHERE id = ?', [req.userId]);
+    if ((userRows[0]?.source_status || '') !== 'approved') {
+      return res.status(403).json({ error: 'Tài khoản chưa được duyệt nguồn. Vui lòng điến Hồ sơ → Xét duyệt nguồn để gửi yêu cầu.' });
+    }
+
     try { new URL(destination_url); } catch { return res.status(400).json({ error: 'URL không hợp lệ' }); }
 
-    
     let slug;
     for (let i = 0; i < 10; i++) {
       const s = genSlug(7);

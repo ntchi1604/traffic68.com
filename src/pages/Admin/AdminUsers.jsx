@@ -1,9 +1,111 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet, Briefcase, HardHat, MoreVertical, ShieldCheck } from 'lucide-react';
+import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet, Briefcase, HardHat, MoreVertical, ShieldCheck, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
+
+/* ── Source Approval Modal ── */
+function SourceApprovalModal({ user, onClose, onDone }) {
+  const [groups, setGroups] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState('');
+  const [rejectReason, setRejectReason] = useState('');
+  const [mode, setMode] = useState('approve'); // 'approve' | 'reject'
+  const [loading, setLoading] = useState(false);
+  const [sourceUrl, setSourceUrl] = useState(user.source_url || '—');
+  const toast = { error: console.error }; // fallback
+
+  useEffect(() => {
+    api.get('/admin/pricing-groups').then(d => {
+      const g = d.groups || [];
+      setGroups(g);
+      if (g.length > 0) setSelectedGroup(String(g[0].id));
+    }).catch(() => {});
+  }, []);
+
+  const handleApprove = async () => {
+    setLoading(true);
+    try {
+      await api.put(`/admin/users/${user.id}/approve-source`, { pricing_group_id: selectedGroup ? Number(selectedGroup) : undefined });
+      onDone('approved');
+      onClose();
+    } catch (err) { alert(err.message); }
+    setLoading(false);
+  };
+
+  const handleReject = async () => {
+    setLoading(true);
+    try {
+      await api.put(`/admin/users/${user.id}/reject-source`, { reason: rejectReason });
+      onDone('rejected');
+      onClose();
+    } catch (err) { alert(err.message); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div>
+            <h3 className="text-lg font-black text-slate-900">Xét duyệt nguồn</h3>
+            <p className="text-xs text-slate-500">{user.name} — {user.email}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition"><X size={18} className="text-slate-400" /></button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {/* Source URL */}
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <p className="text-xs font-semibold text-slate-500 mb-1">URL nguồn worker gửi:</p>
+            <a href={sourceUrl} target="_blank" rel="noreferrer" className="text-sm text-indigo-600 font-medium break-all hover:underline">{sourceUrl}</a>
+          </div>
+
+          {/* Mode select */}
+          <div className="flex gap-2">
+            <button onClick={() => setMode('approve')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition
+                ${mode === 'approve' ? 'bg-green-500 text-white shadow-lg shadow-green-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+              <CheckCircle2 size={15} /> Duyệt
+            </button>
+            <button onClick={() => setMode('reject')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition
+                ${mode === 'reject' ? 'bg-red-500 text-white shadow-lg shadow-red-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+              <XCircle size={15} /> Từ chối
+            </button>
+          </div>
+
+          {mode === 'approve' && (
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Gán vào plan (nhóm giá)</label>
+              <select value={selectedGroup} onChange={e => setSelectedGroup(e.target.value)}
+                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                {groups.map(g => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {mode === 'reject' && (
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Lý do từ chối (tuỳ chọn)</label>
+              <input value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+                placeholder="Lý do..."
+                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+            </div>
+          )}
+
+          <button onClick={mode === 'approve' ? handleApprove : handleReject} disabled={loading}
+            className={`w-full py-3 rounded-xl text-sm font-black transition disabled:opacity-50
+              ${mode === 'approve' ? 'bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-200' : 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-200'}`}>
+            {loading ? 'Đang xử lý...' : mode === 'approve' ? `✅ Duyệt & gán plan "${groups.find(g=>String(g.id)===selectedGroup)?.name||''}"` : '❌ Xác nhận từ chối'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ── Balance Modal ── */
 function BalanceModal({ user, isWorkerPage, onClose, onDone }) {
@@ -136,6 +238,7 @@ export default function AdminUsers({ type }) {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [balanceUser, setBalanceUser] = useState(null);
+  const [sourceUser, setSourceUser] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const menuRef = useRef(null);
   const LIMIT = 30;
@@ -233,6 +336,17 @@ export default function AdminUsers({ type }) {
                         <ShieldCheck size={9} /> Tin tưởng
                       </span>
                     )}
+                    {isWorker && u.source_status && (
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold mt-0.5 ${
+                        u.source_status === 'approved' ? 'bg-green-100 text-green-700' :
+                        u.source_status === 'rejected' ? 'bg-red-100 text-red-700' :
+                        'bg-amber-100 text-amber-700'
+                      }`}>
+                        {u.source_status === 'approved' ? <><CheckCircle2 size={9} /> Nguồn OK</> :
+                         u.source_status === 'rejected' ? <><XCircle size={9} /> Từ chối</> :
+                         <><Clock size={9} /> Chờ duyệt</>}
+                      </span>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-slate-600">{u.phone || '—'}</td>
                   <td className="px-5 py-3">
@@ -320,6 +434,14 @@ export default function AdminUsers({ type }) {
                               {u.trusted === 1 ? 'Bỏ tin tưởng' : 'Tin tưởng (bỏ qua captcha)'}
                             </button>
                           )}
+                          {isWorker && u.source_status !== 'approved' && (
+                            <button
+                              onClick={() => { setSourceUser(u); setOpenMenuId(null); }}
+                              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-50 transition text-left"
+                            >
+                              <CheckCircle2 size={14} className="text-amber-500" /> Xét duyệt nguồn
+                            </button>
+                          )}
                           <div className="border-t border-slate-100 my-1" />
                           <button
                             onClick={() => { deleteUser(u.id, u.name); setOpenMenuId(null); }}
@@ -364,6 +486,16 @@ export default function AdminUsers({ type }) {
       )}
 
       {balanceUser && <BalanceModal user={balanceUser} isWorkerPage={isWorker} onClose={() => setBalanceUser(null)} onDone={() => fetchUsers(search, page)} />}
+      {sourceUser && (
+        <SourceApprovalModal
+          user={sourceUser}
+          onClose={() => setSourceUser(null)}
+          onDone={(result) => {
+            toast.success(result === 'approved' ? `Đã duyệt nguồn ${sourceUser.name}` : `Đã từ chối nguồn ${sourceUser.name}`);
+            fetchUsers(search, page);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -112,7 +112,39 @@ app.get('/api/worker-pricing/my', async (req, res) => {
   }
 });
 
-// ── Public: Worker/Buyer announcement from admin ──
+// ── Worker: xem + submit nguồn để xét duyệt ──
+app.get('/api/worker/source', async (req, res) => {
+  try {
+    const pool = getPool();
+    const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+    const jwt = require('jsonwebtoken');
+    let userId = null;
+    try { const d = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret'); userId = d.userId || d.id; } catch {}
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const [rows] = await pool.execute('SELECT source_status, source_url, source_note FROM users WHERE id = ?', [userId]);
+    res.json({ source_status: rows[0]?.source_status || 'pending', source_url: rows[0]?.source_url || '', source_note: rows[0]?.source_note || '' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/worker/source', async (req, res) => {
+  try {
+    const pool = getPool();
+    const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+    const jwt = require('jsonwebtoken');
+    let userId = null;
+    try { const d = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret'); userId = d.userId || d.id; } catch {}
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { source_url } = req.body || {};
+    if (!source_url) return res.status(400).json({ error: 'Vui lòng nhập URL nguồn' });
+    await pool.execute(
+      "UPDATE users SET source_url = ?, source_status = 'pending' WHERE id = ?",
+      [source_url, userId]
+    );
+    res.json({ ok: true, message: 'Đã gửi yêu cầu xét duyệt nguồn' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
 app.get('/api/announcement', async (req, res) => {
   try {
     const role = req.query.role === 'buyer' ? 'buyer' : 'worker';
@@ -343,6 +375,15 @@ app.use((err, req, res, next) => {
         FOREIGN KEY (group_id) REFERENCES worker_pricing_groups(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
       try { await pool.execute(`ALTER TABLE users ADD COLUMN pricing_group_id INT NULL DEFAULT NULL`); } catch (_) {}
+      // Thêm cột xét duyệt nguồn
+      try { await pool.execute(`ALTER TABLE users ADD COLUMN source_status VARCHAR(20) NULL DEFAULT NULL`); } catch (_) {}
+      try { await pool.execute(`ALTER TABLE users ADD COLUMN source_url TEXT NULL DEFAULT NULL`); } catch (_) {}
+      try { await pool.execute(`ALTER TABLE users ADD COLUMN source_note TEXT NULL DEFAULT NULL`); } catch (_) {}
+      // Auto-approve toàn bộ worker hiện tại (đã hoạt động trước khi tính năng ra đời)
+      const [existApprove] = await pool.execute(
+        "UPDATE users SET source_status = 'approved' WHERE service_type = 'shortlink' AND (source_status IS NULL OR source_status = '')"
+      );
+      if (existApprove.affectedRows > 0) console.log(`  ✅ Auto-approved ${existApprove.affectedRows} existing workers`);
 
       // Lấy nhóm đầu tiên hoặc tạo mới "Thường"
       let [existingGroups] = await pool.execute('SELECT id FROM worker_pricing_groups ORDER BY id ASC LIMIT 1');

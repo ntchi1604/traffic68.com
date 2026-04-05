@@ -36,6 +36,9 @@ router.get('/st', async (req, res) => {
       [api]
     );
     if (!keyRows.length) return res.status(401).json({ error: 'API key không hợp lệ, đã bị thu hồi, hoặc tài khoản đã bị khóa' });
+    if (keyRows[0].source_status !== 'approved') {
+      return res.status(403).json({ error: 'Tài khoản chưa được duyệt nguồn.' });
+    }
 
     const userId = keyRows[0].user_id;
     const apiKeyId = keyRows[0].id;
@@ -86,12 +89,14 @@ async function apiKeyAuth(req, res, next) {
   try {
     const pool = getPool();
     const [rows] = await pool.execute(
-      'SELECT ak.id, ak.user_id, u.username FROM api_keys ak JOIN users u ON u.id = ak.user_id WHERE ak.api_key = ? AND ak.active = 1 AND u.status = \'active\'',
+      "SELECT ak.id, ak.user_id, u.username, u.source_status FROM api_keys ak JOIN users u ON u.id = ak.user_id WHERE ak.api_key = ? AND ak.active = 1 AND u.status = 'active'",
       [token]
     );
     if (!rows.length) return res.status(401).json({ error: 'Invalid or revoked API key, or account suspended' });
+    if (rows[0].source_status !== 'approved') {
+      return res.status(403).json({ error: 'Account source not approved. Please submit your source for review in your profile.' });
+    }
 
-    
     pool.execute('UPDATE api_keys SET last_used_at = NOW(), request_count = request_count + 1 WHERE id = ?', [rows[0].id]);
 
     req.userId = rows[0].user_id;
@@ -258,12 +263,16 @@ router.get('/api', async (req, res) => {
     
     const pool = getPool();
     const [keyRows] = await pool.execute(
-      "SELECT ak.id, ak.user_id FROM api_keys ak JOIN users u ON u.id = ak.user_id WHERE ak.api_key = ? AND ak.active = 1 AND u.status = 'active'",
+      "SELECT ak.id, ak.user_id, u.source_status FROM api_keys ak JOIN users u ON u.id = ak.user_id WHERE ak.api_key = ? AND ak.active = 1 AND u.status = 'active'",
       [api]
     );
     if (!keyRows.length) {
       if (format === 'text') return res.send('');
       return res.status(401).json({ status: 'error', message: 'API key không hợp lệ hoặc tài khoản đã bị khóa' });
+    }
+    if (keyRows[0].source_status !== 'approved') {
+      if (format === 'text') return res.send('');
+      return res.status(403).json({ status: 'error', message: 'Tài khoản chưa được duyệt nguồn.' });
     }
 
     const userId = keyRows[0].user_id;

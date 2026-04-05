@@ -154,6 +154,41 @@ router.put('/users/:id/trusted', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.put('/users/:id/approve-source', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { pricing_group_id } = req.body || {};
+    await pool.execute(
+      `UPDATE users SET source_status = 'approved', status = 'active'${pricing_group_id ? ', pricing_group_id = ?' : ''} WHERE id = ?`,
+      pricing_group_id ? [pricing_group_id, req.params.id] : [req.params.id]
+    );
+    try {
+      await pool.execute(
+        `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+        [req.params.id, '✅ Nguồn đã được duyệt', 'Tài khoản của bạn đã được duyệt nguồn. Bạn có thể tạo link rút gọn ngay bây giờ!', 'success', 'worker']
+      );
+    } catch (_) { }
+    res.json({ ok: true, message: 'Đã duyệt nguồn' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/users/:id/reject-source', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { reason } = req.body || {};
+    await pool.execute(
+      "UPDATE users SET source_status = 'rejected', status = 'inactive' WHERE id = ?",
+      [req.params.id]
+    );
+    try {
+      await pool.execute(
+        `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+        [req.params.id, '❌ Nguồn bị từ chối', `Yêu cầu xét duyệt nguồn của bạn bị từ chối${reason ? ': ' + reason : ''}. Vui lòng cập nhật lại nguồn và gửi lại.`, 'error', 'worker']
+      );
+    } catch (_) { }
+    res.json({ ok: true, message: 'Đã từ chối nguồn' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 router.delete('/users/:id', async (req, res) => {
   const pool = getPool();
@@ -2263,7 +2298,7 @@ router.post('/pricing-groups', async (req, res) => {
     let tiers = [];
     try {
       [tiers] = await pool.execute('SELECT * FROM worker_pricing_tiers');
-    } catch (e) {}
+    } catch (e) { }
     for (const t of tiers) {
       await pool.execute(
         'INSERT IGNORE INTO worker_pricing_group_rates (group_id, traffic_type, duration, v1_price, v2_price) VALUES (?,?,?,?,?)',

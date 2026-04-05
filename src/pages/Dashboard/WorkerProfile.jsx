@@ -1,11 +1,16 @@
-// Worker Profile — giống hệt Buyer profile (tabs Hồ sơ / Mật khẩu, avatar upload, API)
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import usePageTitle from '../../hooks/usePageTitle';
-import { User, Lock, Camera, Check, Eye, EyeOff, Save } from 'lucide-react';
+import { User, Lock, Camera, Check, Eye, EyeOff, Save, ShieldCheck, Clock, XCircle, Globe, Send } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
+
+const SOURCE_STATUS = {
+  approved: { label: 'Đã duyệt', color: 'bg-green-100 text-green-700 border-green-200', icon: ShieldCheck, desc: 'Tài khoản của bạn đã được duyệt. Bạn có thể tạo link rút gọn bình thường.' },
+  pending:  { label: 'Chờ duyệt', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Clock, desc: 'Yêu cầu của bạn đang chờ admin xem xét. Vui lòng đợi trong vòng 24 giờ.' },
+  rejected: { label: 'Bị từ chối', color: 'bg-red-100 text-red-700 border-red-200', icon: XCircle, desc: 'Yêu cầu xét duyệt bị từ chối. Cập nhật lại nguồn và gửi lại.' },
+};
 
 export default function WorkerProfile() {
   usePageTitle('Hồ sơ của tôi');
@@ -19,6 +24,12 @@ export default function WorkerProfile() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Source approval
+  const [sourceStatus, setSourceStatus] = useState('pending');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [sourceNote, setSourceNote] = useState('');
+  const [sourceSubmitting, setSourceSubmitting] = useState(false);
+
   useEffect(() => {
     api.get('/users/profile').then(data => {
       const u = data.user;
@@ -31,6 +42,15 @@ export default function WorkerProfile() {
     }).catch(() => setError('Không thể tải thông tin hồ sơ'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'source') return;
+    const token = localStorage.getItem('token') || '';
+    fetch('/api/worker/source', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { setSourceStatus(d.source_status || 'pending'); setSourceUrl(d.source_url || ''); setSourceNote(d.source_note || ''); })
+      .catch(() => {});
+  }, [activeTab]);
 
   const handleChange = (e) => setFormData(p => ({ ...p, [e.target.name]: e.target.value }));
   const handlePasswordChange = (e) => setPasswordForm(p => ({ ...p, [e.target.name]: e.target.value }));
@@ -73,6 +93,25 @@ export default function WorkerProfile() {
     } catch (err) { toast.error(err.message); }
   };
 
+  const handleSourceSubmit = async (e) => {
+    e.preventDefault();
+    if (!sourceUrl.trim()) { toast.error('Vui lòng nhập URL nguồn'); return; }
+    setSourceSubmitting(true);
+    try {
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch('/api/worker/source', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ source_url: sourceUrl.trim() }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      setSourceStatus('pending');
+      toast.success('Đã gửi yêu cầu xét duyệt!');
+    } catch (err) { toast.error(err.message); }
+    finally { setSourceSubmitting(false); }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -80,6 +119,8 @@ export default function WorkerProfile() {
   );
 
   const inputCls = "w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition";
+  const statusInfo = SOURCE_STATUS[sourceStatus] || SOURCE_STATUS.pending;
+  const StatusIcon = statusInfo.icon;
 
   return (
     <div className="space-y-6 w-full min-w-0">
@@ -93,6 +134,7 @@ export default function WorkerProfile() {
       <div className="flex border-b border-slate-200">
         {[
           { key: 'profile', label: 'Hồ sơ cá nhân', icon: User },
+          { key: 'source',  label: 'Xét duyệt nguồn', icon: ShieldCheck },
           { key: 'password', label: 'Mật khẩu', icon: Lock },
         ].map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setActiveTab(key)}
@@ -112,7 +154,6 @@ export default function WorkerProfile() {
           <h2 className="text-base font-bold text-slate-900 mb-6">Thông tin cá nhân</h2>
           <form onSubmit={handleSubmit}>
             <div className="flex flex-col md:flex-row gap-8">
-              {/* Avatar */}
               <div className="flex flex-col items-center gap-2 flex-shrink-0">
                 <div className="relative">
                   <img src={formData.avatar} alt="Avatar"
@@ -124,19 +165,15 @@ export default function WorkerProfile() {
                 </div>
                 <p className="text-[11px] text-slate-400">Chọn ảnh đại diện</p>
               </div>
-
-              {/* Fields */}
               <div className="flex-1 space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Họ và tên</label>
-                  <input name="name" value={formData.name} onChange={handleChange}
-                    className={inputCls} required placeholder="Nhập họ và tên" />
+                  <input name="name" value={formData.name} onChange={handleChange} className={inputCls} required placeholder="Nhập họ và tên" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label>
                   <div className="flex items-center gap-2">
-                    <input name="email" type="email" value={formData.email} onChange={handleChange}
-                      className={inputCls} required />
+                    <input name="email" type="email" value={formData.email} onChange={handleChange} className={inputCls} required />
                     <span className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-green-600 bg-green-50 border border-green-100 rounded-xl flex-shrink-0">
                       <Check size={12} /> Đã xác minh
                     </span>
@@ -144,12 +181,11 @@ export default function WorkerProfile() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Số điện thoại</label>
-                  <input name="phone" type="tel" value={formData.phone} onChange={handleChange}
-                    className={inputCls} placeholder="Nhập số điện thoại" />
+                  <input name="phone" type="tel" value={formData.phone} onChange={handleChange} className={inputCls} placeholder="Nhập số điện thoại" />
                 </div>
                 <div className="flex justify-end pt-2">
                   <button type="submit" disabled={isSubmitting}
-                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-indigo-200">
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition disabled:opacity-50 shadow-sm shadow-indigo-200">
                     <Save size={14} />
                     {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
                   </button>
@@ -157,6 +193,65 @@ export default function WorkerProfile() {
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Source Approval Tab */}
+      {activeTab === 'source' && (
+        <div className="space-y-4">
+          {/* Status badge */}
+          <div className={`flex items-start gap-3 p-4 rounded-xl border ${statusInfo.color}`}>
+            <StatusIcon size={20} className="flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-sm">{statusInfo.label}</p>
+              <p className="text-xs mt-0.5 opacity-80">{statusInfo.desc}</p>
+            </div>
+          </div>
+
+          {/* Submit form */}
+          <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-sm">
+            <h2 className="text-base font-bold text-slate-900 mb-1">Xét duyệt nguồn traffic</h2>
+            <p className="text-xs text-slate-400 mb-5">Cung cấp URL nguồn traffic bạn sử dụng để admin xem xét và duyệt tài khoản.</p>
+
+            <form onSubmit={handleSourceSubmit} className="space-y-4 max-w-lg">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  URL nguồn traffic <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Globe size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={sourceUrl}
+                    onChange={e => setSourceUrl(e.target.value)}
+                    placeholder="https://your-source-website.com"
+                    className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition"
+                    disabled={sourceStatus === 'approved'}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">Ví dụ: website, kênh mạng xã hội, ứng dụng... nơi bạn chia sẻ link rút gọn.</p>
+              </div>
+
+              {sourceStatus !== 'approved' && (
+                <button type="submit" disabled={sourceSubmitting}
+                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition disabled:opacity-50 shadow-sm shadow-indigo-200">
+                  <Send size={14} />
+                  {sourceSubmitting ? 'Đang gửi...' : (sourceStatus === 'rejected' ? 'Gửi lại yêu cầu' : 'Gửi yêu cầu xét duyệt')}
+                </button>
+              )}
+
+              {sourceStatus === 'approved' && (
+                <p className="text-xs text-green-600 font-semibold">✅ Tài khoản đã được duyệt — bạn có thể tạo link rút gọn bình thường.</p>
+              )}
+            </form>
+          </div>
+
+          {/* Info */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-500 space-y-1">
+            <p className="font-semibold text-slate-700 mb-2">Lưu ý:</p>
+            <p>• Chưa được duyệt → không thể tạo link rút gọn hoặc dùng API.</p>
+            <p>• Admin sẽ xem xét trong vòng 24 giờ.</p>
+            <p>• Nếu bị từ chối, bạn có thể cập nhật nguồn và gửi lại.</p>
+          </div>
         </div>
       )}
 
@@ -184,7 +279,6 @@ export default function WorkerProfile() {
                 {hint && <p className="text-[11px] text-slate-400 mt-1">{hint}</p>}
               </div>
             ))}
-
             <div className="pt-2">
               <button type="submit" disabled={isSubmitting}
                 className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition disabled:opacity-50 shadow-sm shadow-indigo-200">
