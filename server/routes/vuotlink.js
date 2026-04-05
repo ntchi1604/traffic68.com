@@ -82,11 +82,20 @@ router.get('/challenge', async (req, res) => {
       const [rows] = await pool.execute(
         `SELECT wl.id, wl.worker_id FROM worker_links wl
          JOIN users u ON u.id = wl.worker_id
-         WHERE wl.slug = ? AND wl.hidden = 0 AND u.status = 'active'`, [slug]);
+         WHERE wl.slug = ? AND wl.hidden = 0
+           AND u.status = 'active'
+           AND u.source_status = 'approved'`, [slug]);
       if (rows.length > 0) {
         workerLinkId = rows[0].id;
         refWorkerId = rows[0].worker_id;
       } else {
+        // Check if link exists but worker is not approved
+        const [raw] = await pool.execute(
+          `SELECT u.source_status FROM worker_links wl JOIN users u ON u.id = wl.worker_id WHERE wl.slug = ?`, [slug]
+        );
+        if (raw.length > 0 && raw[0].source_status !== 'approved') {
+          return res.status(403).json({ error: 'Link này chưa được kích hoạt.' });
+        }
         return res.status(404).json({ error: 'Link không tồn tại' });
       }
     } catch (e) {
@@ -180,12 +189,16 @@ async function _handleTaskPost(req, res) {
   if (ch.workerLinkId) {
     const pool = getPool();
     const [wlCheck] = await pool.execute(
-      `SELECT u.status FROM worker_links wl JOIN users u ON u.id = wl.worker_id WHERE wl.id = ?`,
+      `SELECT u.status, u.source_status FROM worker_links wl JOIN users u ON u.id = wl.worker_id WHERE wl.id = ?`,
       [ch.workerLinkId]
     );
     if (!wlCheck.length || wlCheck[0].status !== 'active') {
       delete challenges[challengeId];
       return res.status(403).json({ error: 'Link này đã bị vô hiệu hóa.' });
+    }
+    if (wlCheck[0].source_status !== 'approved') {
+      delete challenges[challengeId];
+      return res.status(403).json({ error: 'Link này chưa được kích hoạt. Vui lòng chờ admin duyệt nguồn.' });
     }
   }
 
