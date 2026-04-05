@@ -480,13 +480,13 @@ async function _handleTaskPost(req, res) {
 
   // Track view (worker entered the page/claimed task)
   try {
-    const [vLogs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = CURDATE()', [campaign.id]);
+    const [vLogs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [campaign.id, todayVn]);
     if (vLogs.length > 0) {
       await pool.execute('UPDATE traffic_logs SET views = views + 1 WHERE id = ?', [vLogs[0].id]);
     } else {
       await pool.execute(
-        'INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source) VALUES (?, CURDATE(), 1, 0, 1, ?)',
-        [campaign.id, campaign.traffic_type || 'google_search']
+        'INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source) VALUES (?, ?, 1, 0, 1, ?)',
+        [campaign.id, todayVn, campaign.traffic_type || 'google_search']
       );
     }
   } catch (_) { }
@@ -854,13 +854,15 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     const isMobile = !isTablet && /mobile|android|iphone|ipod|blackberry|windows phone/i.test(ua);
     const deviceCol = isTablet ? 'tablet_views' : isMobile ? 'mobile_views' : 'desktop_views';
 
-    const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = CURDATE()', [task.campaign_id]);
+    // ── Cập nhật traffic_logs (dùng VN timezone tránh lệch CURDATE UTC) ──
+    const vnDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+    const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [task.campaign_id, vnDate]);
     if (logs.length > 0) {
       await pool.execute(`UPDATE traffic_logs SET clicks = COALESCE(clicks, 0) + 1, views = COALESCE(views, 0) + 1, ${deviceCol} = COALESCE(${deviceCol}, 0) + 1 WHERE id = ?`, [logs[0].id]);
     } else {
       await pool.execute(
-        `INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source, ${deviceCol}) VALUES (?, CURDATE(), 1, 1, 1, ?, 1)`,
-        [task.campaign_id, campaign.traffic_type || 'google_search']
+        `INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source, ${deviceCol}) VALUES (?, ?, 1, 1, 1, ?, 1)`,
+        [task.campaign_id, vnDate, campaign.traffic_type || 'google_search']
       );
     }
   }
