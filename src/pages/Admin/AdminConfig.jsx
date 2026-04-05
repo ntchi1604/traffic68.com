@@ -54,12 +54,14 @@ const WEB3_DB_FIELDS = [
 
 const ANNOUNCEMENT_FIELDS = [
   { key: 'worker_announcement_enabled', label: 'Hiển thị thông báo cho Worker', description: 'Bật/tắt banner thông báo trên trang tổng quan của worker', type: 'toggle', defaultValue: 'false' },
-  { key: 'worker_announcement_type', label: 'Loại thông báo', description: 'Màu sắc và kiểu thông báo: info (xanh), warning (vàng), success (xanh lá), error (đỏ)', type: 'select', defaultValue: 'info', options: [
-    { value: 'info', label: '🔵 Info (Xanh dương)' },
-    { value: 'warning', label: '🟡 Warning (Vàng)' },
-    { value: 'success', label: '🟢 Success (Xanh lá)' },
-    { value: 'error', label: '🔴 Error (Đỏ)' },
-  ]},
+  {
+    key: 'worker_announcement_type', label: 'Loại thông báo', description: 'Màu sắc và kiểu thông báo: info (xanh), warning (vàng), success (xanh lá), error (đỏ)', type: 'select', defaultValue: 'info', options: [
+      { value: 'info', label: '🔵 Info (Xanh dương)' },
+      { value: 'warning', label: '🟡 Warning (Vàng)' },
+      { value: 'success', label: '🟢 Success (Xanh lá)' },
+      { value: 'error', label: '🔴 Error (Đỏ)' },
+    ]
+  },
 ];
 
 const ALL_CONFIG_FIELDS = [...VUOTLINK_FIELDS, ...DEPOSIT_FIELDS, ...WITHDRAW_FIELDS, ...WEB3_DB_FIELDS, ...ANNOUNCEMENT_FIELDS];
@@ -128,9 +130,7 @@ export default function AdminConfig() {
     try {
       const settings = {};
       ALL_CONFIG_FIELDS.forEach(f => { settings[f.key] = config[f.key] ?? f.defaultValue; });
-      // Textarea không nằm trong ALL_CONFIG_FIELDS — thêm thủ công
       settings.worker_announcement = config.worker_announcement || '';
-      // Private key NOT sent to DB
       await api.put('/admin/settings/site', { settings });
       toast.success('Cấu hình đã được lưu');
       setSaved(true);
@@ -413,12 +413,11 @@ export default function AdminConfig() {
         {config.worker_announcement && (
           <div className="px-6 pb-5">
             <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Preview</p>
-            <div className={`flex items-start gap-3 px-4 py-3.5 rounded-xl border text-sm font-medium ${
-              config.worker_announcement_type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
-              config.worker_announcement_type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
-              config.worker_announcement_type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
-              'bg-blue-50 border-blue-200 text-blue-800'
-            }`}>
+            <div className={`flex items-start gap-3 px-4 py-3.5 rounded-xl border text-sm font-medium ${config.worker_announcement_type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                config.worker_announcement_type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
+                  config.worker_announcement_type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
+                    'bg-blue-50 border-blue-200 text-blue-800'
+              }`}>
               <Bell size={15} className="mt-0.5 flex-shrink-0" />
               <p className="leading-relaxed whitespace-pre-line">{config.worker_announcement}</p>
             </div>
