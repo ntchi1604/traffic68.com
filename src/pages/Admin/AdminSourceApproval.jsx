@@ -195,6 +195,7 @@ export default function AdminSourceApproval() {
         page: p,
         service_type: 'shortlink',
         source_status: f,
+        has_source: 1,   // chỉ hiện worker đã gửi source_url
       });
       const data = await api.get(`/admin/users?${params}`);
       setUsers(data.users || []);

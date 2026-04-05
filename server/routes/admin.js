@@ -95,7 +95,9 @@ router.get('/source-approval/stats', async (req, res) => {
         SUM(CASE WHEN source_status = 'pending' OR source_status IS NULL OR source_status = '' THEN 1 ELSE 0 END) as pending,
         SUM(CASE WHEN source_status = 'approved' THEN 1 ELSE 0 END) as approved,
         SUM(CASE WHEN source_status = 'rejected' THEN 1 ELSE 0 END) as rejected
-      FROM users WHERE service_type = 'shortlink'
+      FROM users
+      WHERE service_type = 'shortlink'
+        AND source_url IS NOT NULL AND source_url != ''
     `);
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -148,6 +150,12 @@ router.get('/users', async (req, res) => {
       sql += ' AND u.source_status = ?'; countSql += ' AND u.source_status = ?';
       params.push(source_status); countParams.push(source_status);
     }
+  }
+  // Filter: chỉ hiện user đã gửi source_url
+  const { has_source } = req.query;
+  if (has_source === '1') {
+    const hsCond = " AND u.source_url IS NOT NULL AND u.source_url != ''";
+    sql += hsCond; countSql += hsCond;
   }
 
   const [totalRows] = await pool.execute(countSql, countParams);
