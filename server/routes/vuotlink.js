@@ -270,23 +270,25 @@ async function _handleTaskPost(req, res) {
     if (safeIds.length > 0) excludeFilter = ` AND c.id NOT IN (${safeIds.join(',')})`;
   }
 
-  const [countRows] = await pool.execute(
-    `SELECT COUNT(*) as cnt FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${excludeFilter}`
+  const [topCampaigns] = await pool.execute(
+    `SELECT c.* FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${excludeFilter}
+     ORDER BY COALESCE(td.today_done, 0) ASC, c.views_done ASC
+     LIMIT 5`
   );
-  let totalCampaigns = countRows[0].cnt;
 
-  // Nếu user bấm "Đổi nhiệm vụ" (loại trừ ID cũ) nhưng hệ thống chỉ còn đúng 1 mẩu task duy nhất
-  // -> Xóa bộ lọc loại trừ và ưu tiên trả về task đó để user không bị rỗng nhiệm vụ.
-  if (totalCampaigns === 0 && excludeFilter) {
-    const [countAll] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}`
+  let campaigns;
+  if (topCampaigns.length === 0 && excludeFilter) {
+    const [fallbackCampaigns] = await pool.execute(
+      `SELECT c.* FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}
+       ORDER BY COALESCE(td.today_done, 0) ASC, c.views_done ASC
+       LIMIT 5`
     );
-    totalCampaigns = countAll[0].cnt;
-    excludeFilter = '';
+    campaigns = fallbackCampaigns;
+  } else {
+    campaigns = topCampaigns;
   }
 
-  if (totalCampaigns === 0) {
-    // Debug: log to identify why no campaigns available
+  if (campaigns.length === 0) {
     try {
       const [dbTime] = await pool.execute("SELECT NOW() as now_vn, CURDATE() as today_vn, @@session.time_zone as tz");
       const [allCamps] = await pool.execute("SELECT COUNT(*) as total FROM campaigns WHERE status = 'running'");
@@ -297,15 +299,10 @@ async function _handleTaskPost(req, res) {
     } catch (e) { console.log('[VuotLink] Debug error:', e.message); }
     return res.status(404).json(ERR);
   }
-  const randomOffset = Math.floor(Math.random() * totalCampaigns);
-  const [campaigns] = await pool.execute(
-    `SELECT c.* FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${excludeFilter} LIMIT 1 OFFSET ?`,
-    [randomOffset]
-  );
-  if (campaigns.length === 0) return res.status(404).json(ERR);
-  const campaign = campaigns[0];
 
-  // Parse JSON arrays for keyword, url, images (backward compatible)
+  const campaign = campaigns[Math.floor(Math.random() * campaigns.length)];
+  console.log(`[VuotLink] Selected campaign id=${campaign.id} views_done=${campaign.views_done} (from ${campaigns.length} low-view candidates)`);
+
   const pickRandom = (val) => {
     if (!val) return val;
     try { const a = JSON.parse(val); if (Array.isArray(a) && a.length) return a[Math.floor(Math.random() * a.length)]; } catch { }
@@ -346,9 +343,6 @@ async function _handleTaskPost(req, res) {
       const todayMap = {};
       kwTodayCounts.forEach(r => { todayMap[r.keyword] = Number(r.today_done); });
 
-      // Auto-calculate daily limit for keywords with daily_views=0 — ONLY when toggle ON
-      // (i.e. at least 1 keyword has explicit daily_views > 0)
-      // If ALL keywords have daily_views=0 (toggle OFF), no per-keyword limit applies.
       const campaignDailyViews = Number(campaign.daily_views) || 0;
       const hasAnyExplicitDaily = kwConfig.some(k => Number(k.daily_views) > 0);
       const totalExplicitDaily = kwConfig.reduce((s, k) => s + (Number(k.daily_views) > 0 ? Number(k.daily_views) : 0), 0);
@@ -364,8 +358,8 @@ async function _handleTaskPost(req, res) {
       const weighted = kwConfig
         .filter(k => k.keyword && k.keyword.trim())
         .map(k => {
-          const totalDone  = doneMap[k.keyword]  || 0;
-          const todayDone  = todayMap[k.keyword] || 0;
+          const totalDone = doneMap[k.keyword] || 0;
+          const todayDone = todayMap[k.keyword] || 0;
           const totalRemaining = Math.max(0, (Number(k.views) || 0) - totalDone);
           const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
           const dailyOk = effectiveDailyLimit <= 0 || todayDone < effectiveDailyLimit;
