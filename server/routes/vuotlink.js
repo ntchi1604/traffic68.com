@@ -231,7 +231,7 @@ async function _handleTaskPost(req, res) {
   // Tính UTC tương đương của các mốc thời gian VN (để so sánh với timestamp UTC trong MySQL)
   const toUtcStr = (d) => d.toISOString().replace('T', ' ').substring(0, 19);
   const vnDayStart = toUtcStr(new Date(`${todayVn}T00:00:00+07:00`));   // VN 00:00 → UTC -7h
-  const vnDayEnd   = toUtcStr(new Date(`${todayVn}T23:59:59+07:00`));   // VN 23:59 → UTC -7h
+  const vnDayEnd = toUtcStr(new Date(`${todayVn}T23:59:59+07:00`));   // VN 23:59 → UTC -7h
   const hourPad = hourVnRaw.padStart(2, '0');
   const vnHourStart = toUtcStr(new Date(`${todayVn}T${hourPad}:00:00+07:00`)); // VN giờ hiện tại → UTC
   const hourStartVn = vnHourStart; // giữ tên cũ để không sửa thêm
@@ -307,9 +307,9 @@ async function _handleTaskPost(req, res) {
     : '';
 
   const [topCampaigns] = await pool.execute(
-    `SELECT c.* FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${excludeFilter}
+    `SELECT c.*, COALESCE(td.today_done, 0) AS _today_done FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${excludeFilter}
      ORDER BY COALESCE(td.today_done, 0) ASC, c.views_done ASC
-     LIMIT 5`
+     LIMIT 10`
   );
 
   let campaigns;
@@ -319,9 +319,9 @@ async function _handleTaskPost(req, res) {
       ? ` AND c.id NOT IN (${serverExcludeIds.join(',')})`
       : '';
     const [fallbackCampaigns] = await pool.execute(
-      `SELECT c.* FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${hardExclude}
+      `SELECT c.*, COALESCE(td.today_done, 0) AS _today_done FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${hardExclude}
        ORDER BY COALESCE(td.today_done, 0) ASC, c.views_done ASC
-       LIMIT 5`
+       LIMIT 10`
     );
     campaigns = fallbackCampaigns;
   } else {
@@ -340,8 +340,15 @@ async function _handleTaskPost(req, res) {
     return res.status(404).json(ERR);
   }
 
-  const campaign = campaigns[Math.floor(Math.random() * campaigns.length)];
-  console.log(`[VuotLink] Selected campaign id=${campaign.id} views_done=${campaign.views_done} (from ${campaigns.length} low-view candidates)`);
+  // Weighted random: camp ít view hôm nay → xác suất cao hơn (weight = 1 / (today_done + 1))
+  const totalWeight = campaigns.reduce((s, c) => s + 1 / ((Number(c._today_done) || 0) + 1), 0);
+  let rand = Math.random() * totalWeight;
+  let campaign = campaigns[campaigns.length - 1]; // fallback to last
+  for (const c of campaigns) {
+    rand -= 1 / ((Number(c._today_done) || 0) + 1);
+    if (rand <= 0) { campaign = c; break; }
+  }
+  console.log(`[VuotLink] Selected campaign id=${campaign.id} today=${campaign._today_done} views_done=${campaign.views_done} (pool: ${campaigns.length})`);
 
   const pickRandom = (val) => {
     if (!val) return val;
@@ -490,8 +497,6 @@ async function _handleTaskPost(req, res) {
     } : null,
   };
   const securityDetail = JSON.stringify(secObj).substring(0, 10000);
-
-  // Hủy task cũ còn pending/step1 (chưa bắt đầu làm) trước khi tạo task mới
   const cleanVidCancel = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   await pool.execute(
     `UPDATE vuot_link_tasks SET status = 'cancelled', expires_at = NOW()
@@ -499,7 +504,7 @@ async function _handleTaskPost(req, res) {
        AND status IN ('pending', 'step1')
        AND expires_at > NOW()`,
     [ip, cleanVidCancel, cleanVidCancel]
-  ).catch(() => {});
+  ).catch(() => { });
 
   const [result] = await pool.execute(
     `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id, ref_worker_id, security_detail) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?, ?)`,
