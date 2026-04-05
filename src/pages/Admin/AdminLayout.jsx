@@ -17,6 +17,7 @@ const BUYER_NAV = [
 
 const WORKER_NAV = [
   { to: '/admin/worker-users',          icon: Users,         label: 'Người dùng' },
+  { to: '/admin/source-approval',       icon: ShieldCheck,   label: 'Duyệt nguồn' },
   { to: '/admin/worker-tasks',          icon: HardHat,       label: 'Nhiệm vụ' },
   { to: '/admin/worker-withdrawals',    icon: Receipt,       label: 'Rút tiền' },
   { to: '/admin/withdrawal-addresses',  icon: Fingerprint,   label: 'Địa chỉ rút' },

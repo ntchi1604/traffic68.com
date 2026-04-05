@@ -71,13 +71,12 @@ router.post('/register', async (req, res) => {
     const myRefCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     const serviceType = service === 'shortlink' ? 'shortlink' : 'traffic';
-    const initStatus = serviceType === 'shortlink' ? 'inactive' : 'active';
     const initSourceStatus = serviceType === 'shortlink' ? 'pending' : null;
 
     const [result] = await pool.execute(
-      `INSERT INTO users (email, password_hash, name, username, phone, referral_code, referred_by, service_type, status, source_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [email, hash, name || '', username || '', phone || '', myRefCode, referredBy, serviceType, initStatus, initSourceStatus]
+      `INSERT INTO users (email, password_hash, name, username, phone, referral_code, referred_by, service_type, source_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [email, hash, name || '', username || '', phone || '', myRefCode, referredBy, serviceType, initSourceStatus]
     );
 
     const userId = result.insertId;

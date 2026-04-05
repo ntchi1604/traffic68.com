@@ -266,7 +266,7 @@ function ProfitMarginPanel({ group, rates, editedRates, setRate }) {
 }
 
 // ── Group Card with Rates + Members ───────────────────────────────
-function GroupCard({ group, allGroups, defaultTiers, onRefresh, onEdit, onDelete }) {
+function GroupCard({ group, allGroups, onRefresh, onEdit, onDelete }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState('rates'); // 'rates' | 'members'
@@ -585,7 +585,6 @@ export default function AdminPricingGroups() {
               key={g.id}
               group={g}
               allGroups={groups}
-              defaultTiers={defaultTiers}
               onRefresh={fetchData}
               onEdit={setEditingGroup}
               onDelete={handleDelete}

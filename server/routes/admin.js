@@ -159,7 +159,7 @@ router.put('/users/:id/approve-source', async (req, res) => {
     const pool = getPool();
     const { pricing_group_id } = req.body || {};
     await pool.execute(
-      `UPDATE users SET source_status = 'approved', status = 'active'${pricing_group_id ? ', pricing_group_id = ?' : ''} WHERE id = ?`,
+      `UPDATE users SET source_status = 'approved'${pricing_group_id ? ', pricing_group_id = ?' : ''} WHERE id = ?`,
       pricing_group_id ? [pricing_group_id, req.params.id] : [req.params.id]
     );
     try {
@@ -177,7 +177,7 @@ router.put('/users/:id/reject-source', async (req, res) => {
     const pool = getPool();
     const { reason } = req.body || {};
     await pool.execute(
-      "UPDATE users SET source_status = 'rejected', status = 'inactive' WHERE id = ?",
+      "UPDATE users SET source_status = 'rejected' WHERE id = ?",
       [req.params.id]
     );
     try {

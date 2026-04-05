@@ -131,7 +131,7 @@ export default function DangNhap() {
                 <ShieldOff size={18} className="shrink-0" />
                 <div>
                   <p className="font-bold text-sm">Tài khoản bị tạm ngưng</p>
-                  <p className="text-xs text-red-500 mt-0.5">Tài khoản của bạn đã bị admin tạm nghiĩnh. Liên hệ hỗ trợ để biết thêm.</p>
+                  <p className="text-xs text-red-500 mt-0.5">Tài khoản của bạn đã bị admin tạm ngưng. Liên hệ hỗ trợ để biết thêm.</p>
                 </div>
               </div>
             )}
