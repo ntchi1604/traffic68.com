@@ -283,12 +283,28 @@ async function _handleTaskPost(req, res) {
       GROUP BY campaign_id
     ) th ON th.campaign_id = c.id`;
 
-  // Build exclude filter for skipped campaigns
-  let excludeFilter = '';
-  if (Array.isArray(excludeCampaigns) && excludeCampaigns.length > 0) {
-    const safeIds = excludeCampaigns.filter(id => Number.isInteger(Number(id))).map(Number);
-    if (safeIds.length > 0) excludeFilter = ` AND c.id NOT IN (${safeIds.join(',')})`;
-  }
+  // ── Server-enforced excludes: campaigns this IP/visitor did today OR has active task for ──
+  const cleanVidExcl = (visitorId && visitorId !== 'unknown') ? visitorId : '';
+  const [ipDoneRows] = await pool.execute(
+    `SELECT DISTINCT campaign_id FROM vuot_link_tasks
+     WHERE (ip_address = ? OR (? != '' AND visitor_id = ?))
+       AND (
+         (status = 'completed' AND completed_at >= '${vnDayStart}' AND completed_at <= '${vnDayEnd}')
+         OR
+         (status IN ('pending', 'step1', 'step2', 'step3') AND expires_at > NOW())
+       )`,
+    [ip, cleanVidExcl, cleanVidExcl]
+  );
+  const serverExcludeIds = ipDoneRows.map(r => Number(r.campaign_id));
+
+  // Merge: server-enforced (hard) + client-provided skips (soft)
+  const clientExcludes = Array.isArray(excludeCampaigns)
+    ? excludeCampaigns.filter(id => Number.isInteger(Number(id))).map(Number)
+    : [];
+  const allExcludeIds = [...new Set([...serverExcludeIds, ...clientExcludes])];
+  let excludeFilter = allExcludeIds.length > 0
+    ? ` AND c.id NOT IN (${allExcludeIds.join(',')})`
+    : '';
 
   const [topCampaigns] = await pool.execute(
     `SELECT c.* FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${excludeFilter}
@@ -297,9 +313,13 @@ async function _handleTaskPost(req, res) {
   );
 
   let campaigns;
-  if (topCampaigns.length === 0 && excludeFilter) {
+  if (topCampaigns.length === 0 && clientExcludes.length > 0) {
+    // Fallback: drop client skips but KEEP server-enforced (done-today) exclusions
+    const hardExclude = serverExcludeIds.length > 0
+      ? ` AND c.id NOT IN (${serverExcludeIds.join(',')})`
+      : '';
     const [fallbackCampaigns] = await pool.execute(
-      `SELECT c.* FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}
+      `SELECT c.* FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${hardExclude}
        ORDER BY COALESCE(td.today_done, 0) ASC, c.views_done ASC
        LIMIT 5`
     );
