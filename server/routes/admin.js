@@ -96,8 +96,7 @@ router.get('/source-approval/stats', async (req, res) => {
         SUM(CASE WHEN source_status = 'approved' THEN 1 ELSE 0 END) as approved,
         SUM(CASE WHEN source_status = 'rejected' THEN 1 ELSE 0 END) as rejected
       FROM users
-      WHERE service_type = 'shortlink'
-        AND source_url IS NOT NULL AND source_url != ''
+      WHERE source_url IS NOT NULL AND source_url != ''
     `);
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }

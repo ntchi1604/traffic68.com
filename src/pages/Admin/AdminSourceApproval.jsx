@@ -193,13 +193,19 @@ export default function AdminSourceApproval() {
         search: q,
         limit: LIMIT,
         page: p,
-        service_type: 'shortlink',
+        has_source: 1,        // chỉ hiện user đã gửi source_url
         source_status: f,
-        has_source: 1,   // chỉ hiện worker đã gửi source_url
       });
       const data = await api.get(`/admin/users?${params}`);
-      setUsers(data.users || []);
-      setTotal(data.total || 0);
+      if (f === 'pending') {
+        // lọc thêm client-side cho pending (null/empty cũng là pending)
+        const list = (data.users || []).filter(u => !u.source_status || u.source_status === 'pending');
+        setUsers(list);
+        setTotal(list.length);
+      } else {
+        setUsers(data.users || []);
+        setTotal(data.total || 0);
+      }
       setPage(p);
     } catch (err) { console.error(err); }
     setLoading(false);
