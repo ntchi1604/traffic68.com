@@ -182,6 +182,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     } catch { return false; }
   });
 
+  const [useKeywordDailyViews, setUseKeywordDailyViews] = useState(() => {
+    try {
+      const cfg = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
+      return Array.isArray(cfg) && cfg.some(k => Number(k.daily_views) > 0);
+    } catch { return false; }
+  });
+
   const [keywords, setKeywords] = useState(() => {
     const kwList = parseJsonArray(campaign.keyword);
     try {
@@ -189,11 +196,11 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       if (Array.isArray(cfg) && cfg.length > 0) {
         return kwList.map(kw => {
           const found = cfg.find(c => c.keyword === kw);
-          return { keyword: kw, views: found ? Number(found.views) : Number(campaign.total_views) || 1000, url: found?.url || found?.domain || '', image: found?.image || '' };
+          return { keyword: kw, views: found ? Number(found.views) : Number(campaign.total_views) || 1000, daily_views: found ? Number(found.daily_views) || 0 : 0, url: found?.url || found?.domain || '', image: found?.image || '' };
         });
       }
     } catch { }
-    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, url: '', image: '' }));
+    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, daily_views: 0, url: '', image: '' }));
   });
   const [urls, setUrls] = useState(() => {
     const main = campaign.url || '';
@@ -215,7 +222,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const removeItem = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
   const updateItem = (setter, idx, val) => setter(prev => prev.map((v, i) => i === idx ? val : v));
 
-  const addKeyword = () => setKeywords(prev => [...prev, { keyword: '', url: '', image: '', views: Number(campaign.total_views) || 1000 }]);
+  const addKeyword = () => setKeywords(prev => [...prev, { keyword: '', url: '', image: '', views: Number(campaign.total_views) || 1000, daily_views: 0 }]);
   const removeKeyword = (idx) => setKeywords(prev => prev.filter((_, i) => i !== idx));
   const updateKeywordText = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, keyword: val } : k));
   const updateKeywordUrl = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, url: val } : k));
@@ -229,6 +236,19 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       setKeywords(prev => prev.map(k => ({ ...k, views: perKw })));
     }
     setUseKeywordViews(next);
+  };
+
+  const updateKeywordDailyViews = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, daily_views: Number(val) || 0 } : k));
+
+  const toggleKeywordDailyViews = () => {
+    const next = !useKeywordDailyViews;
+    if (next) {
+      const perKw = Number(dailyViews) > 0 ? Math.floor(Number(dailyViews) / Math.max(1, keywords.length)) : 0;
+      setKeywords(prev => prev.map(k => ({ ...k, daily_views: perKw })));
+    } else {
+      setKeywords(prev => prev.map(k => ({ ...k, daily_views: 0 })));
+    }
+    setUseKeywordDailyViews(next);
   };
 
   const [uploadingKwIdx, setUploadingKwIdx] = useState(-1);
@@ -286,6 +306,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         keyword_config: JSON.stringify(kws.length ? kws.map(k => ({
           keyword: k.keyword,
           views: useKeywordViews ? (Number(k.views) || 0) : Math.max(1, Math.floor((Number(totalViews) || 1000) / kws.length)),
+          daily_views: useKeywordDailyViews ? (Number(k.daily_views) || 0) : 0,
           url: useKeywordUrls ? (k.url || '') : '',
           image: useKeywordUrls ? (k.image || '') : ''
         })) : []),
@@ -307,6 +328,11 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       setSaving(false);
     }
   };
+
+  const allocatedDailyViews = useKeywordDailyViews
+    ? keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)
+    : 0;
+  const remainingDailyViews = Math.max(0, Number(dailyViews) - allocatedDailyViews);
 
   const inputCls = "w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition";
 
@@ -388,7 +414,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                     <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordUrls ? 'translate-x-4' : 'translate-x-0'}`} />
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 border-r border-slate-200 pr-3">
                   <span className={`text-[11px] font-semibold transition-colors ${useKeywordViews ? 'text-amber-600' : 'text-slate-400'}`}>
                     Cài view riêng
                   </span>
@@ -402,8 +428,33 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                     <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordViews ? 'translate-x-4' : 'translate-x-0'}`} />
                   </button>
                 </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] font-semibold transition-colors ${useKeywordDailyViews ? 'text-sky-600' : 'text-slate-400'}`}>
+                    Cài view/ngày
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={useKeywordDailyViews}
+                    onClick={toggleKeywordDailyViews}
+                    className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none ${useKeywordDailyViews ? 'bg-sky-500' : 'bg-slate-200'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordDailyViews ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
               </div>
             </div>
+            {useKeywordDailyViews && (
+              <div className="mb-2 flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
+                <span className="text-sky-500 mt-0.5 flex-shrink-0">📊</span>
+                <div>
+                  <p className="text-xs font-bold text-sky-700 mb-0.5">Giới hạn view/ngày cho từng từ khóa</p>
+                  <p className="text-xs text-sky-600">
+                    Để <b>0</b> = tự chia phần còn lại ({remainingDailyViews.toLocaleString()} view/ngày ÷ {keywords.filter(k => !(Number(k.daily_views) > 0)).length} từ khóa)
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="space-y-4">
               {keywords.map((kw, i) => (
                 <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
@@ -417,6 +468,16 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                           className={inputCls + ' pr-10 text-right font-bold text-amber-900 bg-amber-50'}
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                      </div>
+                    )}
+                    {useKeywordDailyViews && (
+                      <div className="relative w-28 flex-shrink-0">
+                        <input
+                          type="number" min="0" value={kw.daily_views || 0}
+                          onChange={e => updateKeywordDailyViews(i, e.target.value)}
+                          className={inputCls + ' pr-12 text-right font-bold text-sky-900 bg-sky-50 border-sky-300'}
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
                       </div>
                     )}
                     {keywords.length > 1 && <button onClick={() => removeKeyword(i)} className="p-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 bg-white border border-red-200 hover:bg-red-50 rounded-xl cursor-pointer transition flex-shrink-0 absolute -top-2 -right-2 shadow-sm z-10"><Trash2 size={13} /></button>}

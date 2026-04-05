@@ -123,16 +123,24 @@ router.get('/public/:token', async (req, res) => {
         [widgets[0].user_id]
       );
 
-      // Build today's done count per campaign
+      // Build today's done count per campaign (using correct VN→UTC timezone)
       const campIds = campaigns.map(c => c.id);
       let todayDoneMap = {};
       if (campIds.length > 0) {
         const ph = campIds.map(() => '?').join(',');
-        const vnDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+        const vnNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+        const vnDayStart = new Date(vnNow); vnDayStart.setHours(0, 0, 0, 0);
+        const vnDayEnd = new Date(vnNow); vnDayEnd.setHours(23, 59, 59, 999);
+        const UTC_OFFSET_MS = 7 * 3600 * 1000;
+        const utcStartMs = vnDayStart.getTime() - UTC_OFFSET_MS;
+        const utcEndMs = vnDayEnd.getTime() - UTC_OFFSET_MS;
+        const fmtUTC = (ms) => { const d = new Date(ms); return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')} ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}:${String(d.getUTCSeconds()).padStart(2,'0')}`; };
+        const utcStartStr = fmtUTC(utcStartMs);
+        const utcEndStr = fmtUTC(utcEndMs);
         const [tdRows] = await pool.execute(
           `SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks
            WHERE campaign_id IN (${ph}) AND status = 'completed'
-             AND completed_at >= '${vnDate} 00:00:00' AND completed_at <= '${vnDate} 23:59:59'
+             AND completed_at >= '${utcStartStr}' AND completed_at <= '${utcEndStr}'
            GROUP BY campaign_id`,
           campIds
         );
@@ -229,7 +237,7 @@ router.get('/public/:token', async (req, res) => {
   if (!resp.version) {
     try {
       const [v1Tasks] = await pool.execute(
-        `SELECT c.version FROM vuot_link_tasks vt
+        `SELECT c.version, c.time_on_site FROM vuot_link_tasks vt
          JOIN campaigns c ON c.id = vt.campaign_id
          WHERE (vt.ip_address = ? OR (vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id IN (
            SELECT vt2.visitor_id FROM vuot_link_tasks vt2 WHERE vt2.ip_address = ? AND vt2.visitor_id IS NOT NULL AND vt2.visitor_id != '' ORDER BY vt2.created_at DESC LIMIT 1
@@ -243,6 +251,17 @@ router.get('/public/:token', async (req, res) => {
       if (v1Tasks.length > 0) {
         resp.version = 1;
         resp.campaignFound = true;
+        // Also send waitTime from this campaign if URL match didn't already set it
+        if (!overrides.waitTime || overrides.waitTime === JS_DEFAULTS.waitTime) {
+          const tos2 = v1Tasks[0].time_on_site || '';
+          let wt2 = 30;
+          if (tos2.includes('-')) { wt2 = parseInt(tos2.split('-')[0]) || 30; }
+          else { wt2 = parseInt(tos2) || 30; }
+          if (wt2 !== JS_DEFAULTS.waitTime) {
+            overrides.waitTime = wt2;
+            resp.config = Object.keys(overrides).length > 0 ? overrides : undefined;
+          }
+        }
       }
     } catch (e) { }
   }
@@ -305,8 +324,9 @@ router.post('/public/:token/check-session', async (req, res) => {
 
 
   try {
+    // Only refresh expires_at — do NOT reset created_at or elapsed-time validation will break
     await pool.execute(
-      `UPDATE vuot_link_tasks SET created_at = NOW(), expires_at = DATE_ADD(NOW(), INTERVAL 600 SECOND) WHERE id = ?`,
+      `UPDATE vuot_link_tasks SET expires_at = DATE_ADD(NOW(), INTERVAL 600 SECOND) WHERE id = ?`,
       [task.id]
     );
   } catch (e) { }
