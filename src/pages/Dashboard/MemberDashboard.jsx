@@ -4,7 +4,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { Eye, TrendingUp, Zap, Wallet, Gift, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Eye, TrendingUp, Zap, Wallet, Gift, CheckCircle2, Clock, XCircle, Bell, X } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import api from '../../lib/api';
 
@@ -48,11 +48,19 @@ export default function MemberDashboard() {
   usePageTitle('Tổng quan');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [announcement, setAnnouncement] = useState(null);
+  const [announcementDismissed, setAnnouncementDismissed] = useState(false);
 
   useEffect(() => {
     api.get('/vuot-link/worker/stats')
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
+
+    // Fetch admin announcement (public, no auth needed)
+    fetch('/api/announcement')
+      .then(r => r.json())
+      .then(d => { if (d.enabled && d.message) setAnnouncement(d); })
+      .catch(() => {});
   }, []);
 
   // Chart: mỗi ngày có views + earn
@@ -114,6 +122,33 @@ export default function MemberDashboard() {
   return (
     <div className="space-y-6 w-full min-w-0">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/worker/dashboard' }, { label: 'Tổng quan' }]} />
+
+      {/* Admin Announcement Banner */}
+      {announcement && !announcementDismissed && (() => {
+        const styles = {
+          info:    { wrap: 'bg-blue-50 border-blue-200 text-blue-800',    icon: 'text-blue-500' },
+          warning: { wrap: 'bg-amber-50 border-amber-200 text-amber-800', icon: 'text-amber-500' },
+          success: { wrap: 'bg-emerald-50 border-emerald-200 text-emerald-800', icon: 'text-emerald-500' },
+          error:   { wrap: 'bg-red-50 border-red-200 text-red-800',       icon: 'text-red-500' },
+        };
+        const s = styles[announcement.type] || styles.info;
+        return (
+          <div className={`flex items-start gap-3 px-5 py-4 rounded-2xl border shadow-sm ${s.wrap}`}>
+            <Bell size={18} className={`${s.icon} flex-shrink-0 mt-0.5`} />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wide mb-1 opacity-60">Thông báo từ Admin</p>
+              <p className="text-sm font-semibold leading-relaxed whitespace-pre-line">{announcement.message}</p>
+            </div>
+            <button
+              onClick={() => setAnnouncementDismissed(true)}
+              className="flex-shrink-0 p-1 rounded-lg hover:bg-black/10 transition"
+              title="Đóng"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-w-0">

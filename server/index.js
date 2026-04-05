@@ -62,6 +62,25 @@ app.get('/api/worker-pricing', async (req, res) => {
   }
 });
 
+// ── Public: Worker announcement from admin ──
+app.get('/api/announcement', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute(
+      "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('worker_announcement','worker_announcement_type','worker_announcement_enabled')"
+    );
+    const cfg = {};
+    rows.forEach(r => { cfg[r.setting_key] = r.setting_value; });
+    res.json({
+      enabled: cfg.worker_announcement_enabled === 'true',
+      message: cfg.worker_announcement || '',
+      type: cfg.worker_announcement_type || 'info',
+    });
+  } catch (err) {
+    res.json({ enabled: false, message: '', type: 'info' });
+  }
+});
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/campaigns', require('./routes/campaigns'));
 app.use('/api/finance', require('./routes/finance'));

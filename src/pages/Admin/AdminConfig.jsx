@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import {
   Save, Check, Settings2, Wallet, Send, RefreshCw, ExternalLink,
-  CheckCircle2, XCircle, Clock, Zap, AlertTriangle, TrendingUp
+  CheckCircle2, XCircle, Clock, Zap, AlertTriangle, TrendingUp, Bell
 } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
@@ -52,7 +52,17 @@ const WEB3_DB_FIELDS = [
   { key: 'web3_auto_approve', label: 'Tự động gửi khi duyệt', description: 'Khi admin duyệt rút crypto → tự động gửi USDT', type: 'toggle', defaultValue: 'false' },
 ];
 
-const ALL_CONFIG_FIELDS = [...VUOTLINK_FIELDS, ...DEPOSIT_FIELDS, ...WITHDRAW_FIELDS, ...WEB3_DB_FIELDS];
+const ANNOUNCEMENT_FIELDS = [
+  { key: 'worker_announcement_enabled', label: 'Hiển thị thông báo cho Worker', description: 'Bật/tắt banner thông báo trên trang tổng quan của worker', type: 'toggle', defaultValue: 'false' },
+  { key: 'worker_announcement_type', label: 'Loại thông báo', description: 'Màu sắc và kiểu thông báo: info (xanh), warning (vàng), success (xanh lá), error (đỏ)', type: 'select', defaultValue: 'info', options: [
+    { value: 'info', label: '🔵 Info (Xanh dương)' },
+    { value: 'warning', label: '🟡 Warning (Vàng)' },
+    { value: 'success', label: '🟢 Success (Xanh lá)' },
+    { value: 'error', label: '🔴 Error (Đỏ)' },
+  ]},
+];
+
+const ALL_CONFIG_FIELDS = [...VUOTLINK_FIELDS, ...DEPOSIT_FIELDS, ...WITHDRAW_FIELDS, ...WEB3_DB_FIELDS, ...ANNOUNCEMENT_FIELDS];
 
 // LocalStorage key for private key
 const PK_STORAGE_KEY = 'web3_hot_wallet_pk';
@@ -165,6 +175,15 @@ export default function AdminConfig() {
             className={`relative inline-flex w-14 h-7 rounded-full transition-colors duration-200 ${config[field.key] === 'true' ? 'bg-green-500' : 'bg-slate-300'}`}>
             <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-200 ${config[field.key] === 'true' ? 'translate-x-7' : 'translate-x-0'}`} />
           </button>
+        ) : field.type === 'select' ? (
+          <select
+            value={config[field.key] || field.defaultValue}
+            onChange={e => updateField(field.key, e.target.value)}
+            className="px-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white">
+            {(field.options || []).map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
         ) : field.type === 'text' ? (
           <input type="text"
             value={config[field.key] || ''}
@@ -364,6 +383,43 @@ export default function AdminConfig() {
                 )}
               </div>
             )}
+          </div>
+        )}
+      </div>
+      {/* Worker Announcement */}
+      <div className="bg-white rounded-xl border border-amber-200 overflow-hidden">
+        <div className="px-6 py-4 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200 flex items-center gap-2">
+          <Bell size={16} className="text-amber-600" />
+          <h2 className="font-bold text-slate-800">Thông báo cho Worker</h2>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {ANNOUNCEMENT_FIELDS.map(renderField)}
+        </div>
+        {/* Nội dung thông báo: textarea riêng */}
+        <div className="px-6 py-4 border-t border-slate-100">
+          <p className="font-semibold text-sm text-slate-700 mb-1">Nội dung thông báo</p>
+          <p className="text-xs text-slate-400 mb-3">Hiển thị trên trang Tổng quan của worker. Hỗ trợ nhiều dòng.</p>
+          <textarea
+            rows={4}
+            value={config.worker_announcement || ''}
+            onChange={e => updateField('worker_announcement', e.target.value)}
+            placeholder="VD: Hệ thống sẽ bảo trì từ 23:00 đến 01:00 ngày mai. Cảm ơn bạn đã sử dụng dịch vụ!"
+            className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 transition-all resize-none"
+          />
+        </div>
+        {/* Preview */}
+        {config.worker_announcement && (
+          <div className="px-6 pb-5">
+            <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Preview</p>
+            <div className={`flex items-start gap-3 px-4 py-3.5 rounded-xl border text-sm font-medium ${
+              config.worker_announcement_type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+              config.worker_announcement_type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
+              config.worker_announcement_type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
+              'bg-blue-50 border-blue-200 text-blue-800'
+            }`}>
+              <Bell size={15} className="mt-0.5 flex-shrink-0" />
+              <p className="leading-relaxed whitespace-pre-line">{config.worker_announcement}</p>
+            </div>
           </div>
         )}
       </div>
