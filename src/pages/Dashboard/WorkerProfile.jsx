@@ -134,8 +134,8 @@ export default function WorkerProfile() {
       <div className="flex border-b border-slate-200">
         {[
           { key: 'profile', label: 'Hồ sơ cá nhân', icon: User },
-          { key: 'source',  label: 'Xét duyệt nguồn', icon: ShieldCheck },
           { key: 'password', label: 'Mật khẩu', icon: Lock },
+          { key: 'source',  label: 'Xét duyệt nguồn', icon: ShieldCheck },
         ].map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setActiveTab(key)}
             className={`flex items-center gap-2 px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors ${
@@ -215,20 +215,18 @@ export default function WorkerProfile() {
 
             <form onSubmit={handleSourceSubmit} className="space-y-4 max-w-lg">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  URL nguồn traffic <span className="text-red-500">*</span>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
+                  <Globe size={13} className="text-indigo-500" /> Nguồn traffic *
                 </label>
-                <div className="relative">
-                  <Globe size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    value={sourceUrl}
-                    onChange={e => setSourceUrl(e.target.value)}
-                    placeholder="https://your-source-website.com"
-                    className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition"
-                    disabled={sourceStatus === 'approved'}
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400 mt-1">Ví dụ: website, kênh mạng xã hội, ứng dụng... nơi bạn chia sẻ link rút gọn.</p>
+                <textarea
+                  value={sourceUrl}
+                  onChange={e => setSourceUrl(e.target.value)}
+                  placeholder={'VD: Website cá nhân tại domain.com\nFanpage Facebook: fb.com/page\nGroup Telegram: t.me/group\n...'}
+                  rows={4}
+                  className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 resize-y min-h-[80px]"
+                  disabled={sourceStatus === 'approved'}
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Mô tả chi tiết nơi bạn chia sẻ link để admin xét duyệt (có thể nhiều dòng)</p>
               </div>
 
               {sourceStatus !== 'approved' && (

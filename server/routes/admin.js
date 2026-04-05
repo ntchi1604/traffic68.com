@@ -90,7 +90,7 @@ router.get('/users', async (req, res) => {
   const { search, role, service_type, page = 1, limit = 20 } = req.query;
   const offset = (page - 1) * limit;
 
-  let sql = `SELECT u.id, u.email, u.name, u.username, u.phone, u.role, u.service_type, u.status, u.trusted, u.referral_code, u.created_at,
+  let sql = `SELECT u.id, u.email, u.name, u.username, u.phone, u.role, u.service_type, u.status, u.trusted, u.referral_code, u.created_at, u.source_status, u.source_url,
     (SELECT COALESCE(SUM(w.balance), 0) FROM wallets w WHERE w.user_id = u.id) as total_balance,
     (SELECT COALESCE(w2.balance, 0) FROM wallets w2 WHERE w2.user_id = u.id AND w2.type = 'main') as main_balance,
     (SELECT COALESCE(w3.balance, 0) FROM wallets w3 WHERE w3.user_id = u.id AND w3.type = 'earning') as earning_balance,

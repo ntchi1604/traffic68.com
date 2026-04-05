@@ -233,13 +233,13 @@ function AssignModal({ group, allGroups, onClose, onSaved }) {
 }
 
 // ── Profit margin quick-set panel for a group ──────────────────────
-function ProfitMarginPanel({ group, defaultTiers, editedRates, setRate, onApply, applying }) {
+function ProfitMarginPanel({ group, rates, editedRates, setRate }) {
   const [pct, setPct] = useState('');
 
   const preview = () => {
     if (!pct || isNaN(Number(pct))) return;
     const rate = (100 - Number(pct)) / 100;
-    defaultTiers.forEach(t => {
+    rates.forEach(t => {
       setRate(t.traffic_type, t.duration, 'v1_price', Math.round(t.v1_price * rate));
       setRate(t.traffic_type, t.duration, 'v2_price', Math.round(t.v2_price * rate));
     });
@@ -392,7 +392,7 @@ function GroupCard({ group, allGroups, defaultTiers, onRefresh, onEdit, onDelete
                 {/* Quick profit margin calculator */}
                 <ProfitMarginPanel
                   group={group}
-                  defaultTiers={defaultTiers}
+                  rates={rates}
                   editedRates={editedRates}
                   setRate={setRate}
                 />
