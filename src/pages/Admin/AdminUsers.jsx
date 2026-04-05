@@ -12,8 +12,6 @@ function SourceApprovalModal({ user, onClose, onDone }) {
   const [rejectReason, setRejectReason] = useState('');
   const [mode, setMode] = useState('approve'); // 'approve' | 'reject'
   const [loading, setLoading] = useState(false);
-  const [sourceUrl, setSourceUrl] = useState(user.source_url || '—');
-  const toast = { error: console.error }; // fallback
 
   useEffect(() => {
     api.get('/admin/pricing-groups').then(d => {
@@ -58,7 +56,7 @@ function SourceApprovalModal({ user, onClose, onDone }) {
           {/* Source URL */}
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <p className="text-xs font-semibold text-slate-500 mb-1">URL nguồn worker gửi:</p>
-            <a href={sourceUrl} target="_blank" rel="noreferrer" className="text-sm text-indigo-600 font-medium break-all hover:underline">{sourceUrl}</a>
+            <p className="text-sm text-slate-700 break-all">{user.source_url || '—'}</p>
           </div>
 
           {/* Mode select */}

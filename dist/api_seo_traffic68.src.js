@@ -159,7 +159,6 @@
   var _detectionCallbacks = [];
   var _botDetection = null;
   var _noCampaign = false;
-  var _dailyFull = false;
   var _hcaptchaToken = '';
   var _hcaptchaLoaded = false;
   var _hcaptchaRendered = false;
@@ -780,13 +779,6 @@
   }
 
   function noCampaignHtml() {
-    if (_dailyFull) {
-      return '<div style="text-align:center;padding:12px 0;">' +
-        '<div style="font-size:32px;margin-bottom:8px;">🌙</div>' +
-        '<p style="font-size:14px;font-weight:700;color:#6366f1;margin:0 0 4px;">Hết lượt hôm nay</p>' +
-        '<p style="font-size:12px;color:' + t.subText + ';margin:0;">Chiến dịch đã đủ lượt trong ngày.<br>Vui lòng quay lại ngày mai!</p>' +
-        '</div>';
-    }
     return '<div style="text-align:center;padding:12px 0;">' +
       '<div style="font-size:32px;margin-bottom:8px;">📋</div>' +
       '<p style="font-size:14px;font-weight:700;color:#f97316;margin:0 0 4px;">Campaign đã đủ số lượng</p>' +
@@ -1835,10 +1827,6 @@
                 var config = resp.config || {};
                 if (!resp.campaignFound) {
                   _noCampaign = true; // mark — show button/countdown but no code
-                }
-                if (resp.dailyFull) {
-                  _noCampaign = true; // treat same: show countdown but no code
-                  _dailyFull = true;  // use different message
                 }
                 if (resp.captchaEnabled === false) _captchaEnabled = false;
                 if (resp.version === 1) _campVersion = 1;
