@@ -128,6 +128,8 @@ export default function AdminConfig() {
     try {
       const settings = {};
       ALL_CONFIG_FIELDS.forEach(f => { settings[f.key] = config[f.key] ?? f.defaultValue; });
+      // Textarea không nằm trong ALL_CONFIG_FIELDS — thêm thủ công
+      settings.worker_announcement = config.worker_announcement || '';
       // Private key NOT sent to DB
       await api.put('/admin/settings/site', { settings });
       toast.success('Cấu hình đã được lưu');
