@@ -67,6 +67,7 @@ import AdminReferrals from './pages/Admin/AdminReferrals';
 import AdminWorkerTasks from './pages/Admin/AdminWorkerTasks';
 import AdminWorkerWithdrawals from './pages/Admin/AdminWorkerWithdrawals';
 import AdminWorkerPricing from './pages/Admin/AdminWorkerPricing';
+import AdminPricingGroups from './pages/Admin/AdminPricingGroups';
 import AdminConfig from './pages/Admin/AdminConfig';
 import AdminWithdrawalAddresses from './pages/Admin/AdminWithdrawalAddresses';
 
@@ -171,6 +172,7 @@ function Layout() {
           <Route path="worker-withdrawals" element={<AdminWorkerWithdrawals />} />
           <Route path="withdrawal-addresses" element={<AdminWithdrawalAddresses />} />
           <Route path="worker-pricing" element={<AdminWorkerPricing />} />
+          <Route path="worker-pricing-groups" element={<AdminPricingGroups />} />
           <Route path="worker-tickets" element={<AdminTickets defaultRole="worker" />} />
           <Route path="config" element={<AdminConfig />} />
           <Route path="settings" element={<AdminSettings />} />

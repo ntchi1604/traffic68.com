@@ -62,6 +62,56 @@ app.get('/api/worker-pricing', async (req, res) => {
   }
 });
 
+// ── Authenticated: worker gets their own pricing (group or default) ──
+app.get('/api/worker-pricing/my', async (req, res) => {
+  try {
+    const { getPool } = require('./db');
+    const { authMiddleware } = require('./middleware/auth');
+    const pool = getPool();
+
+    // Manually run auth to get userId
+    const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+    const jwt = require('jsonwebtoken');
+    let userId = null;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+      userId = decoded.userId || decoded.id;
+    } catch { }
+
+    if (!userId) {
+      // Fallback: return default pricing
+      const [tiers] = await pool.execute('SELECT * FROM worker_pricing_tiers ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)');
+      return res.json({ tiers, groupName: null });
+    }
+
+    // Check if worker has a pricing group
+    const [userRows] = await pool.execute('SELECT pricing_group_id FROM users WHERE id = ?', [userId]);
+    const groupId = userRows[0]?.pricing_group_id;
+
+    if (!groupId) {
+      const [tiers] = await pool.execute('SELECT * FROM worker_pricing_tiers ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)');
+      return res.json({ tiers, groupName: null });
+    }
+
+    // Get group name + rates
+    const [groupRows] = await pool.execute('SELECT name FROM worker_pricing_groups WHERE id = ?', [groupId]).catch(() => [[]]);
+    const groupName = groupRows[0]?.name || null;
+    const [rates] = await pool.execute(
+      'SELECT traffic_type, duration, v1_price, v2_price FROM worker_pricing_group_rates WHERE group_id = ? ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)',
+      [groupId]
+    ).catch(() => [[]]);
+
+    if (rates.length === 0) {
+      const [tiers] = await pool.execute('SELECT * FROM worker_pricing_tiers ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)');
+      return res.json({ tiers, groupName });
+    }
+
+    res.json({ tiers: rates, groupName });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Public: Worker/Buyer announcement from admin ──
 app.get('/api/announcement', async (req, res) => {
   try {

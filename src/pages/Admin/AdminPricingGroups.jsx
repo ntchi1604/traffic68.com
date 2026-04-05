@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import {
   Plus, Trash2, Edit2, Users, DollarSign, ChevronDown, ChevronRight,
-  Search, X, Check, Save, RefreshCw, Tag,
+  Search, X, Check, Save, RefreshCw, Tag, ArrowRightLeft,
 } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
@@ -72,25 +72,29 @@ function GroupModal({ group, onClose, onSaved }) {
   );
 }
 
-// ── Assign Member Modal ────────────────────────────────────────────
-function AssignModal({ group, onClose, onSaved }) {
+// ── Assign Member Modal (improved: can see all workers + current group) ──
+function AssignModal({ group, allGroups, onClose, onSaved }) {
   const toast = useToast();
   const [search, setSearch] = useState('');
   const [users, setUsers] = useState([]);
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [filterMode, setFilterMode] = useState('all'); // 'all' | 'unassigned'
 
   useEffect(() => {
     const t = setTimeout(() => {
       setLoading(true);
-      api.get(`/admin/pricing-groups-unassigned?search=${encodeURIComponent(search)}`)
+      const endpoint = filterMode === 'unassigned'
+        ? `/admin/pricing-groups-unassigned?search=${encodeURIComponent(search)}`
+        : `/admin/pricing-groups-all-workers?search=${encodeURIComponent(search)}`;
+      api.get(endpoint)
         .then(d => setUsers(d.users || []))
         .catch(() => {})
         .finally(() => setLoading(false));
     }, 300);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [search, filterMode]);
 
   const toggle = (id) => setSelected(prev =>
     prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
@@ -108,9 +112,19 @@ function AssignModal({ group, onClose, onSaved }) {
     setSaving(false);
   };
 
+  const getGroupBadge = (u) => {
+    if (!u.pricing_group_id) return null;
+    if (u.pricing_group_id === group.id) return { label: 'Nhóm này', color: 'bg-indigo-100 text-indigo-700' };
+    const g = allGroups.find(x => x.id === u.pricing_group_id);
+    return { label: g?.name || `Nhóm #${u.pricing_group_id}`, color: 'bg-amber-100 text-amber-700' };
+  };
+
+  const unassignedCount = users.filter(u => !u.pricing_group_id).length;
+  const otherGroupCount = users.filter(u => u.pricing_group_id && u.pricing_group_id !== group.id).length;
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0">
           <div>
             <h3 className="text-lg font-bold text-slate-800">Thêm worker vào nhóm</h3>
@@ -118,6 +132,29 @@ function AssignModal({ group, onClose, onSaved }) {
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition"><X size={18} /></button>
         </div>
+
+        {/* Filter tabs */}
+        <div className="flex gap-0 border-b border-slate-100 flex-shrink-0 px-3 pt-2">
+          {[
+            { id: 'all', label: 'Tất cả worker' },
+            { id: 'unassigned', label: 'Chưa có nhóm' },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => { setFilterMode(tab.id); setSelected([]); }}
+              className={`px-4 py-2 text-xs font-bold border-b-2 transition ${filterMode === tab.id ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Info hint for "all" mode */}
+        {filterMode === 'all' && (
+          <div className="mx-4 mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg flex-shrink-0">
+            <p className="text-xs text-amber-700 flex items-center gap-1.5">
+              <ArrowRightLeft size={11} />
+              Worker đang ở nhóm khác sẽ được <strong>chuyển sang nhóm này</strong> khi thêm.
+            </p>
+          </div>
+        )}
 
         <div className="px-6 py-3 border-b border-slate-100 flex-shrink-0">
           <div className="relative">
@@ -132,32 +169,61 @@ function AssignModal({ group, onClose, onSaved }) {
           {loading ? (
             <div className="flex justify-center py-8"><RefreshCw size={18} className="animate-spin text-slate-400" /></div>
           ) : users.length === 0 ? (
-            <p className="text-center text-sm text-slate-400 py-8">Không tìm thấy worker (chưa thuộc nhóm nào)</p>
+            <p className="text-center text-sm text-slate-400 py-8">Không tìm thấy worker</p>
           ) : (
             <div className="space-y-1.5">
-              {users.map(u => (
-                <label key={u.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition border ${selected.includes(u.id) ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
-                  <input type="checkbox" checked={selected.includes(u.id)} onChange={() => toggle(u.id)} className="sr-only" />
-                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition ${selected.includes(u.id) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
-                    {selected.includes(u.id) && <Check size={12} className="text-white" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{u.name}</p>
-                    <p className="text-xs text-slate-400 truncate">{u.email}</p>
-                  </div>
-                </label>
-              ))}
+              {users.map(u => {
+                const badge = getGroupBadge(u);
+                const isCurrentGroup = u.pricing_group_id === group.id;
+                return (
+                  <label key={u.id}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition border
+                      ${isCurrentGroup ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-100' :
+                        selected.includes(u.id) ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
+                    <input type="checkbox" checked={selected.includes(u.id)}
+                      onChange={() => !isCurrentGroup && toggle(u.id)} className="sr-only"
+                      disabled={isCurrentGroup} />
+                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition
+                      ${isCurrentGroup ? 'border-slate-200 bg-slate-100' :
+                        selected.includes(u.id) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
+                      {selected.includes(u.id) && !isCurrentGroup && <Check size={12} className="text-white" />}
+                      {isCurrentGroup && <Check size={12} className="text-slate-300" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-800 truncate">{u.name}</p>
+                      <p className="text-xs text-slate-400 truncate">{u.email}</p>
+                    </div>
+                    {badge && (
+                      <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.color}`}>
+                        {badge.label}
+                      </span>
+                    )}
+                    {!u.pricing_group_id && (
+                      <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                        Mặc định
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
             </div>
           )}
         </div>
 
         <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 flex-shrink-0">
-          <p className="text-xs text-slate-400">{selected.length} đã chọn</p>
+          <div className="text-xs text-slate-400 space-y-0.5">
+            <p>{selected.length} đã chọn</p>
+            {filterMode === 'all' && !loading && (
+              <p className="text-[10px] text-slate-300">
+                {unassignedCount} chưa có nhóm · {otherGroupCount} đang ở nhóm khác
+              </p>
+            )}
+          </div>
           <div className="flex gap-3">
             <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Hủy</button>
             <button onClick={handleAssign} disabled={saving || selected.length === 0}
               className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition disabled:opacity-50">
-              {saving ? 'Đang thêm...' : `Thêm ${selected.length > 0 ? selected.length : ''} worker`}
+              {saving ? 'Đang thêm...' : `Thêm ${selected.length > 0 ? selected.length + ' worker' : ''}`}
             </button>
           </div>
         </div>
@@ -166,8 +232,41 @@ function AssignModal({ group, onClose, onSaved }) {
   );
 }
 
+// ── Profit margin quick-set panel for a group ──────────────────────
+function ProfitMarginPanel({ group, defaultTiers, editedRates, setRate, onApply, applying }) {
+  const [pct, setPct] = useState('');
+
+  const preview = () => {
+    if (!pct || isNaN(Number(pct))) return;
+    const rate = (100 - Number(pct)) / 100;
+    defaultTiers.forEach(t => {
+      setRate(t.traffic_type, t.duration, 'v1_price', Math.round(t.v1_price * rate));
+      setRate(t.traffic_type, t.duration, 'v2_price', Math.round(t.v2_price * rate));
+    });
+  };
+
+  return (
+    <div className="px-5 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center gap-3 flex-wrap">
+      <span className="text-xs font-bold text-emerald-700">Tính nhanh theo % lãi:</span>
+      <div className="relative">
+        <input type="number" value={pct} onChange={e => setPct(e.target.value)}
+          placeholder="50" min="0" max="100"
+          className="w-24 px-3 py-1.5 text-xs border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-400 text-center pr-6" />
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+      </div>
+      {pct && Number(pct) >= 0 && Number(pct) <= 100 && (
+        <span className="text-xs text-emerald-600">Worker nhận <strong>{100 - Number(pct)}%</strong></span>
+      )}
+      <button onClick={preview} disabled={!pct || isNaN(Number(pct))}
+        className="px-3 py-1.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition disabled:opacity-40">
+        Xem trước
+      </button>
+    </div>
+  );
+}
+
 // ── Group Card with Rates + Members ───────────────────────────────
-function GroupCard({ group, defaultTiers, onRefresh, onEdit, onDelete }) {
+function GroupCard({ group, allGroups, defaultTiers, onRefresh, onEdit, onDelete }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState('rates'); // 'rates' | 'members'
@@ -299,64 +398,74 @@ function GroupCard({ group, defaultTiers, onRefresh, onEdit, onDelete }) {
             {loadingRates ? (
               <div className="flex justify-center py-8"><RefreshCw size={18} className="animate-spin text-slate-400" /></div>
             ) : tab === 'rates' ? (
-              <div className="p-5 space-y-4">
-                {Object.entries(tiersGrouped)
-                  .sort(([a], [b]) => TYPE_ORDER.indexOf(a) - TYPE_ORDER.indexOf(b))
-                  .map(([tt, items]) => {
-                    const info = TRAFFIC_LABELS[tt] || { label: tt, color: 'bg-slate-100 text-slate-600' };
-                    return (
-                      <div key={tt}>
-                        <span className={`inline-block px-2.5 py-0.5 text-[11px] font-bold rounded-full mb-2 ${info.color}`}>{info.label}</span>
-                        <div className="overflow-x-auto">
-                          <table className="min-w-[500px] w-full text-xs">
-                            <thead>
-                              <tr className="bg-slate-50">
-                                <th className="px-4 py-2 text-left font-semibold text-slate-500">Thời gian</th>
-                                <th className="px-4 py-2 text-center font-semibold text-slate-500">Giá V1 (đ)</th>
-                                <th className="px-4 py-2 text-center font-semibold text-slate-500">Giá V2 (đ)</th>
-                                <th className="px-4 py-2 text-center font-semibold text-slate-400">V1 mặc định</th>
-                                <th className="px-4 py-2 text-center font-semibold text-slate-400">V2 mặc định</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {items.map(tier => {
-                                const v1 = getRate(tt, tier.duration, 'v1_price');
-                                const v2 = getRate(tt, tier.duration, 'v2_price');
-                                const changed = editedRates[`${tt}_${tier.duration}`];
-                                return (
-                                  <tr key={tier.id} className={changed ? 'bg-indigo-50/40' : 'hover:bg-slate-50'}>
-                                    <td className="px-4 py-2 font-bold text-slate-700">{tier.duration}</td>
-                                    <td className="px-4 py-2 text-center">
-                                      <input type="number" value={v1}
-                                        onChange={e => setRate(tt, tier.duration, 'v1_price', e.target.value)}
-                                        className={`${inputCls} ${changed ? 'border-indigo-300 bg-white' : ''}`} />
-                                    </td>
-                                    <td className="px-4 py-2 text-center">
-                                      <input type="number" value={v2}
-                                        onChange={e => setRate(tt, tier.duration, 'v2_price', e.target.value)}
-                                        className={`${inputCls} ${changed ? 'border-indigo-300 bg-white' : ''}`} />
-                                    </td>
-                                    <td className="px-4 py-2 text-center text-slate-400">{fmt(tier.v1_price)}</td>
-                                    <td className="px-4 py-2 text-center text-slate-400">{fmt(tier.v2_price)}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    );
-                  })}
+              <>
+                {/* Quick profit margin calculator */}
+                <ProfitMarginPanel
+                  group={group}
+                  defaultTiers={defaultTiers}
+                  editedRates={editedRates}
+                  setRate={setRate}
+                />
 
-                {hasChanges && (
-                  <div className="flex justify-end">
-                    <button onClick={saveRates} disabled={savingRates}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition disabled:opacity-50 shadow-lg shadow-indigo-200">
-                      <Save size={14} /> {savingRates ? 'Đang lưu...' : `Lưu thay đổi (${Object.keys(editedRates).length})`}
-                    </button>
-                  </div>
-                )}
-              </div>
+                <div className="p-5 space-y-4">
+                  {Object.entries(tiersGrouped)
+                    .sort(([a], [b]) => TYPE_ORDER.indexOf(a) - TYPE_ORDER.indexOf(b))
+                    .map(([tt, items]) => {
+                      const info = TRAFFIC_LABELS[tt] || { label: tt, color: 'bg-slate-100 text-slate-600' };
+                      return (
+                        <div key={tt}>
+                          <span className={`inline-block px-2.5 py-0.5 text-[11px] font-bold rounded-full mb-2 ${info.color}`}>{info.label}</span>
+                          <div className="overflow-x-auto">
+                            <table className="min-w-[520px] w-full text-xs">
+                              <thead>
+                                <tr className="bg-slate-50">
+                                  <th className="px-4 py-2 text-left font-semibold text-slate-500">Thời gian</th>
+                                  <th className="px-4 py-2 text-center font-semibold text-indigo-600">Giá V1 (đ)</th>
+                                  <th className="px-4 py-2 text-center font-semibold text-indigo-600">Giá V2 (đ)</th>
+                                  <th className="px-4 py-2 text-center font-semibold text-slate-400">V1 mặc định</th>
+                                  <th className="px-4 py-2 text-center font-semibold text-slate-400">V2 mặc định</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {items.map(tier => {
+                                  const v1 = getRate(tt, tier.duration, 'v1_price');
+                                  const v2 = getRate(tt, tier.duration, 'v2_price');
+                                  const changed = editedRates[`${tt}_${tier.duration}`];
+                                  return (
+                                    <tr key={tier.id} className={changed ? 'bg-indigo-50/40' : 'hover:bg-slate-50'}>
+                                      <td className="px-4 py-2 font-bold text-slate-700">{tier.duration}</td>
+                                      <td className="px-4 py-2 text-center">
+                                        <input type="number" value={v1}
+                                          onChange={e => setRate(tt, tier.duration, 'v1_price', e.target.value)}
+                                          className={`${inputCls} ${changed ? 'border-indigo-300 bg-white' : ''}`} />
+                                      </td>
+                                      <td className="px-4 py-2 text-center">
+                                        <input type="number" value={v2}
+                                          onChange={e => setRate(tt, tier.duration, 'v2_price', e.target.value)}
+                                          className={`${inputCls} ${changed ? 'border-indigo-300 bg-white' : ''}`} />
+                                      </td>
+                                      <td className="px-4 py-2 text-center text-slate-400">{fmt(tier.v1_price)}</td>
+                                      <td className="px-4 py-2 text-center text-slate-400">{fmt(tier.v2_price)}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {hasChanges && (
+                    <div className="flex justify-end pt-2">
+                      <button onClick={saveRates} disabled={savingRates}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition disabled:opacity-50 shadow-lg shadow-indigo-200">
+                        <Save size={14} /> {savingRates ? 'Đang lưu...' : `Lưu thay đổi (${Object.keys(editedRates).length})`}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
             ) : (
               /* Members tab */
               <div className="p-5">
@@ -364,7 +473,7 @@ function GroupCard({ group, defaultTiers, onRefresh, onEdit, onDelete }) {
                   <p className="text-xs font-semibold text-slate-500">{members.length} worker trong nhóm</p>
                   <button onClick={() => setShowAssign(true)}
                     className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition">
-                    <Plus size={13} /> Thêm worker
+                    <Plus size={13} /> Thêm / Chuyển worker
                   </button>
                 </div>
                 {members.length === 0 ? (
@@ -400,7 +509,12 @@ function GroupCard({ group, defaultTiers, onRefresh, onEdit, onDelete }) {
       </div>
 
       {showAssign && (
-        <AssignModal group={group} onClose={() => setShowAssign(false)} onSaved={() => { fetchRates(); onRefresh(); }} />
+        <AssignModal
+          group={group}
+          allGroups={allGroups}
+          onClose={() => setShowAssign(false)}
+          onSaved={() => { fetchRates(); onRefresh(); }}
+        />
       )}
     </>
   );
@@ -459,9 +573,9 @@ export default function AdminPricingGroups() {
         <div className="text-sm text-indigo-700">
           <p className="font-bold mb-1">Cách hoạt động</p>
           <ul className="text-xs space-y-1 text-indigo-600">
-            <li>• Worker không thuộc nhóm nào → áp dụng <strong>bảng giá mặc định</strong> (AdminWorkerPricing)</li>
+            <li>• Worker không thuộc nhóm nào → áp dụng <strong>bảng giá mặc định</strong> (trang Bảng giá)</li>
             <li>• Worker thuộc nhóm → áp dụng <strong>giá của nhóm đó</strong> (override hoàn toàn)</li>
-            <li>• Mỗi worker chỉ thuộc 1 nhóm tại 1 thời điểm</li>
+            <li>• Mỗi worker chỉ thuộc 1 nhóm — thêm vào nhóm mới sẽ tự động <strong>chuyển nhóm</strong></li>
             <li>• Khi tạo nhóm mới, giá được clone từ bảng giá mặc định, bạn chỉnh sau</li>
           </ul>
         </div>
@@ -489,6 +603,7 @@ export default function AdminPricingGroups() {
             <GroupCard
               key={g.id}
               group={g}
+              allGroups={groups}
               defaultTiers={defaultTiers}
               onRefresh={fetchData}
               onEdit={setEditingGroup}

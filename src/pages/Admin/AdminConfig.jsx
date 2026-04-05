@@ -78,7 +78,6 @@ const BUYER_ANNOUNCEMENT_FIELDS = [
 
 const ALL_CONFIG_FIELDS = [...VUOTLINK_FIELDS, ...DEPOSIT_FIELDS, ...WITHDRAW_FIELDS, ...WEB3_DB_FIELDS, ...ANNOUNCEMENT_FIELDS, ...BUYER_ANNOUNCEMENT_FIELDS];
 
-// LocalStorage key for private key
 const PK_STORAGE_KEY = 'web3_hot_wallet_pk';
 
 export default function AdminConfig() {
@@ -427,9 +426,9 @@ export default function AdminConfig() {
           <div className="px-6 pb-5">
             <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Preview</p>
             <div className={`flex items-start gap-3 px-4 py-3.5 rounded-xl border text-sm font-medium ${config.worker_announcement_type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
-                config.worker_announcement_type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
-                  config.worker_announcement_type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
-                    'bg-blue-50 border-blue-200 text-blue-800'
+              config.worker_announcement_type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
+                config.worker_announcement_type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
+                  'bg-blue-50 border-blue-200 text-blue-800'
               }`}>
               <Bell size={15} className="mt-0.5 flex-shrink-0" />
               <p className="leading-relaxed whitespace-pre-line">{config.worker_announcement}</p>
@@ -443,7 +442,6 @@ export default function AdminConfig() {
         <div className="px-6 py-4 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-200 flex items-center gap-2">
           <Bell size={16} className="text-indigo-600" />
           <h2 className="font-bold text-slate-800">Thông báo cho Buyer</h2>
-          <span className="ml-auto text-xs font-semibold text-indigo-400 bg-indigo-100 px-2 py-0.5 rounded-full">Hiển trên dashboard buyer</span>
         </div>
         <div className="divide-y divide-slate-100">
           {BUYER_ANNOUNCEMENT_FIELDS.map(renderField)}
@@ -462,12 +460,11 @@ export default function AdminConfig() {
         {config.buyer_announcement && (
           <div className="px-6 pb-5">
             <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Preview</p>
-            <div className={`flex items-start gap-3 px-4 py-3.5 rounded-xl border text-sm font-medium ${
-              config.buyer_announcement_type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
-              config.buyer_announcement_type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
-              config.buyer_announcement_type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
-              'bg-blue-50 border-blue-200 text-blue-800'
-            }`}>
+            <div className={`flex items-start gap-3 px-4 py-3.5 rounded-xl border text-sm font-medium ${config.buyer_announcement_type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                config.buyer_announcement_type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
+                  config.buyer_announcement_type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
+                    'bg-blue-50 border-blue-200 text-blue-800'
+              }`}>
               <Bell size={15} className="mt-0.5 flex-shrink-0" />
               <p className="leading-relaxed whitespace-pre-line">{config.buyer_announcement}</p>
             </div>

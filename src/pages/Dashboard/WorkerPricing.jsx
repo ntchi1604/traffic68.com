@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Tag } from 'lucide-react';
 import { formatMoney as fmt } from '../../lib/format';
 
 const TYPE_STYLE = {
@@ -13,12 +13,17 @@ const TYPE_STYLE = {
 export default function WorkerPricing() {
   usePageTitle('Bảng giá thu nhập');
   const [cards, setCards] = useState([]);
+  const [groupName, setGroupName] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/worker-pricing')
+    const token = localStorage.getItem('token') || '';
+    fetch('/api/worker-pricing/my', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then(r => r.json())
       .then(data => {
+        setGroupName(data.groupName || null);
         const grouped = {};
         (data.tiers || []).forEach(t => {
           if (!grouped[t.traffic_type]) grouped[t.traffic_type] = [];
@@ -44,6 +49,14 @@ export default function WorkerPricing() {
         <h1 className="text-2xl font-black text-slate-900">Bảng giá thu nhập</h1>
         <p className="text-sm text-slate-500 mt-1">Số tiền bạn nhận được mỗi lượt vượt link hoàn thành</p>
       </div>
+
+      {/* Group badge */}
+      {groupName && (
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-sm font-semibold text-indigo-700">
+          <Tag size={15} className="text-indigo-500" />
+          Nhóm giá: <strong>{groupName}</strong>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16">
