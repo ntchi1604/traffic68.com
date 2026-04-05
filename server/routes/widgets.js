@@ -166,12 +166,38 @@ router.get('/public/:token', async (req, res) => {
           const todayDone = todayDoneMap[camp.id] || 0;
           if (dailyViews > 0 && todayDone >= dailyViews) {
             dailyFull = true; // daily done, but campaign still has total quota
-            break;
+            continue; // try next campaign instead of stopping
           }
           campaignInfo = { campaignId: camp.id, waitTime, version: camp.version || 0, targetPage: camp.target_page || '', trafficType: camp.traffic_type || 'google_search' };
           break;
         }
       }
+      // Fallback: If URL match failed, use the worker's active task to find the campaign
+      if (!campaignInfo) {
+        try {
+          const cleanVidFb = req.query.v || '';
+          const [fbTasks] = await pool.execute(
+            `SELECT c.id, c.time_on_site, c.version, c.target_page, c.traffic_type
+             FROM vuot_link_tasks vt
+             JOIN campaigns c ON c.id = vt.campaign_id
+             WHERE (vt.ip_address = ? OR (? != '' AND vt.visitor_id = ?))
+               AND vt.status IN ('pending', 'step1', 'step2', 'step3')
+               AND vt.expires_at > NOW()
+             ORDER BY vt.created_at DESC LIMIT 1`,
+            [ip, cleanVidFb, cleanVidFb]
+          );
+          if (fbTasks.length > 0) {
+            const at = fbTasks[0];
+            const tos2 = at.time_on_site || '';
+            let wt2 = 30;
+            if (tos2.includes('-')) { wt2 = parseInt(tos2.split('-')[0]) || 30; }
+            else { wt2 = parseInt(tos2) || 30; }
+            campaignInfo = { campaignId: at.id, waitTime: wt2, version: at.version || 0, targetPage: at.target_page || '', trafficType: at.traffic_type || 'google_search' };
+            console.log(`[Widget] IP fallback — IP: ${ip}, campaign: ${at.id}, waitTime: ${wt2}s`);
+          }
+        } catch (e) { }
+      }
+      console.log(`[Widget] Lookup — IP: ${ip}, page: "${normalPage.substring(0, 60)}", camps: ${campaigns.length}, matched: ${!!campaignInfo}, dailyFull: ${dailyFull}`);
     } catch (err) {
       console.error('Campaign lookup error:', err.message);
     }

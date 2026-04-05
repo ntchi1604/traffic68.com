@@ -165,7 +165,6 @@ function KeywordStats({ campaignId }) {
 function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
   const [name, setName] = useState(campaign.name || '');
-  const [dailyViews, setDailyViews] = useState(campaign.daily_views || 500);
   const [totalViews, setTotalViews] = useState(Number(campaign.total_views) || 1000);
 
   const [useKeywordUrls, setUseKeywordUrls] = useState(() => {
@@ -242,10 +241,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
   const toggleKeywordDailyViews = () => {
     const next = !useKeywordDailyViews;
-    if (next) {
-      const perKw = Number(dailyViews) > 0 ? Math.floor(Number(dailyViews) / Math.max(1, keywords.length)) : 0;
-      setKeywords(prev => prev.map(k => ({ ...k, daily_views: perKw })));
-    } else {
+    if (!next) {
       setKeywords(prev => prev.map(k => ({ ...k, daily_views: 0 })));
     }
     setUseKeywordDailyViews(next);
@@ -312,7 +308,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         })) : []),
         url: globalUrl || u[0] || 'https://traffic68.com', // fallback
         url2: JSON.stringify([]),
-        dailyViews: Number(dailyViews),
+        dailyViews: useKeywordDailyViews ? keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0) : 0,
         totalViews: Number(totalViews),
         viewByHour: viewByHour ? 1 : 0,
         image1_url: allImages.length ? JSON.stringify(allImages) : null,
@@ -332,7 +328,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const allocatedDailyViews = useKeywordDailyViews
     ? keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)
     : 0;
-  const remainingDailyViews = Math.max(0, Number(dailyViews) - allocatedDailyViews);
+  const remainingDailyViews = allocatedDailyViews; // total from keyword sum
 
   const inputCls = "w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition";
 
@@ -450,7 +446,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 <div>
                   <p className="text-xs font-bold text-sky-700 mb-0.5">Giới hạn view/ngày cho từng từ khóa</p>
                   <p className="text-xs text-sky-600">
-                    Để <b>0</b> = tự chia phần còn lại ({remainingDailyViews.toLocaleString()} view/ngày ÷ {keywords.filter(k => !(Number(k.daily_views) > 0)).length} từ khóa)
+                    Tổng view/ngày: <b>{allocatedDailyViews.toLocaleString()}</b> view (tính từ tất cả từ khóa)
                   </p>
                 </div>
               </div>
@@ -525,29 +521,20 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
 
 
-          {/* Daily views + Total views */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-semibold text-slate-600 mb-1 block">Số view / ngày</label>
-              <div className="relative">
-                <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={inputCls + ' pr-20'} />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">v/ngày</span>
-              </div>
+          {/* Total views only */}
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view mua</label>
+            <div className="relative">
+              <input type="number" min="1" value={totalViews} onChange={e => setTotalViews(Number(e.target.value) || 0)} className={inputCls + ' pr-14'} />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">view</span>
             </div>
-            <div>
-              <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view mua</label>
-              <div className="relative">
-                <input type="number" min="1" value={totalViews} onChange={e => setTotalViews(Number(e.target.value) || 0)} className={inputCls + ' pr-14'} />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">view</span>
-              </div>
-              <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view</p>
-            </div>
+            <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view</p>
           </div>
 
           <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-slate-700">Chia view theo giờ</p>
-              <p className="text-xs text-slate-400">Phân bố đều view trong 24h ({Math.ceil(dailyViews / 24)}/giờ)</p>
+              <p className="text-xs text-slate-400">Phân bố đều view trong 24h ({allocatedDailyViews > 0 ? Math.ceil(allocatedDailyViews / 24) : '?'}/giờ)</p>
             </div>
             <button
               type="button"

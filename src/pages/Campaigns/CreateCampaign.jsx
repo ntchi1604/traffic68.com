@@ -219,7 +219,6 @@ export default function CreateCampaign() {
     trafficType:     '',
     version:         'v1',
     duration:        '',
-    dailyViews:      500,
     totalViews:      1000,
     viewByHour:      false,
     useKeywordViews: false,
@@ -271,12 +270,8 @@ export default function CreateCampaign() {
   }));
   const toggleKeywordViews = () => setForm(f => {
     const next = !f.useKeywordViews;
-    if (next) {
-      // Auto-split campaign daily_views equally among keywords
-      const perKw = f.dailyViews > 0 ? Math.floor(f.dailyViews / Math.max(1, f.keywords.length)) : 0;
-      return { ...f, useKeywordViews: next, keywords: f.keywords.map(k => ({ ...k, daily_views: perKw })) };
-    }
-    return { ...f, useKeywordViews: next, keywords: f.keywords.map(k => ({ ...k, daily_views: 0 })) };
+    // When enabling daily views per keyword, start with 0 so user fills manually
+    return { ...f, useKeywordViews: next, keywords: f.keywords.map(k => ({ ...k, daily_views: next ? 0 : 0 })) };
   });
 
   /* ── URL / image helpers ── */
@@ -289,7 +284,6 @@ export default function CreateCampaign() {
   const allocatedDailyViews = form.useKeywordViews
     ? form.keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)
     : 0;
-  const remainingDailyViews = Math.max(0, form.dailyViews - allocatedDailyViews);
 
   const adminDiscountEnabled = pricingConfig.discount_enabled === 'true';
   const applyDiscount = () => {
@@ -381,7 +375,7 @@ export default function CreateCampaign() {
           keyword:          JSON.stringify([]),
           keyword_config:   JSON.stringify([]),
           total_views:      keywordTotalViews,
-          daily_views:      form.dailyViews,
+          daily_views:      allocatedDailyViews,
           duration:         Number(form.duration),
           version:          form.version,
           discount_applied: discountApplied,
@@ -438,7 +432,7 @@ export default function CreateCampaign() {
         keyword:          JSON.stringify(validKeywords.map(k => k.keyword)),
         keyword_config:   JSON.stringify(keywordConfig),
         total_views:      keywordTotalViews,
-        daily_views:      form.dailyViews,
+        daily_views:      allocatedDailyViews,
         duration:         Number(form.duration),
         version:          form.version,
         discount_applied: discountApplied,
@@ -610,26 +604,15 @@ export default function CreateCampaign() {
                 <Hint>Thời gian dài → SEO tín hiệu tốt hơn. Giá sẽ hiển thị sau khi chọn loại traffic.</Hint>
               </div>
 
-              {/* Views */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label required hint="Số view tối đa phân phối trong 1 ngày">Số view / ngày</Label>
-                  <NumberInput
-                    value={form.dailyViews}
-                    onChange={e => set('dailyViews', Number(e.target.value))}
-                    suffix="view/ngày"
-                  />
-                  <Hint>Giới hạn phân phối hàng ngày</Hint>
-                </div>
-                <div>
-                  <Label required hint="Tổng số view cần mua cho chiến dịch">Tổng view mua</Label>
-                  <NumberInput
-                    value={form.totalViews}
-                    onChange={e => set('totalViews', Number(e.target.value))}
-                    suffix="view"
-                  />
-                  <Hint>View dư ngày trước sẽ chuyển sang ngày sau</Hint>
-                </div>
+              {/* Total views only */}
+              <div>
+                <Label required hint="Tổng số view cần mua cho chiến dịch">Tổng view mua</Label>
+                <NumberInput
+                  value={form.totalViews}
+                  onChange={e => set('totalViews', Number(e.target.value))}
+                  suffix="view"
+                />
+                <Hint>View dư ngày trước sẽ chuyển sang ngày sau</Hint>
               </div>
 
               {/* View by hour */}
