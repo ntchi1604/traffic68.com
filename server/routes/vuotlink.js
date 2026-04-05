@@ -491,6 +491,16 @@ async function _handleTaskPost(req, res) {
   };
   const securityDetail = JSON.stringify(secObj).substring(0, 10000);
 
+  // Hủy task cũ còn pending/step1 (chưa bắt đầu làm) trước khi tạo task mới
+  const cleanVidCancel = (visitorId && visitorId !== 'unknown') ? visitorId : '';
+  await pool.execute(
+    `UPDATE vuot_link_tasks SET status = 'cancelled', expires_at = NOW()
+     WHERE (ip_address = ? OR (? != '' AND visitor_id = ?))
+       AND status IN ('pending', 'step1')
+       AND expires_at > NOW()`,
+    [ip, cleanVidCancel, cleanVidCancel]
+  ).catch(() => {});
+
   const [result] = await pool.execute(
     `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id, ref_worker_id, security_detail) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?, ?)`,
     [campaign.id, req.userId || null, selectedKeyword, selectedUrl, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId, refWorkerId, securityDetail]
