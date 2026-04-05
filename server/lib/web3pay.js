@@ -348,11 +348,34 @@ async function processIncomingDeposits() {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+
+      // ── Atomic lock: chỉ approve nếu vẫn đang ở status 'pending' ──
+      const [lockRes] = await conn.execute(
+        `UPDATE transactions SET status='processing' WHERE id=? AND status='pending'`,
+        [tx.id]
+      );
+      if (lockRes.affectedRows === 0) {
+        // Đã được approve/cancel bởi tiến trình khác
+        await conn.rollback();
+        console.log(`[DepositWatcher] ⚠️ Tx ${tx.id} already processed by another process, skipping`);
+        lastKnownBalance[net.id] = currentBalance;
+        conn.release();
+        continue;
+      }
+
       await conn.execute(
-        `UPDATE transactions SET status='completed', note=CONCAT(note, ' | Auto-confirmed | Received: ', ?, ' USDT') WHERE id=? AND status='pending'`,
+        `UPDATE transactions SET status='completed', note=CONCAT(note, ' | Auto-confirmed | Received: ', ?, ' USDT') WHERE id=?`,
         [delta.toFixed(4), tx.id]
       );
       await conn.execute('UPDATE wallets SET balance=balance+? WHERE user_id=? AND type=?', [tx.amount, tx.user_id, 'main']);
+
+      // ── Hủy các pending deposits trùng cùng user + cùng amount ──
+      await conn.execute(
+        `UPDATE transactions SET status='cancelled', note=CONCAT(COALESCE(note,''), ' | Tự động hủy: đã xác nhận đơn khác cùng giá trị')
+         WHERE user_id=? AND type='deposit' AND status='pending' AND amount=? AND id!=?`,
+        [tx.user_id, tx.amount, tx.id]
+      );
+
       const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
       await conn.execute(
         `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,

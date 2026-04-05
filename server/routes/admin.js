@@ -539,6 +539,16 @@ router.put('/transactions/:id/approve', async (req, res) => {
       }
     }
 
+    // ── Auto-cancel các pending deposits khác của cùng user + cùng amount ──
+    // Tránh watcher auto-approve trùng lặp
+    try {
+      await conn.execute(
+        `UPDATE transactions SET status = 'cancelled', note = CONCAT(COALESCE(note,''), ' | Tự động hủy: đã duyệt đơn khác cùng giá trị')
+         WHERE user_id = ? AND type = 'deposit' AND status = 'pending' AND amount = ? AND id != ?`,
+        [tx.user_id, tx.amount, req.params.id]
+      );
+    } catch (_) { /* không critical */ }
+
     await conn.commit();
     conn.release();
     res.json({ message: `Đã duyệt đơn nạp ${fmt} VND` });
