@@ -284,6 +284,8 @@ export default function CreateCampaign() {
   const allocatedDailyViews = form.useKeywordViews
     ? form.keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)
     : 0;
+  const zeroKeywordsCount = form.keywords.filter(k => !(Number(k.daily_views) > 0)).length;
+  const remainingDailyViews = Math.max(0, form.totalViews - allocatedDailyViews);
 
   const adminDiscountEnabled = pricingConfig.discount_enabled === 'true';
   const applyDiscount = () => {
@@ -964,7 +966,7 @@ export default function CreateCampaign() {
                 <SummaryRow label="Loại traffic"   value={TRAFFIC_TYPES.find(t => t.value === form.trafficType)?.label || '—'} />
                 <SummaryRow label="Version"        value={form.version === 'v1' ? 'Version 1 (2 bước)' : 'Version 2 (1 bước)'} />
                 <SummaryRow label="Thời gian"      value={DURATIONS.find(d => d.value === form.duration)?.label || '—'} />
-                <SummaryRow label="View/ngày"      value={`${fmt(form.dailyViews)} view`} />
+                <SummaryRow label="View/ngày"      value={form.useKeywordViews ? `${fmt(allocatedDailyViews)} view` : '—'} />
                 <SummaryRow label="Tổng view"      value={`${fmt(keywordTotalViews)} view`} />
                 <SummaryRow
                   label="Đơn giá/view"

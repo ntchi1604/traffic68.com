@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
-import { Code2, Copy, Check, Key, RefreshCw, Zap, Eye, EyeOff, Terminal, Link2 } from 'lucide-react';
+import { Code2, Copy, Check, Key, RefreshCw, Zap, Eye, EyeOff, Terminal, Link2, ShieldCheck, AlertTriangle, Clock, XCircle } from 'lucide-react';
 import api from '../../lib/api';
 import { useToast } from '../../components/Toast';
+import { useNavigate } from 'react-router-dom';
 
 export default function WorkerApi() {
   usePageTitle('API Developer');
   const toast = useToast();
+  const navigate = useNavigate();
 
   const [keyData, setKeyData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15,6 +17,7 @@ export default function WorkerApi() {
   const [copied, setCopied] = useState(null);
   const [showKey, setShowKey] = useState(false);
   const [tab, setTab] = useState('quicklink'); // 'quicklink' | 'developer'
+  const [sourceStatus, setSourceStatus] = useState(null); // null = loading
 
   const load = useCallback(async () => {
     try {
@@ -24,7 +27,15 @@ export default function WorkerApi() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    // Fetch source status
+    const token = localStorage.getItem('token') || '';
+    fetch('/api/worker/source', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setSourceStatus(d.source_status || 'pending'))
+      .catch(() => setSourceStatus('pending'));
+  }, [load]);
 
   const createKey = async () => {
     setRegenerating(true);
@@ -63,6 +74,55 @@ export default function WorkerApi() {
   const BASE = window.location.origin;
   const apiKey = keyData?.api_key || 'YOUR_API_KEY';
 
+  /* ── Source status banner ── */
+  const SourceBanner = () => {
+    if (sourceStatus === null) return null; // still loading
+    if (sourceStatus === 'approved') return null; // no banner needed
+
+    const isRejected = sourceStatus === 'rejected';
+    return (
+      <div className={`flex items-start gap-4 p-5 rounded-2xl border-2 ${
+        isRejected
+          ? 'bg-red-50 border-red-300'
+          : 'bg-amber-50 border-amber-300'
+      }`}>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+          isRejected ? 'bg-red-100' : 'bg-amber-100'
+        }`}>
+          {isRejected
+            ? <XCircle size={22} className="text-red-600" />
+            : <Clock size={22} className="text-amber-600" />}
+        </div>
+        <div className="flex-1">
+          <p className={`font-black text-sm mb-1 ${
+            isRejected ? 'text-red-800' : 'text-amber-800'
+          }`}>
+            {isRejected ? '❌ Nguồn bị từ chối — API bị khoá' : '⏳ Nguồn chưa được duyệt — API chưa hoạt động'}
+          </p>
+          <p className={`text-xs leading-relaxed ${
+            isRejected ? 'text-red-700' : 'text-amber-700'
+          }`}>
+            {isRejected
+              ? 'Yêu cầu xét duyệt nguồn của bạn đã bị từ chối. Vui lòng cập nhật lại nguồn và gửi lại để API hoạt động.'
+              : 'API key chỉ hoạt động sau khi admin duyệt nguồn. Vui lòng gửi yêu cầu xét duyệt và chờ admin xử lý.'}
+          </p>
+          <button
+            onClick={() => navigate('/worker/dashboard/profile?tab=source')}
+            className={`mt-3 inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition ${
+              isRejected
+                ? 'bg-red-600 hover:bg-red-700 text-white'
+                : 'bg-amber-500 hover:bg-amber-600 text-white'
+            }`}
+          >
+            <ShieldCheck size={13} />
+            {isRejected ? 'Cập nhật & gửi lại nguồn' : 'Gửi yêu cầu xét duyệt nguồn'}
+          </button>
+        </div>
+        <AlertTriangle size={18} className={isRejected ? 'text-red-400 shrink-0' : 'text-amber-400 shrink-0'} />
+      </div>
+    );
+  };
+
   const TABS = [
     { key: 'quicklink', label: 'QuickLink', icon: Zap },
     { key: 'developer', label: 'Developer API', icon: Terminal },
@@ -75,6 +135,9 @@ export default function WorkerApi() {
         { label: 'API Developer' },
       ]} />
 
+
+      {/* ── Source Status Banner ── */}
+      <SourceBanner />
 
       {/* ── API Key Card ── */}
       <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white">
