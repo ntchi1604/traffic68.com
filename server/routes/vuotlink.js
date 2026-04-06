@@ -471,7 +471,7 @@ async function _handleTaskPost(req, res) {
     waitTime = parseInt(tos) || 60;
   }
 
-  const expirySeconds = 600;
+  const expirySeconds = 1200; // 20 phút
 
   const workerLinkId = ch.workerLinkId || null;
   const refWorkerId = ch.refWorkerId || null;

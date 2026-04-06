@@ -352,7 +352,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   try {
     // Only refresh expires_at — do NOT reset created_at or elapsed-time validation will break
     await pool.execute(
-      `UPDATE vuot_link_tasks SET expires_at = DATE_ADD(NOW(), INTERVAL 600 SECOND) WHERE id = ?`,
+      `UPDATE vuot_link_tasks SET expires_at = DATE_ADD(NOW(), INTERVAL 1200 SECOND) WHERE id = ?`,
       [task.id]
     );
   } catch (e) { }
