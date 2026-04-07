@@ -534,7 +534,14 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-slate-700">Chia view theo giờ</p>
-              <p className="text-xs text-slate-400">Phân bố đều view trong 24h ({allocatedDailyViews > 0 ? Math.ceil(allocatedDailyViews / 24) : '?'}/giờ)</p>
+              <p className="text-xs text-slate-400">
+                Phân bố đều view trong 24h ({allocatedDailyViews > 0
+                  ? Math.ceil(allocatedDailyViews / 24)
+                  : Math.ceil(totalViews / 24)}/giờ)
+              </p>
+              {viewByHour && allocatedDailyViews <= 0 && (
+                <p className="text-xs text-amber-500 mt-0.5">⚠ Không có daily_views → dùng total_views/24 làm giới hạn/giờ</p>
+              )}
             </div>
             <button
               type="button"
@@ -688,7 +695,15 @@ export default function AdminCampaigns() {
                           <p className="text-xs text-slate-400">{c.user_email}</p>
                         </td>
                         <td className="px-5 py-3 font-semibold text-slate-700">{fmt(c.budget)} đ</td>
-                        <td className="px-5 py-3 text-slate-600">{fmt(c.views_done)}/{fmt(c.total_views)}</td>
+                        <td className="px-5 py-3 text-slate-600">
+                          {fmt(c.views_done)}/{fmt(c.total_views)}
+                          {c.view_by_hour > 0 && (
+                            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded bg-indigo-100 text-indigo-700" title="Chia view theo giờ">⏱/giờ</span>
+                          )}
+                          {c.daily_views > 0 && (
+                            <span className="block text-[10px] text-slate-400 mt-0.5">{fmt(c.daily_views)}/ngày</span>
+                          )}
+                        </td>
                         <td className="px-5 py-3">
                           <span className={`px-2 py-1 text-xs font-bold rounded-full ${st.cls}`}>{st.label}</span>
                         </td>

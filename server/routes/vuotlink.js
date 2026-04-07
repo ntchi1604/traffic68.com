@@ -250,9 +250,6 @@ async function _handleTaskPost(req, res) {
   const vnHourStart = toUtcStr(new Date(`${todayVn}T${hourPad}:00:00+07:00`)); // VN giờ hiện tại → UTC
   const hourStartVn = vnHourStart; // giữ tên cũ để không sửa thêm
 
-  // Count completed views today for this device (visitorId)
-  // IMPORTANT: dùng completed_at (không phải created_at) để chính xác theo ngày VN
-  // AND bot_detected = 0: không tính lượt bị phát hiện bot vào limit của user thật
   let deviceViewsToday = 0;
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
@@ -286,7 +283,11 @@ async function _handleTaskPost(req, res) {
     AND ((c.traffic_type = 'google_search' AND c.keyword != '') OR c.traffic_type = 'direct')
     AND c.views_done < c.total_views
     AND (c.daily_views <= 0 OR COALESCE(td.today_done, 0) < c.daily_views)
-    AND (c.view_by_hour <= 0 OR COALESCE(th.hour_done, 0) < CEIL(c.daily_views / 24))`;
+    AND (
+      c.view_by_hour <= 0
+      OR (c.daily_views > 0 AND COALESCE(th.hour_done, 0) < CEIL(c.daily_views / 24))
+      OR (c.daily_views <= 0 AND COALESCE(th.hour_done, 0) < CEIL(c.total_views / 24))
+    )`;
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
       FROM vuot_link_tasks
