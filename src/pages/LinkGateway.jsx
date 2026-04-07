@@ -343,11 +343,11 @@ export default function LinkGateway() {
 
   // Auto-refresh: when task expires (10 min), automatically fetch new campaign
   const expiryTimerRef = useRef(null);
-  const [countdown, setCountdown] = useState(600);
+  const [countdown, setCountdown] = useState(1200);
   useEffect(() => {
     if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
     if (!task || verified) return;
-    setCountdown(600);
+    setCountdown(1200);
     const interval = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
@@ -579,7 +579,7 @@ export default function LinkGateway() {
                 </span>
               </div>
               <div style={{ width: 200, height: 3, background: '#E2E8F0', borderRadius: 99, overflow: 'hidden' }}>
-                <div style={{ height: '100%', background: countdown < 120 ? '#EF4444' : '#3B82F6', borderRadius: 99, width: `${(countdown / 600) * 100}%`, transition: 'width 1s linear' }} />
+                <div style={{ height: '100%', background: countdown < 120 ? '#EF4444' : '#3B82F6', borderRadius: 99, width: `${(countdown / 1200) * 100}%`, transition: 'width 1s linear' }} />
               </div>
             </div>
           )}
