@@ -14,15 +14,15 @@ import Breadcrumb from '../../components/Breadcrumb';
 
 /* ─── Static data ───────────────────────────────────────────── */
 const TRAFFIC_TYPES = [
-  { value: 'google_search', label: 'Google Search',    icon: Search, desc: 'Traffic từ kết quả tìm kiếm Google',       iconBg: 'bg-blue-50',   iconColor: 'text-indigo-600',   activeBg: 'bg-blue-50/80',   activeBorder: 'border-indigo-500',   activeText: 'text-indigo-700' },
-  { value: 'direct',        label: 'Direct / Redirect', icon: Link2,  desc: 'Traffic trực tiếp hoặc redirect URL',       iconBg: 'bg-violet-50', iconColor: 'text-violet-600', activeBg: 'bg-violet-50/80', activeBorder: 'border-violet-500', activeText: 'text-violet-700' },
-  { value: 'social',        label: 'Social',            icon: Share2, desc: 'Traffic từ mạng xã hội (Facebook, TikTok…)', iconBg: 'bg-pink-50',   iconColor: 'text-pink-600',   activeBg: 'bg-pink-50/80',   activeBorder: 'border-pink-500',   activeText: 'text-pink-700' },
+  { value: 'google_search', label: 'Google Search', icon: Search, desc: 'Traffic từ kết quả tìm kiếm Google', iconBg: 'bg-blue-50', iconColor: 'text-indigo-600', activeBg: 'bg-blue-50/80', activeBorder: 'border-indigo-500', activeText: 'text-indigo-700' },
+  { value: 'direct', label: 'Direct / Redirect', icon: Link2, desc: 'Traffic trực tiếp hoặc redirect URL', iconBg: 'bg-violet-50', iconColor: 'text-violet-600', activeBg: 'bg-violet-50/80', activeBorder: 'border-violet-500', activeText: 'text-violet-700' },
+  { value: 'social', label: 'Social', icon: Share2, desc: 'Traffic từ mạng xã hội (Facebook, TikTok…)', iconBg: 'bg-pink-50', iconColor: 'text-pink-600', activeBg: 'bg-pink-50/80', activeBorder: 'border-pink-500', activeText: 'text-pink-700' },
 ];
 
 const DURATIONS = [
-  { value: '',    label: 'Chọn thời gian' },
-  { value: '60',  label: 'Gói 60s' },
-  { value: '90',  label: 'Gói 90s' },
+  { value: '', label: 'Chọn thời gian' },
+  { value: '60', label: 'Gói 60s' },
+  { value: '90', label: 'Gói 90s' },
   { value: '120', label: 'Gói 120s' },
   { value: '150', label: 'Gói 150s' },
   { value: '200', label: 'Gói 200s' },
@@ -30,7 +30,7 @@ const DURATIONS = [
 
 const DEVICES = [
   { value: 'desktop', label: 'Desktop', icon: Monitor, desc: 'PC, Laptop' },
-  { value: 'mobile',  label: 'Mobile',  icon: Smartphone, desc: 'Điện thoại, Tablet' },
+  { value: 'mobile', label: 'Mobile', icon: Smartphone, desc: 'Điện thoại, Tablet' },
 ];
 
 /* ─── Form primitives ───────────────────────────────────────── */
@@ -126,11 +126,10 @@ function VersionCard({ value, selected, onSelect, badge, title, desc }) {
   return (
     <div
       onClick={() => onSelect(value)}
-      className={`relative border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 ${
-        selected
+      className={`relative border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 ${selected
           ? 'border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-100'
           : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm'
-      }`}
+        }`}
     >
       {badge && (
         <span className="absolute -top-2.5 left-3 bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
@@ -138,9 +137,8 @@ function VersionCard({ value, selected, onSelect, badge, title, desc }) {
         </span>
       )}
       <div className="flex items-start gap-3">
-        <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-          selected ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'
-        }`}>
+        <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${selected ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'
+          }`}>
           {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
         </div>
         <div>
@@ -161,15 +159,13 @@ function Toggle({ checked, onChange }) {
       aria-checked={checked}
       onClick={onChange}
       className={`relative inline-flex h-5 w-10 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer
-                  transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
-        checked ? 'bg-indigo-600' : 'bg-slate-200'
-      }`}
+                  transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${checked ? 'bg-indigo-600' : 'bg-slate-200'
+        }`}
     >
       <span
         aria-hidden="true"
-        className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${
-          checked ? 'translate-x-5' : 'translate-x-0'
-        }`}
+        className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${checked ? 'translate-x-5' : 'translate-x-0'
+          }`}
       />
     </button>
   );
@@ -195,41 +191,41 @@ export default function CreateCampaign() {
   const navigate = useNavigate();
   const toast = useToast();
   const [walletBalance, setWalletBalance] = useState(0);
-  const [submitted, setSubmitted]         = useState(false);
-  const [submitting, setSubmitting]       = useState(false);
-  const [error, setError]                 = useState('');
-  const [uploadingIdx, setUploadingIdx]   = useState(-1);
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [uploadingIdx, setUploadingIdx] = useState(-1);
 
-  const [pricingTiers, setPricingTiers]     = useState([]);
-  const [pricingConfig, setPricingConfig]   = useState({});
+  const [pricingTiers, setPricingTiers] = useState([]);
+  const [pricingConfig, setPricingConfig] = useState({});
   const [discountApplied, setDiscountApplied] = useState(false);
 
   useEffect(() => {
     api.get('/finance').then(data => {
       setWalletBalance(data.wallets?.main?.balance || 0);
-    }).catch(() => {});
+    }).catch(() => { });
     fetch('/api/pricing').then(r => r.json()).then(data => {
       setPricingTiers(data.tiers || []);
       if (data.config) setPricingConfig(data.config);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const [form, setForm] = useState({
-    campaignName:    '',
-    trafficType:     '',
-    version:         'v1',
-    duration:        '',
-    totalViews:      1000,
-    viewByHour:      false,
+    campaignName: '',
+    trafficType: '',
+    version: 'v1',
+    duration: '',
+    totalViews: 1000,
+    viewByHour: false,
     useKeywordViews: false,
     useKeywordUrls: false,          // ← new: toggle per-keyword traffic
-    keywords:        [{ keyword: '', views: 1000, daily_views: 0, url: '', image: '' }],  // ← now objects
-    urls:            [''],
-    imageUrls:       [''],
-    devices:         ['desktop', 'mobile'],
-    countries:       ['VN'],
-    discountCode:    '',
-    note:            '',
+    keywords: [{ keyword: '', views: 1000, daily_views: 0, url: '', image: '' }],  // ← now objects
+    urls: [''],
+    imageUrls: [''],
+    devices: ['desktop', 'mobile'],
+    countries: ['VN'],
+    discountCode: '',
+    note: '',
   });
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
@@ -275,7 +271,7 @@ export default function CreateCampaign() {
   });
 
   /* ── URL / image helpers ── */
-  const addArrayItem    = (key) => setForm(f => ({ ...f, [key]: [...f[key], ''] }));
+  const addArrayItem = (key) => setForm(f => ({ ...f, [key]: [...f[key], ''] }));
   const removeArrayItem = (key, idx) => setForm(f => ({ ...f, [key]: f[key].filter((_, i) => i !== idx) }));
   const updateArrayItem = (key, idx, val) => setForm(f => ({ ...f, [key]: f[key].map((v, i) => i === idx ? val : v) }));
 
@@ -304,15 +300,15 @@ export default function CreateCampaign() {
     return pricingTiers.find(t => t.traffic_type === form.trafficType && t.duration === durSec) || null;
   };
 
-  const tier         = findTier();
-  const hasPricing   = !!(form.trafficType && form.duration && tier);
+  const tier = findTier();
+  const hasPricing = !!(form.trafficType && form.duration && tier);
   const pricePerView = (() => {
     if (!tier) return 0;
     if (discountApplied) return form.version === 'v1' ? tier.v1_discount : tier.v2_discount;
     return form.version === 'v1' ? tier.v1_price : tier.v2_price;
   })();
   const totalPrice = hasPricing ? Math.round(keywordTotalViews * pricePerView) : 0;
-  const budgetOk   = totalPrice <= walletBalance;
+  const budgetOk = totalPrice <= walletBalance;
 
   const handleImageUpload = async (e, idx) => {
     const file = e.target.files[0];
@@ -322,8 +318,8 @@ export default function CreateCampaign() {
       const formData = new FormData();
       formData.append('image', file);
       const token = localStorage.getItem('token');
-      const res   = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
-      const data  = await res.json();
+      const res = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+      const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload thất bại');
       updateArrayItem('imageUrls', idx, data.imageUrl);
     } catch (err) {
@@ -342,8 +338,8 @@ export default function CreateCampaign() {
       const formData = new FormData();
       formData.append('image', file);
       const token = localStorage.getItem('token');
-      const res   = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
-      const data  = await res.json();
+      const res = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+      const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload thất bại');
       updateKeywordImage(idx, data.imageUrl);
     } catch (err) {
@@ -370,25 +366,25 @@ export default function CreateCampaign() {
       setSubmitting(true);
       try {
         await api.post('/campaigns', {
-          name:             form.campaignName,
-          url:              validGlobalUrl,
-          url2:             JSON.stringify([]),
-          traffic_type:     'direct',
-          keyword:          JSON.stringify([]),
-          keyword_config:   JSON.stringify([]),
-          total_views:      keywordTotalViews,
-          daily_views:      allocatedDailyViews,
-          duration:         Number(form.duration),
-          version:          form.version,
+          name: form.campaignName,
+          url: validGlobalUrl,
+          url2: JSON.stringify([]),
+          traffic_type: 'direct',
+          keyword: JSON.stringify([]),
+          keyword_config: JSON.stringify([]),
+          total_views: keywordTotalViews,
+          daily_views: allocatedDailyViews,
+          duration: Number(form.duration),
+          version: form.version,
           discount_applied: discountApplied,
-          discount_code:    discountApplied ? form.discountCode.trim() : '',
-          cpc:              pricePerView,
-          budget:           totalPrice,
-          device:           form.devices.join(','),
-          country:          form.countries.join(','),
-          image1_url:       '',
-          image2_url:       '',
-          note:             form.note,
+          discount_code: discountApplied ? form.discountCode.trim() : '',
+          cpc: pricePerView,
+          budget: totalPrice,
+          device: form.devices.join(','),
+          country: form.countries.join(','),
+          image1_url: '',
+          image2_url: '',
+          note: form.note,
         });
         setSubmitted(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -404,7 +400,7 @@ export default function CreateCampaign() {
     // Non-direct: Google Search / Social cần từ khóa
     const validKeywords = form.keywords.filter(k => k.keyword.trim());
     const extractedUrls = validKeywords.map(k => k.url).filter(u => u && u.trim());
-    
+
     if (!form.campaignName || !form.trafficType || !form.duration || validKeywords.length === 0 || (!validGlobalUrl && extractedUrls.length === 0)) {
       setError('Vui lòng điền đầy đủ Tên, Loại traffic, Thời gian và ít nhất 1 từ khoá kèm 1 URL đích (chung hoặc riêng).');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -416,7 +412,7 @@ export default function CreateCampaign() {
       const images = validKeywords.map(k => k.image).filter(u => u && u.trim());
       const globalImage = form.imageUrls[0]?.trim();
       const allImages = globalImage ? [globalImage, ...images] : images;
-      
+
       // Build keyword_config — views = campaign total (daily_views controls rate, not per-keyword budget)
       const keywordConfig = validKeywords.map(k => ({
         keyword: k.keyword,
@@ -427,25 +423,25 @@ export default function CreateCampaign() {
       }));
 
       await api.post('/campaigns', {
-        name:             form.campaignName,
-        url:              validGlobalUrl || extractedUrls[0] || 'https://traffic68.com', // fallback
-        url2:             JSON.stringify([]),
-        traffic_type:     form.trafficType,
-        keyword:          JSON.stringify(validKeywords.map(k => k.keyword)),
-        keyword_config:   JSON.stringify(keywordConfig),
-        total_views:      keywordTotalViews,
-        daily_views:      allocatedDailyViews,
-        duration:         Number(form.duration),
-        version:          form.version,
+        name: form.campaignName,
+        url: validGlobalUrl || extractedUrls[0] || 'https://traffic68.com', // fallback
+        url2: JSON.stringify([]),
+        traffic_type: form.trafficType,
+        keyword: JSON.stringify(validKeywords.map(k => k.keyword)),
+        keyword_config: JSON.stringify(keywordConfig),
+        total_views: keywordTotalViews,
+        daily_views: allocatedDailyViews,
+        duration: Number(form.duration),
+        version: form.version,
         discount_applied: discountApplied,
-        discount_code:    discountApplied ? form.discountCode.trim() : '',
-        cpc:              pricePerView,
-        budget:           totalPrice,
-        device:           form.devices.join(','),
-        country:          form.countries.join(','),
-        image1_url:       allImages.length > 0 ? JSON.stringify(allImages) : '',
-        image2_url:       '',
-        note:             form.note,
+        discount_code: discountApplied ? form.discountCode.trim() : '',
+        cpc: pricePerView,
+        budget: totalPrice,
+        device: form.devices.join(','),
+        country: form.countries.join(','),
+        image1_url: allImages.length > 0 ? JSON.stringify(allImages) : '',
+        image2_url: '',
+        note: form.note,
       });
       setSubmitted(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -532,34 +528,30 @@ export default function CreateCampaign() {
                 <Label required hint="Mỗi loại traffic có mức giá và hành vi khác nhau">Loại traffic</Label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {TRAFFIC_TYPES.map(t => {
-                    const Icon    = t.icon;
-                    const active  = form.trafficType === t.value;
+                    const Icon = t.icon;
+                    const active = form.trafficType === t.value;
                     return (
                       <div
                         key={t.value}
                         onClick={() => set('trafficType', t.value)}
-                        className={`relative flex flex-col gap-2.5 border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 ${
-                          active
+                        className={`relative flex flex-col gap-2.5 border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 ${active
                             ? `${t.activeBorder} ${t.activeBg} shadow-md`
                             : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center justify-between">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
-                            active ? t.iconBg : 'bg-slate-100'
-                          }`}>
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${active ? t.iconBg : 'bg-slate-100'
+                            }`}>
                             <Icon size={17} className={active ? t.iconColor : 'text-slate-400'} />
                           </div>
-                          <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                            active ? `${t.activeBorder.replace('border-', 'border-')} bg-current` : 'border-slate-300 bg-white'
-                          }`} style={active ? { backgroundColor: 'currentColor' } : {}}>
+                          <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${active ? `${t.activeBorder.replace('border-', 'border-')} bg-current` : 'border-slate-300 bg-white'
+                            }`} style={active ? { backgroundColor: 'currentColor' } : {}}>
                             {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                           </div>
                         </div>
                         <div>
-                          <p className={`text-sm font-bold leading-tight ${
-                            active ? t.activeText : 'text-slate-700'
-                          }`}>{t.label}</p>
+                          <p className={`text-sm font-bold leading-tight ${active ? t.activeText : 'text-slate-700'
+                            }`}>{t.label}</p>
                           <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{t.desc}</p>
                         </div>
                       </div>
@@ -593,11 +585,10 @@ export default function CreateCampaign() {
                     <button
                       key={d.value} type="button"
                       onClick={() => set('duration', d.value)}
-                      className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all duration-150 ${
-                        form.duration === d.value
+                      className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all duration-150 ${form.duration === d.value
                           ? 'border-indigo-500 bg-indigo-600 text-white shadow-md shadow-indigo-200'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-600'
-                      }`}
+                        }`}
                     >
                       {d.label}
                     </button>
@@ -842,7 +833,7 @@ export default function CreateCampaign() {
                 <Label hint="Chọn loại thiết bị mà visitor sẽ sử dụng để truy cập">Thiết bị target</Label>
                 <div className="grid grid-cols-2 gap-3">
                   {DEVICES.map(d => {
-                    const Icon   = d.icon;
+                    const Icon = d.icon;
                     const active = form.devices.includes(d.value);
                     return (
                       <div
@@ -851,9 +842,8 @@ export default function CreateCampaign() {
                           const next = active ? form.devices.filter(v => v !== d.value) : [...form.devices, d.value];
                           if (next.length > 0) set('devices', next);
                         }}
-                        className={`flex items-center gap-3 border-2 rounded-xl px-4 py-3 cursor-pointer transition-all ${
-                          active ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
-                        }`}
+                        className={`flex items-center gap-3 border-2 rounded-xl px-4 py-3 cursor-pointer transition-all ${active ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
+                          }`}
                       >
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${active ? 'bg-indigo-100' : 'bg-slate-100'}`}>
                           <Icon size={18} className={active ? 'text-indigo-600' : 'text-slate-400'} />
@@ -862,9 +852,8 @@ export default function CreateCampaign() {
                           <p className={`text-sm font-bold ${active ? 'text-indigo-700' : 'text-slate-600'}`}>{d.label}</p>
                           <p className="text-xs text-slate-400">{d.desc}</p>
                         </div>
-                        <div className={`ml-auto w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                          active ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'
-                        }`}>
+                        <div className={`ml-auto w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${active ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'
+                          }`}>
                           {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                         </div>
                       </div>
@@ -903,11 +892,10 @@ export default function CreateCampaign() {
                   <button
                     type="button"
                     onClick={applyDiscount}
-                    className={`px-4 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-95 flex-shrink-0 ${
-                      discountApplied
+                    className={`px-4 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-95 flex-shrink-0 ${discountApplied
                         ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
                         : 'bg-indigo-500 hover:bg-indigo-600 text-white'
-                    }`}
+                      }`}
                   >
                     {discountApplied ? '✓ Đã áp dụng' : 'Áp dụng'}
                   </button>
@@ -963,11 +951,11 @@ export default function CreateCampaign() {
               {/* Summary rows */}
               <div className="p-5 space-y-0">
                 <SummaryRow label="Tên chiến dịch" value={form.campaignName || '—'} />
-                <SummaryRow label="Loại traffic"   value={TRAFFIC_TYPES.find(t => t.value === form.trafficType)?.label || '—'} />
-                <SummaryRow label="Version"        value={form.version === 'v1' ? 'Version 1 (2 bước)' : 'Version 2 (1 bước)'} />
-                <SummaryRow label="Thời gian"      value={DURATIONS.find(d => d.value === form.duration)?.label || '—'} />
-                <SummaryRow label="View/ngày"      value={form.useKeywordViews ? `${fmt(allocatedDailyViews)} view` : '—'} />
-                <SummaryRow label="Tổng view"      value={`${fmt(keywordTotalViews)} view`} />
+                <SummaryRow label="Loại traffic" value={TRAFFIC_TYPES.find(t => t.value === form.trafficType)?.label || '—'} />
+                <SummaryRow label="Version" value={form.version === 'v1' ? 'Version 1 (2 bước)' : 'Version 2 (1 bước)'} />
+                <SummaryRow label="Thời gian" value={DURATIONS.find(d => d.value === form.duration)?.label || '—'} />
+                <SummaryRow label="View/ngày" value={form.useKeywordViews ? `${fmt(allocatedDailyViews)} view` : '—'} />
+                <SummaryRow label="Tổng view" value={`${fmt(keywordTotalViews)} view`} />
                 <SummaryRow
                   label="Đơn giá/view"
                   value={hasPricing ? `${fmt(pricePerView)} đ` : 'Chọn loại & thời gian'}
@@ -1017,11 +1005,10 @@ export default function CreateCampaign() {
 
                 {/* Budget check */}
                 {hasPricing && (
-                  <div className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold mt-2 ${
-                    budgetOk
+                  <div className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold mt-2 ${budgetOk
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : 'bg-red-50 text-red-700 border border-red-200'
-                  }`}>
+                    }`}>
                     {budgetOk
                       ? <><CheckCircle2 size={12} /> Số dư đủ (còn {fmt(walletBalance - totalPrice)} đ)</>
                       : <><AlertCircle size={12} /> Số dư không đủ – cần nạp thêm {fmt(totalPrice - walletBalance)} đ</>

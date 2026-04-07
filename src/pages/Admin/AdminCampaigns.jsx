@@ -13,8 +13,8 @@ const STATUS_MAP = {
 
 const TRAFFIC_TYPE_MAP = {
   google_search: { label: 'Google Search', cls: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
-  direct:        { label: 'Direct',         cls: 'bg-violet-50 text-violet-700', dot: 'bg-violet-500' },
-  social:        { label: 'Social',         cls: 'bg-pink-50 text-pink-700', dot: 'bg-pink-500' },
+  direct: { label: 'Direct', cls: 'bg-violet-50 text-violet-700', dot: 'bg-violet-500' },
+  social: { label: 'Social', cls: 'bg-pink-50 text-pink-700', dot: 'bg-pink-500' },
 };
 
 const parseJsonArray = (val) => {
@@ -383,7 +383,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                     className={inputCls}
                   />
                   <label className="flex items-center justify-center p-2 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-slate-100 transition flex-shrink-0">
-                    {uploadingIdx === 0 ? <span className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin"/> : <Upload size={14} className="text-slate-500" />}
+                    {uploadingIdx === 0 ? <span className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin" /> : <Upload size={14} className="text-slate-500" />}
                     <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 0)} />
                   </label>
                 </div>
@@ -507,7 +507,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                           className={inputCls + ' flex-1 text-xs py-2'}
                         />
                         <label className="flex items-center justify-center p-2 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-slate-100 transition flex-shrink-0">
-                          {uploadingKwIdx === i ? <span className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin"/> : <Upload size={14} className="text-slate-500" />}
+                          {uploadingKwIdx === i ? <span className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin" /> : <Upload size={14} className="text-slate-500" />}
                           <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
                         </label>
                       </div>
@@ -539,9 +539,6 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                   ? Math.ceil(allocatedDailyViews / 24)
                   : Math.ceil(totalViews / 24)}/giờ)
               </p>
-              {viewByHour && allocatedDailyViews <= 0 && (
-                <p className="text-xs text-amber-500 mt-0.5">⚠ Không có daily_views → dùng total_views/24 làm giới hạn/giờ</p>
-              )}
             </div>
             <button
               type="button"
