@@ -44,7 +44,7 @@ const DL_VI = {
   audio_api_lied: 'Audio API bị giả mạo',
   navigator_api_lied: 'Navigator bị giả mạo',
   webgl_api_lied: 'WebGL bị giả mạo',
-  creepjs_bot: 'CreepJS Bot',
+  creepjs_bot: 'CreepJS Bot (Fingerprint bất thường)',
   creepjs_headless: 'CreepJS Headless',
   widget_bot_detected: 'Widget: Bot phát hiện',
   widget_bot: 'Widget Bot',
@@ -57,6 +57,7 @@ const REASON_VI = {
   bot_ua: '🤖 User-Agent Bot',
   ip_rate_limit: '⚡ Rate limit IP',
   completed: '✅ Hoàn thành task',
+  'Phát hiện Bot': '🤖 CreepJS Fingerprint Bot',
 };
 
 

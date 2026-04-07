@@ -213,7 +213,21 @@ async function _handleTaskPost(req, res) {
   // Thêm: CreepJS bot flag trực tiếp (fallback nếu analyzeDevice miss)
   if (!botDetected && botDetection && botDetection.bot === true) {
     botDetected = true;
-    if (!detectionLog.includes('headless_or_webdriver')) detectionLog.push('headless_or_webdriver');
+    // Ghi lý do chi tiết từ CreepJS để admin xem
+    const creepReasons = [];
+    if (botDetection.headless) creepReasons.push('CreepJS: Headless browser');
+    if (botDetection.stealth) creepReasons.push('CreepJS: Stealth mode');
+    if (botDetection.workerLied) creepReasons.push('CreepJS: Worker scope bị giả mạo');
+    if (botDetection.navigatorLied) creepReasons.push('CreepJS: Navigator bị giả mạo');
+    if (botDetection.webglLied) creepReasons.push('CreepJS: WebGL bị giả mạo');
+    if (botDetection.canvasLied) creepReasons.push('CreepJS: Canvas API bị giả mạo');
+    if (botDetection.audioLied) creepReasons.push('CreepJS: Audio API bị giả mạo');
+    if ((botDetection.totalLies || 0) > 0 && creepReasons.length === 0) {
+      creepReasons.push(`CreepJS: ${botDetection.totalLies} API bị giả mạo (anti-detect browser)`);
+    }
+    if (creepReasons.length === 0) creepReasons.push('CreepJS: Fingerprint bất thường (bot=true, không xác định cụ thể)');
+    detectionLog.push('creepjs_bot');
+    devResult.reasons.push(...creepReasons);
   }
 
 
