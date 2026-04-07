@@ -309,7 +309,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         url: globalUrl || u[0] || 'https://traffic68.com', // fallback
         url2: JSON.stringify([]),
         dailyViews: useKeywordDailyViews ? keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0) : 0,
-        totalViews: Number(totalViews),
+        totalViews: useKeywordViews
+          ? kws.reduce((s, k) => s + (Number(k.views) || 0), 0)
+          : Number(totalViews),
         viewByHour: viewByHour ? 1 : 0,
         image1_url: allImages.length ? JSON.stringify(allImages) : null,
         image2_url: null,
@@ -524,10 +526,22 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           {/* Total views only */}
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view mua</label>
-            <div className="relative">
-              <input type="number" min="1" value={totalViews} onChange={e => setTotalViews(Number(e.target.value) || 0)} className={inputCls + ' pr-14'} />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">view</span>
-            </div>
+            {useKeywordViews ? (
+              <div className="relative">
+                <div className={inputCls + ' pr-14 bg-amber-50 border-amber-200 font-bold text-amber-900 flex items-center'}>
+                  {keywords.reduce((s, k) => s + (Number(k.views) || 0), 0).toLocaleString()}
+                </div>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-500 font-bold pointer-events-none">view</span>
+              </div>
+            ) : (
+              <div className="relative">
+                <input type="number" min="1" value={totalViews} onChange={e => setTotalViews(Number(e.target.value) || 0)} className={inputCls + ' pr-14'} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">view</span>
+              </div>
+            )}
+            {useKeywordViews && (
+              <p className="mt-1 text-xs text-amber-500">Tự tính từ tổng view của từng từ khóa</p>
+            )}
             <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view</p>
           </div>
 
