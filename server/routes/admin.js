@@ -751,30 +751,6 @@ router.put('/pricing/:id', async (req, res) => {
 });
 
 
-router.get('/worker-pricing', async (req, res) => {
-  try {
-    const pool = getPool();
-    const [rows] = await pool.execute('SELECT * FROM worker_pricing_tiers ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)');
-    res.json({ tiers: rows });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-router.put('/worker-pricing/:id', async (req, res) => {
-  try {
-    const pool = getPool();
-    const { v1_price, v2_price } = req.body;
-    await pool.execute(
-      'UPDATE worker_pricing_tiers SET v1_price=?, v2_price=? WHERE id=?',
-      [v1_price, v2_price, req.params.id]
-    );
-    res.json({ message: 'Cập nhật giá worker thành công' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 
 router.get('/settings/site', async (req, res) => {

@@ -184,6 +184,12 @@ app.use('/api', (req, res) => {
   res.status(404).json({ error: `API endpoint không tồn tại: ${req.method} ${req.originalUrl}` });
 });
 
+// ── SPA Fallback: trả về index.html cho tất cả route không phải /api ──
+// Cần thiết để React Router hoạt động khi user reload trang hoặc truy cập trực tiếp
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
 app.use((err, req, res, next) => {
   console.error('❌ Server error:', err.message);
   res.status(500).json({ error: 'Lỗi máy chủ nội bộ' });

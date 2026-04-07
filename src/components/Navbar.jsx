@@ -18,11 +18,12 @@ export default function Navbar() {
   const user = getUser();
 
   const dashboardPath = (() => {
-    if (!user) return '/dashboard';
+    if (!user) return '/buyer/dashboard';
     if (user.role === 'admin') return '/admin';
     if (user.role === 'worker' || user.service_type === 'shortlink') return '/worker/dashboard';
-    return '/dashboard';
+    return '/buyer/dashboard';
   })();
+
 
   return (
     <nav className="sticky top-0 z-50 bg-gray-50 border-b border-gray-200/80 shadow-sm">

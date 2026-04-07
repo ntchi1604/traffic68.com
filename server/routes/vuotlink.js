@@ -251,10 +251,12 @@ async function _handleTaskPost(req, res) {
   const hourStartVn = vnHourStart; // giữ tên cũ để không sửa thêm
 
   // Count completed views today for this device (visitorId)
+  // IMPORTANT: dùng completed_at (không phải created_at) để chính xác theo ngày VN
+  // AND bot_detected = 0: không tính lượt bị phát hiện bot vào limit của user thật
   let deviceViewsToday = 0;
   if (visitorId && visitorId !== 'unknown') {
     const [vCount] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND created_at >= ? AND created_at <= ? AND status = 'completed'`,
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
       [visitorId, vnDayStart, vnDayEnd]
     );
     deviceViewsToday = vCount[0].cnt;
@@ -265,8 +267,9 @@ async function _handleTaskPost(req, res) {
   }
 
   // Count completed views today for this IP
+  // IMPORTANT: dùng completed_at, bot_detected = 0
   const [ipCount] = await pool.execute(
-    `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND created_at >= ? AND created_at <= ? AND status = 'completed'`,
+    `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
     [ip, vnDayStart, vnDayEnd]
   );
   const ipViewsToday = ipCount[0].cnt;
@@ -524,6 +527,29 @@ async function _handleTaskPost(req, res) {
     `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id, ref_worker_id, security_detail) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?, ?)`,
     [campaign.id, req.userId || null, selectedKeyword, selectedUrl, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId, refWorkerId, securityDetail]
   );
+
+  // ── Race-condition guard: recount sau INSERT để bắt concurrent requests ──
+  // Đếm cả pending+completed hôm nay (không tính task vừa tạo = trừ 1 nếu botDetected=false)
+  try {
+    const newTaskId = result.insertId;
+    const [rcIp] = await pool.execute(
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks
+       WHERE ip_address = ? AND bot_detected = 0
+         AND status IN ('completed', 'pending', 'step1', 'step2', 'step3')
+         AND (completed_at >= ? OR (completed_at IS NULL AND created_at >= ?))
+         AND id != ?`,
+      [ip, vnDayStart, vnDayStart, newTaskId]
+    );
+    if (Number(rcIp[0].cnt) >= maxViewsPerIp) {
+      // Vượt limit do race — expire task vừa tạo và trả lỗi
+      await pool.execute(`UPDATE vuot_link_tasks SET status = 'expired', expires_at = NOW() WHERE id = ?`, [newTaskId]);
+      console.log(`[VuotLink] Race-condition limit: IP=${ip}, existing=${rcIp[0].cnt}, max=${maxViewsPerIp} → expired task ${newTaskId}`);
+      return res.status(429).json({ error: `Bạn đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Vui lòng quay lại ngày mai.`, remaining: 0, maxViews: maxViewsPerIp });
+    }
+  } catch (rcErr) {
+    console.error('[VuotLink] Race-condition check error:', rcErr.message);
+    // Không block nếu check lỗi — tiếp tục bình thường
+  }
 
   let isTrustedWorker = false;
   const targetCheckId = refWorkerId || req.userId;
