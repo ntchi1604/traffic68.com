@@ -164,8 +164,10 @@ function KeywordStats({ campaignId }) {
 /* ── Edit Modal ── */
 function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
+  const isDirect = campaign.traffic_type === 'direct';
   const [name, setName] = useState(campaign.name || '');
   const [totalViews, setTotalViews] = useState(Number(campaign.total_views) || 1000);
+  const [dailyViews, setDailyViews] = useState(Number(campaign.daily_views) || 0);
 
   const [useKeywordUrls, setUseKeywordUrls] = useState(() => {
     try {
@@ -296,6 +298,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       const globalUrl = urls[0]?.trim();
       const globalImg = imageUrls[0]?.trim();
       const allImages = globalImg ? [globalImg, ...imgs] : imgs;
+      // Tính dailyViews cuối: direct dùng global, còn lại ưu tiên keyword-level
+      const finalDailyViews = isDirect
+        ? Number(dailyViews) || 0
+        : useKeywordDailyViews
+          ? keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)
+          : Number(dailyViews) || 0;
+
       await api.put(`/admin/campaigns/${campaign.id}`, {
         name,
         keyword: JSON.stringify(kws.length ? kws.map(k => k.keyword) : [campaign.keyword || '']),
@@ -308,7 +317,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         })) : []),
         url: globalUrl || u[0] || 'https://traffic68.com', // fallback
         url2: JSON.stringify([]),
-        dailyViews: useKeywordDailyViews ? keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0) : 0,
+        dailyViews: finalDailyViews,
         totalViews: useKeywordViews
           ? kws.reduce((s, k) => s + (Number(k.views) || 0), 0)
           : Number(totalViews),
@@ -523,26 +532,42 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
 
 
-          {/* Total views only */}
-          <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view mua</label>
-            {useKeywordViews ? (
+          {/* Daily views + Total views */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-semibold text-slate-600 mb-1 block">View / ngày</label>
               <div className="relative">
-                <div className={inputCls + ' pr-14 bg-amber-50 border-amber-200 font-bold text-amber-900 flex items-center'}>
-                  {keywords.reduce((s, k) => s + (Number(k.views) || 0), 0).toLocaleString()}
+                <input
+                  type="number" min="0"
+                  value={dailyViews}
+                  onChange={e => setDailyViews(Number(e.target.value) || 0)}
+                  className={inputCls + ' pr-16'}
+                  placeholder="0 = không giới hạn"
+                />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-medium pointer-events-none">/ngày</span>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">0 = không giới hạn</p>
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view mua</label>
+              {useKeywordViews ? (
+                <div className="relative">
+                  <div className={inputCls + ' pr-14 bg-amber-50 border-amber-200 font-bold text-amber-900 flex items-center'}>
+                    {keywords.reduce((s, k) => s + (Number(k.views) || 0), 0).toLocaleString()}
+                  </div>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-500 font-bold pointer-events-none">view</span>
                 </div>
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-500 font-bold pointer-events-none">view</span>
-              </div>
-            ) : (
-              <div className="relative">
-                <input type="number" min="1" value={totalViews} onChange={e => setTotalViews(Number(e.target.value) || 0)} className={inputCls + ' pr-14'} />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">view</span>
-              </div>
-            )}
-            {useKeywordViews && (
-              <p className="mt-1 text-xs text-amber-500">Tự tính từ tổng view của từng từ khóa</p>
-            )}
-            <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view</p>
+              ) : (
+                <div className="relative">
+                  <input type="number" min="1" value={totalViews} onChange={e => setTotalViews(Number(e.target.value) || 0)} className={inputCls + ' pr-14'} />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">view</span>
+                </div>
+              )}
+              {useKeywordViews && (
+                <p className="mt-1 text-xs text-amber-500">Tự tính từ tổng view của từng từ khóa</p>
+              )}
+              <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view</p>
+            </div>
           </div>
 
           <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">

@@ -71,6 +71,7 @@ import AdminPricingGroups from './pages/Admin/AdminPricingGroups';
 import AdminConfig from './pages/Admin/AdminConfig';
 import AdminWithdrawalAddresses from './pages/Admin/AdminWithdrawalAddresses';
 import AdminSourceApproval from './pages/Admin/AdminSourceApproval';
+import AdminWorkerLinks from './pages/Admin/AdminWorkerLinks';
 
 const DASHBOARD_ROUTES = ['/buyer', '/worker', '/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/admin'];
 
@@ -178,6 +179,7 @@ function Layout() {
           <Route path="worker-pricing-groups" element={<AdminPricingGroups />} />
           <Route path="source-approval" element={<AdminSourceApproval />} />
           <Route path="worker-tickets" element={<AdminTickets defaultRole="worker" />} />
+          <Route path="worker-links" element={<AdminWorkerLinks />} />
           <Route path="config" element={<AdminConfig />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Megaphone, Receipt, LifeBuoy,
   ChevronLeft, Shield, Settings, Settings2, Menu, X, DollarSign, LogOut,
-  ChevronDown, Briefcase, HardHat, Gift, ShieldAlert, ShieldCheck, Fingerprint, Tags,
+  ChevronDown, Briefcase, HardHat, Gift, ShieldAlert, ShieldCheck, Fingerprint, Tags, Link2,
 } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -18,6 +18,7 @@ const BUYER_NAV = [
 const WORKER_NAV = [
   { to: '/admin/worker-users',          icon: Users,         label: 'Người dùng' },
   { to: '/admin/source-approval',       icon: ShieldCheck,   label: 'Duyệt nguồn' },
+  { to: '/admin/worker-links',          icon: Link2,         label: 'Liên kết' },
   { to: '/admin/worker-tasks',          icon: HardHat,       label: 'Nhiệm vụ' },
   { to: '/admin/worker-withdrawals',    icon: Receipt,       label: 'Rút tiền' },
   { to: '/admin/withdrawal-addresses',  icon: Fingerprint,   label: 'Địa chỉ rút' },

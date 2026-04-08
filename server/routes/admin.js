@@ -796,6 +796,92 @@ router.post('/deposit/scan', async (req, res) => {
 });
 
 
+// ══════════════════════════════════════════════════════════════
+// ── Admin: Worker Links Management ──────────────────────────
+// ══════════════════════════════════════════════════════════════
+
+// GET /admin/worker-links — danh sách tất cả worker links với filter
+router.get('/worker-links', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { search = '', workerId = '', hidden = 'all', page = 1, limit = 50 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    let where = 'WHERE 1=1';
+    const params = [];
+
+    if (workerId) {
+      where += ' AND wl.worker_id = ?'; params.push(workerId);
+    }
+    if (hidden !== 'all') {
+      where += ' AND wl.hidden = ?'; params.push(hidden === '1' ? 1 : 0);
+    }
+    if (search) {
+      where += ' AND (wl.slug LIKE ? OR wl.title LIKE ? OR wl.destination_url LIKE ? OR u.name LIKE ? OR u.email LIKE ?)';
+      const sq = `%${search}%`;
+      params.push(sq, sq, sq, sq, sq);
+    }
+
+    const countSql = `SELECT COUNT(*) as c FROM worker_links wl LEFT JOIN users u ON u.id = wl.worker_id ${where}`;
+    const [countRows] = await pool.execute(countSql, params);
+    const total = countRows[0].c;
+
+    const sql = `
+      SELECT wl.id, wl.worker_id, wl.slug, wl.title, wl.destination_url,
+             wl.click_count, wl.completed_count, wl.earning, wl.hidden, wl.created_at,
+             u.name as worker_name, u.email as worker_email
+      FROM worker_links wl
+      LEFT JOIN users u ON u.id = wl.worker_id
+      ${where}
+      ORDER BY wl.created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+    const [links] = await pool.execute(sql, [...params, Number(limit), offset]);
+
+    // Stats tổng quan
+    const [stats] = await pool.execute(`
+      SELECT
+        COUNT(*) as total_links,
+        SUM(click_count) as total_clicks,
+        SUM(completed_count) as total_completed,
+        COALESCE(SUM(earning), 0) as total_earning,
+        SUM(hidden) as total_hidden
+      FROM worker_links
+    `);
+
+    res.json({ links, total, stats: stats[0], page: Number(page), limit: Number(limit) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /admin/worker-links/:id — xóa link
+router.delete('/worker-links/:id', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [result] = await pool.execute('DELETE FROM worker_links WHERE id = ?', [req.params.id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Không tìm thấy link' });
+    res.json({ message: 'Đã xóa link' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /admin/worker-links/:id/toggle-hidden — ẩn/hiện link
+router.put('/worker-links/:id/toggle-hidden', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute('SELECT hidden FROM worker_links WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Không tìm thấy link' });
+    const newHidden = rows[0].hidden ? 0 : 1;
+    await pool.execute('UPDATE worker_links SET hidden = ? WHERE id = ?', [newHidden, req.params.id]);
+    res.json({ ok: true, hidden: newHidden });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 
 router.get('/security/init', async (req, res) => {

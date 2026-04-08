@@ -216,6 +216,7 @@ export default function CreateCampaign() {
     version: 'v1',
     duration: '',
     totalViews: 1000,
+    directDailyViews: 0,          // daily_views limit for direct campaigns
     viewByHour: false,
     useKeywordViews: false,       // per-keyword daily_views limit
     useKeywordTotalViews: false,  // per-keyword total views (amber)
@@ -390,7 +391,7 @@ export default function CreateCampaign() {
           keyword: JSON.stringify([]),
           keyword_config: JSON.stringify([]),
           total_views: keywordTotalViews,
-          daily_views: allocatedDailyViews,
+          daily_views: Number(form.directDailyViews) || 0,
           duration: Number(form.duration),
           version: form.version,
           discount_applied: discountApplied,
@@ -649,7 +650,7 @@ export default function CreateCampaign() {
 
             {/* ── 2. URL đích (Direct) hoặc Từ khóa & URL ── */}
             {isDirect ? (
-              /* ── Direct: chỉ cần URL đích ── */
+              /* ── Direct: URL đích + View/ngày ── */
               <SectionCard icon={Link2} iconBg="bg-violet-50" iconColor="text-violet-600" title="URL đích" badge="Direct">
                 <div className="flex items-start gap-3 mb-4 p-3.5 bg-violet-50 border border-violet-200 rounded-xl">
                   <Link2 size={15} className="text-violet-600 mt-0.5 flex-shrink-0" />
@@ -665,6 +666,16 @@ export default function CreateCampaign() {
                     onChange={e => updateArrayItem('urls', 0, e.target.value)}
                   />
                   <Hint>Visitor sẽ được điều hướng thẳng đến URL này, không qua bước tìm kiếm.</Hint>
+                </div>
+                <div>
+                  <Label hint="Giới hạn số lượt view tối đa mỗi ngày. Đặt 0 để không giới hạn.">View / ngày (tùy chọn)</Label>
+                  <NumberInput
+                    value={form.directDailyViews}
+                    onChange={e => set('directDailyViews', Number(e.target.value) || 0)}
+                    suffix="view/ngày"
+                    min="0"
+                  />
+                  <Hint>Đặt 0 = không giới hạn. View dư ngày trước sẽ chuyển sang ngày sau.</Hint>
                 </div>
               </SectionCard>
             ) : (

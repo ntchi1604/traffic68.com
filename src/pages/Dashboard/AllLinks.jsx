@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
-import { Link2, Copy, EyeOff, ExternalLink, MousePointer, Wallet, CheckCircle, Globe, Plus, X, Check, Globe2 } from 'lucide-react';
+import { Link2, Copy, EyeOff, ExternalLink, MousePointer, Wallet, CheckCircle, Globe, Plus, X, Check, Globe2, Search } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 import { formatMoney as fmt } from '../../lib/format';
@@ -22,6 +22,7 @@ export default function AllLinks() {
   const [formErr, setFormErr] = useState('');
   const [copied, setCopied] = useState(null);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
   const LIMIT = 20;
 
   const load = useCallback(async () => {
@@ -62,6 +63,17 @@ export default function AllLinks() {
     navigator.clipboard.writeText(`${BASE}/vuot-link/${slug}`);
     setCopied(slug); setTimeout(() => setCopied(null), 2000);
   };
+
+  const filtered = search.trim()
+    ? links.filter(l => {
+        const q = search.toLowerCase();
+        return (
+          l.slug?.toLowerCase().includes(q) ||
+          (l.title || '').toLowerCase().includes(q) ||
+          l.destination_url?.toLowerCase().includes(q)
+        );
+      })
+    : links;
 
   return (
     <div className="space-y-6 w-full min-w-0">
@@ -151,20 +163,46 @@ export default function AllLinks() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200/80 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <span className="font-bold text-slate-800 text-sm">Danh sách link ({links.length})</span>
+        <div className="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <span className="font-bold text-slate-800 text-sm">Danh sách link ({filtered.length}{search ? `/${links.length}` : ''})</span>
+          <div className="relative">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Tìm slug, tiêu đề, URL..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 w-52"
+            />
+            {search && (
+              <button onClick={() => { setSearch(''); setPage(1); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X size={11} />
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
           <div className="py-12 text-center text-slate-400 text-sm">Đang tải...</div>
-        ) : links.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="py-16 text-center">
-            <Globe size={40} className="text-slate-300 mx-auto mb-3" />
-            <p className="font-bold text-slate-600 mb-1">Chưa có link nào</p>
-            <p className="text-sm text-slate-400 mb-4">Tạo link đầu tiên để bắt đầu kiếm tiền</p>
-            <button onClick={openPanel} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white" style={{ background: '#6366f1' }}>
-              <Plus size={14} /> Tạo link ngay
-            </button>
+            {search ? (
+              <>
+                <Search size={36} className="text-slate-300 mx-auto mb-3" />
+                <p className="font-bold text-slate-600 mb-1">Không tìm thấy kết quả</p>
+                <p className="text-sm text-slate-400">Thử từ khóa khác hoặc <button onClick={() => setSearch('')} className="text-indigo-500 hover:underline">xóa tìm kiếm</button></p>
+              </>
+            ) : (
+              <>
+                <Globe size={40} className="text-slate-300 mx-auto mb-3" />
+                <p className="font-bold text-slate-600 mb-1">Chưa có link nào</p>
+                <p className="text-sm text-slate-400 mb-4">Tạo link đầu tiên để bắt đầu kiếm tiền</p>
+                <button onClick={openPanel} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white" style={{ background: '#6366f1' }}>
+                  <Plus size={14} /> Tạo link ngay
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -180,7 +218,7 @@ export default function AllLinks() {
                 </tr>
               </thead>
               <tbody>
-                {links.slice((page - 1) * LIMIT, page * LIMIT).map(l => (
+                {filtered.slice((page - 1) * LIMIT, page * LIMIT).map(l => (
                   <tr key={l.id} className="border-b border-slate-50 hover:bg-blue-50/20 transition-colors group">
 
                     {/* Tiêu đề */}
@@ -256,18 +294,18 @@ export default function AllLinks() {
       </div>
 
       {/* Pagination */}
-      {Math.ceil(links.length / LIMIT) > 1 && (
+      {Math.ceil(filtered.length / LIMIT) > 1 && (
         <div className="flex items-center justify-between mt-4">
-          <p className="text-xs text-slate-500">Trang <span className="font-bold text-slate-700">{page}</span> / {Math.ceil(links.length / LIMIT)} <span className="text-slate-400">({links.length} liên kết)</span></p>
+          <p className="text-xs text-slate-500">Trang <span className="font-bold text-slate-700">{page}</span> / {Math.ceil(filtered.length / LIMIT)} <span className="text-slate-400">({filtered.length} liên kết{search ? ` tìm thấy` : ''})</span></p>
           <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200 p-1">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-40 transition">‹ Trước</button>
-            {Array.from({ length: Math.ceil(links.length / LIMIT) }, (_, i) => i + 1)
-              .filter(p => p === 1 || p === Math.ceil(links.length / LIMIT) || Math.abs(p - page) <= 1)
+            {Array.from({ length: Math.ceil(filtered.length / LIMIT) }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === Math.ceil(filtered.length / LIMIT) || Math.abs(p - page) <= 1)
               .reduce((acc, p, i, arr) => { if (i > 0 && arr[i-1] !== p-1) acc.push('...'); acc.push(p); return acc; }, [])
               .map((p, i) => p === '...' ? <span key={`d${i}`} className="px-1 text-slate-400 text-xs">…</span> : (
                 <button key={p} onClick={() => setPage(p)} className={`w-8 h-8 text-xs font-bold rounded-lg transition ${page===p ? 'bg-indigo-600 text-white' : 'hover:bg-slate-50 text-slate-600'}`}>{p}</button>
               ))}
-            <button onClick={() => setPage(p => Math.min(Math.ceil(links.length / LIMIT), p + 1))} disabled={page >= Math.ceil(links.length / LIMIT)} className="px-3 py-1 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
+            <button onClick={() => setPage(p => Math.min(Math.ceil(filtered.length / LIMIT), p + 1))} disabled={page >= Math.ceil(filtered.length / LIMIT)} className="px-3 py-1 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-40 transition">Sau ›</button>
           </div>
         </div>
       )}
