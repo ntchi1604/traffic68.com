@@ -325,7 +325,8 @@ export default function CreateCampaign() {
     if (discountApplied) return form.version === 'v1' ? tier.v1_discount : tier.v2_discount;
     return form.version === 'v1' ? tier.v1_price : tier.v2_price;
   })();
-  const totalPrice = hasPricing ? Math.round(keywordTotalViews * pricePerView) : 0;
+  const effectiveTotalViews = (form.trafficType === 'direct') ? (Number(form.totalViews) || 0) : keywordTotalViews;
+  const totalPrice = hasPricing ? Math.round(effectiveTotalViews * pricePerView) : 0;
   const budgetOk = totalPrice <= walletBalance;
 
   const handleImageUpload = async (e, idx) => {
@@ -390,7 +391,7 @@ export default function CreateCampaign() {
           traffic_type: 'direct',
           keyword: JSON.stringify([]),
           keyword_config: JSON.stringify([]),
-          total_views: keywordTotalViews,
+          total_views: Number(form.totalViews) || 1000,
           daily_views: Number(form.directDailyViews) || 0,
           duration: Number(form.duration),
           version: form.version,
@@ -651,7 +652,7 @@ export default function CreateCampaign() {
             {/* ── 2. URL đích (Direct) hoặc Từ khóa & URL ── */}
             {isDirect ? (
               /* ── Direct: URL đích + View/ngày ── */
-              <SectionCard icon={Link2} iconBg="bg-violet-50" iconColor="text-violet-600" title="URL đích" badge="Direct">
+              <SectionCard icon={Link2} iconBg="bg-violet-50" iconColor="text-violet-600" title="URL đích & Lượt xem" badge="Direct">
                 <div className="flex items-start gap-3 mb-4 p-3.5 bg-violet-50 border border-violet-200 rounded-xl">
                   <Link2 size={15} className="text-violet-600 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-violet-700 leading-relaxed">
@@ -667,15 +668,26 @@ export default function CreateCampaign() {
                   />
                   <Hint>Visitor sẽ được điều hướng thẳng đến URL này, không qua bước tìm kiếm.</Hint>
                 </div>
-                <div>
-                  <Label hint="Giới hạn số lượt view tối đa mỗi ngày. Đặt 0 để không giới hạn.">View / ngày (tùy chọn)</Label>
-                  <NumberInput
-                    value={form.directDailyViews}
-                    onChange={e => set('directDailyViews', Number(e.target.value) || 0)}
-                    suffix="view/ngày"
-                    min="0"
-                  />
-                  <Hint>Đặt 0 = không giới hạn. View dư ngày trước sẽ chuyển sang ngày sau.</Hint>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label required hint="Tổng số lượt view cần mua">Tổng view</Label>
+                    <NumberInput
+                      value={form.totalViews}
+                      onChange={e => set('totalViews', Number(e.target.value) || 0)}
+                      suffix="view"
+                      min="1"
+                    />
+                  </div>
+                  <div>
+                    <Label hint="Giới hạn số lượt view tối đa mỗi ngày. Đặt 0 để không giới hạn.">View / ngày (tùy chọn)</Label>
+                    <NumberInput
+                      value={form.directDailyViews}
+                      onChange={e => set('directDailyViews', Number(e.target.value) || 0)}
+                      suffix="view/ngày"
+                      min="0"
+                    />
+                    <Hint>Đặt 0 = không giới hạn.</Hint>
+                  </div>
                 </div>
               </SectionCard>
             ) : (
