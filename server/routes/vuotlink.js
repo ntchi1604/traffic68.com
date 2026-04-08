@@ -417,18 +417,30 @@ async function _handleTaskPost(req, res) {
         ? Math.floor(remainingDaily / unsetCount)
         : 0; // 0 = no per-keyword daily limit (toggle OFF or all keywords explicitly set)
 
-      // Build weighted list:
-      //   weight = total remaining views for this keyword
-      //   weight forced to 0 if keyword's effective daily_views limit is reached today
+      // Build weighted list with proportional (ratio-based) weights:
+      //   weight = ratio of remaining views (total & daily) relative to their quota
+      //   This prevents keywords with large quotas from dominating keywords with small quotas.
+      //   weight forced to 0 if keyword's effective daily_views limit is reached today or total is done.
       const weighted = kwConfig
         .filter(k => k.keyword && k.keyword.trim())
         .map(k => {
           const totalDone = doneMap[k.keyword] || 0;
           const todayDone = todayMap[k.keyword] || 0;
-          const totalRemaining = Math.max(0, (Number(k.views) || 0) - totalDone);
+          const kwTotalViews = Number(k.views) || 0;
+          const totalRemaining = Math.max(0, kwTotalViews - totalDone);
           const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
+          const dailyRemaining = effectiveDailyLimit > 0 ? Math.max(0, effectiveDailyLimit - todayDone) : totalRemaining;
           const dailyOk = effectiveDailyLimit <= 0 || todayDone < effectiveDailyLimit;
-          return { ...k, weight: dailyOk ? totalRemaining : 0 };
+
+          if (!dailyOk || totalRemaining === 0) return { ...k, weight: 0 };
+
+          // Proportional weight: tỷ lệ % còn lại so với quota → phân bố đều bất kể quota lớn/nhỏ
+          // totalRatio: tiến độ còn lại theo tổng quota (0..1)
+          // dailyRatio: tiến độ còn lại theo daily limit (0..1)
+          const totalRatio = kwTotalViews > 0 ? totalRemaining / kwTotalViews : 1;
+          const dailyRatio = effectiveDailyLimit > 0 ? dailyRemaining / effectiveDailyLimit : totalRatio;
+          // Dùng min của 2 tỷ lệ để ưu tiên keyword nào đang "chậm nhất" theo cả 2 chiều
+          return { ...k, weight: Math.min(totalRatio, dailyRatio) };
         });
 
       const totalWeight = weighted.reduce((s, w) => s + w.weight, 0);
