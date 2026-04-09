@@ -370,17 +370,28 @@ async function _handleTaskPost(req, res) {
     return res.status(404).json(ERR);
   }
 
-  // Weighted random: phân bổ đều TẤT CẢ các camp — chỉ ưu tiên camp ít view trong ngày hôm nay
-  // weight = 1 / (today_done + 1): camp today_done=0 → weight=1.0, today_done=9 → weight=0.1
-  // Không dùng views_done hay budget làm weight — không camp nào bị ưu tiên/thiệt hơn theo tổng
-  const totalWeight = campaigns.reduce((s, c) => s + 1 / ((Number(c._today_done) || 0) + 1), 0);
+  // Weighted random theo daily quota tuyệt đối:
+  //   weight = daily_views - today_done → camp daily=500 có weight 5x so với camp daily=100
+  //   → phân bổ task tỷ lệ thuận với daily_views, duy trì tỷ lệ đều suốt cả ngày
+  //   Camp không set daily (daily_views=0) → dùng total remaining / 10 làm tham chiếu
+  const campWeight = (c) => {
+    const todayDone = Number(c._today_done) || 0;
+    const dailyLimit = Number(c.daily_views) || 0;
+    if (dailyLimit > 0) {
+      return Math.max(0, dailyLimit - todayDone); // còn lại trong ngày (tuyệt đối)
+    }
+    // daily_views không set → dùng (total_views - views_done) / 10 tránh quá lớn
+    const totalLeft = Math.max(0, Number(c.total_views) - Number(c.views_done));
+    return Math.max(1, totalLeft / 10);
+  };
+  const totalWeight = campaigns.reduce((s, c) => s + campWeight(c), 0);
   let rand = Math.random() * totalWeight;
   let campaign = campaigns[campaigns.length - 1]; // fallback to last
   for (const c of campaigns) {
-    rand -= 1 / ((Number(c._today_done) || 0) + 1);
+    rand -= campWeight(c);
     if (rand <= 0) { campaign = c; break; }
   }
-  console.log(`[VuotLink] Selected campaign id=${campaign.id} today=${campaign._today_done} (pool: ${campaigns.length} camps, totalWeight=${totalWeight.toFixed(2)})`);
+  console.log(`[VuotLink] Selected campaign id=${campaign.id} today=${campaign._today_done} daily=${campaign.daily_views} weight=${campWeight(campaign).toFixed(1)} (pool: ${campaigns.length} camps, totalWeight=${totalWeight.toFixed(1)})`);
 
 
   const pickRandom = (val) => {
