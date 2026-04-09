@@ -324,10 +324,11 @@ async function _handleTaskPost(req, res) {
     ? ` AND c.id NOT IN (${allExcludeIds.join(',')})`
     : '';
 
+  // ORDER BY chỉ theo today_done ASC — không ưu tiên camp nào theo tổng views
   const [topCampaigns] = await pool.execute(
     `SELECT c.*, COALESCE(td.today_done, 0) AS _today_done FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${excludeFilter}
-     ORDER BY COALESCE(td.today_done, 0) ASC, c.views_done ASC
-     LIMIT 10`
+     ORDER BY COALESCE(td.today_done, 0) ASC
+     LIMIT 200`
   );
 
   let campaigns;
@@ -338,8 +339,8 @@ async function _handleTaskPost(req, res) {
       : '';
     const [fallbackCampaigns] = await pool.execute(
       `SELECT c.*, COALESCE(td.today_done, 0) AS _today_done FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${hardExclude}
-       ORDER BY COALESCE(td.today_done, 0) ASC, c.views_done ASC
-       LIMIT 10`
+       ORDER BY COALESCE(td.today_done, 0) ASC
+       LIMIT 200`
     );
     campaigns = fallbackCampaigns;
   } else {
@@ -358,7 +359,9 @@ async function _handleTaskPost(req, res) {
     return res.status(404).json(ERR);
   }
 
-  // Weighted random: camp ít view hôm nay → xác suất cao hơn (weight = 1 / (today_done + 1))
+  // Weighted random: phân bổ đều TẤT CẢ các camp — chỉ ưu tiên camp ít view trong ngày hôm nay
+  // weight = 1 / (today_done + 1): camp today_done=0 → weight=1.0, today_done=9 → weight=0.1
+  // Không dùng views_done hay budget làm weight — không camp nào bị ưu tiên/thiệt hơn theo tổng
   const totalWeight = campaigns.reduce((s, c) => s + 1 / ((Number(c._today_done) || 0) + 1), 0);
   let rand = Math.random() * totalWeight;
   let campaign = campaigns[campaigns.length - 1]; // fallback to last
@@ -366,7 +369,8 @@ async function _handleTaskPost(req, res) {
     rand -= 1 / ((Number(c._today_done) || 0) + 1);
     if (rand <= 0) { campaign = c; break; }
   }
-  console.log(`[VuotLink] Selected campaign id=${campaign.id} today=${campaign._today_done} views_done=${campaign.views_done} (pool: ${campaigns.length})`);
+  console.log(`[VuotLink] Selected campaign id=${campaign.id} today=${campaign._today_done} (pool: ${campaigns.length} camps, totalWeight=${totalWeight.toFixed(2)})`);
+
 
   const pickRandom = (val) => {
     if (!val) return val;
