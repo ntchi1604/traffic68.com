@@ -279,6 +279,17 @@ async function _handleTaskPost(req, res) {
   const viewsRemaining = maxViewsPerIp - viewsUsed;
   console.log(`[VuotLink] ✅ VN_DATE=${todayVn} | PASS: IP=${ip}, visitor=${visitorId?.substring(0, 8) || '?'}, views=${viewsUsed}/${maxViewsPerIp}`);
 
+  try {
+    await pool.execute(
+      `UPDATE campaigns SET status = 'running'
+       WHERE status = 'completed'
+         AND views_done < total_views
+         AND user_id IS NOT NULL`
+    );
+  } catch (recoverErr) {
+    console.warn('[VuotLink] Auto-recover status error (non-fatal):', recoverErr.message);
+  }
+
   const campaignWhere = `c.status = 'running'
     AND ((c.traffic_type = 'google_search' AND c.keyword != '') OR c.traffic_type = 'direct')
     AND c.views_done < c.total_views
