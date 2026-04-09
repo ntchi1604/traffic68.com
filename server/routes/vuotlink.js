@@ -435,7 +435,8 @@ async function _handleTaskPost(req, res) {
       // Build weighted list with proportional (ratio-based) weights:
       //   weight = ratio of remaining views (total & daily) relative to their quota
       //   This prevents keywords with large quotas from dominating keywords with small quotas.
-      //   weight forced to 0 if keyword's effective daily_views limit is reached today or total is done.
+      //   weight = 0 chỉ khi daily limit đã hết (hard stop, reset mỗi ngày)
+      //   k.views chỉ ảnh hưởng weight — KHÔNG phải hard block vĩnh viễn
       const weighted = kwConfig
         .filter(k => k.keyword && k.keyword.trim())
         .map(k => {
@@ -448,14 +449,13 @@ async function _handleTaskPost(req, res) {
           const dailyRemaining = effectiveDailyLimit > 0 ? Math.max(0, effectiveDailyLimit - todayDone) : (hasNoTotalLimit ? Infinity : totalRemaining);
           const dailyOk = effectiveDailyLimit <= 0 || todayDone < effectiveDailyLimit;
 
-          if (!dailyOk || (!hasNoTotalLimit && totalRemaining === 0)) return { ...k, weight: 0 };
+          // CHỈ daily limit là hard stop (reset mỗi ngày)
+          // k.views vượt quota → weight thấp (0.05) thay vì 0 → không bị block vĩnh viễn
+          if (!dailyOk) return { ...k, weight: 0 };
 
-          // Proportional weight: tỷ lệ % còn lại so với quota → phân bố đều bất kể quota lớn/nhỏ
-          // totalRatio: tiến độ còn lại theo tổng quota (0..1), unlimited → 1.0
-          // dailyRatio: tiến độ còn lại theo daily limit (0..1)
-          const totalRatio = hasNoTotalLimit ? 1 : totalRemaining / kwTotalViews;
+          // totalRatio: unlimited→1.0, trong quota→(0..1), vượt quota→0.05 (ưu tiên thấp nhưng không bị block)
+          const totalRatio = hasNoTotalLimit ? 1 : (totalRemaining > 0 ? totalRemaining / kwTotalViews : 0.05);
           const dailyRatio = effectiveDailyLimit > 0 ? (dailyRemaining === Infinity ? 1 : dailyRemaining / effectiveDailyLimit) : totalRatio;
-          // Dùng min của 2 tỷ lệ để ưu tiên keyword nào đang "chậm nhất" theo cả 2 chiều
           return { ...k, weight: Math.min(totalRatio, dailyRatio) };
         });
 
