@@ -237,17 +237,18 @@ async function _handleTaskPost(req, res) {
   const maxViewsPerIp = limitSetting.length > 0 ? parseInt(limitSetting[0].setting_value) || 2 : 2;
 
   // Explicitly calculate Vietnam Day and Hour string to enforce limits flawlessly
-  // This bypasses any bugs in MySQL server's global or session timezone defaults
+  // MySQL server timezone = +07:00 (VN) → completed_at lưu giờ VN
+  // Dùng trực tiếp chuỗi giờ VN để so sánh — KHÔNG convert sang UTC
+  // (Convert UTC gây bug: task 19:00 ngày 8/4 VN bị tính vào ngày 9/4 vì '19:00' >= '17:00')
   const vnOpts = { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' };
-  const todayVn = new Intl.DateTimeFormat('en-CA', vnOpts).format(new Date()); // e.g. "2026-04-05"
+  const todayVn = new Intl.DateTimeFormat('en-CA', vnOpts).format(new Date()); // e.g. "2026-04-09"
   const hourVnRaw = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', hour12: false }).format(new Date());
-
-  // Tính UTC tương đương của các mốc thời gian VN (để so sánh với timestamp UTC trong MySQL)
-  const toUtcStr = (d) => d.toISOString().replace('T', ' ').substring(0, 19);
-  const vnDayStart = toUtcStr(new Date(`${todayVn}T00:00:00+07:00`));   // VN 00:00 → UTC -7h
-  const vnDayEnd = toUtcStr(new Date(`${todayVn}T23:59:59+07:00`));   // VN 23:59 → UTC -7h
   const hourPad = hourVnRaw.padStart(2, '0');
-  const vnHourStart = toUtcStr(new Date(`${todayVn}T${hourPad}:00:00+07:00`)); // VN giờ hiện tại → UTC
+
+  // Dùng chuỗi ngày/giờ VN trực tiếp (MySQL lưu VN time, so sánh VN với VN là đúng)
+  const vnDayStart  = `${todayVn} 00:00:00`;   // VN 00:00 ngày hôm nay
+  const vnDayEnd    = `${todayVn} 23:59:59`;   // VN 23:59 ngày hôm nay
+  const vnHourStart = `${todayVn} ${hourPad}:00:00`; // VN giờ hiện tại
   const hourStartVn = vnHourStart; // giữ tên cũ để không sửa thêm
 
   let deviceViewsToday = 0;
