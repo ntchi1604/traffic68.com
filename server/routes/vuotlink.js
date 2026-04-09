@@ -432,11 +432,10 @@ async function _handleTaskPost(req, res) {
         ? Math.floor(remainingDaily / unsetCount)
         : 0; // 0 = no per-keyword daily limit (toggle OFF or all keywords explicitly set)
 
-      // Build weighted list with proportional (ratio-based) weights:
-      //   weight = ratio of remaining views (total & daily) relative to their quota
-      //   This prevents keywords with large quotas from dominating keywords with small quotas.
-      //   weight = 0 chỉ khi daily limit đã hết (hard stop, reset mỗi ngày)
-      //   k.views chỉ ảnh hưởng weight — KHÔNG phải hard block vĩnh viễn
+      // Build weighted list — weight = dailyRemaining tuyệt đối (số lượt còn lại trong ngày)
+      //   Key daily=500 → weight≈500, key daily=100 → weight≈100 → tỷ lệ 5:1 tự nhiên
+      //   Khi todayDone tăng dần, weight giảm dần đều → duy trì tỷ lệ suốt cả ngày
+      //   daily limit là hard stop (weight=0); k.views overrun → giảm 95% priority thay vì block
       const weighted = kwConfig
         .filter(k => k.keyword && k.keyword.trim())
         .map(k => {
@@ -446,17 +445,28 @@ async function _handleTaskPost(req, res) {
           const hasNoTotalLimit = kwTotalViews <= 0;
           const totalRemaining = hasNoTotalLimit ? Infinity : Math.max(0, kwTotalViews - totalDone);
           const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
-          const dailyRemaining = effectiveDailyLimit > 0 ? Math.max(0, effectiveDailyLimit - todayDone) : (hasNoTotalLimit ? Infinity : totalRemaining);
+          const dailyRemaining = effectiveDailyLimit > 0 ? Math.max(0, effectiveDailyLimit - todayDone) : 0;
           const dailyOk = effectiveDailyLimit <= 0 || todayDone < effectiveDailyLimit;
 
-          // CHỈ daily limit là hard stop (reset mỗi ngày)
-          // k.views vượt quota → weight thấp (0.05) thay vì 0 → không bị block vĩnh viễn
+          // Daily limit: hard stop — weight = 0 nếu đã hết quota ngày
           if (!dailyOk) return { ...k, weight: 0 };
 
-          // totalRatio: unlimited→1.0, trong quota→(0..1), vượt quota→0.05 (ưu tiên thấp nhưng không bị block)
-          const totalRatio = hasNoTotalLimit ? 1 : (totalRemaining > 0 ? totalRemaining / kwTotalViews : 0.05);
-          const dailyRatio = effectiveDailyLimit > 0 ? (dailyRemaining === Infinity ? 1 : dailyRemaining / effectiveDailyLimit) : totalRatio;
-          return { ...k, weight: Math.min(totalRatio, dailyRatio) };
+          // Base weight = số lượt còn lại trong ngày (tuyệt đối)
+          // → key 500/ngày có weight 5x so với key 100/ngày → phân bổ đúng tỷ lệ
+          let baseWeight;
+          if (effectiveDailyLimit > 0) {
+            baseWeight = dailyRemaining; // = effectiveDailyLimit - todayDone > 0
+          } else if (!hasNoTotalLimit) {
+            // Không giới hạn ngày, có quota tổng → dùng total remaining
+            baseWeight = Math.max(totalRemaining, 1);
+          } else {
+            // Không giới hạn cả ngày lẫn tổng → dùng campaign daily views làm tham chiếu
+            baseWeight = campaignDailyViews > 0 ? campaignDailyViews : 1000;
+          }
+
+          // Nếu vượt k.views quota tổng (do bug cũ) → giảm 95% priority, không block hoàn toàn
+          const totalPenalty = (!hasNoTotalLimit && totalRemaining === 0) ? 0.05 : 1;
+          return { ...k, weight: baseWeight * totalPenalty };
         });
 
       const totalWeight = weighted.reduce((s, w) => s + w.weight, 0);
