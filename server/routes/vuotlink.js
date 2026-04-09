@@ -455,10 +455,34 @@ async function _handleTaskPost(req, res) {
           if (rand <= 0) { selectedObj = item; break; }
         }
       } else {
-        // All keywords hit daily limit or total → fallback: pick from keywords still with total remaining
-        const stillRemaining = kwConfig.filter(k => (doneMap[k.keyword] || 0) < (Number(k.views) || 0));
-        const fallbackPool = stillRemaining.length > 0 ? stillRemaining : kwConfig;
-        selectedObj = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+        // All keywords hit their daily_views limit today
+        // Check if ANY keyword still has daily quota left (effectiveDailyLimit <= 0 = unlimited)
+        const hasUnlimitedKw = kwConfig.some(k => {
+          const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
+          return effectiveDailyLimit <= 0; // no per-keyword daily limit set
+        });
+
+        if (hasUnlimitedKw) {
+          // Some keywords have no daily limit → pick from those with total remaining
+          const stillRemaining = kwConfig.filter(k => {
+            const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
+            const totalDone = doneMap[k.keyword] || 0;
+            const kwTotalViews = Number(k.views) || 0;
+            return effectiveDailyLimit <= 0 && totalDone < kwTotalViews;
+          });
+          const fallbackPool = stillRemaining.length > 0 ? stillRemaining : kwConfig.filter(k => {
+            const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
+            return effectiveDailyLimit <= 0;
+          });
+          if (fallbackPool.length > 0) {
+            selectedObj = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+          }
+          // else selectedObj stays null → campaign skipped below
+        } else {
+          // ALL keywords have explicit daily limits AND all are exhausted for today
+          // → Do NOT assign this campaign. selectedObj stays null.
+          console.log(`[VuotLink] Campaign ${campaign.id}: all keywords hit daily limit today → skip campaign`);
+        }
       }
 
       if (selectedObj) {
@@ -467,7 +491,10 @@ async function _handleTaskPost(req, res) {
         selectedKwImage = selectedObj.image;
         console.log(`[VuotLink] Keyword config selected: "${selectedKeyword}" (URL: ${selectedKwUrl || 'None'}, Image: ${selectedKwImage ? 'Yes' : 'No'})`);
       } else {
-        selectedKeyword = pickRandom(campaign.keyword) || campaign.keyword;
+        // selectedObj is null: all keywords have hit their daily limit today
+        // → Abort this task to prevent exceeding daily view quota per keyword
+        console.log(`[VuotLink] Campaign ${campaign.id}: no available keyword within daily limit → reject task`);
+        return res.status(404).json(ERR);
       }
     } else {
       // No config — original random behavior
