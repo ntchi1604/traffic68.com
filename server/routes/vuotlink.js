@@ -442,18 +442,19 @@ async function _handleTaskPost(req, res) {
           const totalDone = doneMap[k.keyword] || 0;
           const todayDone = todayMap[k.keyword] || 0;
           const kwTotalViews = Number(k.views) || 0;
-          const totalRemaining = Math.max(0, kwTotalViews - totalDone);
+          const hasNoTotalLimit = kwTotalViews <= 0;
+          const totalRemaining = hasNoTotalLimit ? Infinity : Math.max(0, kwTotalViews - totalDone);
           const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
-          const dailyRemaining = effectiveDailyLimit > 0 ? Math.max(0, effectiveDailyLimit - todayDone) : totalRemaining;
+          const dailyRemaining = effectiveDailyLimit > 0 ? Math.max(0, effectiveDailyLimit - todayDone) : (hasNoTotalLimit ? Infinity : totalRemaining);
           const dailyOk = effectiveDailyLimit <= 0 || todayDone < effectiveDailyLimit;
 
-          if (!dailyOk || totalRemaining === 0) return { ...k, weight: 0 };
+          if (!dailyOk || (!hasNoTotalLimit && totalRemaining === 0)) return { ...k, weight: 0 };
 
           // Proportional weight: tỷ lệ % còn lại so với quota → phân bố đều bất kể quota lớn/nhỏ
-          // totalRatio: tiến độ còn lại theo tổng quota (0..1)
+          // totalRatio: tiến độ còn lại theo tổng quota (0..1), unlimited → 1.0
           // dailyRatio: tiến độ còn lại theo daily limit (0..1)
-          const totalRatio = kwTotalViews > 0 ? totalRemaining / kwTotalViews : 1;
-          const dailyRatio = effectiveDailyLimit > 0 ? dailyRemaining / effectiveDailyLimit : totalRatio;
+          const totalRatio = hasNoTotalLimit ? 1 : totalRemaining / kwTotalViews;
+          const dailyRatio = effectiveDailyLimit > 0 ? (dailyRemaining === Infinity ? 1 : dailyRemaining / effectiveDailyLimit) : totalRatio;
           // Dùng min của 2 tỷ lệ để ưu tiên keyword nào đang "chậm nhất" theo cả 2 chiều
           return { ...k, weight: Math.min(totalRatio, dailyRatio) };
         });
@@ -483,7 +484,8 @@ async function _handleTaskPost(req, res) {
             const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
             const totalDone = doneMap[k.keyword] || 0;
             const kwTotalViews = Number(k.views) || 0;
-            return effectiveDailyLimit <= 0 && totalDone < kwTotalViews;
+            // kwTotalViews=0 = unlimited → luôn còn; kwTotalViews>0 → kiểm tra totalDone
+            return effectiveDailyLimit <= 0 && (kwTotalViews <= 0 || totalDone < kwTotalViews);
           });
           const fallbackPool = stillRemaining.length > 0 ? stillRemaining : kwConfig.filter(k => {
             const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
