@@ -91,12 +91,11 @@ function CommissionModal({ mode, balance, onConfirm, onClose, withdrawConfig }) 
   const [accountName, setAccountName] = useState('');
   const [cryptoNetwork, setCryptoNetwork] = useState('');
   const [cryptoAddress, setCryptoAddress] = useState('');
-  const [trafficSource, setTrafficSource] = useState('');
   const [loading, setLoading] = useState(false);
   const num = Number(amount);
   const MIN = 50000;
   const validTransfer = num > 0 && num <= balance;
-  const validWithdraw = num >= MIN && num <= balance && trafficSource.trim().length > 0 &&
+  const validWithdraw = num >= MIN && num <= balance &&
     (method === 'bank' ? (bankName && accountNumber && accountName) : (cryptoNetwork && cryptoAddress));
 
   // Auto-select method based on withdraw config
@@ -109,8 +108,7 @@ function CommissionModal({ mode, balance, onConfirm, onClose, withdrawConfig }) 
     setLoading(true);
     try {
       const data = await api.post('/finance/withdraw-commission', {
-        amount: num, method, bankName, accountNumber, accountName,
-        cryptoNetwork, cryptoAddress, trafficSource: trafficSource.trim(),
+        amount: num, method, bankName, accountNumber, accountName, cryptoNetwork, cryptoAddress,
       });
       toast.success(data.message || 'Yêu cầu rút tiền đã gửi');
       onConfirm(num, 'withdraw_done');
@@ -199,7 +197,6 @@ function CommissionModal({ mode, balance, onConfirm, onClose, withdrawConfig }) 
                       className="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 bg-white">
                       <option value="">Chọn mạng...</option>
                       <option value="USDT (BEP20)">USDT (BEP20)</option>
-                      <option value="USDT (TRC20)">USDT (TRC20)</option>
                     </select>
                     <input value={cryptoAddress} onChange={e => setCryptoAddress(e.target.value)} placeholder="Địa chỉ ví" required
                       className="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
@@ -207,20 +204,6 @@ function CommissionModal({ mode, balance, onConfirm, onClose, withdrawConfig }) 
                   </div>
                 )}
               </>
-            )}
-
-            {/* Traffic source — required for all withdrawals */}
-            {!isTransfer && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
-                  🌐 Nguồn lưu lượng truy cập *
-                </label>
-                <textarea value={trafficSource} onChange={e => setTrafficSource(e.target.value)}
-                  placeholder={"VD: Website cá nhân tại domain.com\nFanpage Facebook: fb.com/page\n..."}
-                  required rows={3}
-                  className="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 resize-none" />
-                <p className="text-[10px] text-slate-400 mt-0.5">Mô tả nơi bạn chia sẻ/giới thiệu người dùng</p>
-              </div>
             )}
 
             <div className="flex gap-3">
