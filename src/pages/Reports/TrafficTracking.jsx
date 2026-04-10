@@ -192,8 +192,8 @@ function CampaignDetailModal({ campaign: c, onClose }) {
       exportToExcel({
         filename: `buyer_tasks_${c.id}_${new Date().toISOString().slice(0, 10)}`,
         sheetName: 'Dữ liệu task',
-        headers: ['STT', 'ID', 'Keyword', 'IP', 'Quốc gia', 'Thành phố', 'Thiết bị', 'Bước hiện tại', 'Tổng bước', 'Trạng thái', 'Chi tiêu ($)', 'Thời gian tạo', 'Hoàn thành lúc'],
-        colTypes:  ['n',   'n',  's',       's',  's',        's',         's',        'n',            'n',         's',         'n',           's',             's'],
+        headers: ['STT', 'ID', 'Keyword', 'IP', 'Quốc gia', 'Thành phố', 'Thiết bị', 'Chi tiêu ($)', 'Thời gian tạo', 'Hoàn thành lúc'],
+        colTypes:  ['n',   'n',  's',       's',  's',        's',         's',        'n',           's',             's'],
         rows: rows.map(r => [
           r.stt,
           r.id,
@@ -202,9 +202,6 @@ function CampaignDetailModal({ campaign: c, onClose }) {
           r.country,
           r.city,
           r.device,
-          r.currentStep,
-          r.totalSteps,
-          r.status,
           r.spending,
           r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : '',
           r.completedAt ? new Date(r.completedAt).toLocaleString('vi-VN') : '',

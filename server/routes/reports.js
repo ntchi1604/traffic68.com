@@ -226,7 +226,7 @@ router.get('/tasks', async (req, res) => {
   }
 });
 
-// ── Export buyer tasks (all statuses, with city + device + step info) ──
+// ── Export buyer tasks (completed only, with city + device info) ──
 router.get('/tasks/export', async (req, res) => {
   try {
     const pool = getPool();
@@ -239,34 +239,82 @@ router.get('/tasks/export', async (req, res) => {
 
     // Verify ownership
     const [check] = await pool.execute(
-      'SELECT id, version, cpc FROM campaigns WHERE id = ? AND user_id = ?',
+      'SELECT id, cpc FROM campaigns WHERE id = ? AND user_id = ?',
       [campaignId, req.userId]
     );
     if (!check.length) return res.status(403).json({ error: 'Forbidden' });
 
-    const campaign = check[0];
-    // Total steps: version=1 → 2 steps, version=0 → 1 step
-    const totalSteps = Number(campaign.version) === 1 ? 2 : 1;
-    const cpc = Number(campaign.cpc) || 0;
+    const cpc = Number(check[0].cpc) || 0;
 
     const [rows] = await pool.execute(
       `SELECT vlt.id, vlt.keyword, vlt.ip_address, vlt.ip_country,
-              vlt.user_agent, vlt.status, vlt.earning, vlt.created_at, vlt.completed_at
+              vlt.user_agent, vlt.earning, vlt.created_at, vlt.completed_at
        FROM vuot_link_tasks vlt
-       WHERE vlt.campaign_id = ? AND DATE(vlt.created_at) >= ?
-       ORDER BY vlt.created_at DESC
+       WHERE vlt.campaign_id = ? AND vlt.status = 'completed' AND vlt.bot_detected = 0
+         AND DATE(vlt.created_at) >= ?
+       ORDER BY vlt.completed_at DESC
        LIMIT 5000`,
       [campaignId, fromDate]
     );
 
-    // Helper: map status to step number
-    const statusToStep = (s) => {
-      if (s === 'completed') return totalSteps;
-      if (s === 'step3') return 3;
-      if (s === 'step2') return 2;
-      if (s === 'step1') return 1;
-      return 0; // pending
-    };
+    // ── Geo lookup: batch via ip-api.com (up to 100 per request) ──
+    // Collect unique, valid public IPs
+    const uniqueIps = [...new Set(
+      rows.map(r => r.ip_address).filter(ip => {
+        if (!ip) return false;
+        // Skip private/loopback ranges
+        if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1|fe80)/i.test(ip)) return false;
+        return true;
+      })
+    )];
+
+    const geoMap = {}; // ip -> { country, city }
+
+    // Batch requests: 100 IPs per call
+    const BATCH = 100;
+    for (let i = 0; i < uniqueIps.length; i += BATCH) {
+      const batch = uniqueIps.slice(i, i + BATCH);
+      try {
+        const result = await new Promise((resolve) => {
+          const body = JSON.stringify(batch.map(ip => ({ query: ip, fields: 'query,country,city,status' })));
+          const options = {
+            hostname: 'ip-api.com',
+            path: '/batch?fields=query,country,city,status',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+          };
+          const req2 = require('http').request(options, (resp) => {
+            let data = '';
+            resp.on('data', chunk => data += chunk);
+            resp.on('end', () => {
+              try { resolve(JSON.parse(data)); } catch { resolve([]); }
+            });
+          });
+          req2.on('error', () => resolve([]));
+          req2.setTimeout(5000, () => { req2.destroy(); resolve([]); });
+          req2.write(body);
+          req2.end();
+        });
+
+        if (Array.isArray(result)) {
+          result.forEach(r => {
+            if (r.status === 'success' && r.query) {
+              geoMap[r.query] = { country: r.country || '', city: r.city || '' };
+            }
+          });
+        }
+      } catch (e) {
+        console.error('[Export] ip-api batch error:', e.message);
+      }
+    }
+
+    // Fallback: use geoip-lite for IPs not resolved by ip-api.com
+    uniqueIps.forEach(ip => {
+      if (!geoMap[ip]) {
+        const geo = geoip.lookup(ip);
+        if (geo) geoMap[ip] = { country: geo.country || '', city: geo.city || '' };
+      }
+    });
 
     // Helper: detect device from user agent
     const detectDevice = (ua) => {
@@ -277,24 +325,11 @@ router.get('/tasks/export', async (req, res) => {
     };
 
     const tasks = rows.map((r, i) => {
-      const geo = r.ip_address ? geoip.lookup(r.ip_address) : null;
-      const country = r.ip_country || (geo ? geo.country : '');
-      const city = geo ? (geo.city || '') : '';
+      const geo = geoMap[r.ip_address] || {};
+      const country = r.ip_country || geo.country || '';
+      const city = geo.city || '';
       const device = detectDevice(r.user_agent);
-      const currentStep = statusToStep(r.status);
-
-      // Status label
-      const statusLabel = {
-        completed: 'Hoàn thành',
-        expired: 'Hết hạn',
-        pending: 'Đang chờ',
-        step1: 'Bước 1',
-        step2: 'Bước 2',
-        step3: 'Bước 3',
-      }[r.status] || r.status;
-
-      // Spending: use earning if available, else cpc * (completed)
-      const spending = Number(r.earning) || (r.status === 'completed' ? cpc : 0);
+      const spending = Number(r.earning) || cpc;
 
       return {
         stt: i + 1,
@@ -304,9 +339,6 @@ router.get('/tasks/export', async (req, res) => {
         country,
         city,
         device,
-        currentStep,
-        totalSteps,
-        status: statusLabel,
         spending,
         createdAt: r.created_at,
         completedAt: r.completed_at || null,
