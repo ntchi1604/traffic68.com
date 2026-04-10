@@ -11,6 +11,7 @@ import {
 import Breadcrumb from '../../components/Breadcrumb';
 import { formatMoney as fmt, fmtDay, fmtDate } from '../../lib/format';
 import api from '../../lib/api';
+import { exportToExcel } from '../../lib/exportExcel';
 
 const SOURCE_LABELS = { google_search: 'Google Search', social: 'Social Traffic', direct: 'Direct Traffic' };
 const SOURCE_COLORS = { google_search: '#3B82F6', social: '#8B5CF6', direct: '#10B981' };
@@ -66,6 +67,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
   const [fetchingTasks, setFetchingTasks] = useState(false);
   const [pageDaily, setPageDaily] = useState(1);
   const [pageTasks, setPageTasks] = useState(1);
+  const [exportingXlsx, setExportingXlsx] = useState(false);
 
   useEffect(() => {
     if (!c) return;
@@ -181,6 +183,41 @@ function CampaignDetailModal({ campaign: c, onClose }) {
     URL.revokeObjectURL(url);
   };
 
+  const exportExcel = async () => {
+    if (exportingXlsx) return;
+    setExportingXlsx(true);
+    try {
+      const data = await api.get(`/reports/tasks/export?campaignId=${c.id}&period=${mRange}`);
+      const rows = data.tasks || [];
+      exportToExcel({
+        filename: `buyer_tasks_${c.id}_${new Date().toISOString().slice(0, 10)}`,
+        sheetName: 'Dữ liệu task',
+        headers: ['STT', 'ID', 'Keyword', 'IP', 'Quốc gia', 'Thành phố', 'Thiết bị', 'Bước hiện tại', 'Tổng bước', 'Trạng thái', 'Chi tiêu ($)', 'Thời gian tạo', 'Hoàn thành lúc'],
+        colTypes:  ['n',   'n',  's',       's',  's',        's',         's',        'n',            'n',         's',         'n',           's',             's'],
+        rows: rows.map(r => [
+          r.stt,
+          r.id,
+          r.keyword,
+          r.ip,
+          r.country,
+          r.city,
+          r.device,
+          r.currentStep,
+          r.totalSteps,
+          r.status,
+          r.spending,
+          r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : '',
+          r.completedAt ? new Date(r.completedAt).toLocaleString('vi-VN') : '',
+        ]),
+      });
+    } catch (err) {
+      console.error('Export Excel error:', err);
+      alert('Xuất Excel thất bại: ' + (err.message || 'Lỗi không xác định'));
+    } finally {
+      setExportingXlsx(false);
+    }
+  };
+
   const PERIODS = [{ key: '7d', label: '7 ngày' }, { key: '30d', label: '30 ngày' }, { key: '90d', label: '90 ngày' }];
 
   return (
@@ -210,12 +247,20 @@ function CampaignDetailModal({ campaign: c, onClose }) {
               ))}
             </div>
             {detail && (
-              <button onClick={exportCSV}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#475569' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
-                onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}>
-                ⬇ Xuất CSV
-              </button>
+              <>
+                <button onClick={exportExcel} disabled={exportingXlsx}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 10, border: '1.5px solid #bbf7d0', background: exportingXlsx ? '#f0fdf4' : '#f0fdf4', cursor: exportingXlsx ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, color: exportingXlsx ? '#86efac' : '#16a34a', transition: 'all .15s', opacity: exportingXlsx ? 0.7 : 1 }}
+                  onMouseEnter={e => { if (!exportingXlsx) e.currentTarget.style.background = '#dcfce7'; }}
+                  onMouseLeave={e => { if (!exportingXlsx) e.currentTarget.style.background = '#f0fdf4'; }}>
+                  {exportingXlsx ? '⏳ Đang xuất...' : '📊 Xuất Excel'}
+                </button>
+                <button onClick={exportCSV}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#475569' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}>
+                  ⬇ Xuất CSV
+                </button>
+              </>
             )}
             <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#f1f5f9', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
           </div>

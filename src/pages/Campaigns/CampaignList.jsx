@@ -10,6 +10,7 @@ import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
+import { exportToExcel } from '../../lib/exportExcel';
 
 /* ── helpers ── */
 const parseJsonArray = (val) => {
@@ -56,6 +57,7 @@ function KeywordStats({ campaignId }) {
   const [page, setPage] = useState(1);
   const rowsPerPage = 10;
   const [loading, setLoading] = useState(true);
+  const [exportingXlsx, setExportingXlsx] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -97,6 +99,32 @@ function KeywordStats({ campaignId }) {
     URL.revokeObjectURL(url);
   };
 
+  const exportExcel = async () => {
+    if (exportingXlsx) return;
+    setExportingXlsx(true);
+    try {
+      const data = await api.get(`/reports/tasks/export?campaignId=${campaignId}&period=all`);
+      const rows = data.tasks || [];
+      exportToExcel({
+        filename: `buyer_tasks_${campaignId}_${new Date().toISOString().slice(0, 10)}`,
+        sheetName: 'Dữ liệu task',
+        headers: ['STT', 'ID', 'Keyword', 'IP', 'Quốc gia', 'Thành phố', 'Thiết bị', 'Bước hiện tại', 'Tổng bước', 'Trạng thái', 'Chi tiêu ($)', 'Thời gian tạo', 'Hoàn thành lúc'],
+        colTypes:  ['n',   'n',  's',       's',  's',        's',         's',        'n',            'n',         's',         'n',           's',             's'],
+        rows: rows.map(r => [
+          r.stt, r.id, r.keyword, r.ip, r.country, r.city, r.device,
+          r.currentStep, r.totalSteps, r.status, r.spending,
+          r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : '',
+          r.completedAt ? new Date(r.completedAt).toLocaleString('vi-VN') : '',
+        ]),
+      });
+    } catch (err) {
+      console.error('Export Excel error:', err);
+      alert('Xuất Excel thất bại: ' + (err.message || 'Lỗi không xác định'));
+    } finally {
+      setExportingXlsx(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Summary strip */}
@@ -118,10 +146,20 @@ function KeywordStats({ campaignId }) {
         <div className="lg:w-2/5 space-y-2">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Theo từ khóa</p>
-            <button onClick={exportCSV}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition">
-              <Download size={11} /> Xuất CSV
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={exportExcel} disabled={exportingXlsx}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border transition ${
+                  exportingXlsx
+                    ? 'text-emerald-400 bg-emerald-50 border-emerald-100 cursor-not-allowed'
+                    : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 cursor-pointer'
+                }`}>
+                <Download size={11} />{exportingXlsx ? ' Đang xuất...' : ' Xuất Excel'}
+              </button>
+              <button onClick={exportCSV}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition">
+                <Download size={11} /> CSV
+              </button>
+            </div>
           </div>
           <div className="max-h-[260px] overflow-y-auto pr-1 space-y-2">
             {stats.map((kw, i) => {

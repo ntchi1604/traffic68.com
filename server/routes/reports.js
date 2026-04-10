@@ -1,6 +1,7 @@
 const express = require('express');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
+const geoip = require('geoip-lite');
 
 const localDateStr = (d = new Date()) =>
   d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
@@ -225,7 +226,102 @@ router.get('/tasks', async (req, res) => {
   }
 });
 
+// ── Export buyer tasks (all statuses, with city + device + step info) ──
+router.get('/tasks/export', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { campaignId, period } = req.query;
+    if (!campaignId) return res.status(400).json({ error: 'campaignId required' });
+
+    const days = period === 'all' ? 3650 : period === '30d' ? 30 : period === '90d' ? 90 : 7;
+    const from = new Date(); from.setDate(from.getDate() - days);
+    const fromDate = localDateStr(from);
+
+    // Verify ownership
+    const [check] = await pool.execute(
+      'SELECT id, version, cpc FROM campaigns WHERE id = ? AND user_id = ?',
+      [campaignId, req.userId]
+    );
+    if (!check.length) return res.status(403).json({ error: 'Forbidden' });
+
+    const campaign = check[0];
+    // Total steps: version=1 → 2 steps, version=0 → 1 step
+    const totalSteps = Number(campaign.version) === 1 ? 2 : 1;
+    const cpc = Number(campaign.cpc) || 0;
+
+    const [rows] = await pool.execute(
+      `SELECT vlt.id, vlt.keyword, vlt.ip_address, vlt.ip_country,
+              vlt.user_agent, vlt.status, vlt.earning, vlt.created_at, vlt.completed_at
+       FROM vuot_link_tasks vlt
+       WHERE vlt.campaign_id = ? AND DATE(vlt.created_at) >= ?
+       ORDER BY vlt.created_at DESC
+       LIMIT 5000`,
+      [campaignId, fromDate]
+    );
+
+    // Helper: map status to step number
+    const statusToStep = (s) => {
+      if (s === 'completed') return totalSteps;
+      if (s === 'step3') return 3;
+      if (s === 'step2') return 2;
+      if (s === 'step1') return 1;
+      return 0; // pending
+    };
+
+    // Helper: detect device from user agent
+    const detectDevice = (ua) => {
+      if (!ua) return 'Unknown';
+      if (/mobile|android|iphone|ipad/i.test(ua)) return 'Mobile';
+      if (/tablet/i.test(ua)) return 'Tablet';
+      return 'Desktop';
+    };
+
+    const tasks = rows.map((r, i) => {
+      const geo = r.ip_address ? geoip.lookup(r.ip_address) : null;
+      const country = r.ip_country || (geo ? geo.country : '');
+      const city = geo ? (geo.city || '') : '';
+      const device = detectDevice(r.user_agent);
+      const currentStep = statusToStep(r.status);
+
+      // Status label
+      const statusLabel = {
+        completed: 'Hoàn thành',
+        expired: 'Hết hạn',
+        pending: 'Đang chờ',
+        step1: 'Bước 1',
+        step2: 'Bước 2',
+        step3: 'Bước 3',
+      }[r.status] || r.status;
+
+      // Spending: use earning if available, else cpc * (completed)
+      const spending = Number(r.earning) || (r.status === 'completed' ? cpc : 0);
+
+      return {
+        stt: i + 1,
+        id: r.id,
+        keyword: r.keyword || '',
+        ip: r.ip_address || '',
+        country,
+        city,
+        device,
+        currentStep,
+        totalSteps,
+        status: statusLabel,
+        spending,
+        createdAt: r.created_at,
+        completedAt: r.completed_at || null,
+      };
+    });
+
+    res.json({ tasks, campaignId });
+  } catch (err) {
+    console.error('reports/tasks/export error:', err.message);
+    res.status(500).json({ error: 'Internal server error', tasks: [] });
+  }
+});
+
 router.get('/detailed', async (req, res) => {
+
   try {
     const pool = getPool();
     const { campaignId, period } = req.query;
