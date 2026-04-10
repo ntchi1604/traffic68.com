@@ -134,7 +134,7 @@ router.get('/public/:token', async (req, res) => {
         const UTC_OFFSET_MS = 7 * 3600 * 1000;
         const utcStartMs = vnDayStart.getTime() - UTC_OFFSET_MS;
         const utcEndMs = vnDayEnd.getTime() - UTC_OFFSET_MS;
-        const fmtUTC = (ms) => { const d = new Date(ms); return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')} ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}:${String(d.getUTCSeconds()).padStart(2,'0')}`; };
+        const fmtUTC = (ms) => { const d = new Date(ms); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}:${String(d.getUTCSeconds()).padStart(2, '0')}`; };
         const utcStartStr = fmtUTC(utcStartMs);
         const utcEndStr = fmtUTC(utcEndMs);
         const [tdRows] = await pool.execute(
@@ -337,20 +337,25 @@ router.post('/public/:token/check-session', async (req, res) => {
     return res.status(404).json({ hasSession: false });
   }
 
-
   const task = tasks[0];
   if (task.traffic_type === 'google_search' && !['step2', 'step3'].includes(task.task_status)) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
     const clientRef = pageReferrer || '';
-    if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
+    const CF_CHALLENGE = /[?&](__cf_chl_tk|__cf_chl_f_tk|cf_chl_prog|cf_chl_opt|cf_chl_seq)[=_]/i;
+    const CF_PATH = /\/cdn-cgi\/challenge-platform\//i;
+    const isCfChallenge = CF_CHALLENGE.test(clientRef) || CF_PATH.test(clientRef);
+    if (!isCfChallenge && (!clientRef || !GOOGLE_DOMAINS.test(clientRef))) {
       console.log(`[Widget] check-session BLOCKED: Non-Google referrer — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
       return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.', requireGoogle: true });
+    }
+    if (isCfChallenge) {
+      console.log(`[Widget] check-session: Cloudflare challenge allowed — IP: ${ip}, task: #${task.id}, ref: "${clientRef.substring(0, 80)}"`);
     }
   }
 
 
+
   try {
-    // Only refresh expires_at — do NOT reset created_at or elapsed-time validation will break
     await pool.execute(
       `UPDATE vuot_link_tasks SET expires_at = DATE_ADD(NOW(), INTERVAL 1200 SECOND) WHERE id = ?`,
       [task.id]
@@ -538,7 +543,18 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (task.traffic_type === 'google_search' && v1Phase !== 2) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
     const clientRef = pageReferrer || '';
-    if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
+    const CF_CHALLENGE = /[?&](__cf_chl_tk|__cf_chl_f_tk|cf_chl_prog|cf_chl_opt|cf_chl_seq)[=_]/i;
+    const CF_PATH = /\/cdn-cgi\/challenge-platform\//i;
+    const isCfChallenge = CF_CHALLENGE.test(clientRef) || CF_PATH.test(clientRef);
+    let isSelfReferrer = false;
+    if (clientRef && task.campaign_url) {
+      try {
+        const refHost = new URL(clientRef).hostname.replace(/^www\./, '').toLowerCase();
+        const campHost = new URL(task.campaign_url).hostname.replace(/^www\./, '').toLowerCase();
+        isSelfReferrer = refHost === campHost;
+      } catch (_) { }
+    }
+    if (!isCfChallenge && !isSelfReferrer && (!clientRef || !GOOGLE_DOMAINS.test(clientRef))) {
       console.log(`[Widget] BLOCKED: Non-Google referrer for search campaign — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
       await pool.execute(
         `UPDATE vuot_link_tasks SET security_detail = JSON_SET(COALESCE(security_detail,'{}'), '$.non_google_referrer', true, '$.bad_referrer', ?) WHERE id = ?`,
