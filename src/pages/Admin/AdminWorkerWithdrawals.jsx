@@ -7,7 +7,7 @@ import api from '../../lib/api';
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
 
 export default function AdminWorkerWithdrawals() {
-  usePageTitle('Admin - Rút tiền Worker');
+  usePageTitle('Admin - Rút tiền');
   const toast = useToast();
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -67,6 +67,7 @@ export default function AdminWorkerWithdrawals() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-black text-slate-900">Rút tiền</h1>
+      <p className="text-xs text-slate-400 mt-0.5">Worker (thu nhập) &amp; Buyer (hoa hồng)</p>
       </div>
 
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -105,7 +106,7 @@ export default function AdminWorkerWithdrawals() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold text-slate-500">Mã</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-500">Worker</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500">Người dùng</th>
                 <th className="px-4 py-3 text-right font-semibold text-slate-500">Số tiền</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-500">Thông tin TK</th>
                 <th className="px-4 py-3 text-center font-semibold text-slate-500">Trạng thái</th>
@@ -120,7 +121,13 @@ export default function AdminWorkerWithdrawals() {
                 <tr key={r.id} className="hover:bg-slate-50/70">
                   <td className="px-4 py-3 font-mono text-xs text-slate-400">{r.ref_code}</td>
                   <td className="px-4 py-3">
-                    <p className="font-semibold text-slate-800 text-xs">{r.user_name || '—'}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-semibold text-slate-800 text-xs">{r.user_name || '—'}</p>
+                      {r.wallet_type === 'commission'
+                        ? <span className="px-1.5 py-0.5 text-[9px] font-bold bg-violet-100 text-violet-700 rounded-full">HH Buyer</span>
+                        : <span className="px-1.5 py-0.5 text-[9px] font-bold bg-indigo-100 text-indigo-700 rounded-full">Worker</span>
+                      }
+                    </div>
                     <p className="text-[10px] text-slate-400">{r.user_email || ''}</p>
                   </td>
                   <td className="px-4 py-3 text-right font-bold text-slate-800 text-xs">{fmt(r.amount)} đ</td>

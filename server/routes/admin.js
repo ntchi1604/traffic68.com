@@ -1580,7 +1580,8 @@ router.get('/worker-withdrawals', async (req, res) => {
     const { status, page = 1, limit = 30 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
-    let where = "t.type = 'withdraw' AND t.wallet_type = 'earning'";
+    // Include both worker earning withdrawals AND buyer commission withdrawals
+    let where = "t.type = 'withdraw' AND t.wallet_type IN ('earning', 'commission')";
     const params = [];
     if (status && status !== 'all') { where += ' AND t.status = ?'; params.push(status); }
 
@@ -1588,7 +1589,7 @@ router.get('/worker-withdrawals', async (req, res) => {
       `SELECT COUNT(*) as c FROM transactions t WHERE ${where}`, params
     );
     const [rows] = await pool.execute(
-      `SELECT t.*, u.name as user_name, u.email as user_email
+      `SELECT t.*, u.name as user_name, u.email as user_email, u.service_type
        FROM transactions t LEFT JOIN users u ON t.user_id = u.id
        WHERE ${where} ORDER BY t.created_at DESC LIMIT ${Number(limit)} OFFSET ${offset}`,
       params
