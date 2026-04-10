@@ -233,40 +233,56 @@ function AssignModal({ group, allGroups, onClose, onSaved }) {
 }
 
 // ── Profit margin quick-set panel for a group ──────────────────────
-function ProfitMarginPanel({ group, rates, editedRates, setRate }) {
+// buyerTiers: mảng pricing_tiers (giá gốc buyer) dùng làm base tính lãi
+function ProfitMarginPanel({ rates, buyerTiers, setRate }) {
   const [pct, setPct] = useState('');
+
+  // Tạo lookup map từ giá buyer: key = `${traffic_type}_${duration}`
+  const buyerMap = {};
+  (buyerTiers || []).forEach(t => {
+    buyerMap[`${t.traffic_type}_${t.duration}`] = t;
+  });
 
   const preview = () => {
     if (!pct || isNaN(Number(pct))) return;
-    const rate = (100 - Number(pct)) / 100;
+    const keepRatio = (100 - Number(pct)) / 100;
     rates.forEach(t => {
-      setRate(t.traffic_type, t.duration, 'v1_price', Math.round(t.v1_price * rate));
-      setRate(t.traffic_type, t.duration, 'v2_price', Math.round(t.v2_price * rate));
+      const key = `${t.traffic_type}_${t.duration}`;
+      const buyer = buyerMap[key];
+      // Dùng giá buyer làm base; nếu không tìm thấy thì fallback về giá group hiện tại
+      const baseV1 = buyer ? Number(buyer.v1_price) : Number(t.v1_price);
+      const baseV2 = buyer ? Number(buyer.v2_price) : Number(t.v2_price);
+      setRate(t.traffic_type, t.duration, 'v1_price', Math.round(baseV1 * keepRatio));
+      setRate(t.traffic_type, t.duration, 'v2_price', Math.round(baseV2 * keepRatio));
     });
   };
 
+  const workerPct = pct && !isNaN(Number(pct)) ? (100 - Number(pct)) : null;
+
   return (
     <div className="px-5 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center gap-3 flex-wrap">
-      <span className="text-xs font-bold text-emerald-700">Tính nhanh theo % lãi:</span>
+      <span className="text-xs font-bold text-emerald-700">Tính nhanh theo % lãi (từ giá buyer):</span>
       <div className="relative">
         <input type="number" value={pct} onChange={e => setPct(e.target.value)}
           placeholder="50" min="0" max="100"
           className="w-24 px-3 py-1.5 text-xs border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-400 text-center pr-6" />
         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
       </div>
-      {pct && Number(pct) >= 0 && Number(pct) <= 100 && (
-        <span className="text-xs text-emerald-600">Worker nhận <strong>{100 - Number(pct)}%</strong></span>
+      {workerPct !== null && workerPct >= 0 && workerPct <= 100 && (
+        <span className="text-xs text-emerald-600">
+          Admin lãi <strong>{Number(pct)}%</strong> · Worker nhận <strong>{workerPct}%</strong> giá buyer
+        </span>
       )}
       <button onClick={preview} disabled={!pct || isNaN(Number(pct))}
         className="px-3 py-1.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition disabled:opacity-40">
-        Xem trước
+        Áp dụng
       </button>
     </div>
   );
 }
 
 // ── Group Card with Rates + Members ───────────────────────────────
-function GroupCard({ group, allGroups, onRefresh, onEdit, onDelete }) {
+function GroupCard({ group, allGroups, onRefresh, onEdit, onDelete, buyerTiers }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState('rates'); // 'rates' | 'members'
@@ -389,11 +405,10 @@ function GroupCard({ group, allGroups, onRefresh, onEdit, onDelete }) {
               <div className="flex justify-center py-8"><RefreshCw size={18} className="animate-spin text-slate-400" /></div>
             ) : tab === 'rates' ? (
               <>
-                {/* Quick profit margin calculator */}
+                {/* Quick profit margin calculator — base = giá buyer (pricing_tiers) */}
                 <ProfitMarginPanel
-                  group={group}
                   rates={rates}
-                  editedRates={editedRates}
+                  buyerTiers={buyerTiers}
                   setRate={setRate}
                 />
 
@@ -511,14 +526,19 @@ export default function AdminPricingGroups() {
   usePageTitle('Admin - Nhóm giá Worker');
   const toast = useToast();
   const [groups, setGroups] = useState([]);
+  const [buyerTiers, setBuyerTiers] = useState([]); // giá gốc từ pricing_tiers (buyer)
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editingGroup, setEditingGroup] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const gData = await api.get('/admin/pricing-groups');
+      const [gData, pData] = await Promise.all([
+        api.get('/admin/pricing-groups'),
+        fetch('/api/pricing').then(r => r.json()),
+      ]);
       setGroups(gData.groups || []);
+      setBuyerTiers(pData.tiers || []);
     } catch (err) { console.error(err); }
     setLoading(false);
   }, []);
@@ -588,6 +608,7 @@ export default function AdminPricingGroups() {
               onRefresh={fetchData}
               onEdit={setEditingGroup}
               onDelete={handleDelete}
+              buyerTiers={buyerTiers}
             />
           ))}
         </div>
