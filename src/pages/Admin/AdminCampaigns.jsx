@@ -4,6 +4,7 @@ import { Search, Play, Pause, CheckCircle, ExternalLink, MoreVertical, Pencil, X
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
+import { exportToExcel } from '../../lib/exportExcel';
 
 const STATUS_MAP = {
   running: { label: 'Đang chạy', cls: 'bg-green-100 text-green-700' },
@@ -51,21 +52,61 @@ function KeywordStats({ campaignId }) {
   const totalBlocked = stats.reduce((s, k) => s + Number(k.blocked), 0);
   const totalCost = stats.reduce((s, k) => s + Number(k.cost), 0);
 
-  const exportCSV = () => {
-    const BOM = '\uFEFF';
-    let csv = BOM + 'Từ khóa,Tổng,Hoàn thành,Đang chờ,Hết hạn,Blocked,Chi phí (đ)\n';
-    stats.forEach(kw => {
-      csv += `"${kw.keyword || '(trống)'}",${kw.total},${kw.completed},${kw.pending},${kw.expired},${kw.blocked},${kw.cost}\n`;
-    });
-    csv += `\n"TỔNG CỘNG",${totalAll},${totalCompleted},${totalPending},${totalExpired},${totalBlocked},${totalCost}\n`;
+  const [exportingXlsx, setExportingXlsx] = useState(false);
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `bao-cao-tu-khoa-${campaignId}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportExcel = async () => {
+    if (exportingXlsx) return;
+    setExportingXlsx(true);
+    try {
+      const data = await api.get(`/admin/campaigns/${campaignId}/tasks-export`);
+      const tasks = data.tasks || [];
+      if (tasks.length > 0) {
+        exportToExcel({
+          filename: `tasks-camp-${campaignId}-${new Date().toISOString().slice(0, 10)}`,
+          sheetName: 'Chi tiết task',
+          headers: ['STT', 'Từ khoá', 'IP', 'Quốc gia', 'Thiết bị', 'User Agent', 'Trạng thái', 'Thu nhập', 'Ngày tạo', 'Hoàn thành'],
+          colTypes: ['n', 's', 's', 's', 's', 's', 's', 'n', 's', 's'],
+          rows: tasks.map((t, i) => [
+            i + 1,
+            t.keyword || '',
+            t.ip_address || '',
+            t.ip_country || '',
+            t.device || '',
+            t.user_agent || '',
+            t.status || '',
+            Number(t.earning) || 0,
+            t.created_at ? new Date(t.created_at).toLocaleString('vi-VN') : '',
+            t.completed_at ? new Date(t.completed_at).toLocaleString('vi-VN') : '',
+          ]),
+        });
+      } else {
+        // Fallback: export keyword stats
+        exportToExcel({
+          filename: `bao-cao-tu-khoa-${campaignId}-${new Date().toISOString().slice(0, 10)}`,
+          sheetName: 'Thống kê từ khoá',
+          headers: ['Từ khoá', 'Tổng', 'Hoàn thành', 'Đang chờ', 'Hết hạn', 'Blocked', 'Chi phí (đ)'],
+          colTypes: ['s', 'n', 'n', 'n', 'n', 'n', 'n'],
+          rows: [
+            ...stats.map(kw => [kw.keyword || '(trống)', kw.total, kw.completed, kw.pending, kw.expired, kw.blocked, kw.cost]),
+            ['TỔNG CỘNG', totalAll, totalCompleted, totalPending, totalExpired, totalBlocked, totalCost],
+          ],
+        });
+      }
+    } catch {
+      // Fallback to keyword stats only
+      exportToExcel({
+        filename: `bao-cao-tu-khoa-${campaignId}-${new Date().toISOString().slice(0, 10)}`,
+        sheetName: 'Thống kê từ khoá',
+        headers: ['Từ khoá', 'Tổng', 'Hoàn thành', 'Đang chờ', 'Hết hạn', 'Blocked', 'Chi phí (đ)'],
+        colTypes: ['s', 'n', 'n', 'n', 'n', 'n', 'n'],
+        rows: [
+          ...stats.map(kw => [kw.keyword || '(trống)', kw.total, kw.completed, kw.pending, kw.expired, kw.blocked, kw.cost]),
+          ['TỔNG CỘNG', totalAll, totalCompleted, totalPending, totalExpired, totalBlocked, totalCost],
+        ],
+      });
+    } finally {
+      setExportingXlsx(false);
+    }
   };
 
   return (
@@ -74,9 +115,9 @@ function KeywordStats({ campaignId }) {
       <div className="space-y-2 lg:w-1/3">
         <div className="flex items-center justify-between mb-1">
           <p className="text-xs font-bold text-slate-500">Tổng: {totalAll} tasks · {totalCompleted} hoàn thành</p>
-          <button onClick={exportCSV}
-            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition">
-            📥 Xuất CSV
+          <button onClick={exportExcel} disabled={exportingXlsx}
+            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition disabled:opacity-60">
+            {exportingXlsx ? '⏳ Đang xuất...' : '📊 Xuất Excel'}
           </button>
         </div>
         <div className="max-h-[300px] overflow-y-auto pr-1 space-y-2">

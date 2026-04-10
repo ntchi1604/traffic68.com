@@ -492,6 +492,37 @@ router.get('/campaigns/:id/detailed-stats', async (req, res) => {
   }
 });
 
+// ── Admin: Export tasks for a campaign (with user_agent) ──
+router.get('/campaigns/:id/tasks-export', async (req, res) => {
+  try {
+    const pool = getPool();
+    const cid = req.params.id;
+    const detectDevice = (ua) => {
+      if (!ua) return 'Unknown';
+      if (/mobile|android|iphone|ipad/i.test(ua)) return 'Mobile';
+      if (/tablet/i.test(ua)) return 'Tablet';
+      return 'Desktop';
+    };
+    const [rows] = await pool.execute(
+      `SELECT vlt.id, vlt.keyword, vlt.ip_address, vlt.user_agent, vlt.ip_country,
+              vlt.earning, vlt.status, vlt.created_at, vlt.completed_at, vlt.bot_detected
+       FROM vuot_link_tasks vlt
+       WHERE vlt.campaign_id = ?
+       ORDER BY vlt.created_at DESC
+       LIMIT 5000`,
+      [cid]
+    );
+    const tasks = rows.map(r => ({
+      ...r,
+      device: detectDevice(r.user_agent),
+    }));
+    res.json({ tasks, campaignId: cid });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 router.get('/transactions', async (req, res) => {
   const pool = getPool();
   const { type, status, fromDate, toDate, page = 1, limit = 50 } = req.query;

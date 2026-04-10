@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Search, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Search, CheckCircle2, Clock, XCircle, FileSpreadsheet } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
+import { exportToExcel } from '../../lib/exportExcel';
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
 
@@ -63,6 +64,37 @@ export default function AdminWorkerWithdrawals() {
     }
   };
 
+  const exportExcel = () => {
+    if (!rows.length) return;
+    exportToExcel({
+      filename: `rut-tien-${filter}-${new Date().toISOString().slice(0, 10)}`,
+      sheetName: 'Yêu cầu rút tiền',
+      headers: ['Mã', 'Người dùng', 'Email', 'Loại', 'Số tiền', 'Thông tin TK', 'Nguồn traffic', 'User Agent', 'Trạng thái', 'Ngày tạo'],
+      colTypes: ['s', 's', 's', 's', 'n', 's', 's', 's', 's', 's'],
+      rows: rows.map(r => {
+        const parts = (r.note || '').split(' | Nguồn: ');
+        const accountInfo = parts[0] || '';
+        const sourceAndRest = parts[1] || '';
+        const trafficSource = sourceAndRest.split(' | TxHash')[0] || sourceAndRest;
+        // Extract user agent from note if present
+        const uaMatch = (r.note || '').match(/UA: (.+?)(?:\s*\||$)/);
+        const userAgent = uaMatch ? uaMatch[1] : '';
+        return [
+          r.ref_code || '',
+          r.user_name || '',
+          r.user_email || '',
+          r.wallet_type === 'commission' ? 'HH Buyer' : 'Worker',
+          Number(r.amount) || 0,
+          accountInfo,
+          trafficSource,
+          userAgent,
+          r.status === 'completed' ? 'Đã duyệt' : r.status === 'rejected' ? 'Từ chối' : 'Chờ duyệt',
+          r.created_at ? new Date(r.created_at).toLocaleString('vi-VN') : '',
+        ];
+      }),
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -78,24 +110,35 @@ export default function AdminWorkerWithdrawals() {
           ))}
         </div>
 
-        {filter === 'pending' && rows.length > 0 && (
-          <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {rows.length > 0 && (
             <button
-              onClick={() => handleBulkAction('approve')} disabled={processingBatch}
-              className="flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
+              onClick={exportExcel}
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg transition"
             >
-              {processingBatch ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle2 size={14} />}
-              {processingBatch ? 'Đang xử lý...' : `Duyệt tất cả (${rows.length})`}
+              <FileSpreadsheet size={14} />
+              Xuất Excel ({rows.length})
             </button>
-            <button
-              onClick={() => handleBulkAction('reject')} disabled={processingBatch}
-              className="flex items-center gap-1.5 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
-            >
-              <XCircle size={14} />
-              Từ chối tất cả
-            </button>
-          </div>
-        )}
+          )}
+          {filter === 'pending' && rows.length > 0 && (
+            <>
+              <button
+                onClick={() => handleBulkAction('approve')} disabled={processingBatch}
+                className="flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
+              >
+                {processingBatch ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle2 size={14} />}
+                {processingBatch ? 'Đang xử lý...' : `Duyệt tất cả (${rows.length})`}
+              </button>
+              <button
+                onClick={() => handleBulkAction('reject')} disabled={processingBatch}
+                className="flex items-center gap-1.5 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
+              >
+                <XCircle size={14} />
+                Từ chối tất cả
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">

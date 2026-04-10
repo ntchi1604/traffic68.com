@@ -192,8 +192,8 @@ function CampaignDetailModal({ campaign: c, onClose }) {
       exportToExcel({
         filename: `buyer_tasks_${c.id}_${new Date().toISOString().slice(0, 10)}`,
         sheetName: 'Dữ liệu task',
-        headers: ['STT', 'ID', 'Keyword', 'IP', 'Quốc gia', 'Thành phố', 'Thiết bị', 'Chi tiêu', 'Thời gian tạo', 'Hoàn thành lúc'],
-        colTypes: ['n', 'n', 's', 's', 's', 's', 's', 'n', 's', 's'],
+        headers: ['STT', 'ID', 'Keyword', 'IP', 'Quốc gia', 'Thành phố', 'Thiết bị', 'User Agent', 'Chi tiêu', 'Thời gian tạo', 'Hoàn thành lúc'],
+        colTypes: ['n', 'n', 's', 's', 's', 's', 's', 's', 'n', 's', 's'],
         rows: rows.map(r => [
           r.stt,
           r.id,
@@ -202,6 +202,7 @@ function CampaignDetailModal({ campaign: c, onClose }) {
           r.country,
           r.city,
           r.device,
+          r.userAgent || '',
           r.spending,
           r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : '',
           r.completedAt ? new Date(r.completedAt).toLocaleString('vi-VN') : '',
@@ -244,20 +245,12 @@ function CampaignDetailModal({ campaign: c, onClose }) {
               ))}
             </div>
             {detail && (
-              <>
-                <button onClick={exportExcel} disabled={exportingXlsx}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 10, border: '1.5px solid #bbf7d0', background: exportingXlsx ? '#f0fdf4' : '#f0fdf4', cursor: exportingXlsx ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, color: exportingXlsx ? '#86efac' : '#16a34a', transition: 'all .15s', opacity: exportingXlsx ? 0.7 : 1 }}
-                  onMouseEnter={e => { if (!exportingXlsx) e.currentTarget.style.background = '#dcfce7'; }}
-                  onMouseLeave={e => { if (!exportingXlsx) e.currentTarget.style.background = '#f0fdf4'; }}>
-                  {exportingXlsx ? '⏳ Đang xuất...' : '📊 Xuất Excel'}
-                </button>
-                <button onClick={exportCSV}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#475569' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
-                  onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}>
-                  ⬇ Xuất CSV
-                </button>
-              </>
+              <button onClick={exportExcel} disabled={exportingXlsx}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 10, border: '1.5px solid #bbf7d0', background: exportingXlsx ? '#f0fdf4' : '#f0fdf4', cursor: exportingXlsx ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, color: exportingXlsx ? '#86efac' : '#16a34a', transition: 'all .15s', opacity: exportingXlsx ? 0.7 : 1 }}
+                onMouseEnter={e => { if (!exportingXlsx) e.currentTarget.style.background = '#dcfce7'; }}
+                onMouseLeave={e => { if (!exportingXlsx) e.currentTarget.style.background = '#f0fdf4'; }}>
+                {exportingXlsx ? '⏳ Đang xuất...' : '📊 Xuất Excel'}
+              </button>
             )}
             <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#f1f5f9', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
           </div>

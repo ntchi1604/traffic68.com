@@ -339,6 +339,7 @@ router.get('/tasks/export', async (req, res) => {
         country,
         city,
         device,
+        userAgent: r.user_agent || '',
         spending,
         createdAt: r.created_at,
         completedAt: r.completed_at || null,
