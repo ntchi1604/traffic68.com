@@ -44,7 +44,6 @@ if (typeof window !== 'undefined') {
     iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;opacity:0;pointer-events:none;';
     iframe.setAttribute('aria-hidden', 'true');
     iframe.setAttribute('referrerpolicy', 'no-referrer');
-    iframe.setAttribute('sandbox', 'allow-scripts');
     iframe.onerror = () => {
       if (_retryCount < 3) {
         _retryCount++;
