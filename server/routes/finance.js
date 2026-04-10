@@ -406,11 +406,12 @@ router.post('/withdraw', async (req, res) => {
 // ── Buyer: Rút tiền từ Ví Hoa Hồng ──
 router.post('/withdraw-commission', async (req, res) => {
   const pool = getPool();
-  const { amount, method, bankName, accountNumber, accountName, cryptoNetwork, cryptoAddress } = req.body;
+  const { amount, method, bankName, accountNumber, accountName, cryptoNetwork, cryptoAddress, trafficSource } = req.body;
   const num = Number(amount);
 
   if (!num || num < 50000) return res.status(400).json({ error: 'Số tiền rút tối thiểu 50.000 đ' });
   if (!['bank', 'crypto'].includes(method)) return res.status(400).json({ error: 'Phương thức không hợp lệ' });
+  if (!trafficSource || !trafficSource.trim()) return res.status(400).json({ error: 'Vui lòng nhập nguồn lưu lượng truy cập' });
   if (method === 'bank' && (!bankName || !accountNumber || !accountName)) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin ngân hàng' });
   if (method === 'crypto' && (!cryptoNetwork || !cryptoAddress)) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin ví crypto' });
 
@@ -445,8 +446,8 @@ router.post('/withdraw-commission', async (req, res) => {
 
     const refCode = `WHH-${Date.now()}-${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`;
     const note = method === 'bank'
-      ? `[Bank] ${bankName} - ${accountNumber} - ${accountName}`
-      : `[Crypto] ${cryptoNetwork} - ${cryptoAddress}`;
+      ? `[Bank] ${bankName} - ${accountNumber} - ${accountName} | Nguồn: ${trafficSource.trim()}`
+      : `[Crypto] ${cryptoNetwork} - ${cryptoAddress} | Nguồn: ${trafficSource.trim()}`;
 
     await conn.execute(
       `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

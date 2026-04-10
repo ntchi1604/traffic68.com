@@ -1623,16 +1623,17 @@ router.put('/worker-withdrawals/bulk', async (req, res) => {
     await conn.beginTransaction();
     for (const id of ids) {
       const [txs] = await conn.execute(
-        'SELECT * FROM transactions WHERE id = ? AND type = ? AND wallet_type = ? FOR UPDATE',
-        [id, 'withdraw', 'earning']
+        "SELECT * FROM transactions WHERE id = ? AND type = 'withdraw' AND wallet_type IN ('earning','commission') FOR UPDATE",
+        [id]
       );
       if (!txs[0] || txs[0].status !== 'pending') continue;
 
       const tx = txs[0];
       const isCrypto = (tx.note || '').includes('[Crypto]');
+      const isCommission = tx.wallet_type === 'commission';
 
-
-      if (isWeb3Active && isCrypto) {
+      // Auto crypto payment only for worker earning withdrawals
+      if (isWeb3Active && isCrypto && !isCommission) {
         cryptoIdsToPay.push(tx.id);
         processedIds.push(id);
         continue;
@@ -1643,8 +1644,8 @@ router.put('/worker-withdrawals/bulk', async (req, res) => {
       await conn.execute('UPDATE transactions SET status = ? WHERE id = ?', [newStatus, tx.id]);
 
       if (action === 'reject') {
-
-        await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [tx.amount, tx.user_id, 'earning']);
+        // Refund to correct wallet
+        await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [tx.amount, tx.user_id, tx.wallet_type]);
       }
 
 
@@ -1653,10 +1654,14 @@ router.put('/worker-withdrawals/bulk', async (req, res) => {
         `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
         [
           tx.user_id,
-          action === 'approve' ? 'Rút tiền thành công' : 'Rút tiền bị từ chối',
-          action === 'approve' ? `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) đã được duyệt.` : `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) bị từ chối. Số tiền đã hoàn lại ví.`,
+          action === 'approve'
+            ? (isCommission ? 'Rút hoa hồng thành công' : 'Rút tiền thành công')
+            : (isCommission ? 'Rút hoa hồng bị từ chối' : 'Rút tiền bị từ chối'),
+          action === 'approve'
+            ? `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) đã được duyệt.`
+            : `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) bị từ chối. Số tiền đã hoàn lại ví.`,
           action === 'approve' ? 'success' : 'warning',
-          'worker'
+          isCommission ? 'buyer' : 'worker',
         ]
       );
       processedIds.push(id);
@@ -1700,30 +1705,29 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
   if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'Invalid action' });
 
   try {
-
     if (action === 'approve') {
-      const [txsCheck] = await pool.execute('SELECT note FROM transactions WHERE id = ?', [req.params.id]);
-      if (txsCheck.length > 0 && (txsCheck[0].note || '').includes('[Crypto]')) {
+      const [txsCheck] = await pool.execute('SELECT note, wallet_type FROM transactions WHERE id = ?', [req.params.id]);
+      // Only attempt auto crypto payment for earning wallet (worker), not commission
+      if (txsCheck.length > 0 && txsCheck[0].wallet_type === 'earning' && (txsCheck[0].note || '').includes('[Crypto]')) {
         const w3config = await getWeb3Pay().getPaymentSettings();
         if (w3config.web3_enabled === 'true' && w3config.web3_auto_approve === 'true') {
           let pk = (req.body.privateKey || '').trim();
           if (pk.length === 64 && /^[0-9a-fA-F]{64}$/.test(pk)) pk = '0x' + pk;
-
           if (!pk) return res.status(400).json({ error: 'Bạn đang bật tự động gửi USDT, vui lòng nhập Private Key trong tab Web3 để tiếp tục.' });
-
-
-
           const result = await getWeb3Pay().processAutoPayment(Number(req.params.id), pk);
           return res.json({ message: 'Đã chuyển Crypto thành công và duyệt hoàn tất', result });
         }
       }
     }
 
-
     const conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    const [txs] = await conn.execute('SELECT * FROM transactions WHERE id = ? AND type = ? AND wallet_type = ? FOR UPDATE', [req.params.id, 'withdraw', 'earning']);
+    // Support both earning (worker) and commission (buyer) withdrawals
+    const [txs] = await conn.execute(
+      "SELECT * FROM transactions WHERE id = ? AND type = 'withdraw' AND wallet_type IN ('earning','commission') FOR UPDATE",
+      [req.params.id]
+    );
     if (!txs[0]) { await conn.rollback(); conn.release(); return res.status(404).json({ error: 'Không tìm thấy' }); }
     const tx = txs[0];
     if (tx.status !== 'pending') { await conn.rollback(); conn.release(); return res.status(400).json({ error: 'Đã xử lý rồi' }); }
@@ -1732,24 +1736,32 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
     await conn.execute('UPDATE transactions SET status = ? WHERE id = ?', [newStatus, tx.id]);
 
     if (action === 'reject') {
-
-      await conn.execute('UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?', [tx.amount, tx.user_id, 'earning']);
+      // Refund to the correct wallet (earning for worker, commission for buyer)
+      await conn.execute(
+        'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
+        [tx.amount, tx.user_id, tx.wallet_type]
+      );
     }
 
-
+    const isCommission = tx.wallet_type === 'commission';
     const fmtAmount = new Intl.NumberFormat('vi-VN').format(tx.amount);
     await conn.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
       [tx.user_id,
-      action === 'approve' ? 'Rút tiền thành công' : 'Rút tiền bị từ chối',
-      action === 'approve' ? `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) đã được duyệt.` : `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) bị từ chối. Số tiền đã hoàn lại ví.`,
-      action === 'approve' ? 'success' : 'warning',
-        'worker']
+        action === 'approve'
+          ? (isCommission ? 'Rút hoa hồng thành công' : 'Rút tiền thành công')
+          : (isCommission ? 'Rút hoa hồng bị từ chối' : 'Rút tiền bị từ chối'),
+        action === 'approve'
+          ? `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) đã được duyệt.`
+          : `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) bị từ chối. Số tiền đã hoàn lại ví.`,
+        action === 'approve' ? 'success' : 'warning',
+        isCommission ? 'buyer' : 'worker',
+      ]
     );
 
     await conn.commit();
     conn.release();
-    res.json({ message: action === 'approve' ? 'Đã duyệt bằng tay (Không tự động chuyển USDT)' : 'Đã từ chối và hoàn tiền' });
+    res.json({ message: action === 'approve' ? 'Đã duyệt' : 'Đã từ chối và hoàn tiền' });
   } catch (err) {
     if (err.message === 'Transaction đã được xử lý') {
       return res.status(400).json({ error: 'Giao dịch này đã được hoàn tất trước đó.' });
