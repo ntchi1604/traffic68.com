@@ -403,6 +403,71 @@ router.post('/withdraw', async (req, res) => {
   }
 });
 
+// ── Buyer: Rút tiền từ Ví Hoa Hồng ──
+router.post('/withdraw-commission', async (req, res) => {
+  const pool = getPool();
+  const { amount, method, bankName, accountNumber, accountName, cryptoNetwork, cryptoAddress } = req.body;
+  const num = Number(amount);
+
+  if (!num || num < 50000) return res.status(400).json({ error: 'Số tiền rút tối thiểu 50.000 đ' });
+  if (!['bank', 'crypto'].includes(method)) return res.status(400).json({ error: 'Phương thức không hợp lệ' });
+  if (method === 'bank' && (!bankName || !accountNumber || !accountName)) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin ngân hàng' });
+  if (method === 'crypto' && (!cryptoNetwork || !cryptoAddress)) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin ví crypto' });
+
+  try {
+    const [settings] = await pool.execute(
+      'SELECT setting_value FROM site_settings WHERE setting_key = ?',
+      [method === 'bank' ? 'withdraw_bank_enabled' : 'withdraw_crypto_enabled']
+    );
+    if (settings.length && settings[0].setting_value === 'false') {
+      return res.status(400).json({ error: 'Phương thức rút tiền này đã bị tạm khóa' });
+    }
+  } catch (e) { }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [wallets] = await conn.execute(
+      'SELECT balance FROM wallets WHERE user_id = ? AND type = ? FOR UPDATE',
+      [req.userId, 'commission']
+    );
+    const balance = wallets[0] ? Number(wallets[0].balance) : 0;
+    if (balance < num) {
+      await conn.rollback(); conn.release();
+      return res.status(400).json({ error: `Số dư không đủ (hiện có ${balance.toLocaleString('vi-VN')} đ)` });
+    }
+
+    await conn.execute(
+      'UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = ?',
+      [num, req.userId, 'commission']
+    );
+
+    const refCode = `WHH-${Date.now()}-${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`;
+    const note = method === 'bank'
+      ? `[Bank] ${bankName} - ${accountNumber} - ${accountName}`
+      : `[Crypto] ${cryptoNetwork} - ${cryptoAddress}`;
+
+    await conn.execute(
+      `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.userId, 'commission', 'withdraw', method, num, 'pending', refCode, note]
+    );
+
+    const fmtAmount = new Intl.NumberFormat('vi-VN').format(num);
+    await conn.execute(
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [req.userId, 'Yêu cầu rút hoa hồng', `Yêu cầu rút ${fmtAmount} đ từ Ví Hoa Hồng (${refCode}) đang chờ xử lý.`, 'info', 'buyer']
+    );
+
+    await conn.commit();
+    conn.release();
+    res.json({ message: `Yêu cầu rút ${fmtAmount} đ hoa hồng đã gửi`, refCode });
+  } catch (err) {
+    await conn.rollback(); conn.release();
+    res.status(500).json({ error: 'Lỗi: ' + err.message });
+  }
+});
+
 router.get('/withdrawals', async (req, res) => {
   try {
     const pool = getPool();

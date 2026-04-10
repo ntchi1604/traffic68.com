@@ -81,63 +81,149 @@ function BankRow({ label, value }) {
 }
 
 /* ── Commission Modal ── */
-function CommissionModal({ mode, balance, onConfirm, onClose }) {
-  const [amount, setAmount] = useState('');
+function CommissionModal({ mode, balance, onConfirm, onClose, withdrawConfig }) {
   const isTransfer = mode === 'transfer';
+  const toast = useToast();
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('bank');
+  const [bankName, setBankName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [cryptoNetwork, setCryptoNetwork] = useState('');
+  const [cryptoAddress, setCryptoAddress] = useState('');
+  const [loading, setLoading] = useState(false);
   const num = Number(amount);
-  const valid = num > 0 && num <= balance;
+  const MIN = 50000;
+  const validTransfer = num > 0 && num <= balance;
+  const validWithdraw = num >= MIN && num <= balance &&
+    (method === 'bank' ? (bankName && accountNumber && accountName) : (cryptoNetwork && cryptoAddress));
+
+  // Auto-select method based on withdraw config
+  useEffect(() => {
+    if (withdrawConfig?.bank_enabled) setMethod('bank');
+    else if (withdrawConfig?.crypto_enabled) setMethod('crypto');
+  }, [withdrawConfig]);
+
+  const handleWithdraw = async () => {
+    setLoading(true);
+    try {
+      const data = await api.post('/finance/withdraw-commission', {
+        amount: num, method, bankName, accountNumber, accountName, cryptoNetwork, cryptoAddress,
+      });
+      toast.success(data.message || 'Yêu cầu rút tiền đã gửi');
+      onConfirm(num, 'withdraw_done');
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message || 'Lỗi rút tiền');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-lg" />
-      <div className="relative bg-white rounded-3xl w-full max-w-sm p-7 z-10 shadow-2xl" onClick={e => e.stopPropagation()}
-        style={{ boxShadow: '0 40px 80px -12px rgba(15,23,42,0.25)' }}>
-        <button onClick={onClose} className="absolute top-5 right-5 w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition">
-          <X size={14} className="text-slate-500" />
-        </button>
+      <div className="relative bg-white rounded-3xl w-full max-w-sm z-10 shadow-2xl overflow-y-auto max-h-[90vh]"
+        style={{ boxShadow: '0 40px 80px -12px rgba(15,23,42,0.25)' }} onClick={e => e.stopPropagation()}>
+        <div className="p-7">
+          <button onClick={onClose} className="absolute top-5 right-5 w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition">
+            <X size={14} className="text-slate-500" />
+          </button>
 
-        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-5 ${isTransfer ? 'bg-indigo-100' : 'bg-rose-100'}`}>
-          {isTransfer ? <ArrowLeftRight size={20} className="text-indigo-600" /> : <LogOut size={20} className="text-rose-600" />}
-        </div>
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-5 ${isTransfer ? 'bg-indigo-100' : 'bg-rose-100'}`}>
+            {isTransfer ? <ArrowLeftRight size={20} className="text-indigo-600" /> : <LogOut size={20} className="text-rose-600" />}
+          </div>
 
-        <h3 className="text-xl font-black text-slate-900 mb-1">
-          {isTransfer ? 'Chuyển sang Ví Traffic' : 'Rút tiền về tài khoản'}
-        </h3>
-        <p className="text-sm text-slate-400 mb-6">Số dư khả dụng: <span className="font-bold text-indigo-500">{fmt(balance)} đ</span></p>
+          <h3 className="text-xl font-black text-slate-900 mb-1">
+            {isTransfer ? 'Chuyển sang Ví Traffic' : 'Rút hoa hồng về tài khoản'}
+          </h3>
+          <p className="text-sm text-slate-400 mb-6">Số dư: <span className="font-bold text-indigo-500">{fmt(balance)} đ</span></p>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-2">
-            {QUICK.slice(0, 6).map(q => {
-              const capped = Math.min(q, balance);
-              const sel = amount === String(capped);
-              return (
-                <button key={q} type="button" onClick={() => setAmount(String(capped))}
-                  className={`py-2 text-[11px] font-bold rounded-xl border-2 transition-all
-                    ${sel ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-slate-200 text-slate-500 hover:border-indigo-300'}`}>
-                  {fmt(capped)}đ
+          <div className="space-y-4">
+            {/* Amount */}
+            <div className="grid grid-cols-3 gap-2">
+              {QUICK.slice(0, 6).map(q => {
+                const capped = Math.min(q, balance);
+                const sel = amount === String(capped);
+                return (
+                  <button key={q} type="button" onClick={() => setAmount(String(capped))}
+                    className={`py-2 text-[11px] font-bold rounded-xl border-2 transition-all
+                      ${sel ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-slate-200 text-slate-500 hover:border-indigo-300'}`}>
+                    {fmt(capped)}đ
+                  </button>
+                );
+              })}
+            </div>
+            <div className="relative">
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                min="1000" max={balance} placeholder={isTransfer ? 'Nhập số tiền...' : `Tối thiểu ${fmt(MIN)} đ`}
+                className="w-full px-4 py-3.5 border-2 border-slate-200 rounded-2xl text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all pr-16 bg-slate-50" />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">VNĐ</span>
+            </div>
+
+            {/* Withdraw-specific fields */}
+            {!isTransfer && (
+              <>
+                {/* Method toggle */}
+                <div className="grid grid-cols-2 gap-2">
+                  {withdrawConfig?.bank_enabled !== false && (
+                    <button type="button" onClick={() => setMethod('bank')}
+                      className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-xs font-bold transition
+                        ${method === 'bank' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                      <Building2 size={14} /> Ngân hàng
+                    </button>
+                  )}
+                  {withdrawConfig?.crypto_enabled !== false && (
+                    <button type="button" onClick={() => setMethod('crypto')}
+                      className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-xs font-bold transition
+                        ${method === 'crypto' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                      <Coins size={14} /> Crypto
+                    </button>
+                  )}
+                </div>
+
+                {method === 'bank' && (
+                  <div className="space-y-2">
+                    <input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="Tên ngân hàng (VD: MB Bank)" required
+                      className="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
+                    <input value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="Số tài khoản" required
+                      className="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
+                    <input value={accountName} onChange={e => setAccountName(e.target.value)} placeholder="Tên chủ tài khoản" required
+                      className="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
+                  </div>
+                )}
+                {method === 'crypto' && (
+                  <div className="space-y-2">
+                    <select value={cryptoNetwork} onChange={e => setCryptoNetwork(e.target.value)} required
+                      className="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 bg-white">
+                      <option value="">Chọn mạng...</option>
+                      <option value="USDT (BEP20)">USDT (BEP20)</option>
+                      <option value="USDT (TRC20)">USDT (TRC20)</option>
+                    </select>
+                    <input value={cryptoAddress} onChange={e => setCryptoAddress(e.target.value)} placeholder="Địa chỉ ví" required
+                      className="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
+                    <p className="text-[10px] text-red-500 font-semibold">Kiểm tra kỹ địa chỉ ví. Giao dịch crypto không thể hoàn lại.</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="flex gap-3">
+              <button onClick={onClose}
+                className="flex-1 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm transition">
+                Hủy
+              </button>
+              {isTransfer ? (
+                <button disabled={!validTransfer} onClick={() => onConfirm(num, 'transfer')}
+                  className="flex-1 py-3.5 rounded-2xl text-white font-black text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-indigo-600 hover:bg-indigo-700">
+                  Chuyển ngay
                 </button>
-              );
-            })}
-          </div>
-
-          <div className="relative">
-            <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
-              min="1000" max={balance} placeholder="Hoặc nhập số tiền..."
-              className="w-full px-4 py-3.5 border-2 border-slate-200 rounded-2xl text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all pr-16 bg-slate-50" />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">VNĐ</span>
-          </div>
-
-          <div className="flex gap-3">
-            <button onClick={onClose}
-              className="flex-1 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm transition">
-              Hủy
-            </button>
-            <button disabled={!valid} onClick={() => onConfirm(num, isTransfer ? 'transfer' : 'withdraw')}
-              className={`flex-1 py-3.5 rounded-2xl text-white font-black text-sm transition-all
-                disabled:opacity-40 disabled:cursor-not-allowed
-                ${isTransfer ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-rose-600 hover:bg-rose-700'}`}>
-              {isTransfer ? 'Chuyển ngay' : 'Rút tiền'}
-            </button>
+              ) : (
+                <button disabled={!validWithdraw || loading} onClick={handleWithdraw}
+                  className="flex-1 py-3.5 rounded-2xl text-white font-black text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-rose-600 hover:bg-rose-700">
+                  {loading ? 'Đang gửi...' : 'Rút tiền'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -325,6 +411,9 @@ export default function Deposit() {
         toast.success(data.message || `Đã chuyển ${fmt(num)} đ sang Ví Traffic`);
         fetchWallets();
       } catch (err) { toast.error(err.message); }
+    } else {
+      // withdraw_done: modal đã tự gọi API và hiển thị toast, chỉ cần refresh wallet
+      fetchWallets();
     }
   };
 
@@ -701,7 +790,8 @@ export default function Deposit() {
       {/* Modals */}
       {modal && (
         <CommissionModal mode={modal} balance={wallets.commission.balance}
-          onConfirm={handleCommission} onClose={() => setModal(null)} />
+          onConfirm={handleCommission} onClose={() => setModal(null)}
+          withdrawConfig={depositConfig ? { bank_enabled: depositConfig.bank?.enabled, crypto_enabled: depositConfig.crypto?.enabled || depositConfig.trc20?.enabled } : null} />
       )}
       {cryptoResult && (
         <CryptoDepositPanel data={cryptoResult} onClose={() => { setCryptoResult(null); fetchWallets(); }} />
