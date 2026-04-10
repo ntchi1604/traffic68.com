@@ -342,9 +342,16 @@ router.post('/public/:token/check-session', async (req, res) => {
   if (task.traffic_type === 'google_search' && !['step2', 'step3'].includes(task.task_status)) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
     const clientRef = pageReferrer || '';
-    if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
+    // Chỉ block khi referrer CÓ GIÁ TRỊ nhưng không phải Google.
+    // Referrer rỗng được cho qua vì nhiều website/browser strip referrer
+    // do Referrer-Policy header (no-referrer, strict-origin-when-cross-origin, same-origin...)
+    // dù worker thực sự đến từ Google. Các lớp bảo vệ khác (task/IP binding) vẫn giữ nguyên.
+    if (clientRef && !GOOGLE_DOMAINS.test(clientRef)) {
       console.log(`[Widget] check-session BLOCKED: Non-Google referrer — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
       return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.', requireGoogle: true });
+    }
+    if (!clientRef) {
+      console.log(`[Widget] check-session: empty referrer allowed (Referrer-Policy stripped) — IP: ${ip}, task: #${task.id}`);
     }
   }
 
@@ -538,7 +545,11 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (task.traffic_type === 'google_search' && v1Phase !== 2) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
     const clientRef = pageReferrer || '';
-    if (!clientRef || !GOOGLE_DOMAINS.test(clientRef)) {
+    // Chỉ block khi referrer CÓ GIÁ TRỊ nhưng không phải Google.
+    // Referrer rỗng được cho qua — nhiều website set Referrer-Policy: no-referrer
+    // hoặc strict-origin-when-cross-origin khiến document.referrer luôn rỗng
+    // dù worker đã click từ Google thật.
+    if (clientRef && !GOOGLE_DOMAINS.test(clientRef)) {
       console.log(`[Widget] BLOCKED: Non-Google referrer for search campaign — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
       await pool.execute(
         `UPDATE vuot_link_tasks SET security_detail = JSON_SET(COALESCE(security_detail,'{}'), '$.non_google_referrer', true, '$.bad_referrer', ?) WHERE id = ?`,

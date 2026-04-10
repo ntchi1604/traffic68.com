@@ -28,6 +28,10 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
     }
+    // Ngăn Googlebot và SEO crawler index/follow iframe fingerprint
+    if (filePath.endsWith('creep-frame.html')) {
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    }
   },
 }));
 
