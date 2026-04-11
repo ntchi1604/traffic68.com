@@ -31,6 +31,7 @@ function KeywordStats({ campaignId }) {
   const [page, setPage] = useState(1);
   const rowsPerPage = 10;
   const [loading, setLoading] = useState(true);
+  const [exportingXlsx, setExportingXlsx] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -45,14 +46,13 @@ function KeywordStats({ campaignId }) {
   if (loading) return <div className="text-center py-4 text-xs text-slate-400">Đang tải...</div>;
   if (!stats || stats.length === 0) return <div className="text-center py-4 text-xs text-slate-400">Chưa có dữ liệu</div>;
 
-  const totalAll = stats.reduce((s, k) => s + Number(k.total), 0);
-  const totalCompleted = stats.reduce((s, k) => s + Number(k.completed), 0);
-  const totalPending = stats.reduce((s, k) => s + Number(k.pending), 0);
-  const totalExpired = stats.reduce((s, k) => s + Number(k.expired), 0);
-  const totalBlocked = stats.reduce((s, k) => s + Number(k.blocked), 0);
-  const totalCost = stats.reduce((s, k) => s + Number(k.cost), 0);
+  const totalAll = stats ? stats.reduce((s, k) => s + Number(k.total), 0) : 0;
+  const totalCompleted = stats ? stats.reduce((s, k) => s + Number(k.completed), 0) : 0;
+  const totalPending = stats ? stats.reduce((s, k) => s + Number(k.pending), 0) : 0;
+  const totalExpired = stats ? stats.reduce((s, k) => s + Number(k.expired), 0) : 0;
+  const totalBlocked = stats ? stats.reduce((s, k) => s + Number(k.blocked), 0) : 0;
+  const totalCost = stats ? stats.reduce((s, k) => s + Number(k.cost), 0) : 0;
 
-  const [exportingXlsx, setExportingXlsx] = useState(false);
 
   const exportExcel = async () => {
     if (exportingXlsx) return;

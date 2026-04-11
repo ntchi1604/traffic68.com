@@ -86,19 +86,6 @@ function KeywordStats({ campaignId }) {
   const totalCompleted = stats.reduce((s, k) => s + Number(k.completed), 0);
   const totalCost = stats.reduce((s, k) => s + Number(k.cost), 0);
 
-  const exportCSV = () => {
-    const BOM = '\uFEFF';
-    let csv = BOM + 'Từ khóa,Tổng,Hoàn thành,Đang chờ,Hết hạn,Blocked,Chi phí (đ)\n';
-    stats.forEach(kw => {
-      csv += `"${kw.keyword || '(trống)'}",${kw.total},${kw.completed},${kw.pending},${kw.expired},${kw.blocked},${kw.cost}\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `tu-khoa-${campaignId}.csv`; a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const exportExcel = async () => {
     if (exportingXlsx) return;
     setExportingXlsx(true);
@@ -108,10 +95,11 @@ function KeywordStats({ campaignId }) {
       exportToExcel({
         filename: `buyer_tasks_${campaignId}_${new Date().toISOString().slice(0, 10)}`,
         sheetName: 'Dữ liệu task',
-        headers: ['STT', 'ID', 'Keyword', 'IP', 'Quốc gia', 'Thành phố', 'Thiết bị', 'Chi tiêu ($)', 'Thời gian tạo', 'Hoàn thành lúc'],
-        colTypes:  ['n',   'n',  's',       's',  's',        's',         's',        'n',           's',             's'],
+        headers: ['STT', 'ID', 'Keyword', 'IP', 'Quốc gia', 'Thành phố', 'Thiết bị', 'User Agent', 'Chi tiêu', 'Thời gian tạo', 'Hoàn thành lúc'],
+        colTypes:  ['n',   'n',  's',       's',  's',        's',         's',        's',          'n',        's',             's'],
         rows: rows.map(r => [
           r.stt, r.id, r.keyword, r.ip, r.country, r.city, r.device,
+          r.userAgent || '',
           r.spending,
           r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : '',
           r.completedAt ? new Date(r.completedAt).toLocaleString('vi-VN') : '',
@@ -146,20 +134,14 @@ function KeywordStats({ campaignId }) {
         <div className="lg:w-2/5 space-y-2">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Theo từ khóa</p>
-            <div className="flex items-center gap-2">
-              <button onClick={exportExcel} disabled={exportingXlsx}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border transition ${
-                  exportingXlsx
-                    ? 'text-emerald-400 bg-emerald-50 border-emerald-100 cursor-not-allowed'
-                    : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 cursor-pointer'
-                }`}>
-                <Download size={11} />{exportingXlsx ? ' Đang xuất...' : ' Xuất Excel'}
-              </button>
-              <button onClick={exportCSV}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition">
-                <Download size={11} /> CSV
-              </button>
-            </div>
+            <button onClick={exportExcel} disabled={exportingXlsx}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border transition ${
+                exportingXlsx
+                  ? 'text-emerald-400 bg-emerald-50 border-emerald-100 cursor-not-allowed'
+                  : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 cursor-pointer'
+              }`}>
+              <Download size={11} />{exportingXlsx ? ' Đang xuất...' : ' Xuất Excel'}
+            </button>
           </div>
           <div className="max-h-[260px] overflow-y-auto pr-1 space-y-2">
             {stats.map((kw, i) => {
