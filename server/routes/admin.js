@@ -492,7 +492,7 @@ router.get('/campaigns/:id/detailed-stats', async (req, res) => {
   }
 });
 
-// ── Admin: Export tasks for a campaign (with user_agent) ──
+// ── Admin: Export tasks for a campaign (với geo lookup, cpc, giống hệt buyer export) ──
 router.get('/campaigns/:id/tasks-export', async (req, res) => {
   try {
     const pool = getPool();
@@ -505,17 +505,86 @@ router.get('/campaigns/:id/tasks-export', async (req, res) => {
     };
     const [rows] = await pool.execute(
       `SELECT vlt.id, vlt.keyword, vlt.ip_address, vlt.user_agent, vlt.ip_country,
-              vlt.earning, vlt.status, vlt.created_at, vlt.completed_at, vlt.bot_detected
+              vlt.created_at, vlt.completed_at
        FROM vuot_link_tasks vlt
-       WHERE vlt.campaign_id = ?
-       ORDER BY vlt.created_at DESC
+       WHERE vlt.campaign_id = ? AND vlt.status = 'completed' AND vlt.bot_detected = 0
+       ORDER BY vlt.completed_at DESC
        LIMIT 5000`,
       [cid]
     );
-    const tasks = rows.map(r => ({
-      ...r,
-      device: detectDevice(r.user_agent),
-    }));
+
+    // Lấy cpc để tính chi tiêu buyer
+    const [campRows] = await pool.execute('SELECT cpc FROM campaigns WHERE id = ?', [cid]);
+    const cpc = Number(campRows[0]?.cpc) || 0;
+
+    // ── Geo lookup: batch via ip-api.com ──
+    const geoip = require('geoip-lite');
+    const uniqueIps = [...new Set(
+      rows.map(r => r.ip_address).filter(ip => {
+        if (!ip) return false;
+        if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1|fe80)/i.test(ip)) return false;
+        return true;
+      })
+    )];
+    const geoMap = {};
+    const BATCH = 100;
+    for (let i = 0; i < uniqueIps.length; i += BATCH) {
+      const batch = uniqueIps.slice(i, i + BATCH);
+      try {
+        const result = await new Promise((resolve) => {
+          const body = JSON.stringify(batch.map(ip => ({ query: ip, fields: 'query,country,city,status' })));
+          const options = {
+            hostname: 'ip-api.com',
+            path: '/batch?fields=query,country,city,status',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+          };
+          const req2 = require('http').request(options, (resp) => {
+            let data = '';
+            resp.on('data', chunk => data += chunk);
+            resp.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve([]); } });
+          });
+          req2.on('error', () => resolve([]));
+          req2.setTimeout(5000, () => { req2.destroy(); resolve([]); });
+          req2.write(body);
+          req2.end();
+        });
+        if (Array.isArray(result)) {
+          result.forEach(r => {
+            if (r.status === 'success' && r.query) {
+              geoMap[r.query] = { country: r.country || '', city: r.city || '' };
+            }
+          });
+        }
+      } catch (e) {
+        console.error('[Admin Export] ip-api batch error:', e.message);
+      }
+    }
+    uniqueIps.forEach(ip => {
+      if (!geoMap[ip]) {
+        const geo = geoip.lookup(ip);
+        if (geo) geoMap[ip] = { country: geo.country || '', city: geo.city || '' };
+      }
+    });
+
+    const tasks = rows.map((r, i) => {
+      const geo = geoMap[r.ip_address] || {};
+      const country = r.ip_country || geo.country || '';
+      const city = geo.city || '';
+      return {
+        stt: i + 1,
+        id: r.id,
+        keyword: r.keyword || '',
+        ip: r.ip_address || '',
+        country,
+        city,
+        device: detectDevice(r.user_agent),
+        userAgent: r.user_agent || '',
+        spending: cpc,
+        createdAt: r.created_at,
+        completedAt: r.completed_at || null,
+      };
+    });
     res.json({ tasks, campaignId: cid });
   } catch (err) {
     res.status(500).json({ error: err.message });

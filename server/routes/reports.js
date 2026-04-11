@@ -329,7 +329,7 @@ router.get('/tasks/export', async (req, res) => {
       const country = r.ip_country || geo.country || '';
       const city = geo.city || '';
       const device = detectDevice(r.user_agent);
-      const spending = Number(r.earning) || cpc;
+      const spending = cpc; // Chi tiêu của buyer = CPC campaign (giá sau discount, không phải earning của worker)
 
       return {
         stt: i + 1,

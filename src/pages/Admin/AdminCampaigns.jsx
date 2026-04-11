@@ -64,19 +64,20 @@ function KeywordStats({ campaignId }) {
         exportToExcel({
           filename: `tasks-camp-${campaignId}-${new Date().toISOString().slice(0, 10)}`,
           sheetName: 'Chi tiết task',
-          headers: ['STT', 'Từ khoá', 'IP', 'Quốc gia', 'Thiết bị', 'User Agent', 'Trạng thái', 'Thu nhập', 'Ngày tạo', 'Hoàn thành'],
-          colTypes: ['n', 's', 's', 's', 's', 's', 's', 'n', 's', 's'],
-          rows: tasks.map((t, i) => [
-            i + 1,
+          headers: ['STT', 'ID', 'Keyword', 'IP', 'Quốc gia', 'Thành phố', 'Thiết bị', 'User Agent', 'Chi tiêu', 'Thời gian tạo', 'Hoàn thành lúc'],
+          colTypes: ['n', 'n', 's', 's', 's', 's', 's', 's', 'n', 's', 's'],
+          rows: tasks.map(t => [
+            t.stt,
+            t.id,
             t.keyword || '',
-            t.ip_address || '',
-            t.ip_country || '',
+            t.ip || '',
+            t.country || '',
+            t.city || '',
             t.device || '',
-            t.user_agent || '',
-            t.status || '',
-            Number(t.earning) || 0,
-            t.created_at ? new Date(t.created_at).toLocaleString('vi-VN') : '',
-            t.completed_at ? new Date(t.completed_at).toLocaleString('vi-VN') : '',
+            t.userAgent || '',
+            t.spending,
+            t.createdAt ? new Date(t.createdAt).toLocaleString('vi-VN') : '',
+            t.completedAt ? new Date(t.completedAt).toLocaleString('vi-VN') : '',
           ]),
         });
       } else {
