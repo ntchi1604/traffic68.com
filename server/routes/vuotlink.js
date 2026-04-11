@@ -371,19 +371,28 @@ async function _handleTaskPost(req, res) {
     return res.status(404).json(ERR);
   }
 
-  // Weighted random theo daily quota tuyệt đối:
-  //   weight = daily_views - today_done → camp daily=500 có weight 5x so với camp daily=100
-  //   → phân bổ task tỷ lệ thuận với daily_views, duy trì tỷ lệ đều suốt cả ngày
-  //   Camp không set daily (daily_views=0) → dùng total remaining / 10 làm tham chiếu
+  // Weighted random theo √remaining (square-root fairness):
+  //   weight = √(daily_views - today_done)
+  //   → camp daily=500 vs daily=100: √500:√100 ≈ 2.24:1 (thay vì 5:1 tuyến tính)
+  //   → camp nhỏ vẫn được ít hơn (đúng quota), nhưng không bị "đói" trong pool nhiều camp lớn
+  //   Camp không set daily (daily_views=0) → cap rồi mới sqrt, tránh camp tổng lớn chiếm pool
+  const maxDailyInPool = campaigns.reduce((m, c) => {
+    const d = Number(c.daily_views) || 0;
+    return d > 0 ? Math.max(m, d) : m;
+  }, 0);
+  const noDailyCap = maxDailyInPool > 0 ? maxDailyInPool : 500; // fallback 500 nếu không camp nào set daily
+
   const campWeight = (c) => {
     const todayDone = Number(c._today_done) || 0;
     const dailyLimit = Number(c.daily_views) || 0;
     if (dailyLimit > 0) {
-      return Math.max(0, dailyLimit - todayDone); // còn lại trong ngày (tuyệt đối)
+      const remaining = Math.max(0, dailyLimit - todayDone);
+      return Math.sqrt(remaining); // √remaining: thu hẹp gap lớn/nhỏ, camp nhỏ vẫn được ưu tiên hợp lý
     }
-    // daily_views không set → dùng (total_views - views_done) / 10 tránh quá lớn
+    // daily_views không set → cap trước (tránh dominate), rồi sqrt
     const totalLeft = Math.max(0, Number(c.total_views) - Number(c.views_done));
-    return Math.max(1, totalLeft / 10);
+    const capped = Math.min(Math.max(1, totalLeft / 10), noDailyCap);
+    return Math.sqrt(capped);
   };
   const totalWeight = campaigns.reduce((s, c) => s + campWeight(c), 0);
   let rand = Math.random() * totalWeight;
