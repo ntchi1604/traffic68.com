@@ -371,37 +371,12 @@ async function _handleTaskPost(req, res) {
     return res.status(404).json(ERR);
   }
 
-  // Weighted random theo √remaining (square-root fairness):
-  //   weight = √(daily_views - today_done)
-  //   → camp daily=500 vs daily=100: √500:√100 ≈ 2.24:1 (thay vì 5:1 tuyến tính)
-  //   → camp nhỏ vẫn được ít hơn (đúng quota), nhưng không bị "đói" trong pool nhiều camp lớn
-  //   Camp không set daily (daily_views=0) → cap rồi mới sqrt, tránh camp tổng lớn chiếm pool
-  const maxDailyInPool = campaigns.reduce((m, c) => {
-    const d = Number(c.daily_views) || 0;
-    return d > 0 ? Math.max(m, d) : m;
-  }, 0);
-  const noDailyCap = maxDailyInPool > 0 ? maxDailyInPool : 500; // fallback 500 nếu không camp nào set daily
-
-  const campWeight = (c) => {
-    const todayDone = Number(c._today_done) || 0;
-    const dailyLimit = Number(c.daily_views) || 0;
-    if (dailyLimit > 0) {
-      const remaining = Math.max(0, dailyLimit - todayDone);
-      return Math.sqrt(remaining); // √remaining: thu hẹp gap lớn/nhỏ, camp nhỏ vẫn được ưu tiên hợp lý
-    }
-    // daily_views không set → cap trước (tránh dominate), rồi sqrt
-    const totalLeft = Math.max(0, Number(c.total_views) - Number(c.views_done));
-    const capped = Math.min(Math.max(1, totalLeft / 10), noDailyCap);
-    return Math.sqrt(capped);
-  };
-  const totalWeight = campaigns.reduce((s, c) => s + campWeight(c), 0);
-  let rand = Math.random() * totalWeight;
-  let campaign = campaigns[campaigns.length - 1]; // fallback to last
-  for (const c of campaigns) {
-    rand -= campWeight(c);
-    if (rand <= 0) { campaign = c; break; }
-  }
-  console.log(`[VuotLink] Selected campaign id=${campaign.id} today=${campaign._today_done} daily=${campaign.daily_views} weight=${campWeight(campaign).toFixed(1)} (pool: ${campaigns.length} camps, totalWeight=${totalWeight.toFixed(1)})`);
+  // Phân phối đều: mỗi campaign có xác suất bằng nhau (equal weight = 1)
+  //   → Tất cả camp trong pool được chọn ngẫu nhiên hoàn toàn đồng đều
+  //   → Không ưu tiên camp có quota lớn hay nhỏ hơn
+  //   → Danh sách đã được ORDER BY today_done ASC nên camp ít lượt hôm nay sẽ xuất hiện trước
+  const campaign = campaigns[Math.floor(Math.random() * campaigns.length)];
+  console.log(`[VuotLink] Selected campaign id=${campaign.id} today=${campaign._today_done} daily=${campaign.daily_views} (pool: ${campaigns.length} camps, equal-weight random)`);
 
 
   const pickRandom = (val) => {
