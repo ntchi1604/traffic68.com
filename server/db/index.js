@@ -83,7 +83,7 @@ async function initDb() {
     await p2.execute("ALTER TABLE campaigns ADD COLUMN bonus_mode TINYINT(1) NOT NULL DEFAULT 0 AFTER priority").catch(() => {});
     await p2.execute("ALTER TABLE users ADD COLUMN withdraw_wallet JSON DEFAULT NULL").catch(() => {});
     await p2.execute("ALTER TABLE users ADD COLUMN bonus_mode TINYINT(1) NOT NULL DEFAULT 1").catch(() => {});
-    await p2.execute("UPDATE users SET bonus_mode = 1 WHERE bonus_mode = 0").catch(() => {});
+    // NOTE: Không chạy UPDATE bonus_mode = 1 ở đây vì sẽ reset cài đặt thủ công của admin mỗi lần deploy
   } catch (_) {}
 }
 
