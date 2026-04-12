@@ -396,6 +396,26 @@ router.put('/campaigns/:id', async (req, res) => {
   }
 });
 
+// ── Admin only: set priority cho campaign (1–5), hoặc 0 để reset về mặc định (NULL) ──
+router.put('/campaigns/:id/priority', async (req, res) => {
+  try {
+    const pool = getPool();
+    const priority = Number(req.body.priority);
+    if (![0, 1, 2, 3, 4, 5].includes(priority)) {
+      return res.status(400).json({ error: 'Priority phải là 0 (mặc định) hoặc 1–5' });
+    }
+    const [check] = await pool.execute('SELECT id, name FROM campaigns WHERE id = ?', [req.params.id]);
+    if (!check.length) return res.status(404).json({ error: 'Không tìm thấy campaign' });
+    // priority=0 → lưu NULL vào DB (chưa set = random đều)
+    const dbValue = priority === 0 ? null : priority;
+    await pool.execute('UPDATE campaigns SET priority = ? WHERE id = ?', [dbValue, req.params.id]);
+    console.log(`[Admin] Campaign ${req.params.id} priority set to ${dbValue ?? 'NULL(default)'} by admin ${req.userId}`);
+    res.json({ ok: true, campaignId: Number(req.params.id), priority: dbValue, campaignName: check[0].name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 router.post('/campaigns/:id/sync-views', async (req, res) => {
   try {

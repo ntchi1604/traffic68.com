@@ -79,6 +79,7 @@ async function initDb() {
     await p2.execute("ALTER TABLE notifications ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'all' AFTER type").catch(() => {});
     await p2.execute("ALTER TABLE campaigns ADD COLUMN keyword_config TEXT DEFAULT NULL AFTER keyword").catch(() => {});
     await p2.execute("ALTER TABLE campaigns MODIFY COLUMN keyword TEXT DEFAULT NULL").catch(() => {});
+    await p2.execute("ALTER TABLE campaigns ADD COLUMN priority TINYINT DEFAULT NULL AFTER discount_applied").catch(() => {});
   } catch (_) {}
 }
 

@@ -1,10 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Search, Play, Pause, CheckCircle, ExternalLink, MoreVertical, Pencil, X, Plus, Trash2, Upload, BarChart3 } from 'lucide-react';
+import { Search, Play, Pause, CheckCircle, ExternalLink, MoreVertical, Pencil, X, Plus, Trash2, Upload, BarChart3, Zap } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
 import { exportToExcel } from '../../lib/exportExcel';
+
+const PRIORITY_MAP = {
+  0: { label: 'Mặc định', cls: 'bg-slate-100 text-slate-400',   dot: 'bg-slate-300' }, // NULL / chưa set
+  1: { label: '× 2 Tăng nhẹ',  cls: 'bg-sky-100 text-sky-700',       dot: 'bg-sky-400' },
+  2: { label: '× 4 Tăng vừa',  cls: 'bg-teal-100 text-teal-700',     dot: 'bg-teal-500' },
+  3: { label: '× 8 Ưu tiên',   cls: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-500' },
+  4: { label: '×16 Rất cao',   cls: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500' },
+  5: { label: '×32 Khẩn cấp', cls: 'bg-red-100 text-red-700',       dot: 'bg-red-500' },
+};
 
 const STATUS_MAP = {
   running: { label: 'Đang chạy', cls: 'bg-green-100 text-green-700' },
@@ -663,6 +672,7 @@ export default function AdminCampaigns() {
   const [editingCampaign, setEditingCampaign] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [page, setPage] = useState(1);
+  const [settingPriorityId, setSettingPriorityId] = useState(null);
   const menuRef = useRef(null);
   const LIMIT = 20;
 
@@ -693,6 +703,20 @@ export default function AdminCampaigns() {
       setOpenMenuId(null);
       fetchCampaigns();
     } catch (err) { toast.error(err.message); }
+  };
+
+  const updatePriority = async (id, priority) => {
+    if (settingPriorityId) return;
+    setSettingPriorityId(id);
+    try {
+      // priority=0 → đặt về NULL (mặc định, random đều)
+      await api.put(`/admin/campaigns/${id}/priority`, { priority });
+      const pInfo = PRIORITY_MAP[priority] || PRIORITY_MAP[0];
+      toast.success(`✅ Đã đặt ưu tiên: ${pInfo?.label || priority}`);
+      setOpenMenuId(null);
+      setCampaigns(prev => prev.map(c => c.id === id ? { ...c, priority: priority === 0 ? null : priority } : c));
+    } catch (err) { toast.error(err.message); }
+    finally { setSettingPriorityId(null); }
   };
 
   const totalPages = Math.ceil(campaigns.length / LIMIT);
@@ -740,6 +764,7 @@ export default function AdminCampaigns() {
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Chủ sở hữu</th>
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Ngân sách</th>
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Views</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Ưu tiên</th>
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Trạng thái</th>
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Ngày tạo</th>
                     <th className="px-5 py-3 text-center font-semibold text-slate-500">Hành động</th>
@@ -783,6 +808,17 @@ export default function AdminCampaigns() {
                           )}
                         </td>
                         <td className="px-5 py-3">
+                          {(() => {
+                            const pr = PRIORITY_MAP[c.priority ?? 0] || PRIORITY_MAP[0];
+                            return (
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-bold rounded-full ${pr.cls}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${pr.dot}`} />
+                                {pr.label}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-5 py-3">
                           <span className={`px-2 py-1 text-xs font-bold rounded-full ${st.cls}`}>{st.label}</span>
                         </td>
                         <td className="px-5 py-3 text-xs text-slate-500">{new Date(c.created_at).toLocaleString('vi-VN')}</td>
@@ -800,7 +836,7 @@ export default function AdminCampaigns() {
                                 <MoreVertical size={16} />
                               </button>
                               {openMenuId === c.id && (
-                                <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[180px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                                <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[200px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
                                   <button
                                     onClick={() => { setOpenMenuId(null); setEditingCampaign(c); }}
                                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-indigo-700 transition text-left"
@@ -831,6 +867,40 @@ export default function AdminCampaigns() {
                                       <CheckCircle size={14} className="text-indigo-500" /> Hoàn thành
                                     </button>
                                   )}
+                                  <div className="border-t border-slate-100 mt-1 pt-1">
+                                    <p className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Zap size={10} /> Mức ưu tiên traffic
+                                    </p>
+                                    {/* Option: bỏ ưu tiên → về mặc định random đều */}
+                                    <button
+                                      onClick={() => updatePriority(c.id, 0)}
+                                      disabled={settingPriorityId === c.id}
+                                      className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold transition text-left ${
+                                        !c.priority ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+                                      } disabled:opacity-50`}
+                                    >
+                                      <span className="w-2 h-2 rounded-full bg-slate-300" />
+                                      Mặc định (random đều)
+                                      {!c.priority && <span className="ml-auto text-[10px] font-bold text-indigo-500">✓ Hiện tại</span>}
+                                    </button>
+                                    {[1, 2, 3, 4, 5].map(lvl => {
+                                      const pr = PRIORITY_MAP[lvl];
+                                      const isActive = c.priority === lvl;
+                                      return (
+                                        <button key={lvl}
+                                          onClick={() => updatePriority(c.id, lvl)}
+                                          disabled={settingPriorityId === c.id}
+                                          className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold transition text-left ${
+                                            isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                                          } disabled:opacity-50`}
+                                        >
+                                          <span className={`w-2 h-2 rounded-full ${pr.dot}`} />
+                                          {pr.label}
+                                          {isActive && <span className="ml-auto text-[10px] font-bold text-indigo-500">✓ Hiện tại</span>}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -902,7 +972,7 @@ export default function AdminCampaigns() {
                               <MoreVertical size={16} />
                             </button>
                             {openMenuId === c.id && (
-                              <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[180px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                              <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1 min-w-[200px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
                                 <button onClick={() => { setOpenMenuId(null); setEditingCampaign(c); }}
                                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 text-left">
                                   <Pencil size={14} className="text-indigo-500" /> Sửa
@@ -925,6 +995,28 @@ export default function AdminCampaigns() {
                                     <CheckCircle size={14} className="text-indigo-500" /> Xong
                                   </button>
                                 )}
+                                <div className="border-t border-slate-100 mt-1 pt-1">
+                                  <p className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Zap size={10} /> Ưu tiên traffic
+                                  </p>
+                                  {[1, 2, 3, 4, 5].map(lvl => {
+                                    const pr = PRIORITY_MAP[lvl];
+                                    const isActive = (c.priority || 3) === lvl;
+                                    return (
+                                      <button key={lvl}
+                                        onClick={() => updatePriority(c.id, lvl)}
+                                        disabled={settingPriorityId === c.id}
+                                        className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold transition text-left ${
+                                          isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                                        } disabled:opacity-50`}
+                                      >
+                                        <span className={`w-2 h-2 rounded-full ${pr.dot}`} />
+                                        {pr.label}
+                                        {isActive && <span className="ml-auto text-[10px] font-bold text-indigo-500">✓</span>}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             )}
                           </div>

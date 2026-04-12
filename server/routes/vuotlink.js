@@ -246,8 +246,8 @@ async function _handleTaskPost(req, res) {
   const hourPad = hourVnRaw.padStart(2, '0');
 
   // Dùng chuỗi ngày/giờ VN trực tiếp (MySQL lưu VN time, so sánh VN với VN là đúng)
-  const vnDayStart  = `${todayVn} 00:00:00`;   // VN 00:00 ngày hôm nay
-  const vnDayEnd    = `${todayVn} 23:59:59`;   // VN 23:59 ngày hôm nay
+  const vnDayStart = `${todayVn} 00:00:00`;   // VN 00:00 ngày hôm nay
+  const vnDayEnd = `${todayVn} 23:59:59`;   // VN 23:59 ngày hôm nay
   const vnHourStart = `${todayVn} ${hourPad}:00:00`; // VN giờ hiện tại
   const hourStartVn = vnHourStart; // giữ tên cũ để không sửa thêm
 
@@ -371,12 +371,31 @@ async function _handleTaskPost(req, res) {
     return res.status(404).json(ERR);
   }
 
-  // Phân phối đều: mỗi campaign có xác suất bằng nhau (equal weight = 1)
-  //   → Tất cả camp trong pool được chọn ngẫu nhiên hoàn toàn đồng đều
-  //   → Không ưu tiên camp có quota lớn hay nhỏ hơn
-  //   → Danh sách đã được ORDER BY today_done ASC nên camp ít lượt hôm nay sẽ xuất hiện trước
-  const campaign = campaigns[Math.floor(Math.random() * campaigns.length)];
-  console.log(`[VuotLink] Selected campaign id=${campaign.id} today=${campaign._today_done} daily=${campaign.daily_views} (pool: ${campaigns.length} camps, equal-weight random)`);
+  // ── Weighted random: camp không set priority = weight 1 (đều nhau, baseline)
+  //   Admin set priority 1–5 sẽ boost xác suất lên cao hơn baseline:
+  //   NULL / chưa set: weight 1  (bằng nhau, random đều)
+  //   Mức 1 (Ưu tiên nhẹ):  weight 2   (~2× so với camp chưa set)
+  //   Mức 2 (Ưu tiên vừa):  weight 4   (~4×)
+  //   Mức 3 (Ưu tiên cao):  weight 8   (~8×)
+  //   Mức 4 (Rất cao):      weight 16  (~16×)
+  //   Mức 5 (Khẩn cấp):    weight 32  (~32×)
+  const PRIORITY_WEIGHTS = { 1: 2, 2: 4, 3: 8, 4: 16, 5: 32 };
+  let totalWeight = 0;
+  const weightedCamps = campaigns.map(c => {
+    // null/0/undefined = chưa set → weight 1 (baseline, đều nhau)
+    const w = (c.priority != null && c.priority > 0) ? (PRIORITY_WEIGHTS[c.priority] || 1) : 1;
+    totalWeight += w;
+    return { ...c, _weight: w };
+  });
+
+  let rand = Math.random() * totalWeight;
+  let campaign = weightedCamps[weightedCamps.length - 1]; // fallback
+  for (const c of weightedCamps) {
+    rand -= c._weight;
+    if (rand <= 0) { campaign = c; break; }
+  }
+  const pLabel = campaign.priority ? `priority=${campaign.priority}(×${campaign._weight})` : 'no-priority(×1)';
+  console.log(`[VuotLink] Selected campaign id=${campaign.id} ${pLabel} today=${campaign._today_done} daily=${campaign.daily_views} (pool: ${campaigns.length} camps, weighted-random totalW=${totalWeight})`);
 
 
   const pickRandom = (val) => {
