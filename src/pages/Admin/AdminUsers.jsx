@@ -207,8 +207,9 @@ export default function AdminUsers({ type }) {
                 <th className="px-5 py-3 text-left font-semibold text-slate-500">Số dư</th>
                 {isWorker ? (
                   <>
-                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Nhiệm vụ</th>
-                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Thu nhập</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Tổng rút</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Tổng link</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Hoàn thành</th>
                   </>
                 ) : (
                   <>
@@ -225,7 +226,7 @@ export default function AdminUsers({ type }) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {users.length === 0 ? (
-                <tr><td colSpan={isWorker ? 10 : 12} className="py-12 text-center text-slate-400">Không có người dùng</td></tr>
+                <tr><td colSpan={isWorker ? 11 : 12} className="py-12 text-center text-slate-400">Không có người dùng</td></tr>
               ) : users.map(u => (
                 <tr key={u.id} className="hover:bg-slate-50/70">
                   <td className="px-5 py-3 font-mono text-slate-500">#{u.id}</td>
@@ -271,8 +272,15 @@ export default function AdminUsers({ type }) {
                   </td>
                   {isWorker ? (
                     <>
-                      <td className="px-5 py-3 text-center text-slate-600 font-semibold">{u.task_count}</td>
-                      <td className="px-5 py-3 font-semibold text-green-600 text-xs">{fmt(u.total_earning)} đ</td>
+                      <td className="px-5 py-3">
+                        <span className="text-xs font-semibold text-red-500">{fmt(u.total_withdraw || 0)} đ</span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className="text-xs font-semibold text-indigo-600">{(u.total_worker_links || 0).toLocaleString('vi-VN')}</span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className="text-xs font-semibold text-emerald-600">{(u.task_count || 0).toLocaleString('vi-VN')}</span>
+                      </td>
                     </>
                   ) : (
                     <>

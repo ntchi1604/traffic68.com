@@ -117,7 +117,9 @@ router.get('/users', async (req, res) => {
     (SELECT COALESCE(SUM(vt2.earning), 0) FROM vuot_link_tasks vt2 WHERE vt2.worker_id = u.id AND vt2.status = 'completed') as total_earning,
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t WHERE t.user_id = u.id AND t.wallet_type = 'main' AND t.type = 'deposit' AND t.status = 'completed') as total_deposit,
     (SELECT COALESCE(SUM(t2.amount), 0) FROM transactions t2 WHERE t2.user_id = u.id AND t2.wallet_type = 'main' AND t2.type = 'campaign' AND t2.status = 'completed') as total_campaign_spent,
-    (SELECT COALESCE(SUM(c2.views_done), 0) FROM campaigns c2 WHERE c2.user_id = u.id) as total_traffic_done
+    (SELECT COALESCE(SUM(c2.views_done), 0) FROM campaigns c2 WHERE c2.user_id = u.id) as total_traffic_done,
+    (SELECT COALESCE(SUM(tw.amount), 0) FROM transactions tw WHERE tw.user_id = u.id AND tw.wallet_type = 'earning' AND tw.type = 'withdraw' AND tw.status = 'completed') as total_withdraw,
+    (SELECT COUNT(*) FROM worker_links wl WHERE wl.worker_id = u.id) as total_worker_links
     FROM users u WHERE 1=1`;
   let countSql = `SELECT COUNT(*) as total FROM users u WHERE 1=1`;
   const params = [];
