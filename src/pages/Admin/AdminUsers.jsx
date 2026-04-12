@@ -211,7 +211,12 @@ export default function AdminUsers({ type }) {
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Thu nhập</th>
                   </>
                 ) : (
-                  <th className="px-5 py-3 text-left font-semibold text-slate-500">Chiến dịch</th>
+                  <>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Chiến dịch</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Tổng nạp</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Tổng chi</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Traffic</th>
+                  </>
                 )}
                 <th className="px-5 py-3 text-left font-semibold text-slate-500">Trạng thái</th>
                 <th className="px-5 py-3 text-left font-semibold text-slate-500">Ngày tạo</th>
@@ -220,7 +225,7 @@ export default function AdminUsers({ type }) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {users.length === 0 ? (
-                <tr><td colSpan={isWorker ? 10 : 9} className="py-12 text-center text-slate-400">Không có người dùng</td></tr>
+                <tr><td colSpan={isWorker ? 10 : 12} className="py-12 text-center text-slate-400">Không có người dùng</td></tr>
               ) : users.map(u => (
                 <tr key={u.id} className="hover:bg-slate-50/70">
                   <td className="px-5 py-3 font-mono text-slate-500">#{u.id}</td>
@@ -270,7 +275,18 @@ export default function AdminUsers({ type }) {
                       <td className="px-5 py-3 font-semibold text-green-600 text-xs">{fmt(u.total_earning)} đ</td>
                     </>
                   ) : (
-                    <td className="px-5 py-3 text-center text-slate-600">{u.campaign_count}</td>
+                    <>
+                      <td className="px-5 py-3 text-center text-slate-600">{u.campaign_count}</td>
+                      <td className="px-5 py-3">
+                        <span className="text-xs font-semibold text-blue-600">{fmt(u.total_deposit || 0)} đ</span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className="text-xs font-semibold text-red-500">{fmt(u.total_campaign_spent || 0)} đ</span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className="text-xs font-semibold text-indigo-600">{(u.total_traffic_done || 0).toLocaleString('vi-VN')} lượt</span>
+                      </td>
+                    </>
                   )}
                   <td className="px-5 py-3">
                     <span className={`px-2 py-1 text-xs font-bold rounded-full

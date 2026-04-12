@@ -946,19 +946,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   }
   console.log(`[VuotLink] buyerCpc=${buyerCpc} (discount=${campaign.discount_applied}, cpc_col=${campaign.cpc})`);
 
-  // ── Check buyer balance ──
-  const [buyerWallets] = await pool.execute(
-    "SELECT balance FROM wallets WHERE user_id = ? AND type = 'main'", [campaign.user_id]
-  );
-  if ((buyerWallets[0]?.balance || 0) < buyerCpc) {
-    // Hết tiền → auto-pause, task hoàn thành nhưng không trả
-    await pool.execute("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [task.campaign_id]);
-    await pool.execute(
-      `UPDATE vuot_link_tasks SET status = 'completed', completed_at = NOW(), time_on_site = ?, earning = 0 WHERE id = ?`,
-      [Math.floor((Date.now() - new Date(task.created_at).getTime()) / 1000), task.id]
-    );
-    return res.json({ success: true, message: 'Chiến dịch hết ngân sách', earning: 0, destinationUrl: null });
-  }
+  // NOTE: Không check balance ở đây nữa — sẽ dùng atomic UPDATE bên dưới (tránh race condition)
 
   // ── Worker earning: lấy từ nhóm giá của worker ──
   let earning = 0;
@@ -1034,14 +1022,25 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     }
   }
 
-  // ── Trừ tiền buyer (theo giá set) ──
+  // ── Trừ tiền buyer: atomic UPDATE tránh race condition ──
+  // Điều kiện AND balance >= buyerCpc đảm bảo không bao giờ âm số dư
+  // dù nhiều worker verify cùng lúc (không cần SELECT trước)
   if (buyerCpc > 0) {
-    await pool.execute("UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main'", [buyerCpc, campaign.user_id]);
-    const buyerRef = 'VW-' + Date.now();
-    await pool.execute(
-      `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'completed', ?, ?)`,
-      [campaign.user_id, buyerCpc, buyerRef, `Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id})`]
+    const [deductResult] = await pool.execute(
+      "UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main' AND balance >= ?",
+      [buyerCpc, campaign.user_id, buyerCpc]
     );
+    if (deductResult.affectedRows === 0) {
+      // Ví không còn đủ tiền (race condition hoặc hết budget) → auto-pause
+      console.log(`[VuotLink] Wallet insufficient (atomic check): buyer=${campaign.user_id}, campaign=${task.campaign_id}`);
+      await pool.execute("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [task.campaign_id]);
+    } else {
+      const buyerRef = 'VW-' + Date.now();
+      await pool.execute(
+        `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'completed', ?, ?)`,
+        [campaign.user_id, buyerCpc, buyerRef, `Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id})`]
+      );
+    }
   }
 
   // ── Cộng tiền worker (theo giá set) ──

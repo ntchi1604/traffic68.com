@@ -114,7 +114,10 @@ router.get('/users', async (req, res) => {
     (SELECT COALESCE(w4.balance, 0) FROM wallets w4 WHERE w4.user_id = u.id AND w4.type = 'commission') as commission_balance,
     (SELECT COUNT(*) FROM campaigns c WHERE c.user_id = u.id) as campaign_count,
     (SELECT COUNT(*) FROM vuot_link_tasks vt WHERE vt.worker_id = u.id AND vt.status = 'completed') as task_count,
-    (SELECT COALESCE(SUM(vt2.earning), 0) FROM vuot_link_tasks vt2 WHERE vt2.worker_id = u.id AND vt2.status = 'completed') as total_earning
+    (SELECT COALESCE(SUM(vt2.earning), 0) FROM vuot_link_tasks vt2 WHERE vt2.worker_id = u.id AND vt2.status = 'completed') as total_earning,
+    (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t WHERE t.user_id = u.id AND t.wallet_type = 'main' AND t.type = 'deposit' AND t.status = 'completed') as total_deposit,
+    (SELECT COALESCE(SUM(t2.amount), 0) FROM transactions t2 WHERE t2.user_id = u.id AND t2.wallet_type = 'main' AND t2.type = 'campaign' AND t2.status = 'completed') as total_campaign_spent,
+    (SELECT COALESCE(SUM(c2.views_done), 0) FROM campaigns c2 WHERE c2.user_id = u.id) as total_traffic_done
     FROM users u WHERE 1=1`;
   let countSql = `SELECT COUNT(*) as total FROM users u WHERE 1=1`;
   const params = [];
@@ -614,19 +617,20 @@ router.get('/campaigns/:id/tasks-export', async (req, res) => {
 
 router.get('/transactions', async (req, res) => {
   const pool = getPool();
-  const { type, status, fromDate, toDate, page = 1, limit = 50 } = req.query;
+  const { type, status, search: txSearch, fromDate, toDate, page = 1, limit = 50 } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
   let baseWhere = `WHERE 1=1`;
   const params = [];
   const filterParams = [];
   let filterCondition = '';
+  if (txSearch) { baseWhere += ' AND (u.name LIKE ? OR u.email LIKE ?)'; params.push(`%${txSearch}%`, `%${txSearch}%`); filterCondition += ' AND (u.name LIKE ? OR u.email LIKE ?)'; filterParams.push(`%${txSearch}%`, `%${txSearch}%`); }
   if (type && type !== 'all') { baseWhere += ' AND t.type = ?'; params.push(type); filterCondition += ' AND t.type = ?'; filterParams.push(type); }
   if (status && status !== 'all') { baseWhere += ' AND t.status = ?'; params.push(status); filterCondition += ' AND t.status = ?'; filterParams.push(status); }
   if (fromDate) { baseWhere += ' AND DATE(t.created_at) >= ?'; params.push(fromDate); filterCondition += ' AND DATE(t.created_at) >= ?'; filterParams.push(fromDate); }
   if (toDate) { baseWhere += ' AND DATE(t.created_at) <= ?'; params.push(toDate); filterCondition += ' AND DATE(t.created_at) <= ?'; filterParams.push(toDate); }
 
   const [countRows] = await pool.execute(
-    `SELECT COUNT(*) as c FROM transactions t ${baseWhere}`, params
+    `SELECT COUNT(*) as c FROM transactions t LEFT JOIN users u ON t.user_id = u.id ${baseWhere}`, params
   );
   const total = countRows[0].c;
 

@@ -92,12 +92,15 @@ export default function AdminTransactions() {
   const [rejectTx, setRejectTx] = useState(null);
   const [totalDeposit, setTotalDeposit] = useState(0);
   const [totalWithdraw, setTotalWithdraw] = useState(0);
+  const [searchUser, setSearchUser] = useState('');
+  const [searchInput, setSearchInput] = useState('');
 
   const fetchData = (p = 1) => {
     setLoading(true);
     const params = new URLSearchParams({ type: typeFilter, status: statusFilter, limit: String(LIMIT), page: String(p) });
     if (fromDate) params.set('fromDate', fromDate);
     if (toDate) params.set('toDate', toDate);
+    if (searchUser) params.set('search', searchUser);
 
     api.get(`/admin/transactions?${params}`)
       .then(data => {
@@ -111,7 +114,7 @@ export default function AdminTransactions() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchData(1); }, [typeFilter, statusFilter, fromDate, toDate]);
+  useEffect(() => { fetchData(1); }, [typeFilter, statusFilter, fromDate, toDate, searchUser]);
 
   const approveTx = async (tx) => {
     if (!await toast.confirm(`Duyệt đơn nạp ${fmt(tx.amount)} đ của ${tx.user_name}?`)) return;
@@ -155,7 +158,18 @@ export default function AdminTransactions() {
           <Filter size={14} /> Bộ lọc
         </div>
 
-        <div className="flex flex-wrap gap-3 items-end">
+        {/* Search user */}
+        <form onSubmit={e => { e.preventDefault(); setSearchUser(searchInput); }} className="flex gap-2">
+          <div className="relative flex-1 max-w-xs">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
+              placeholder="Tìm theo tên / email..."
+              className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+          </div>
+          <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition">Tìm</button>
+          {searchUser && <button type="button" onClick={() => { setSearchUser(''); setSearchInput(''); }} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg transition">✕ Xoá</button>}
+        </form>
+
           {/* Date range */}
           <div className="flex items-center gap-2">
             <div>
