@@ -254,28 +254,16 @@ router.put('/:id', async (req, res) => {
 
     // No longer safely unlinking images here because they are JSON arrays and might be shared across campaigns/keywords.
 
-    // ── Handle totalViews change: recalculate budget & adjust buyer wallet ──
+    // ── Handle totalViews change: chỉ cập nhật budget trong campaigns, KHÔNG trừ/hoàn ví ──
+    // Lý do: tiền được trừ dần theo từng lượt xem thực tế trong vuotlink.js (per-view billing).
+    // Nếu trừ thêm diff ở đây, buyer sẽ bị tính tiền 2 lần (double-charge).
     const oldCampaign = existing[0];
     let newBudget = n(budget);
     if (totalViews !== undefined && Number(totalViews) !== Number(oldCampaign.total_views)) {
       const newTotal = Number(totalViews) || 0;
       const cpcValue = Number(oldCampaign.cpc) || 0;
       if (cpcValue > 0) {
-        const oldBudgetVal = Number(oldCampaign.budget) || 0;
-        const newCalcBudget = Math.round(newTotal * cpcValue);
-        const diff = newCalcBudget - oldBudgetVal;
-        if (diff > 0) {
-          const [wallets] = await pool.execute("SELECT balance FROM wallets WHERE user_id = ? AND type = 'main'", [req.userId]);
-          const balance = wallets[0]?.balance || 0;
-          if (balance < diff) {
-            return res.status(400).json({ error: `Số dư ví không đủ. Cần thêm ${diff.toLocaleString('vi-VN')} đ để tăng view. Số dư hiện có: ${balance.toLocaleString('vi-VN')} đ` });
-          }
-          await pool.execute("UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main'", [diff, req.userId]);
-        } else if (diff < 0) {
-          const refund = Math.abs(diff);
-          await pool.execute("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'main'", [refund, req.userId]);
-        }
-        newBudget = newCalcBudget;
+        newBudget = Math.round(newTotal * cpcValue);
       }
     }
 

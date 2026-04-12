@@ -995,7 +995,10 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     if (geo && geo.country) ipCountry = geo.country;
   } catch (_) { }
 
-  const isBotUser = task.bot_detected === 1 || Boolean(task.security_detail?.includes('flagged'));
+  // Kiểm tra bot: chỉ dùng bot_detected flag (set bởi challenge-passed route).
+  // KHÔNG dùng security_detail.includes('flagged') vì JSON string luôn chứa key "flagged"
+  // ngay cả khi value là false → false positive làm buyer không bị trừ tiền nhưng view cũng không đếm.
+  const isBotUser = task.bot_detected === 1;
   if (isBotUser) {
     buyerCpc = 0;
     earning = 0;
