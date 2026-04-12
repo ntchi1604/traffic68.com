@@ -2,10 +2,10 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
+const zlib = require('zlib');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
-const fetch = require('node-fetch');
-const cheerio = require('cheerio');
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -21,6 +21,33 @@ const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.4; rv:125.0) Gecko/20100101 Firefox/125.0',
 ];
+
+function httpsGet(url, headersObj) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const opts = {
+      hostname: parsed.hostname,
+      path: parsed.pathname + parsed.search,
+      method: 'GET',
+      headers: headersObj,
+      timeout: 12000,
+    };
+    const req = https.request(opts, (res) => {
+      const encoding = (res.headers['content-encoding'] || '').toLowerCase();
+      let stream = res;
+      if (encoding === 'gzip') stream = res.pipe(zlib.createGunzip());
+      else if (encoding === 'deflate') stream = res.pipe(zlib.createInflate());
+      else if (encoding === 'br') stream = res.pipe(zlib.createBrotliDecompress());
+      const chunks = [];
+      stream.on('data', c => chunks.push(c));
+      stream.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf-8') }));
+      stream.on('error', reject);
+    });
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')); });
+    req.on('error', reject);
+    req.end();
+  });
+}
 
 async function checkGoogleRank(keyword, targetUrl) {
   // Extract domain for matching
@@ -39,59 +66,45 @@ async function checkGoogleRank(keyword, targetUrl) {
   }
 
   const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-  const params = new URLSearchParams({
-    q: keyword,
-    num: '100',
-    hl: 'vi',
-    gl: 'vn',
-    pws: '0',
-    safe: 'off',
-  });
+  const qs = new URLSearchParams({ q: keyword, num: '100', hl: 'vi', gl: 'vn', pws: '0', safe: 'off' });
 
-  const resp = await fetch(`https://www.google.com/search?${params}`, {
-    headers: {
+  const { status, body: html } = await httpsGet(
+    `https://www.google.com/search?${qs}`,
+    {
       'User-Agent': ua,
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8',
       'Accept-Encoding': 'gzip, deflate, br',
       'Cache-Control': 'no-cache',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
       'Upgrade-Insecure-Requests': '1',
-    },
-    timeout: 12000,
-  });
+    }
+  );
 
-  if (!resp.ok) throw new Error(`Google returned ${resp.status}`);
-  const html = await resp.text();
-
-  if (html.includes('detected unusual traffic') || html.includes('CAPTCHA')) {
+  if (status !== 200) throw new Error(`Google trả về HTTP ${status}`);
+  if (html.includes('detected unusual traffic') || html.includes('CAPTCHA') || html.includes('/sorry/')) {
     throw new Error('Google đang chặn request (CAPTCHA). Thử lại sau ít phút.');
   }
 
-  const $ = cheerio.load(html);
+  // Extract organic result URLs via regex (no external parser needed)
   let rank = null;
   let position = 0;
-
-  // Parse organic search results – Google's structure: #search .g or [data-hveid]
-  $('div.g, div[data-hveid]').each((i, el) => {
-    const link = $(el).find('a[href]').first().attr('href') || '';
-    if (!link || link.startsWith('/') && !link.startsWith('/url')) return;
-    let href = link;
-    if (href.startsWith('/url?q=')) {
-      try { href = new URL('https://google.com' + href).searchParams.get('q') || href; } catch { }
-    }
-    // Skip Google-internal links
-    if (href.includes('google.com') || href.startsWith('/search')) return;
+  const hrefRe = /href="(https?:\/\/[^"]+)"/g;
+  let m;
+  while ((m = hrefRe.exec(html)) !== null) {
+    const href = m[1];
+    // Skip Google-owned and tracking URLs
+    if (/google\.(com|vn|co)|googleadservices|googleapis|gstatic|youtube\.com|accounts\.google/i.test(href)) continue;
+    if (!/^https?:\/\/[a-z0-9-]+\.[a-z]{2,}/i.test(href)) continue;
     position++;
     if (rank === null) {
-      const linkDomain = href.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
-      if (linkDomain === targetDomain || linkDomain.endsWith('.' + targetDomain) || targetDomain.endsWith('.' + linkDomain)) {
+      const linkDomain = href.replace(/^https?:\/\/(www\.)?/, '').split(/[/?#]/)[0];
+      if (linkDomain === targetDomain ||
+          linkDomain.endsWith('.' + targetDomain) ||
+          targetDomain.endsWith('.' + linkDomain)) {
         rank = position;
       }
     }
-  });
+  }
 
   const result = {
     rank,
