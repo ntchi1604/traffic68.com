@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Search, Play, Pause, CheckCircle, ExternalLink, MoreVertical, Pencil, X, Plus, Trash2, Upload, BarChart3, Zap } from 'lucide-react';
+import { Search, Play, Pause, CheckCircle, ExternalLink, MoreVertical, Pencil, X, Plus, Trash2, Upload, BarChart3, Zap, Gift } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
@@ -719,6 +719,16 @@ export default function AdminCampaigns() {
     finally { setSettingPriorityId(null); }
   };
 
+  const updateBonusMode = async (id) => {
+    try {
+      const data = await api.put(`/admin/campaigns/${id}/bonus-mode`, {});
+      const newVal = data.bonus_mode;
+      toast.success(newVal ? '🎁 Đã bật Bonus Mode — IP hết lượt vẫn nhận task (không tính tiền)' : '⭕ Đã tắt Bonus Mode');
+      setOpenMenuId(null);
+      setCampaigns(prev => prev.map(c => c.id === id ? { ...c, bonus_mode: newVal } : c));
+    } catch (err) { toast.error(err.message); }
+  };
+
   const totalPages = Math.ceil(campaigns.length / LIMIT);
   const paged = campaigns.slice((page - 1) * LIMIT, page * LIMIT);
 
@@ -806,6 +816,11 @@ export default function AdminCampaigns() {
                           {c.daily_views > 0 && (
                             <span className="block text-[10px] text-slate-400 mt-0.5">{fmt(c.daily_views)}/ngày</span>
                           )}
+                          {!!c.bonus_mode && (
+                            <span className="mt-0.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-700">
+                              <Gift size={9} /> Bonus
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-3">
                           {(() => {
@@ -867,6 +882,26 @@ export default function AdminCampaigns() {
                                       <CheckCircle size={14} className="text-indigo-500" /> Hoàn thành
                                     </button>
                                   )}
+                                  <div className="border-t border-slate-100 mt-1 pt-1">
+                                    <p className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Gift size={10} /> Bonus Mode
+                                    </p>
+                                    <button
+                                      onClick={() => updateBonusMode(c.id)}
+                                      className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition text-left ${
+                                        c.bonus_mode
+                                          ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                                          : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-700'
+                                      }`}
+                                    >
+                                      <Gift size={14} className={c.bonus_mode ? 'text-emerald-500' : 'text-slate-400'} />
+                                      {c.bonus_mode ? '🟢 Bonus Mode: BẬT' : '⚪ Bonus Mode: TẮT'}
+                                      <span className="ml-auto text-[10px] opacity-60">toggle</span>
+                                    </button>
+                                    <p className="px-4 pb-2 text-[10px] text-slate-400 leading-snug">
+                                      IP hết lượt vẫn nhận task, không trừ tiền buyer, không trả worker nhưng vẫn tính view.
+                                    </p>
+                                  </div>
                                   <div className="border-t border-slate-100 mt-1 pt-1">
                                     <p className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                                       <Zap size={10} /> Mức ưu tiên traffic
@@ -958,6 +993,11 @@ export default function AdminCampaigns() {
                           <span className="font-bold text-emerald-600">{fmt(c.budget)} đ</span>
                           <span className="text-slate-500">{fmt(c.views_done)}/{fmt(c.total_views)} views</span>
                           <span className="text-slate-400">{new Date(c.created_at).toLocaleDateString('vi-VN')}</span>
+                          {!!c.bonus_mode && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-700">
+                              <Gift size={9} /> Bonus
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5">
                           <button onClick={() => setExpandedId(isExpanded ? null : c.id)} title="Thống kê chi tiết"
@@ -995,6 +1035,26 @@ export default function AdminCampaigns() {
                                     <CheckCircle size={14} className="text-indigo-500" /> Xong
                                   </button>
                                 )}
+                                <div className="border-t border-slate-100 mt-1 pt-1">
+                                  <p className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Gift size={10} /> Bonus Mode
+                                  </p>
+                                  <button
+                                    onClick={() => updateBonusMode(c.id)}
+                                    className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition text-left ${
+                                      c.bonus_mode
+                                        ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                                        : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-700'
+                                    }`}
+                                  >
+                                    <Gift size={14} className={c.bonus_mode ? 'text-emerald-500' : 'text-slate-400'} />
+                                    {c.bonus_mode ? '🟢 Bonus Mode: BẬT' : '⚪ Bonus Mode: TẮT'}
+                                    <span className="ml-auto text-[10px] opacity-60">toggle</span>
+                                  </button>
+                                  <p className="px-4 pb-2 text-[10px] text-slate-400 leading-snug">
+                                    IP hết lượt vẫn nhận task, không trừ tiền buyer, không trả worker.
+                                  </p>
+                                </div>
                                 <div className="border-t border-slate-100 mt-1 pt-1">
                                   <p className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                                     <Zap size={10} /> Ưu tiên traffic

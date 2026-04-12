@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet, Briefcase, HardHat, MoreVertical, ShieldCheck, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet, Briefcase, HardHat, MoreVertical, ShieldCheck, CheckCircle2, XCircle, Clock, Gift } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
@@ -179,6 +179,16 @@ export default function AdminUsers({ type }) {
     } catch (err) { toast.error(err.message); }
   };
 
+  const toggleBonusMode = async (u) => {
+    try {
+      const res = await api.put(`/admin/users/${u.id}/bonus-mode`);
+      toast.success(res.bonus_mode
+        ? `🎁 Đã bật Bonus Mode cho ${u.name} — IP hết lượt vẫn nhận task (không tính tiền)`
+        : `⭕ Đã tắt Bonus Mode cho ${u.name}`);
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, bonus_mode: res.bonus_mode } : x));
+    } catch (err) { toast.error(err.message); }
+  };
+
   const totalPages = Math.ceil(total / LIMIT);
 
   return (
@@ -237,6 +247,11 @@ export default function AdminUsers({ type }) {
                     {isWorker && u.trusted === 1 && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700 mt-0.5">
                         <ShieldCheck size={9} /> Tin tưởng
+                      </span>
+                    )}
+                    {isWorker && !!u.bonus_mode && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-violet-100 text-violet-700 mt-0.5">
+                        <Gift size={9} /> Bonus Mode
                       </span>
                     )}
                     {isWorker && u.source_status && (
@@ -343,17 +358,30 @@ export default function AdminUsers({ type }) {
                             <Ban size={14} className="text-amber-500" /> {u.status === 'banned' ? 'Bỏ ban' : 'Ban tài khoản'}
                           </button>
                           {isWorker && (
-                            <button
-                              onClick={() => { toggleTrusted(u); setOpenMenuId(null); }}
-                              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition text-left ${
-                                u.trusted === 1
-                                  ? 'text-emerald-700 hover:bg-emerald-50'
-                                  : 'text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
-                              }`}
-                            >
-                              <ShieldCheck size={14} className={u.trusted === 1 ? 'text-emerald-500' : 'text-slate-400'} />
-                              {u.trusted === 1 ? 'Bỏ tin tưởng' : 'Tin tưởng (bỏ qua captcha)'}
-                            </button>
+                            <>
+                              <button
+                                onClick={() => { toggleTrusted(u); setOpenMenuId(null); }}
+                                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition text-left ${
+                                  u.trusted === 1
+                                    ? 'text-emerald-700 hover:bg-emerald-50'
+                                    : 'text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
+                                }`}
+                              >
+                                <ShieldCheck size={14} className={u.trusted === 1 ? 'text-emerald-500' : 'text-slate-400'} />
+                                {u.trusted === 1 ? 'Bỏ tin tưởng' : 'Tin tưởng (bỏ qua captcha)'}
+                              </button>
+                              <button
+                                onClick={() => { toggleBonusMode(u); setOpenMenuId(null); }}
+                                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition text-left ${
+                                  u.bonus_mode
+                                    ? 'text-violet-700 bg-violet-50 hover:bg-violet-100'
+                                    : 'text-slate-700 hover:bg-violet-50 hover:text-violet-700'
+                                }`}
+                              >
+                                <Gift size={14} className={u.bonus_mode ? 'text-violet-500' : 'text-slate-400'} />
+                                {u.bonus_mode ? '🟢 Bonus Mode: BẬT' : '⚪ Bonus Mode: TẮT'}
+                              </button>
+                            </>
                           )}
 
                           <div className="border-t border-slate-100 my-1" />

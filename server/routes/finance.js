@@ -344,13 +344,25 @@ router.post('/transfer', async (req, res) => {
 
 router.post('/withdraw', async (req, res) => {
   const pool = getPool();
-  const { amount, method, bankName, accountNumber, accountName, cryptoNetwork, cryptoAddress, trafficSource } = req.body;
+  const { amount, trafficSource } = req.body;
   const num = Number(amount);
 
   if (!num || num < 50000) return res.status(400).json({ error: 'Số tiền rút tối thiểu 50.000 đ' });
-  if (!['bank', 'crypto'].includes(method)) return res.status(400).json({ error: 'Phương thức không hợp lệ' });
   if (!trafficSource || !trafficSource.trim()) return res.status(400).json({ error: 'Vui lòng nhập nguồn lưu lượng truy cập' });
 
+  // Lấy ví đã lưu từ DB
+  const [userRows] = await pool.execute('SELECT withdraw_wallet FROM users WHERE id = ?', [req.userId]);
+  let savedWallet = userRows[0]?.withdraw_wallet || null;
+  if (savedWallet && typeof savedWallet === 'string') {
+    try { savedWallet = JSON.parse(savedWallet); } catch { savedWallet = null; }
+  }
+  if (!savedWallet || !savedWallet.method) {
+    return res.status(400).json({ error: 'Bạn chưa lưu ví rút tiền. Vui lòng vào Hồ sơ → tab Ví rút tiền để cài đặt trước.' });
+  }
+
+  const { method, bankName, accountNumber, accountName, cryptoNetwork, cryptoAddress } = savedWallet;
+
+  if (!['bank', 'crypto'].includes(method)) return res.status(400).json({ error: 'Phương thức ví không hợp lệ' });
 
   try {
     const [settings] = await pool.execute(
@@ -362,8 +374,8 @@ router.post('/withdraw', async (req, res) => {
     }
   } catch (e) { }
 
-  if (method === 'bank' && (!bankName || !accountNumber || !accountName)) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin ngân hàng' });
-  if (method === 'crypto' && (!cryptoNetwork || !cryptoAddress)) return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin ví crypto' });
+  if (method === 'bank' && (!bankName || !accountNumber || !accountName)) return res.status(400).json({ error: 'Thông tin ví ngân hàng chưa đầy đủ, vui lòng cập nhật lại trong Hồ sơ' });
+  if (method === 'crypto' && (!cryptoNetwork || !cryptoAddress)) return res.status(400).json({ error: 'Thông tin ví crypto chưa đầy đủ, vui lòng cập nhật lại trong Hồ sơ' });
 
   const conn = await pool.getConnection();
   try {
@@ -402,6 +414,7 @@ router.post('/withdraw', async (req, res) => {
     res.status(500).json({ error: 'Lỗi: ' + err.message });
   }
 });
+
 
 // ── Buyer: Rút tiền từ Ví Hoa Hồng ──
 router.post('/withdraw-commission', async (req, res) => {

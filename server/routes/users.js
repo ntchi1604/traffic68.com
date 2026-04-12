@@ -55,14 +55,19 @@ router.post('/avatar', upload.single('avatar'), async (req, res) => {
 router.get('/profile', async (req, res) => {
   const pool = getPool();
   const [users] = await pool.execute(
-    `SELECT id, email, name, phone, avatar_url, role, referral_code, created_at FROM users WHERE id = ?`,
+    `SELECT id, email, name, phone, avatar_url, role, referral_code, created_at, withdraw_wallet FROM users WHERE id = ?`,
     [req.userId]
   );
 
   if (users.length === 0) return res.status(404).json({ error: 'Không tìm thấy người dùng' });
 
   const [refCount] = await pool.execute('SELECT COUNT(*) as count FROM users WHERE referred_by = ?', [req.userId]);
-  res.json({ user: { ...users[0], referralCount: refCount[0].count } });
+  const user = users[0];
+  // Parse withdraw_wallet JSON if stored as string
+  if (user.withdraw_wallet && typeof user.withdraw_wallet === 'string') {
+    try { user.withdraw_wallet = JSON.parse(user.withdraw_wallet); } catch { user.withdraw_wallet = null; }
+  }
+  res.json({ user: { ...user, referralCount: refCount[0].count } });
 });
 
 router.put('/profile', async (req, res) => {
@@ -77,6 +82,47 @@ router.put('/profile', async (req, res) => {
   const [users] = await pool.execute('SELECT id, email, name, phone, avatar_url, role, referral_code FROM users WHERE id = ?', [req.userId]);
   res.json({ message: 'Cập nhật thành công', user: users[0] });
 });
+
+// ── Lấy thông tin ví rút tiền đã lưu ──
+router.get('/withdraw-wallet', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute('SELECT withdraw_wallet FROM users WHERE id = ?', [req.userId]);
+    let wallet = rows[0]?.withdraw_wallet || null;
+    if (wallet && typeof wallet === 'string') {
+      try { wallet = JSON.parse(wallet); } catch { wallet = null; }
+    }
+    res.json({ wallet });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Lưu thông tin ví rút tiền ──
+// wallet: { method: 'bank'|'crypto', bankName, accountNumber, accountName, cryptoNetwork, cryptoAddress }
+router.put('/withdraw-wallet', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { method, bankName, accountNumber, accountName, cryptoNetwork, cryptoAddress } = req.body;
+    if (!['bank', 'crypto'].includes(method)) {
+      return res.status(400).json({ error: 'Phương thức không hợp lệ' });
+    }
+    if (method === 'bank' && (!bankName?.trim() || !accountNumber?.trim() || !accountName?.trim())) {
+      return res.status(400).json({ error: 'Vui lòng điền đầy đủ thông tin ngân hàng' });
+    }
+    if (method === 'crypto' && (!cryptoNetwork?.trim() || !cryptoAddress?.trim())) {
+      return res.status(400).json({ error: 'Vui lòng điền đầy đủ thông tin ví crypto' });
+    }
+    const walletData = method === 'bank'
+      ? { method, bankName: bankName.trim(), accountNumber: accountNumber.trim(), accountName: accountName.trim() }
+      : { method, cryptoNetwork: cryptoNetwork.trim(), cryptoAddress: cryptoAddress.trim() };
+    await pool.execute('UPDATE users SET withdraw_wallet = ? WHERE id = ?', [JSON.stringify(walletData), req.userId]);
+    res.json({ ok: true, wallet: walletData, message: 'Ví rút tiền đã được lưu thành công' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 router.put('/password', async (req, res) => {
   const pool = getPool();

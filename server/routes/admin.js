@@ -242,6 +242,20 @@ router.put('/users/:id/trusted', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Toggle bonus_mode cho worker user
+// bonus_mode = 1: IP hết lượt vẫn nhận task (không trừ tiền buyer, không trả worker, NHƯNG TÍNH view)
+router.put('/users/:id/bonus-mode', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute('SELECT bonus_mode FROM users WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Không tìm thấy user' });
+    const newVal = rows[0].bonus_mode ? 0 : 1;
+    await pool.execute('UPDATE users SET bonus_mode = ? WHERE id = ?', [newVal, req.params.id]);
+    console.log(`[Admin] User ${req.params.id} bonus_mode set to ${newVal} by admin ${req.userId}`);
+    res.json({ ok: true, bonus_mode: newVal });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.put('/users/:id/approve-source', async (req, res) => {
   try {
     const pool = getPool();
@@ -465,6 +479,22 @@ router.put('/campaigns/:id/priority', async (req, res) => {
     await pool.execute('UPDATE campaigns SET priority = ? WHERE id = ?', [dbValue, req.params.id]);
     console.log(`[Admin] Campaign ${req.params.id} priority set to ${dbValue ?? 'NULL(default)'} by admin ${req.userId}`);
     res.json({ ok: true, campaignId: Number(req.params.id), priority: dbValue, campaignName: check[0].name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Admin only: toggle bonus_mode cho campaign ──
+// bonus_mode = 1: IP hết lượt vẫn nhận task (không trừ tiền buyer, không trả worker, nhưng TÍNH view)
+router.put('/campaigns/:id/bonus-mode', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute('SELECT id, name, bonus_mode FROM campaigns WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Không tìm thấy campaign' });
+    const newVal = rows[0].bonus_mode ? 0 : 1;
+    await pool.execute('UPDATE campaigns SET bonus_mode = ? WHERE id = ?', [newVal, req.params.id]);
+    console.log(`[Admin] Campaign ${req.params.id} bonus_mode set to ${newVal} by admin ${req.userId}`);
+    res.json({ ok: true, campaignId: Number(req.params.id), bonus_mode: newVal, campaignName: rows[0].name });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

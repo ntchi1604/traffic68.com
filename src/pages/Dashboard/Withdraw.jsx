@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
-import { Wallet, Building2, Bitcoin, AlertCircle, CheckCircle2, Clock, Globe, Gift } from 'lucide-react';
+import { Wallet, Building2, Bitcoin, AlertCircle, CheckCircle2, Clock, Gift, ShieldCheck, Settings } from 'lucide-react';
 import api from '../../lib/api';
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
@@ -10,13 +11,8 @@ const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
 export default function Withdraw() {
   usePageTitle('Rút tiền');
   const toast = useToast();
+  const navigate = useNavigate();
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [accountName, setAccountName] = useState('');
-  const [cryptoNetwork, setCryptoNetwork] = useState('');
-  const [cryptoAddress, setCryptoAddress] = useState('');
   const [trafficSource, setTrafficSource] = useState('');
   const [balance, setBalance] = useState(0);
   const [commission, setCommission] = useState(0);
@@ -30,6 +26,14 @@ export default function Withdraw() {
   const [cryptoEnabled, setCryptoEnabled] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
   const [usdtRate, setUsdtRate] = useState(null);
+
+  // Saved wallet state
+  const [savedWallet, setSavedWallet] = useState(null); // null = not loaded yet
+  const [walletLoaded, setWalletLoaded] = useState(false);
+
+  // Source approval
+  const [sourceStatus, setSourceStatus] = useState(null);
+  const [approvedSource, setApprovedSource] = useState('');
 
   const minWithdraw = 50000;
 
@@ -49,43 +53,55 @@ export default function Withdraw() {
   useEffect(() => {
     fetchBalance();
     fetchWithdrawals(1);
+
     // Fetch withdraw method settings
     api.get('/finance/withdraw-config').then(d => {
-      const bank = d.bank_enabled;
-      const crypto = d.crypto_enabled;
-      setBankEnabled(bank);
-      setCryptoEnabled(crypto);
-      // Auto-select first available method
-      if (bank) setMethod('bank');
-      else if (crypto) setMethod('crypto');
+      setBankEnabled(d.bank_enabled);
+      setCryptoEnabled(d.crypto_enabled);
       setConfigLoaded(true);
     }).catch(() => {
       setBankEnabled(true);
       setCryptoEnabled(true);
-      setMethod('bank');
       setConfigLoaded(true);
     });
-    fetch('https://api.binance.com/api/v3/ticker/price?symbol=USDTBRL')
-      .catch(() => null);
-    fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=vnd')
+
+    // Load saved wallet
+    api.get('/users/profile').then(data => {
+      const u = data.user;
+      if (u.withdraw_wallet) {
+        setSavedWallet(u.withdraw_wallet);
+      }
+      setWalletLoaded(true);
+    }).catch(() => setWalletLoaded(true));
+
+    // Load approved source
+    const token = localStorage.getItem('token') || '';
+    fetch('/api/worker/source', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => {
-        if (d?.tether?.vnd) setUsdtRate(d.tether.vnd);
+        setSourceStatus(d.source_status || 'pending');
+        if (d.source_status === 'approved' && d.source_url) {
+          setApprovedSource(d.source_url);
+          setTrafficSource(d.source_url); // auto-fill
+        }
       })
-      .catch(() => {
-        // Fallback rate
-        setUsdtRate(25500);
-      });
+      .catch(() => {});
+
+    // USDT rate
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=vnd')
+      .then(r => r.json())
+      .then(d => { if (d?.tether?.vnd) setUsdtRate(d.tether.vnd); })
+      .catch(() => { setUsdtRate(25500); });
   }, []);
 
   const handleTransferCommission = async () => {
     if (commission <= 0) return;
     if (!window.confirm(`Bạn muốn chuyển ${fmt(commission)} VNĐ từ Ví Hoa Hồng sang Ví Thu nhập để rút tiền?`)) return;
-
     setTransferring(true);
     try {
       const d = await api.post('/finance/transfer', { amount: commission, targetWallet: 'earning' });
       toast.success(d.message);
+      fetchBalance();
       fetchWithdrawals(1);
     } catch (err) {
       toast.error(err.response?.data?.error || err.message || 'Lỗi chuyển tiền');
@@ -96,22 +112,19 @@ export default function Withdraw() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!savedWallet) {
+      toast.error('Bạn chưa lưu ví rút tiền! Vào Hồ sơ → tab Ví rút tiền để cài đặt.');
+      return;
+    }
     if (!trafficSource.trim()) {
       toast.error('Vui lòng nhập nguồn lưu lượng truy cập');
       return;
     }
     setLoading(true);
     try {
-      const payload = {
-        amount, method, trafficSource,
-        bankName, accountNumber, accountName,
-        cryptoNetwork, cryptoAddress,
-      };
-      const d = await api.post('/finance/withdraw', payload);
+      const d = await api.post('/finance/withdraw', { amount, trafficSource });
       toast.success(d.message, 'Rút tiền');
       setAmount('');
-      setTrafficSource('');
-      fetchBalance();
       fetchBalance();
       fetchWithdrawals(1);
     } catch (err) {
@@ -120,7 +133,65 @@ export default function Withdraw() {
     setLoading(false);
   };
 
-  const CRYPTO_NETWORKS = ['USDT (BEP20)'];
+  // Wallet display helper
+  const WalletDisplay = () => {
+    if (!walletLoaded) {
+      return <div className="h-16 bg-slate-100 animate-pulse rounded-xl" />;
+    }
+    if (!savedWallet) {
+      return (
+        <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50">
+          <AlertCircle size={18} className="text-amber-500 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-amber-700">Chưa có ví rút tiền</p>
+            <p className="text-xs text-amber-600 mt-0.5">Bạn cần lưu thông tin ví trước khi rút tiền.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/worker/profile?tab=wallet')}
+            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition"
+          >
+            <Settings size={12} /> Cài đặt ví
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            {savedWallet.method === 'bank'
+              ? <Building2 size={16} className="text-emerald-600" />
+              : <Bitcoin size={16} className="text-emerald-600" />}
+            <span className="text-sm font-bold text-emerald-700">
+              {savedWallet.method === 'bank' ? 'Ngân hàng' : 'Crypto'}
+            </span>
+            <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-200 text-emerald-800 rounded-full">Ví đã lưu</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/worker/profile?tab=wallet')}
+            className="flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition"
+          >
+            <Settings size={12} /> Thay đổi
+          </button>
+        </div>
+        {savedWallet.method === 'bank' ? (
+          <div className="space-y-1">
+            <p className="text-xs text-slate-700"><span className="text-slate-400 w-28 inline-block">Ngân hàng:</span> <b>{savedWallet.bankName}</b></p>
+            <p className="text-xs text-slate-700"><span className="text-slate-400 w-28 inline-block">Số TK:</span> <b className="font-mono">{savedWallet.accountNumber}</b></p>
+            <p className="text-xs text-slate-700"><span className="text-slate-400 w-28 inline-block">Chủ tài khoản:</span> <b>{savedWallet.accountName}</b></p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <p className="text-xs text-slate-700"><span className="text-slate-400 w-28 inline-block">Mạng:</span> <b>{savedWallet.cryptoNetwork}</b></p>
+            <p className="text-xs text-slate-700 break-all"><span className="text-slate-400 w-28 inline-block">Địa chỉ ví:</span> <b className="font-mono text-[11px]">{savedWallet.cryptoAddress}</b></p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 w-full min-w-0">
@@ -155,113 +226,72 @@ export default function Withdraw() {
             {/* Amount */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Số tiền rút (VNĐ) *</label>
-              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} min={minWithdraw} max={balance} placeholder={`Tối thiểu ${fmt(minWithdraw)} đ`} required
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} min={minWithdraw} max={balance}
+                placeholder={`Tối thiểu ${fmt(minWithdraw)} đ`} required
                 className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
               <div className="flex gap-2 mt-2">
                 {[50000, 100000, 200000, 500000].map(v => (
-                  <button key={v} type="button" onClick={() => setAmount(v)} className="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 rounded-lg transition">{fmt(v)}</button>
+                  <button key={v} type="button" onClick={() => setAmount(v)}
+                    className="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 rounded-lg transition">{fmt(v)}</button>
                 ))}
               </div>
-
-              {/* USDT conversion display */}
-              {method === 'crypto' && amount && Number(amount) > 0 && usdtRate && (
+              {/* USDT conversion */}
+              {savedWallet?.method === 'crypto' && amount && Number(amount) > 0 && usdtRate && (
                 <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-lg p-3 mt-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-indigo-700">Quy đổi USDT</span>
-                    <span className="text-lg font-black text-indigo-600">
-                      {(Number(amount) / usdtRate).toFixed(2)} USDT
-                    </span>
+                    <span className="text-lg font-black text-indigo-600">{(Number(amount) / usdtRate).toFixed(2)} USDT</span>
                   </div>
                   <p className="text-[10px] text-indigo-500 mt-1">Tỷ giá: 1 USDT ~ {fmt(Math.round(usdtRate))} VNĐ (CoinGecko)</p>
                 </div>
               )}
             </div>
 
+            {/* Wallet info (readonly) */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ví nhận tiền</label>
+              <WalletDisplay />
+            </div>
+
             {/* Traffic Source */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
-                <Globe size={13} className="text-indigo-500" /> Nguồn lưu lượng truy cập *
+                <ShieldCheck size={13} className={sourceStatus === 'approved' ? 'text-emerald-500' : 'text-indigo-500'} />
+                Nguồn lưu lượng truy cập *
+                {sourceStatus === 'approved' && (
+                  <span className="ml-1 px-1.5 py-0.5 text-[9px] font-bold bg-emerald-100 text-emerald-700 rounded-full">Đã duyệt</span>
+                )}
               </label>
-              <textarea value={trafficSource} onChange={e => setTrafficSource(e.target.value)}
-                placeholder={"VD: Website cá nhân tại domain.com\nFanpage Facebook: fb.com/page\nGroup Telegram: t.me/group\n..."}
-                required
-                rows={3}
-                className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 resize-y min-h-[80px]" />
-              <p className="text-[10px] text-slate-400 mt-1">Mô tả chi tiết nơi bạn chia sẻ link để chúng tôi xác minh (có thể nhiều dòng)</p>
+              {sourceStatus === 'approved' ? (
+                // Approved: show as readonly
+                <div className="relative">
+                  <div className="w-full px-4 py-3 text-sm border border-emerald-300 rounded-lg bg-emerald-50/50 text-slate-700 min-h-[80px] whitespace-pre-wrap leading-relaxed">
+                    {approvedSource}
+                  </div>
+                  <div className="absolute top-2 right-2">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-full">
+                      <CheckCircle2 size={9} /> Tự động
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-emerald-600 mt-1 font-medium">✅ Nguồn đã được duyệt — áp dụng tự động</p>
+                </div>
+              ) : (
+                // Not approved: allow manual input
+                <>
+                  <textarea value={trafficSource} onChange={e => setTrafficSource(e.target.value)}
+                    placeholder={"VD: Website cá nhân tại domain.com\nFanpage Facebook: fb.com/page\nGroup Telegram: t.me/group\n..."}
+                    required
+                    rows={3}
+                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 resize-y min-h-[80px]" />
+                  <p className="text-[10px] text-slate-400 mt-1">Mô tả chi tiết nơi bạn chia sẻ link để chúng tôi xác minh</p>
+                  {sourceStatus === 'pending' && (
+                    <p className="text-[10px] text-amber-600 mt-1 font-medium">⏳ Nguồn của bạn đang chờ duyệt. Sau khi duyệt sẽ tự động điền.</p>
+                  )}
+                </>
+              )}
             </div>
 
-            {/* Method selection */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Phương thức *</label>
-              <div className="grid grid-cols-2 gap-3">
-                {!configLoaded && (
-                  <>
-                    <div className="h-12 rounded-lg bg-slate-100 animate-pulse" />
-                    <div className="h-12 rounded-lg bg-slate-100 animate-pulse" />
-                  </>
-                )}
-                {configLoaded && bankEnabled && (
-                  <button type="button" onClick={() => setMethod('bank')}
-                    className={`flex items-center gap-2 p-3 rounded-lg border-2 transition ${method === 'bank' ? 'border-indigo-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                    <Building2 size={18} className={method === 'bank' ? 'text-indigo-600' : 'text-slate-400'} />
-                    <span className="text-sm font-semibold">Ngân hàng</span>
-                  </button>
-                )}
-                {configLoaded && cryptoEnabled && (
-                  <button type="button" onClick={() => setMethod('crypto')}
-                    className={`flex items-center gap-2 p-3 rounded-lg border-2 transition ${method === 'crypto' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                    <Bitcoin size={18} className={method === 'crypto' ? 'text-indigo-600' : 'text-slate-400'} />
-                    <span className="text-sm font-semibold">Crypto</span>
-                  </button>
-                )}
-                {configLoaded && !bankEnabled && !cryptoEnabled && (
-                  <p className="col-span-2 text-sm text-red-500 font-semibold py-3 text-center">Tạm thời không có phương thức rút tiền nào khả dụng</p>
-                )}
-              </div>
-            </div>
-
-            {/* Bank fields */}
-            {method === 'bank' && (
-              <>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tên ngân hàng *</label>
-                  <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="VD: Vietcombank, MB Bank..." required
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Số tài khoản *</label>
-                  <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="Nhập số tài khoản" required
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tên chủ tài khoản *</label>
-                  <input type="text" value={accountName} onChange={e => setAccountName(e.target.value)} placeholder="NGUYEN VAN A" required
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" />
-                </div>
-              </>
-            )}
-
-            {/* Crypto fields */}
-            {method === 'crypto' && (
-              <>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Mạng / Loại coin *</label>
-                  <select value={cryptoNetwork} onChange={e => setCryptoNetwork(e.target.value)} required
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 bg-white">
-                    <option value="">Chọn mạng...</option>
-                    {CRYPTO_NETWORKS.map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Địa chỉ ví *</label>
-                  <input type="text" value={cryptoAddress} onChange={e => setCryptoAddress(e.target.value)} placeholder="Nhập địa chỉ ví nhận" required
-                    className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 font-mono text-xs" />
-                  <p className="text-[10px] text-red-500 mt-1 font-semibold">Vui lòng kiểm tra kỹ địa chỉ ví. Giao dịch crypto không thể hoàn lại.</p>
-                </div>
-              </>
-            )}
-
-            <button type="submit" disabled={loading || !method || (!bankEnabled && !cryptoEnabled)}
+            <button type="submit" disabled={loading || !walletLoaded || (!bankEnabled && !cryptoEnabled)}
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition text-sm disabled:opacity-50">
               {loading ? 'Đang xử lý...' : 'Gửi yêu cầu rút tiền'}
             </button>
@@ -276,7 +306,8 @@ export default function Withdraw() {
                 <p className="font-bold">Lưu ý</p>
                 <p>• Rút tối thiểu {fmt(minWithdraw)} đ</p>
                 <p>• Xử lý trong 1-3 ngày làm việc</p>
-                <p>• Bắt buộc điền nguồn lưu lượng truy cập</p>
+                <p>• Ví rút phải được lưu trước trong Hồ sơ</p>
+                <p>• Nguồn đã duyệt sẽ <b>tự động áp dụng</b></p>
                 {bankEnabled && <p>• Ngân hàng: Tên phải trùng với đăng ký</p>}
                 {cryptoEnabled && <p>• Crypto: Kiểm tra kỹ địa chỉ ví và mạng</p>}
               </div>
@@ -291,13 +322,10 @@ export default function Withdraw() {
               ) : withdrawals.map(w => {
                 const txMatch = (w.note || '').match(/TxHash:\s*(0x[a-fA-F0-9]+)/);
                 const txHash = txMatch ? txMatch[1] : null;
-                // Parse note: "[Bank] MB Bank - 123456 - Nguyen Van A | Nguồn: ..."
-                // or "[Crypto] USDT (BEP20) - 0xabc... | Nguồn: ..."
                 const noteBody = (w.note || '').replace(/\s*\|?\s*TxHash:\s*0x[a-fA-F0-9]+/, '').trim();
                 const sourceSplit = noteBody.split(' | Nguồn: ');
                 const accountInfo = sourceSplit[0] || '';
                 const trafficInfo = sourceSplit[1] ? sourceSplit[1].split(' | ')[0] : '';
-                // Strip prefix [Bank] or [Crypto]
                 const accountDisplay = accountInfo.replace(/^\[(Bank|Crypto)\]\s*/, '');
                 return (
                   <div key={w.id} className="py-2.5 border-b border-slate-50 last:border-0">
@@ -333,7 +361,6 @@ export default function Withdraw() {
                 );
               })}
             </div>
-            {/* Pagination lịch sử rút */}
             {wdTotal > WD_LIMIT && (
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
                 <span className="text-[10px] text-slate-400">{wdPage}/{Math.ceil(wdTotal / WD_LIMIT)} trang</span>

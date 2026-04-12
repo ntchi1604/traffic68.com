@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import usePageTitle from '../../hooks/usePageTitle';
-import { User, Lock, Camera, Check, Eye, EyeOff, Save, ShieldCheck, Clock, XCircle, Globe, Send } from 'lucide-react';
+import { User, Lock, Camera, Check, Eye, EyeOff, Save, ShieldCheck, Clock, XCircle, Globe, Send, Wallet, Building2, Bitcoin, CheckCircle2 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
@@ -11,6 +11,8 @@ const SOURCE_STATUS = {
   pending:  { label: 'Chờ duyệt', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Clock, desc: 'Yêu cầu của bạn đang chờ admin xem xét. Vui lòng đợi trong vòng 24 giờ.' },
   rejected: { label: 'Bị từ chối', color: 'bg-red-100 text-red-700 border-red-200', icon: XCircle, desc: 'Yêu cầu xét duyệt bị từ chối. Cập nhật lại nguồn và gửi lại.' },
 };
+
+const CRYPTO_NETWORKS = ['USDT (BEP20)'];
 
 export default function WorkerProfile() {
   usePageTitle('Hồ sơ của tôi');
@@ -30,6 +32,13 @@ export default function WorkerProfile() {
   const [sourceNote, setSourceNote] = useState('');
   const [sourceSubmitting, setSourceSubmitting] = useState(false);
 
+  // Wallet
+  const [walletMethod, setWalletMethod] = useState('bank');
+  const [walletBank, setWalletBank] = useState({ bankName: '', accountNumber: '', accountName: '' });
+  const [walletCrypto, setWalletCrypto] = useState({ cryptoNetwork: '', cryptoAddress: '' });
+  const [walletSaving, setWalletSaving] = useState(false);
+  const [walletSaved, setWalletSaved] = useState(false); // has a saved wallet?
+
   useEffect(() => {
     api.get('/users/profile').then(data => {
       const u = data.user;
@@ -39,6 +48,17 @@ export default function WorkerProfile() {
         phone: u.phone || '',
         avatar: u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'U')}&background=3B82F6&color=FFFFFF`,
       });
+      // Pre-load saved wallet
+      if (u.withdraw_wallet) {
+        const w = u.withdraw_wallet;
+        setWalletMethod(w.method || 'bank');
+        if (w.method === 'bank') {
+          setWalletBank({ bankName: w.bankName || '', accountNumber: w.accountNumber || '', accountName: w.accountName || '' });
+        } else {
+          setWalletCrypto({ cryptoNetwork: w.cryptoNetwork || '', cryptoAddress: w.cryptoAddress || '' });
+        }
+        setWalletSaved(true);
+      }
     }).catch(() => setError('Không thể tải thông tin hồ sơ'))
       .finally(() => setLoading(false));
   }, []);
@@ -112,6 +132,23 @@ export default function WorkerProfile() {
     finally { setSourceSubmitting(false); }
   };
 
+  const handleWalletSave = async (e) => {
+    e.preventDefault();
+    setWalletSaving(true);
+    try {
+      const payload = walletMethod === 'bank'
+        ? { method: 'bank', ...walletBank }
+        : { method: 'crypto', ...walletCrypto };
+      const data = await api.put('/users/withdraw-wallet', payload);
+      toast.success(data.message || 'Ví rút tiền đã lưu!');
+      setWalletSaved(true);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setWalletSaving(false);
+    }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -131,19 +168,23 @@ export default function WorkerProfile() {
       )}
 
       {/* Tab nav */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex flex-wrap border-b border-slate-200 gap-0">
         {[
-          { key: 'profile', label: 'Hồ sơ cá nhân', icon: User },
-          { key: 'password', label: 'Mật khẩu', icon: Lock },
-          { key: 'source',  label: 'Xét duyệt nguồn', icon: ShieldCheck },
+          { key: 'profile',  label: 'Hồ sơ cá nhân',  icon: User },
+          { key: 'wallet',   label: 'Ví rút tiền',     icon: Wallet },
+          { key: 'password', label: 'Mật khẩu',        icon: Lock },
+          { key: 'source',   label: 'Xét duyệt nguồn', icon: ShieldCheck },
         ].map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setActiveTab(key)}
-            className={`flex items-center gap-2 px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold border-b-2 transition-colors ${
               activeTab === key
                 ? 'border-indigo-500 text-indigo-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}>
             <Icon size={15} /> {label}
+            {key === 'wallet' && walletSaved && (
+              <span className="ml-1 w-2 h-2 rounded-full bg-emerald-500 inline-block" title="Đã lưu ví" />
+            )}
           </button>
         ))}
       </div>
@@ -193,6 +234,109 @@ export default function WorkerProfile() {
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Wallet Tab */}
+      {activeTab === 'wallet' && (
+        <div className="space-y-4">
+          {walletSaved && (
+            <div className="flex items-center gap-3 p-4 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-700">
+              <CheckCircle2 size={20} className="flex-shrink-0" />
+              <div>
+                <p className="font-bold text-sm">Ví rút tiền đã được lưu</p>
+                <p className="text-xs mt-0.5 opacity-80">Thông tin này sẽ tự động áp dụng khi bạn gửi yêu cầu rút tiền.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-sm">
+            <h2 className="text-base font-bold text-slate-900 mb-1">Ví rút tiền</h2>
+            <p className="text-xs text-slate-400 mb-5">Lưu thông tin ví để áp dụng tự động khi rút. Bạn có thể thay đổi bất cứ lúc nào.</p>
+
+            <form onSubmit={handleWalletSave} className="space-y-5 max-w-lg">
+              {/* Method picker */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Phương thức nhận tiền *</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => setWalletMethod('bank')}
+                    className={`flex items-center gap-2 p-3 rounded-xl border-2 transition ${walletMethod === 'bank' ? 'border-indigo-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                    <Building2 size={18} className={walletMethod === 'bank' ? 'text-indigo-600' : 'text-slate-400'} />
+                    <span className="text-sm font-semibold">Ngân hàng</span>
+                  </button>
+                  <button type="button" onClick={() => setWalletMethod('crypto')}
+                    className={`flex items-center gap-2 p-3 rounded-xl border-2 transition ${walletMethod === 'crypto' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                    <Bitcoin size={18} className={walletMethod === 'crypto' ? 'text-indigo-600' : 'text-slate-400'} />
+                    <span className="text-sm font-semibold">Crypto</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Bank fields */}
+              {walletMethod === 'bank' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tên ngân hàng *</label>
+                    <input type="text" value={walletBank.bankName}
+                      onChange={e => setWalletBank(p => ({ ...p, bankName: e.target.value }))}
+                      placeholder="VD: Vietcombank, MB Bank..." required
+                      className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Số tài khoản *</label>
+                    <input type="text" value={walletBank.accountNumber}
+                      onChange={e => setWalletBank(p => ({ ...p, accountNumber: e.target.value }))}
+                      placeholder="Nhập số tài khoản" required
+                      className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tên chủ tài khoản *</label>
+                    <input type="text" value={walletBank.accountName}
+                      onChange={e => setWalletBank(p => ({ ...p, accountName: e.target.value }))}
+                      placeholder="NGUYEN VAN A" required
+                      className={inputCls} />
+                    <p className="text-[10px] text-slate-400 mt-1">Nhập CHÍNH XÁC tên chủ tài khoản (viết hoa, không dấu)</p>
+                  </div>
+                </>
+              )}
+
+              {/* Crypto fields */}
+              {walletMethod === 'crypto' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Mạng / Loại coin *</label>
+                    <select value={walletCrypto.cryptoNetwork}
+                      onChange={e => setWalletCrypto(p => ({ ...p, cryptoNetwork: e.target.value }))}
+                      required className={inputCls + ' bg-white'}>
+                      <option value="">Chọn mạng...</option>
+                      {CRYPTO_NETWORKS.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Địa chỉ ví *</label>
+                    <input type="text" value={walletCrypto.cryptoAddress}
+                      onChange={e => setWalletCrypto(p => ({ ...p, cryptoAddress: e.target.value }))}
+                      placeholder="Nhập địa chỉ ví nhận" required
+                      className={inputCls + ' font-mono text-xs'} />
+                    <p className="text-[10px] text-red-500 mt-1 font-semibold">Kiểm tra kỹ địa chỉ ví và mạng. Sai địa chỉ sẽ mất tiền!</p>
+                  </div>
+                </>
+              )}
+
+              <button type="submit" disabled={walletSaving}
+                className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition disabled:opacity-50 shadow-sm shadow-indigo-200">
+                <Save size={14} />
+                {walletSaving ? 'Đang lưu...' : 'Lưu ví rút tiền'}
+              </button>
+            </form>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 space-y-1">
+            <p className="font-bold mb-1">⚠️ Lưu ý quan trọng:</p>
+            <p>• Ví được lưu ở đây sẽ tự động áp dụng cho TẤT CẢ các lần rút tiền.</p>
+            <p>• Bạn không thể nhập tay thông tin ví khi rút — hãy cập nhật đúng ở đây.</p>
+            <p>• Thay đổi sẽ áp dụng cho lần rút tiếp theo, <b>không ảnh hưởng lệnh đang chờ</b>.</p>
+          </div>
         </div>
       )}
 

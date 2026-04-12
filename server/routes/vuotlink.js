@@ -258,6 +258,8 @@ async function _handleTaskPost(req, res) {
       [visitorId, vnDayStart, vnDayEnd]
     );
     deviceViewsToday = vCount[0].cnt;
+    // Device limit: block nếu đã vượt maxViewsPerIp
+    // (bonus_mode không áp dụng cho device limit vì không có IP theofixe)
     if (deviceViewsToday >= maxViewsPerIp) {
       console.log(`[VuotLink] Device limit: visitorId=${visitorId.substring(0, 8)}..., count=${deviceViewsToday}, max=${maxViewsPerIp}`);
       return res.status(429).json({ error: `Thiết bị đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Thử lại sau.`, remaining: 0, maxViews: maxViewsPerIp });
@@ -271,14 +273,18 @@ async function _handleTaskPost(req, res) {
     [ip, vnDayStart, vnDayEnd]
   );
   const ipViewsToday = ipCount[0].cnt;
-  if (ipViewsToday >= maxViewsPerIp) {
-    console.log(`[VuotLink] IP blocked: IP ${ip} reached daily limit (${ipViewsToday}/${maxViewsPerIp})`);
-    return res.status(429).json({ error: `Bạn đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Vui lòng quay lại ngày mai.`, remaining: 0, maxViews: maxViewsPerIp });
+  // Thay vì block ngay, ghi nhớ trạng thái để kiểm tra bonus_mode ở bước chọn campaign
+  const ipLimitReached = ipViewsToday >= maxViewsPerIp;
+  if (ipLimitReached) {
+    console.log(`[VuotLink] IP limit reached: IP ${ip} (${ipViewsToday}/${maxViewsPerIp}) → checking bonus_mode`);
   }
 
   const viewsUsed = Math.max(deviceViewsToday, ipViewsToday);
-  const viewsRemaining = maxViewsPerIp - viewsUsed;
-  console.log(`[VuotLink] ✅ VN_DATE=${todayVn} | PASS: IP=${ip}, visitor=${visitorId?.substring(0, 8) || '?'}, views=${viewsUsed}/${maxViewsPerIp}`);
+  const viewsRemaining = ipLimitReached ? 0 : maxViewsPerIp - viewsUsed;
+  if (!ipLimitReached) {
+    console.log(`[VuotLink] ✅ VN_DATE=${todayVn} | PASS: IP=${ip}, visitor=${visitorId?.substring(0, 8) || '?'}, views=${viewsUsed}/${maxViewsPerIp}`);
+  }
+
 
   try {
     await pool.execute(
@@ -289,6 +295,24 @@ async function _handleTaskPost(req, res) {
     );
   } catch (recoverErr) {
     console.warn('[VuotLink] Auto-recover status error (non-fatal):', recoverErr.message);
+  }
+
+  // Khi IP hết lượt: kiểm tra chủ link (refWorkerId từ challenge) có bonus_mode không
+  // refWorkerId = worker sở hữu link rút gọn mà IP đang dùng để vào task
+  let workerBonusMode = false;
+  const bonusCheckWorkerId = ch.refWorkerId || null;
+  if (ipLimitReached) {
+    if (bonusCheckWorkerId) {
+      try {
+        const [bmRows] = await pool.execute('SELECT bonus_mode FROM users WHERE id = ?', [bonusCheckWorkerId]);
+        workerBonusMode = bmRows.length > 0 && bmRows[0].bonus_mode === 1;
+      } catch (_) { }
+    }
+    if (!workerBonusMode) {
+      console.log(`[VuotLink] IP limit reached: IP ${ip} (${ipViewsToday}/${maxViewsPerIp}), worker ${bonusCheckWorkerId} has no bonus_mode`);
+      return res.status(429).json({ error: `Bạn đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Vui lòng quay lại ngày mai.`, remaining: 0, maxViews: maxViewsPerIp });
+    }
+    console.log(`[VuotLink] BONUS MODE: worker ${bonusCheckWorkerId} (IP ${ip}) hit limit but has bonus_mode → allowed`);
   }
 
   const campaignWhere = `c.status = 'running'
@@ -336,7 +360,7 @@ async function _handleTaskPost(req, res) {
     ? ` AND c.id NOT IN (${allExcludeIds.join(',')})`
     : '';
 
-  // ORDER BY chỉ theo today_done ASC — không ưu tiên camp nào theo tổng views
+  // ORDER BY chỉ theo today_done ASC — không ưu tiîn camp nào theo tổng views
   const [topCampaigns] = await pool.execute(
     `SELECT c.*, COALESCE(td.today_done, 0) AS _today_done FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${excludeFilter}
      ORDER BY COALESCE(td.today_done, 0) ASC
@@ -360,6 +384,10 @@ async function _handleTaskPost(req, res) {
   }
 
   if (campaigns.length === 0) {
+    if (ipLimitReached) {
+      // Không có campaign nào khả dụng (worker bonus_mode nhưng hết camp) → thông báo cụ thể
+      return res.status(429).json({ error: `Bạn đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Vui lòng quay lại ngày mai.`, remaining: 0, maxViews: maxViewsPerIp });
+    }
     try {
       const [dbTime] = await pool.execute("SELECT NOW() as now_vn, CURDATE() as today_vn, @@session.time_zone as tz");
       const [allCamps] = await pool.execute("SELECT COUNT(*) as total FROM campaigns WHERE status = 'running'");
@@ -612,33 +640,36 @@ async function _handleTaskPost(req, res) {
 
   // ── Race-condition guard: recount sau INSERT để bắt concurrent requests ──
   // Chỉ đếm: (1) completed hôm nay, (2) pending/active CHƯA hết hạn (đang chiếm slot)
-  try {
-    const newTaskId = result.insertId;
-    const [rcIp] = await pool.execute(
-      `SELECT (
-        SELECT COUNT(*) FROM vuot_link_tasks
-        WHERE ip_address = ? AND bot_detected = 0
-          AND status = 'completed'
-          AND completed_at >= ? AND completed_at <= ?
-          AND id != ?
-      ) + (
-        SELECT COUNT(*) FROM vuot_link_tasks
-        WHERE ip_address = ? AND bot_detected = 0
-          AND status IN ('pending', 'step1', 'step2', 'step3')
-          AND expires_at > NOW()
-          AND id != ?
-      ) as cnt`,
-      [ip, vnDayStart, vnDayEnd, newTaskId, ip, newTaskId]
-    );
-    if (Number(rcIp[0].cnt) >= maxViewsPerIp) {
-      // Vượt limit do race — expire task vừa tạo và trả lỗi
-      await pool.execute(`UPDATE vuot_link_tasks SET status = 'expired', expires_at = NOW() WHERE id = ?`, [newTaskId]);
-      console.log(`[VuotLink] Race-condition limit: IP=${ip}, existing=${rcIp[0].cnt}, max=${maxViewsPerIp} → expired task ${newTaskId}`);
-      return res.status(429).json({ error: `Bạn đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Vui lòng quay lại ngày mai.`, remaining: 0, maxViews: maxViewsPerIp });
+  // Bỏ qua check nếu worker có bonus_mode (IP hết lượt vẫn được phép làm)
+  if (!workerBonusMode) {
+    try {
+      const newTaskId = result.insertId;
+      const [rcIp] = await pool.execute(
+        `SELECT (
+          SELECT COUNT(*) FROM vuot_link_tasks
+          WHERE ip_address = ? AND bot_detected = 0
+            AND status = 'completed'
+            AND completed_at >= ? AND completed_at <= ?
+            AND id != ?
+        ) + (
+          SELECT COUNT(*) FROM vuot_link_tasks
+          WHERE ip_address = ? AND bot_detected = 0
+            AND status IN ('pending', 'step1', 'step2', 'step3')
+            AND expires_at > NOW()
+            AND id != ?
+        ) as cnt`,
+        [ip, vnDayStart, vnDayEnd, result.insertId, ip, result.insertId]
+      );
+      if (Number(rcIp[0].cnt) >= maxViewsPerIp) {
+        // Vượt limit do race — expire task vừa tạo và trả lỗi
+        await pool.execute(`UPDATE vuot_link_tasks SET status = 'expired', expires_at = NOW() WHERE id = ?`, [result.insertId]);
+        console.log(`[VuotLink] Race-condition limit: IP=${ip}, existing=${rcIp[0].cnt}, max=${maxViewsPerIp} → expired task ${result.insertId}`);
+        return res.status(429).json({ error: `Bạn đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Vui lòng quay lại ngày mai.`, remaining: 0, maxViews: maxViewsPerIp });
+      }
+    } catch (rcErr) {
+      console.error('[VuotLink] Race-condition check error:', rcErr.message);
+      // Không block nếu check lỗi — tiếp tục bình thường
     }
-  } catch (rcErr) {
-    console.error('[VuotLink] Race-condition check error:', rcErr.message);
-    // Không block nếu check lỗi — tiếp tục bình thường
   }
 
   let isTrustedWorker = false;
@@ -933,6 +964,16 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
   const campaign = campaigns[0];
 
+  // Kiểm tra worker có bonus_mode không (user-level)
+  let isBonusMode = false;
+  const workerIdForBonus = task.ref_worker_id || task.worker_id;
+  if (workerIdForBonus) {
+    try {
+      const [bmUser] = await pool.execute('SELECT bonus_mode FROM users WHERE id = ?', [workerIdForBonus]);
+      isBonusMode = bmUser.length > 0 && bmUser[0].bonus_mode === 1;
+    } catch (_) { }
+  }
+
   let buyerCpc = campaign.cpc || 0;
   try {
     const duration = (campaign.time_on_site || '60').split('-')[0] + 's';
@@ -996,6 +1037,13 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   // ngay cả khi value là false → false positive làm buyer không bị trừ tiền nhưng view cũng không đếm.
   const isBotUser = task.bot_detected === 1;
   if (isBotUser) {
+    buyerCpc = 0;
+    earning = 0;
+  }
+
+  // Bonus mode (user-level): không trừ tiền buyer và không trả worker, nhưng VẪN tính view
+  if (isBonusMode && !isBotUser) {
+    console.log(`[VuotLink] BONUS MODE: worker=${workerIdForBonus}, task=${task.id} — buyer NOT charged, worker NOT paid, view COUNTED`);
     buyerCpc = 0;
     earning = 0;
   }
