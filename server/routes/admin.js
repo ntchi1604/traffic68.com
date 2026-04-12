@@ -108,7 +108,7 @@ router.get('/users', async (req, res) => {
   const offset = (page - 1) * limit;
 
   // ── Bước 1: Lấy danh sách user + wallet balances (fast, indexed) ──
-  let sql = `SELECT u.id, u.email, u.name, u.username, u.phone, u.role, u.service_type, u.status, u.trusted, u.referral_code, u.created_at, u.source_status, u.source_url,
+  let sql = `SELECT u.id, u.email, u.name, u.username, u.phone, u.role, u.service_type, u.status, u.trusted, u.bonus_mode, u.referral_code, u.created_at, u.source_status, u.source_url,
     COALESCE(wm.balance, 0) as main_balance,
     COALESCE(we.balance, 0) as earning_balance,
     COALESCE(wc.balance, 0) as commission_balance
