@@ -85,30 +85,58 @@ async function checkGoogleRank(keyword, targetUrl) {
     throw new Error('Google đang chặn request (CAPTCHA). Thử lại sau ít phút.');
   }
 
-  // Extract organic result URLs via regex (no external parser needed)
+  // ── Parse Google SERP organic URLs ──
+  // Google encodes organic result links in TWO ways:
+  //   1. href="/url?q=https%3A%2F%2Fsite.com%2F..." (most organic)
+  //   2. href="https://site.com/..." (sometimes direct)
+  // We collect all found URLs in order, deduplicate by domain,
+  // then match against targetDomain.
+
+  const GOOGLE_SKIP = /google\.|googleadservices\.|googleapis\.|gstatic\.|youtube\.|accounts\.google|webcache\.google|support\.google|developers\.google|policies\.google|play\.google|maps\.google/i;
+  const ASSET_SKIP = /\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|woff|pdf)(\?|$)/i;
+
+  const seenDomains = new Set();
+  const organicUrls = [];
+
+  // Pattern 1: /url?q=https%3A%2F%2F... (URL-encoded Google redirect)
+  const urlQRe = /href="\/url\?q=(https?[^&"]+)/g;
+  let m1;
+  while ((m1 = urlQRe.exec(html)) !== null) {
+    try {
+      let decoded = decodeURIComponent(m1[1]);
+      if (GOOGLE_SKIP.test(decoded) || ASSET_SKIP.test(decoded)) continue;
+      const d = new URL(decoded).hostname.replace(/^www\./, '');
+      if (!seenDomains.has(d)) { seenDomains.add(d); organicUrls.push({ url: decoded, domain: d }); }
+    } catch { }
+  }
+
+  // Pattern 2: direct href="https://..." (fallback / additional results)
+  const directRe = /href="(https?:\/\/[^"]+)"/g;
+  let m2;
+  while ((m2 = directRe.exec(html)) !== null) {
+    try {
+      const href = m2[1];
+      if (GOOGLE_SKIP.test(href) || ASSET_SKIP.test(href)) continue;
+      const d = new URL(href).hostname.replace(/^www\./, '');
+      if (!seenDomains.has(d)) { seenDomains.add(d); organicUrls.push({ url: href, domain: d }); }
+    } catch { }
+  }
+
+  // Find rank
   let rank = null;
-  let position = 0;
-  const hrefRe = /href="(https?:\/\/[^"]+)"/g;
-  let m;
-  while ((m = hrefRe.exec(html)) !== null) {
-    const href = m[1];
-    // Skip Google-owned and tracking URLs
-    if (/google\.(com|vn|co)|googleadservices|googleapis|gstatic|youtube\.com|accounts\.google/i.test(href)) continue;
-    if (!/^https?:\/\/[a-z0-9-]+\.[a-z]{2,}/i.test(href)) continue;
-    position++;
-    if (rank === null) {
-      const linkDomain = href.replace(/^https?:\/\/(www\.)?/, '').split(/[/?#]/)[0];
-      if (linkDomain === targetDomain ||
-          linkDomain.endsWith('.' + targetDomain) ||
-          targetDomain.endsWith('.' + linkDomain)) {
-        rank = position;
-      }
+  for (let i = 0; i < organicUrls.length; i++) {
+    const d = organicUrls[i].domain;
+    if (d === targetDomain ||
+        d.endsWith('.' + targetDomain) ||
+        targetDomain.endsWith('.' + d)) {
+      rank = i + 1;
+      break;
     }
   }
 
   const result = {
     rank,
-    totalFound: position,
+    totalFound: organicUrls.length,
     keyword,
     domain: targetDomain,
     checkedAt: new Date().toISOString(),
