@@ -113,7 +113,9 @@ router.get('/users', async (req, res) => {
     (SELECT COALESCE(w3.balance, 0) FROM wallets w3 WHERE w3.user_id = u.id AND w3.type = 'earning') as earning_balance,
     (SELECT COALESCE(w4.balance, 0) FROM wallets w4 WHERE w4.user_id = u.id AND w4.type = 'commission') as commission_balance,
     (SELECT COUNT(*) FROM campaigns c WHERE c.user_id = u.id) as campaign_count,
-    (SELECT COUNT(*) FROM vuot_link_tasks vt WHERE vt.worker_id = u.id AND vt.status = 'completed') as task_count,
+    (SELECT COUNT(*) FROM vuot_link_tasks vt WHERE vt.status = 'completed' AND vt.bot_detected = 0
+      AND (vt.worker_id = u.id OR vt.worker_link_id IN (SELECT wl.id FROM worker_links wl WHERE wl.worker_id = u.id))
+    ) as task_count,
     (SELECT COALESCE(SUM(vt2.earning), 0) FROM vuot_link_tasks vt2 WHERE vt2.worker_id = u.id AND vt2.status = 'completed') as total_earning,
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t WHERE t.user_id = u.id AND t.wallet_type = 'main' AND t.type = 'deposit' AND t.status = 'completed') as total_deposit,
     (SELECT COALESCE(SUM(t2.amount), 0) FROM transactions t2 WHERE t2.user_id = u.id AND t2.wallet_type = 'main' AND t2.type = 'campaign' AND t2.status = 'completed') as total_campaign_spent,
