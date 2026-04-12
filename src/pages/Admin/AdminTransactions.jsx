@@ -170,6 +170,7 @@ export default function AdminTransactions() {
           {searchUser && <button type="button" onClick={() => { setSearchUser(''); setSearchInput(''); }} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg transition">✕ Xoá</button>}
         </form>
 
+        <div className="flex flex-wrap gap-3 items-end">
           {/* Date range */}
           <div className="flex items-center gap-2">
             <div>
