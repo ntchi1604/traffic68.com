@@ -611,16 +611,24 @@ async function _handleTaskPost(req, res) {
   );
 
   // ── Race-condition guard: recount sau INSERT để bắt concurrent requests ──
-  // Đếm cả pending+completed hôm nay (không tính task vừa tạo = trừ 1 nếu botDetected=false)
+  // Chỉ đếm: (1) completed hôm nay, (2) pending/active CHƯA hết hạn (đang chiếm slot)
   try {
     const newTaskId = result.insertId;
     const [rcIp] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks
-       WHERE ip_address = ? AND bot_detected = 0
-         AND status IN ('completed', 'pending', 'step1', 'step2', 'step3')
-         AND (completed_at >= ? OR (completed_at IS NULL AND created_at >= ?))
-         AND id != ?`,
-      [ip, vnDayStart, vnDayStart, newTaskId]
+      `SELECT (
+        SELECT COUNT(*) FROM vuot_link_tasks
+        WHERE ip_address = ? AND bot_detected = 0
+          AND status = 'completed'
+          AND completed_at >= ? AND completed_at <= ?
+          AND id != ?
+      ) + (
+        SELECT COUNT(*) FROM vuot_link_tasks
+        WHERE ip_address = ? AND bot_detected = 0
+          AND status IN ('pending', 'step1', 'step2', 'step3')
+          AND expires_at > NOW()
+          AND id != ?
+      ) as cnt`,
+      [ip, vnDayStart, vnDayEnd, newTaskId, ip, newTaskId]
     );
     if (Number(rcIp[0].cnt) >= maxViewsPerIp) {
       // Vượt limit do race — expire task vừa tạo và trả lỗi
