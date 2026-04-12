@@ -2,150 +2,11 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const https = require('https');
-const zlib = require('zlib');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(authMiddleware);
-
-/* ── Rank Check Cache (in-memory, TTL 10 min) ── */
-const rankCache = new Map(); // key: `${keyword}||${domain}` -> { rank, checkedAt, ts }
-
-const USER_AGENTS = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.4; rv:125.0) Gecko/20100101 Firefox/125.0',
-];
-
-function httpsGet(url, headersObj) {
-  return new Promise((resolve, reject) => {
-    const parsed = new URL(url);
-    const opts = {
-      hostname: parsed.hostname,
-      path: parsed.pathname + parsed.search,
-      method: 'GET',
-      headers: headersObj,
-      timeout: 12000,
-    };
-    const req = https.request(opts, (res) => {
-      const encoding = (res.headers['content-encoding'] || '').toLowerCase();
-      let stream = res;
-      if (encoding === 'gzip') stream = res.pipe(zlib.createGunzip());
-      else if (encoding === 'deflate') stream = res.pipe(zlib.createInflate());
-      else if (encoding === 'br') stream = res.pipe(zlib.createBrotliDecompress());
-      const chunks = [];
-      stream.on('data', c => chunks.push(c));
-      stream.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf-8') }));
-      stream.on('error', reject);
-    });
-    req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')); });
-    req.on('error', reject);
-    req.end();
-  });
-}
-
-async function checkGoogleRank(keyword, targetUrl) {
-  // Extract domain for matching
-  let targetDomain;
-  try {
-    const u = new URL(targetUrl.startsWith('http') ? targetUrl : 'https://' + targetUrl);
-    targetDomain = u.hostname.replace(/^www\./, '');
-  } catch {
-    targetDomain = targetUrl.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
-  }
-
-  const cacheKey = `${keyword.toLowerCase()}||${targetDomain}`;
-  const cached = rankCache.get(cacheKey);
-  if (cached && Date.now() - cached.ts < 10 * 60 * 1000) {
-    return { ...cached, fromCache: true };
-  }
-
-  const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-  const qs = new URLSearchParams({ q: keyword, num: '100', hl: 'vi', gl: 'vn', pws: '0', safe: 'off' });
-
-  const { status, body: html } = await httpsGet(
-    `https://www.google.com/search?${qs}`,
-    {
-      'User-Agent': ua,
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Cache-Control': 'no-cache',
-      'Upgrade-Insecure-Requests': '1',
-    }
-  );
-
-  if (status !== 200) throw new Error(`Google trả về HTTP ${status}`);
-  if (html.includes('detected unusual traffic') || html.includes('CAPTCHA') || html.includes('/sorry/')) {
-    throw new Error('Google đang chặn request (CAPTCHA). Thử lại sau ít phút.');
-  }
-
-  // ── Parse Google SERP organic URLs ──
-  // Google encodes organic result links in TWO ways:
-  //   1. href="/url?q=https%3A%2F%2Fsite.com%2F..." (most organic)
-  //   2. href="https://site.com/..." (sometimes direct)
-  // We collect all found URLs in order, deduplicate by domain,
-  // then match against targetDomain.
-
-  const GOOGLE_SKIP = /google\.|googleadservices\.|googleapis\.|gstatic\.|youtube\.|accounts\.google|webcache\.google|support\.google|developers\.google|policies\.google|play\.google|maps\.google/i;
-  const ASSET_SKIP = /\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|woff|pdf)(\?|$)/i;
-
-  const seenDomains = new Set();
-  const organicUrls = [];
-
-  // Pattern 1: /url?q=https%3A%2F%2F... (URL-encoded Google redirect)
-  const urlQRe = /href="\/url\?q=(https?[^&"]+)/g;
-  let m1;
-  while ((m1 = urlQRe.exec(html)) !== null) {
-    try {
-      let decoded = decodeURIComponent(m1[1]);
-      if (GOOGLE_SKIP.test(decoded) || ASSET_SKIP.test(decoded)) continue;
-      const d = new URL(decoded).hostname.replace(/^www\./, '');
-      if (!seenDomains.has(d)) { seenDomains.add(d); organicUrls.push({ url: decoded, domain: d }); }
-    } catch { }
-  }
-
-  // Pattern 2: direct href="https://..." (fallback / additional results)
-  const directRe = /href="(https?:\/\/[^"]+)"/g;
-  let m2;
-  while ((m2 = directRe.exec(html)) !== null) {
-    try {
-      const href = m2[1];
-      if (GOOGLE_SKIP.test(href) || ASSET_SKIP.test(href)) continue;
-      const d = new URL(href).hostname.replace(/^www\./, '');
-      if (!seenDomains.has(d)) { seenDomains.add(d); organicUrls.push({ url: href, domain: d }); }
-    } catch { }
-  }
-
-  // Find rank
-  let rank = null;
-  for (let i = 0; i < organicUrls.length; i++) {
-    const d = organicUrls[i].domain;
-    if (d === targetDomain ||
-        d.endsWith('.' + targetDomain) ||
-        targetDomain.endsWith('.' + d)) {
-      rank = i + 1;
-      break;
-    }
-  }
-
-  const result = {
-    rank,
-    totalFound: organicUrls.length,
-    keyword,
-    domain: targetDomain,
-    checkedAt: new Date().toISOString(),
-    ts: Date.now(),
-    fromCache: false,
-  };
-  rankCache.set(cacheKey, result);
-  return result;
-}
 
 
 const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'campaigns');
@@ -380,30 +241,6 @@ router.get('/:id/keyword-stats', async (req, res) => {
 });
 
 
-/* ── GET /campaigns/:id/keyword-rank  ── */
-router.get('/:id/keyword-rank', async (req, res) => {
-  try {
-    const pool = getPool();
-    const { keyword, url } = req.query;
-    if (!keyword) return res.status(400).json({ error: 'Thiếu tham số keyword' });
-
-    // Verify campaign belongs to this user
-    const [camp] = await pool.execute(
-      'SELECT id, url, keyword FROM campaigns WHERE id = ? AND user_id = ?',
-      [req.params.id, req.userId]
-    );
-    if (!camp.length) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
-
-    const targetUrl = url || camp[0].url;
-    if (!targetUrl) return res.status(400).json({ error: 'Campaign không có URL' });
-
-    const result = await checkGoogleRank(keyword, targetUrl);
-    res.json(result);
-  } catch (err) {
-    console.error('Rank check error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 
 router.put('/:id', async (req, res) => {

@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
 import {
   Pause, Play, Pencil, X, Upload, Plus, Zap, Trash2, BarChart3,
   Search, RefreshCw, Target, ChevronRight, Download, Globe,
-  TrendingUp, Clock, CheckCircle2, AlertCircle, Trophy, MapPin,
+  TrendingUp, Clock, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
@@ -50,47 +50,14 @@ function TrafficBadge({ type }) {
   );
 }
 
-/* ── Rank Badge ── */
-function RankBadge({ rank, loading }) {
-  if (loading) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400 border border-slate-200">
-      <RefreshCw size={9} className="animate-spin" /> Đang check...
-    </span>
-  );
-  if (rank === undefined) return null;
-  if (rank === null) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
-      <MapPin size={9} /> Ngoài Top 100
-    </span>
-  );
-  if (rank <= 3) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200 ring-1 ring-amber-300">
-      <Trophy size={9} className="text-amber-500" /> Top {rank} 🥇
-    </span>
-  );
-  if (rank <= 10) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-      <TrendingUp size={9} /> Top {rank}
-    </span>
-  );
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-      <MapPin size={9} /> #{rank}
-    </span>
-  );
-}
-
 /* ── Keyword Stats Panel ── */
-function KeywordStats({ campaignId, campaignUrl }) {
+function KeywordStats({ campaignId }) {
   const [stats, setStats] = useState(null);
   const [daily, setDaily] = useState([]);
   const [page, setPage] = useState(1);
   const rowsPerPage = 10;
   const [loading, setLoading] = useState(true);
   const [exportingXlsx, setExportingXlsx] = useState(false);
-  // rankMap: { [keyword]: { rank: number|null, checkedAt: string, loading: bool, error: string } }
-  const [rankMap, setRankMap] = useState({});
-  const [checkingAll, setCheckingAll] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -101,41 +68,6 @@ function KeywordStats({ campaignId, campaignUrl }) {
       setDaily(dt.detailed || []);
     }).catch(console.error).finally(() => setLoading(false));
   }, [campaignId]);
-
-  const checkRank = useCallback(async (keyword) => {
-    if (!keyword || !keyword.trim()) return;
-    setRankMap(prev => ({ ...prev, [keyword]: { ...prev[keyword], loading: true, error: null } }));
-    try {
-      const data = await api.get(
-        `/campaigns/${campaignId}/keyword-rank?keyword=${encodeURIComponent(keyword)}&url=${encodeURIComponent(campaignUrl || '')}`
-      );
-      setRankMap(prev => ({
-        ...prev,
-        [keyword]: {
-          rank: data.rank,
-          checkedAt: data.checkedAt,
-          fromCache: data.fromCache,
-          loading: false,
-          error: null,
-        },
-      }));
-    } catch (err) {
-      setRankMap(prev => ({ ...prev, [keyword]: { loading: false, error: err.message || 'Lỗi kiểm tra' } }));
-    }
-  }, [campaignId, campaignUrl]);
-
-  const checkAllRanks = useCallback(async () => {
-    if (!stats || checkingAll) return;
-    setCheckingAll(true);
-    for (const kw of stats) {
-      if (kw.keyword && kw.keyword.trim()) {
-        await checkRank(kw.keyword);
-        // small delay to avoid hammering
-        await new Promise(r => setTimeout(r, 800));
-      }
-    }
-    setCheckingAll(false);
-  }, [stats, checkRank, checkingAll]);
 
   if (loading) return (
     <div className="flex items-center justify-center py-8 gap-2 text-slate-400">
@@ -202,63 +134,24 @@ function KeywordStats({ campaignId, campaignUrl }) {
         <div className="lg:w-2/5 space-y-2">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Theo từ khóa</p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={checkAllRanks}
-                disabled={checkingAll || !stats?.length}
-                title="Kiểm tra vị trí Google cho tất cả từ khóa"
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border transition ${
-                  checkingAll
-                    ? 'text-violet-400 bg-violet-50 border-violet-100 cursor-not-allowed'
-                    : 'text-violet-700 bg-violet-50 hover:bg-violet-100 border-violet-200 cursor-pointer'
-                }`}
-              >
-                <Trophy size={11} />{checkingAll ? ' Đang check...' : ' Check tất cả'}
-              </button>
-              <button onClick={exportExcel} disabled={exportingXlsx}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border transition ${
-                  exportingXlsx
-                    ? 'text-emerald-400 bg-emerald-50 border-emerald-100 cursor-not-allowed'
-                    : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 cursor-pointer'
-                }`}>
-                <Download size={11} />{exportingXlsx ? ' Đang xuất...' : ' Xuất Excel'}
-              </button>
-            </div>
+            <button onClick={exportExcel} disabled={exportingXlsx}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border transition ${
+                exportingXlsx
+                  ? 'text-emerald-400 bg-emerald-50 border-emerald-100 cursor-not-allowed'
+                  : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 cursor-pointer'
+              }`}>
+              <Download size={11} />{exportingXlsx ? ' Đang xuất...' : ' Xuất Excel'}
+            </button>
           </div>
-          <div className="max-h-[320px] overflow-y-auto pr-1 space-y-2">
+          <div className="max-h-[260px] overflow-y-auto pr-1 space-y-2">
             {stats.map((kw, i) => {
               const pct = totalAll > 0 ? Math.round(Number(kw.completed) / totalAll * 100) : 0;
-              const rankInfo = rankMap[kw.keyword];
               return (
                 <div key={i} className="bg-white border border-slate-200 rounded-xl p-3 hover:shadow-sm transition">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-xs font-bold text-slate-800 truncate flex-1 mr-2">{kw.keyword || '(trống)'}</p>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {rankInfo?.loading ? (
-                        <RankBadge loading />
-                      ) : rankInfo?.error ? (
-                        <span className="text-[10px] text-red-500 font-medium" title={rankInfo.error}>⚠ Lỗi</span>
-                      ) : rankInfo ? (
-                        <RankBadge rank={rankInfo.rank} />
-                      ) : null}
-                      <button
-                        onClick={() => checkRank(kw.keyword)}
-                        disabled={rankInfo?.loading}
-                        title={`Check vị trí Google: "${kw.keyword}"`}
-                        className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded-lg border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                      >
-                        <Trophy size={9} />
-                        {rankInfo && !rankInfo.loading ? 'Recheck' : 'Check rank'}
-                      </button>
-                      <span className="text-xs font-black text-emerald-600 tabular-nums">{Number(kw.completed)}</span>
-                    </div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-bold text-slate-800 truncate flex-1">{kw.keyword || '(trống)'}</p>
+                    <span className="text-xs font-black text-emerald-600 ml-2 tabular-nums">{Number(kw.completed)}</span>
                   </div>
-                  {rankInfo?.checkedAt && !rankInfo.loading && (
-                    <p className="text-[9px] text-slate-400 mb-1">
-                      {rankInfo.fromCache ? '⚡ cache · ' : ''}
-                      {new Date(rankInfo.checkedAt).toLocaleTimeString('vi-VN')}
-                    </p>
-                  )}
                   <div className="w-full bg-slate-100 rounded-full h-1.5 mb-2">
                     <div className="h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all" style={{ width: `${pct}%` }} />
                   </div>
