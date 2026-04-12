@@ -1178,56 +1178,49 @@ router.get('/security/users', async (req, res) => {
     const secMap = {};
     if (ids.length > 0) {
       const ph = ids.map(() => '?').join(',');
-      const dateParams = [];
-      let slDateWhere = '';
       let vtDateWhere = '';
-      if (from) { slDateWhere += ` AND created_at >= ?`; vtDateWhere += ` AND vt.created_at >= ?`; dateParams.push(from); }
-      if (to) { slDateWhere += ` AND created_at <= ?`; vtDateWhere += ` AND vt.created_at <= ?`; dateParams.push(to + ' 23:59:59'); }
+      let slDateWhere = '';
+      const vtDateParams = [];
+      const slDateParams = [];
+      if (from) { vtDateWhere += ` AND vt.created_at >= ?`; vtDateParams.push(from); slDateWhere += ` AND sl.created_at >= ?`; slDateParams.push(from); }
+      if (to) { vtDateWhere += ` AND vt.created_at <= ?`; vtDateParams.push(to + ' 23:59:59'); slDateWhere += ` AND sl.created_at <= ?`; slDateParams.push(to + ' 23:59:59'); }
 
-      // ── Batch query 1: Lấy tất cả IPs theo user một lần ──
-      const [allIpRows] = await pool.execute(
-        `SELECT COALESCE(vt.worker_id, wl.worker_id) as uid, GROUP_CONCAT(DISTINCT vt.ip_address) as ips
-         FROM vuot_link_tasks vt LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+      // ── Batch 1: Bot tasks gắn đúng với worker (không qua IP) ──
+      const [botTaskRows] = await pool.execute(
+        `SELECT COALESCE(vt.worker_id, wl.worker_id) as uid,
+                COUNT(DISTINCT CONCAT(vt.ip_address, '|', COALESCE(vt.visitor_id,''))) as cnt
+         FROM vuot_link_tasks vt
+         LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
          WHERE COALESCE(vt.worker_id, wl.worker_id) IN (${ph})
-         ${from ? 'AND vt.created_at >= ?' : ''} ${to ? 'AND vt.created_at <= ?' : ''}
+           AND vt.bot_detected = 1${vtDateWhere}
          GROUP BY uid`,
-        [...ids, ...(from ? [from] : []), ...(to ? [to + ' 23:59:59'] : [])]
+        [...ids, ...vtDateParams]
       );
-      const ipsByUser = {};
-      allIpRows.forEach(r => { if (r.uid && r.ips) ipsByUser[r.uid] = r.ips.split(',').filter(Boolean); });
+      botTaskRows.forEach(r => { if (r.uid) secMap[r.uid] = Number(r.cnt); });
 
-      // ── Batch query 2: Đếm bot events từ security_logs theo IP của từng user ──
-      const allIps = [...new Set(Object.values(ipsByUser).flat())];
-      const botTaskMap = {};
-      const slMap = {};
-      if (allIps.length > 0) {
-        const iph = allIps.map(() => '?').join(',');
-
-        // Bot events từ security_logs
-        const [slRows] = await pool.execute(
-          `SELECT ip_address, COUNT(DISTINCT CONCAT(ip_address, '|', COALESCE(visitor_id,''))) as cnt
-           FROM security_logs WHERE ip_address IN (${iph}) AND reason != 'completed'${slDateWhere}
-           GROUP BY ip_address`,
-          [...allIps, ...dateParams]
-        );
-        slRows.forEach(r => { slMap[r.ip_address] = Number(r.cnt); });
-
-        // Bot tasks từ vuot_link_tasks
-        const [btRows] = await pool.execute(
-          `SELECT vt.ip_address, COUNT(DISTINCT CONCAT(vt.ip_address, '|', COALESCE(vt.visitor_id,''))) as cnt
-           FROM vuot_link_tasks vt LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
-           WHERE vt.ip_address IN (${iph}) AND vt.bot_detected = 1${vtDateWhere}
-           GROUP BY vt.ip_address`,
-          [...allIps, ...dateParams]
-        );
-        btRows.forEach(r => { botTaskMap[r.ip_address] = Number(r.cnt); });
-      }
-
-      // Tổng hợp events theo user
-      for (const [uid, ips] of Object.entries(ipsByUser)) {
-        const total = ips.reduce((s, ip) => s + (slMap[ip] || 0) + (botTaskMap[ip] || 0), 0);
-        if (total > 0) secMap[uid] = total;
-      }
+      // ── Batch 2: Security logs theo IPs của worker (join để tránh GROUP_CONCAT truncation) ──
+      const [slRows] = await pool.execute(
+        `SELECT COALESCE(vt.worker_id, wl.worker_id) as uid,
+                COUNT(DISTINCT CONCAT(sl.ip_address, '|', COALESCE(sl.visitor_id,''))) as cnt
+         FROM security_logs sl
+         JOIN vuot_link_tasks vt ON vt.ip_address = sl.ip_address
+         LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+         WHERE COALESCE(vt.worker_id, wl.worker_id) IN (${ph})
+           AND sl.reason != 'completed'${slDateWhere}
+           AND NOT EXISTS (
+             SELECT 1 FROM vuot_link_tasks vt2
+             LEFT JOIN worker_links wl2 ON wl2.id = vt2.worker_link_id
+             WHERE COALESCE(vt2.worker_id, wl2.worker_id) = COALESCE(vt.worker_id, wl.worker_id)
+               AND vt2.ip_address = sl.ip_address
+               AND COALESCE(vt2.visitor_id,'') = COALESCE(sl.visitor_id,'')
+               AND vt2.bot_detected = 1
+           )
+         GROUP BY uid`,
+        [...ids, ...slDateParams]
+      );
+      slRows.forEach(r => {
+        if (r.uid) secMap[r.uid] = (secMap[r.uid] || 0) + Number(r.cnt);
+      });
     }
 
     res.json({
