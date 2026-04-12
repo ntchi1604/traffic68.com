@@ -4,9 +4,107 @@ const path = require('path');
 const fs = require('fs');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
+const fetch = require('node-fetch');
+const cheerio = require('cheerio');
 
 const router = express.Router();
 router.use(authMiddleware);
+
+/* ── Rank Check Cache (in-memory, TTL 10 min) ── */
+const rankCache = new Map(); // key: `${keyword}||${domain}` -> { rank, checkedAt, ts }
+
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.4; rv:125.0) Gecko/20100101 Firefox/125.0',
+];
+
+async function checkGoogleRank(keyword, targetUrl) {
+  // Extract domain for matching
+  let targetDomain;
+  try {
+    const u = new URL(targetUrl.startsWith('http') ? targetUrl : 'https://' + targetUrl);
+    targetDomain = u.hostname.replace(/^www\./, '');
+  } catch {
+    targetDomain = targetUrl.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
+  }
+
+  const cacheKey = `${keyword.toLowerCase()}||${targetDomain}`;
+  const cached = rankCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < 10 * 60 * 1000) {
+    return { ...cached, fromCache: true };
+  }
+
+  const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+  const params = new URLSearchParams({
+    q: keyword,
+    num: '100',
+    hl: 'vi',
+    gl: 'vn',
+    pws: '0',
+    safe: 'off',
+  });
+
+  const resp = await fetch(`https://www.google.com/search?${params}`, {
+    headers: {
+      'User-Agent': ua,
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Cache-Control': 'no-cache',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Upgrade-Insecure-Requests': '1',
+    },
+    timeout: 12000,
+  });
+
+  if (!resp.ok) throw new Error(`Google returned ${resp.status}`);
+  const html = await resp.text();
+
+  if (html.includes('detected unusual traffic') || html.includes('CAPTCHA')) {
+    throw new Error('Google đang chặn request (CAPTCHA). Thử lại sau ít phút.');
+  }
+
+  const $ = cheerio.load(html);
+  let rank = null;
+  let position = 0;
+
+  // Parse organic search results – Google's structure: #search .g or [data-hveid]
+  $('div.g, div[data-hveid]').each((i, el) => {
+    const link = $(el).find('a[href]').first().attr('href') || '';
+    if (!link || link.startsWith('/') && !link.startsWith('/url')) return;
+    let href = link;
+    if (href.startsWith('/url?q=')) {
+      try { href = new URL('https://google.com' + href).searchParams.get('q') || href; } catch { }
+    }
+    // Skip Google-internal links
+    if (href.includes('google.com') || href.startsWith('/search')) return;
+    position++;
+    if (rank === null) {
+      const linkDomain = href.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
+      if (linkDomain === targetDomain || linkDomain.endsWith('.' + targetDomain) || targetDomain.endsWith('.' + linkDomain)) {
+        rank = position;
+      }
+    }
+  });
+
+  const result = {
+    rank,
+    totalFound: position,
+    keyword,
+    domain: targetDomain,
+    checkedAt: new Date().toISOString(),
+    ts: Date.now(),
+    fromCache: false,
+  };
+  rankCache.set(cacheKey, result);
+  return result;
+}
 
 
 const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'campaigns');
@@ -236,6 +334,32 @@ router.get('/:id/keyword-stats', async (req, res) => {
       }
     }).catch(() => { });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+/* ── GET /campaigns/:id/keyword-rank  ── */
+router.get('/:id/keyword-rank', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { keyword, url } = req.query;
+    if (!keyword) return res.status(400).json({ error: 'Thiếu tham số keyword' });
+
+    // Verify campaign belongs to this user
+    const [camp] = await pool.execute(
+      'SELECT id, url, keyword FROM campaigns WHERE id = ? AND user_id = ?',
+      [req.params.id, req.userId]
+    );
+    if (!camp.length) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+
+    const targetUrl = url || camp[0].url;
+    if (!targetUrl) return res.status(400).json({ error: 'Campaign không có URL' });
+
+    const result = await checkGoogleRank(keyword, targetUrl);
+    res.json(result);
+  } catch (err) {
+    console.error('Rank check error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
