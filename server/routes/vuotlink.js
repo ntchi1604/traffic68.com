@@ -1419,9 +1419,11 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
       : `worker_id = ?`;
     const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
 
+    // Dùng VN timezone date (Asia/Ho_Chi_Minh) để đồng nhất với Admin Anti-Cheat
+    const vnDateToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
     const [todayTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND bot_detected = 0 AND DATE(completed_at) = CURDATE()`,
-      wlParams
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND bot_detected = 0 AND DATE(completed_at) = ?`,
+      [...wlParams, vnDateToday]
     );
     const [totalTasks] = await pool.execute(
       `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND bot_detected = 0`,
@@ -1441,9 +1443,9 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
     // 7 day chart
     const [chart] = await pool.execute(
       `SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn
-       FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND bot_detected = 0 AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+       FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND bot_detected = 0 AND DATE(completed_at) >= DATE_SUB(?, INTERVAL 7 DAY)
        GROUP BY DATE(completed_at) ORDER BY day`,
-      wlParams
+      [...wlParams, vnDateToday]
     );
 
     // Recent tasks
