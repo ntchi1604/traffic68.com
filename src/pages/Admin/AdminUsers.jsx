@@ -183,8 +183,8 @@ export default function AdminUsers({ type }) {
     try {
       const res = await api.put(`/admin/users/${u.id}/bonus-mode`);
       toast.success(res.bonus_mode
-        ? `🎁 Đã bật Bonus Mode cho ${u.name} — IP hết lượt vẫn nhận task (không tính tiền)`
-        : `⭕ Đã tắt Bonus Mode cho ${u.name}`);
+        ? `✅ Đã bật "Cho phép làm thêm" cho ${u.name}`
+        : `❌ Đã tắt "Cho phép làm thêm" cho ${u.name}`);
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, bonus_mode: res.bonus_mode } : x));
     } catch (err) { toast.error(err.message); }
   };
@@ -251,7 +251,7 @@ export default function AdminUsers({ type }) {
                     )}
                     {isWorker && !!u.bonus_mode && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-violet-100 text-violet-700 mt-0.5">
-                        <Gift size={9} /> Bonus Mode
+                        <Gift size={9} /> Làm thêm
                       </span>
                     )}
                     {isWorker && u.source_status && (
@@ -379,7 +379,7 @@ export default function AdminUsers({ type }) {
                                 }`}
                               >
                                 <Gift size={14} className={u.bonus_mode ? 'text-violet-500' : 'text-slate-400'} />
-                                {u.bonus_mode ? '🟢 Bonus Mode: BẬT' : '⚪ Bonus Mode: TẮT'}
+                                {u.bonus_mode ? '🟢 Cho phép làm thêm: BẬT' : '⚪ Cho phép làm thêm: TẮT'}
                               </button>
                             </>
                           )}
