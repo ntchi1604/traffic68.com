@@ -107,22 +107,16 @@ router.get('/users', async (req, res) => {
   const { search, role, service_type, page = 1, limit = 20 } = req.query;
   const offset = (page - 1) * limit;
 
+  // ── Bước 1: Lấy danh sách user + wallet balances (fast, indexed) ──
   let sql = `SELECT u.id, u.email, u.name, u.username, u.phone, u.role, u.service_type, u.status, u.trusted, u.referral_code, u.created_at, u.source_status, u.source_url,
-    (SELECT COALESCE(SUM(w.balance), 0) FROM wallets w WHERE w.user_id = u.id) as total_balance,
-    (SELECT COALESCE(w2.balance, 0) FROM wallets w2 WHERE w2.user_id = u.id AND w2.type = 'main') as main_balance,
-    (SELECT COALESCE(w3.balance, 0) FROM wallets w3 WHERE w3.user_id = u.id AND w3.type = 'earning') as earning_balance,
-    (SELECT COALESCE(w4.balance, 0) FROM wallets w4 WHERE w4.user_id = u.id AND w4.type = 'commission') as commission_balance,
-    (SELECT COUNT(*) FROM campaigns c WHERE c.user_id = u.id) as campaign_count,
-    (SELECT COUNT(*) FROM vuot_link_tasks vt WHERE vt.status = 'completed' AND vt.bot_detected = 0
-      AND (vt.worker_id = u.id OR vt.worker_link_id IN (SELECT wl.id FROM worker_links wl WHERE wl.worker_id = u.id))
-    ) as task_count,
-    (SELECT COALESCE(SUM(vt2.earning), 0) FROM vuot_link_tasks vt2 WHERE vt2.worker_id = u.id AND vt2.status = 'completed') as total_earning,
-    (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t WHERE t.user_id = u.id AND t.wallet_type = 'main' AND t.type = 'deposit' AND t.status = 'completed') as total_deposit,
-    (SELECT COALESCE(SUM(t2.amount), 0) FROM transactions t2 WHERE t2.user_id = u.id AND t2.wallet_type = 'main' AND t2.type = 'campaign' AND t2.status = 'completed') as total_campaign_spent,
-    (SELECT COALESCE(SUM(c2.views_done), 0) FROM campaigns c2 WHERE c2.user_id = u.id) as total_traffic_done,
-    (SELECT COALESCE(SUM(tw.amount), 0) FROM transactions tw WHERE tw.user_id = u.id AND tw.wallet_type = 'earning' AND tw.type = 'withdraw' AND tw.status = 'completed') as total_withdraw,
-    (SELECT COUNT(*) FROM worker_links wl WHERE wl.worker_id = u.id) as total_worker_links
-    FROM users u WHERE 1=1`;
+    COALESCE(wm.balance, 0) as main_balance,
+    COALESCE(we.balance, 0) as earning_balance,
+    COALESCE(wc.balance, 0) as commission_balance
+    FROM users u
+    LEFT JOIN wallets wm ON wm.user_id = u.id AND wm.type = 'main'
+    LEFT JOIN wallets we ON we.user_id = u.id AND we.type = 'earning'
+    LEFT JOIN wallets wc ON wc.user_id = u.id AND wc.type = 'commission'
+    WHERE 1=1`;
   let countSql = `SELECT COUNT(*) as total FROM users u WHERE 1=1`;
   const params = [];
   const countParams = [];
@@ -146,7 +140,6 @@ router.get('/users', async (req, res) => {
       params.push(service_type); countParams.push(service_type);
     }
   }
-  // Filter by source_status (for source approval page)
   const { source_status } = req.query;
   if (source_status && source_status !== 'all') {
     if (source_status === 'pending') {
@@ -157,19 +150,73 @@ router.get('/users', async (req, res) => {
       params.push(source_status); countParams.push(source_status);
     }
   }
-  // Filter: chỉ hiện user đã gửi source_url
   const { has_source } = req.query;
   if (has_source === '1') {
     const hsCond = " AND u.source_url IS NOT NULL AND u.source_url != ''";
     sql += hsCond; countSql += hsCond;
   }
 
-  const [totalRows] = await pool.execute(countSql, countParams);
+  const [[{ total }]] = await pool.execute(countSql, countParams);
   sql += ' ORDER BY u.created_at DESC LIMIT ? OFFSET ?';
   params.push(Number(limit), Number(offset));
 
   const [users] = await pool.execute(sql, params);
-  res.json({ users, total: totalRows[0].total, page: Number(page), limit: Number(limit) });
+
+  if (users.length === 0) {
+    return res.json({ users: [], total, page: Number(page), limit: Number(limit) });
+  }
+
+  // ── Bước 2: Batch-fetch stats cho đúng user IDs trên trang này (O(N) queries → O(1)) ──
+  const uids = users.map(u => u.id);
+  const ph = uids.map(() => '?').join(',');
+
+  // Chạy song song tất cả stats queries
+  const [
+    [campRows], [depRows], [campSpentRows], [trafficRows],
+    [taskDirectRows], [taskLinkRows], [withdrawRows], [wlRows]
+  ] = await Promise.all([
+    // Buyer: số campaign
+    pool.execute(`SELECT user_id, COUNT(*) as v FROM campaigns WHERE user_id IN (${ph}) GROUP BY user_id`, uids),
+    // Buyer: tổng nạp
+    pool.execute(`SELECT user_id, COALESCE(SUM(amount),0) as v FROM transactions WHERE user_id IN (${ph}) AND wallet_type='main' AND type='deposit' AND status='completed' GROUP BY user_id`, uids),
+    // Buyer: tổng chi campaign
+    pool.execute(`SELECT user_id, COALESCE(SUM(amount),0) as v FROM transactions WHERE user_id IN (${ph}) AND wallet_type='main' AND type='campaign' AND status='completed' GROUP BY user_id`, uids),
+    // Buyer: tổng traffic
+    pool.execute(`SELECT user_id, COALESCE(SUM(views_done),0) as v FROM campaigns WHERE user_id IN (${ph}) GROUP BY user_id`, uids),
+    // Worker: task trực tiếp
+    pool.execute(`SELECT worker_id as user_id, COUNT(*) as v FROM vuot_link_tasks WHERE worker_id IN (${ph}) AND status='completed' AND bot_detected=0 GROUP BY worker_id`, uids),
+    // Worker: task qua gateway link
+    pool.execute(`SELECT wl.worker_id as user_id, COUNT(*) as v FROM vuot_link_tasks vt JOIN worker_links wl ON wl.id = vt.worker_link_id WHERE wl.worker_id IN (${ph}) AND vt.status='completed' AND vt.bot_detected=0 GROUP BY wl.worker_id`, uids),
+    // Worker: tổng rút
+    pool.execute(`SELECT user_id, COALESCE(SUM(amount),0) as v FROM transactions WHERE user_id IN (${ph}) AND wallet_type='earning' AND type='withdraw' AND status='completed' GROUP BY user_id`, uids),
+    // Worker: tổng worker links
+    pool.execute(`SELECT worker_id as user_id, COUNT(*) as v FROM worker_links WHERE worker_id IN (${ph}) GROUP BY worker_id`, uids),
+  ]);
+
+  // Map thành object để lookup O(1)
+  const toMap = (rows) => Object.fromEntries(rows.map(r => [r.user_id, Number(r.v)]));
+  const campMap = toMap(campRows);
+  const depMap = toMap(depRows);
+  const campSpentMap = toMap(campSpentRows);
+  const trafficMap = toMap(trafficRows);
+  const taskDirectMap = toMap(taskDirectRows);
+  const taskLinkMap = toMap(taskLinkRows);
+  const withdrawMap = toMap(withdrawRows);
+  const wlMap = toMap(wlRows);
+
+  // Gắn stats vào mỗi user
+  const enriched = users.map(u => ({
+    ...u,
+    campaign_count: campMap[u.id] || 0,
+    total_deposit: depMap[u.id] || 0,
+    total_campaign_spent: campSpentMap[u.id] || 0,
+    total_traffic_done: trafficMap[u.id] || 0,
+    task_count: (taskDirectMap[u.id] || 0) + (taskLinkMap[u.id] || 0),
+    total_withdraw: withdrawMap[u.id] || 0,
+    total_worker_links: wlMap[u.id] || 0,
+  }));
+
+  res.json({ users: enriched, total, page: Number(page), limit: Number(limit) });
 });
 
 
@@ -1130,45 +1177,56 @@ router.get('/security/users', async (req, res) => {
     const ids = rows.map(r => r.worker_id).filter(Boolean);
     const secMap = {};
     if (ids.length > 0) {
+      const ph = ids.map(() => '?').join(',');
+      const dateParams = [];
+      let slDateWhere = '';
+      let vtDateWhere = '';
+      if (from) { slDateWhere += ` AND created_at >= ?`; vtDateWhere += ` AND vt.created_at >= ?`; dateParams.push(from); }
+      if (to) { slDateWhere += ` AND created_at <= ?`; vtDateWhere += ` AND vt.created_at <= ?`; dateParams.push(to + ' 23:59:59'); }
 
-      for (const uid of ids) {
-        try {
-          // Lấy IP của user trong khoảng thời gian được chọn
-          let ipQuery = `SELECT DISTINCT vt.ip_address FROM vuot_link_tasks vt LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id WHERE COALESCE(vt.worker_id, wl.worker_id) = ?`;
-          const ipQParams = [uid];
-          if (from) { ipQuery += ` AND vt.created_at >= ?`; ipQParams.push(from); }
-          if (to) { ipQuery += ` AND vt.created_at <= ?`; ipQParams.push(to + ' 23:59:59'); }
+      // ── Batch query 1: Lấy tất cả IPs theo user một lần ──
+      const [allIpRows] = await pool.execute(
+        `SELECT COALESCE(vt.worker_id, wl.worker_id) as uid, GROUP_CONCAT(DISTINCT vt.ip_address) as ips
+         FROM vuot_link_tasks vt LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+         WHERE COALESCE(vt.worker_id, wl.worker_id) IN (${ph})
+         ${from ? 'AND vt.created_at >= ?' : ''} ${to ? 'AND vt.created_at <= ?' : ''}
+         GROUP BY uid`,
+        [...ids, ...(from ? [from] : []), ...(to ? [to + ' 23:59:59'] : [])]
+      );
+      const ipsByUser = {};
+      allIpRows.forEach(r => { if (r.uid && r.ips) ipsByUser[r.uid] = r.ips.split(',').filter(Boolean); });
 
-          const [ipRows] = await pool.execute(ipQuery, ipQParams);
-          const ips = ipRows.map(r => r.ip_address).filter(Boolean);
-          if (ips.length > 0) {
-            const ph = ips.map(() => '?').join(',');
+      // ── Batch query 2: Đếm bot events từ security_logs theo IP của từng user ──
+      const allIps = [...new Set(Object.values(ipsByUser).flat())];
+      const botTaskMap = {};
+      const slMap = {};
+      if (allIps.length > 0) {
+        const iph = allIps.map(() => '?').join(',');
 
-            // Đếm bot events trong khoảng thời gian — lọc ngày cả security_logs và bot tasks
-            let slDateWhere = '';
-            let vtDateWhere = '';
-            const slDateParams = [];
-            const vtDateParams = [];
-            if (from) { slDateWhere += ` AND created_at >= ?`; slDateParams.push(from); vtDateWhere += ` AND vt.created_at >= ?`; vtDateParams.push(from); }
-            if (to) { slDateWhere += ` AND created_at <= ?`; slDateParams.push(to + ' 23:59:59'); vtDateWhere += ` AND vt.created_at <= ?`; vtDateParams.push(to + ' 23:59:59'); }
+        // Bot events từ security_logs
+        const [slRows] = await pool.execute(
+          `SELECT ip_address, COUNT(DISTINCT CONCAT(ip_address, '|', COALESCE(visitor_id,''))) as cnt
+           FROM security_logs WHERE ip_address IN (${iph}) AND reason != 'completed'${slDateWhere}
+           GROUP BY ip_address`,
+          [...allIps, ...dateParams]
+        );
+        slRows.forEach(r => { slMap[r.ip_address] = Number(r.cnt); });
 
-            const [dedupRows] = await pool.execute(
-              `SELECT COUNT(*) as cnt FROM (
-                SELECT ip_address, COALESCE(visitor_id, '') as vis_id
-                FROM security_logs
-                WHERE ip_address IN (${ph}) AND reason != 'completed'${slDateWhere}
-                UNION
-                SELECT vt.ip_address, COALESCE(vt.visitor_id, '') as vis_id
-                FROM vuot_link_tasks vt
-                LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
-                WHERE COALESCE(vt.worker_id, wl.worker_id) = ?
-                  AND vt.bot_detected = 1${vtDateWhere}
-              ) t`,
-              [...ips, ...slDateParams, uid, ...vtDateParams]
-            );
-            if (dedupRows[0].cnt > 0) secMap[uid] = Number(dedupRows[0].cnt);
-          }
-        } catch { }
+        // Bot tasks từ vuot_link_tasks
+        const [btRows] = await pool.execute(
+          `SELECT vt.ip_address, COUNT(DISTINCT CONCAT(vt.ip_address, '|', COALESCE(vt.visitor_id,''))) as cnt
+           FROM vuot_link_tasks vt LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+           WHERE vt.ip_address IN (${iph}) AND vt.bot_detected = 1${vtDateWhere}
+           GROUP BY vt.ip_address`,
+          [...allIps, ...dateParams]
+        );
+        btRows.forEach(r => { botTaskMap[r.ip_address] = Number(r.cnt); });
+      }
+
+      // Tổng hợp events theo user
+      for (const [uid, ips] of Object.entries(ipsByUser)) {
+        const total = ips.reduce((s, ip) => s + (slMap[ip] || 0) + (botTaskMap[ip] || 0), 0);
+        if (total > 0) secMap[uid] = total;
       }
     }
 
