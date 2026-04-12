@@ -37,7 +37,10 @@ export default function WorkerProfile() {
   const [walletBank, setWalletBank] = useState({ bankName: '', accountNumber: '', accountName: '' });
   const [walletCrypto, setWalletCrypto] = useState({ cryptoNetwork: '', cryptoAddress: '' });
   const [walletSaving, setWalletSaving] = useState(false);
-  const [walletSaved, setWalletSaved] = useState(false); // has a saved wallet?
+  const [walletSaved, setWalletSaved] = useState(false);
+  const [bankEnabled, setBankEnabled] = useState(true);
+  const [cryptoEnabled, setCryptoEnabled] = useState(true);
+  const [configLoaded, setConfigLoaded] = useState(false); // has a saved wallet?
 
   useEffect(() => {
     api.get('/users/profile').then(data => {
@@ -61,6 +64,14 @@ export default function WorkerProfile() {
       }
     }).catch(() => setError('Không thể tải thông tin hồ sơ'))
       .finally(() => setLoading(false));
+
+    // Load withdraw config
+    api.get('/finance/withdraw-config').then(d => {
+      setBankEnabled(d.bank_enabled);
+      setCryptoEnabled(d.crypto_enabled);
+      // Auto-select first available method
+      if (!d.bank_enabled && d.crypto_enabled) setWalletMethod('crypto');
+    }).catch(() => {}).finally(() => setConfigLoaded(true));
   }, []);
 
   useEffect(() => {
@@ -255,21 +266,33 @@ export default function WorkerProfile() {
             <p className="text-xs text-slate-400 mb-5">Lưu thông tin ví để áp dụng tự động khi rút. Bạn có thể thay đổi bất cứ lúc nào.</p>
 
             <form onSubmit={handleWalletSave} className="space-y-5 max-w-lg">
-              {/* Method picker */}
+              {/* Method picker — only show methods enabled by admin */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-2">Phương thức nhận tiền *</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => setWalletMethod('bank')}
-                    className={`flex items-center gap-2 p-3 rounded-xl border-2 transition ${walletMethod === 'bank' ? 'border-indigo-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                    <Building2 size={18} className={walletMethod === 'bank' ? 'text-indigo-600' : 'text-slate-400'} />
-                    <span className="text-sm font-semibold">Ngân hàng</span>
-                  </button>
-                  <button type="button" onClick={() => setWalletMethod('crypto')}
-                    className={`flex items-center gap-2 p-3 rounded-xl border-2 transition ${walletMethod === 'crypto' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                    <Bitcoin size={18} className={walletMethod === 'crypto' ? 'text-indigo-600' : 'text-slate-400'} />
-                    <span className="text-sm font-semibold">Crypto</span>
-                  </button>
-                </div>
+                {!configLoaded ? (
+                  <div className="h-12 bg-slate-100 animate-pulse rounded-xl" />
+                ) : !bankEnabled && !cryptoEnabled ? (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-semibold">
+                    ⚠️ Hiện tại không có phương thức rút tiền nào được kích hoạt. Liên hệ admin.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {bankEnabled && (
+                      <button type="button" onClick={() => setWalletMethod('bank')}
+                        className={`flex items-center gap-2 p-3 rounded-xl border-2 transition ${walletMethod === 'bank' ? 'border-indigo-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                        <Building2 size={18} className={walletMethod === 'bank' ? 'text-indigo-600' : 'text-slate-400'} />
+                        <span className="text-sm font-semibold">Ngân hàng</span>
+                      </button>
+                    )}
+                    {cryptoEnabled && (
+                      <button type="button" onClick={() => setWalletMethod('crypto')}
+                        className={`flex items-center gap-2 p-3 rounded-xl border-2 transition ${walletMethod === 'crypto' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                        <Bitcoin size={18} className={walletMethod === 'crypto' ? 'text-indigo-600' : 'text-slate-400'} />
+                        <span className="text-sm font-semibold">Crypto</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Bank fields */}

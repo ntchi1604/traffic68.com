@@ -148,7 +148,7 @@ export default function Withdraw() {
           </div>
           <button
             type="button"
-            onClick={() => navigate('/worker/profile?tab=wallet')}
+            onClick={() => navigate('/worker/dashboard/profile?tab=wallet')}
             className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition"
           >
             <Settings size={12} /> Cài đặt ví
@@ -171,7 +171,7 @@ export default function Withdraw() {
           </div>
           <button
             type="button"
-            onClick={() => navigate('/worker/profile?tab=wallet')}
+            onClick={() => navigate('/worker/dashboard/profile?tab=wallet')}
             className="flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition"
           >
             <Settings size={12} /> Thay đổi
