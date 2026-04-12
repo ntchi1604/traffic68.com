@@ -182,8 +182,8 @@ export default function WorkerProfile() {
       <div className="flex flex-wrap border-b border-slate-200 gap-0">
         {[
           { key: 'profile',  label: 'Hồ sơ cá nhân',  icon: User },
-          { key: 'wallet',   label: 'Ví rút tiền',     icon: Wallet },
           { key: 'password', label: 'Mật khẩu',        icon: Lock },
+          { key: 'wallet',   label: 'Ví rút tiền',     icon: Wallet },
           { key: 'source',   label: 'Xét duyệt nguồn', icon: ShieldCheck },
         ].map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setActiveTab(key)}
