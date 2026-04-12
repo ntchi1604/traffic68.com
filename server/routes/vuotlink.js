@@ -1041,11 +1041,11 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     earning = 0;
   }
 
-  // Bonus mode (user-level): không trừ tiền buyer và không trả worker, nhưng VẪN tính view
+  // Cho phép làm thêm (user-level): buyer VẪN bị trừ tiền bình thường, chỉ worker không được trả
   if (isBonusMode && !isBotUser) {
-    console.log(`[VuotLink] BONUS MODE: worker=${workerIdForBonus}, task=${task.id} — buyer NOT charged, worker NOT paid, view COUNTED`);
-    buyerCpc = 0;
-    earning = 0;
+    console.log(`[VuotLink] CHO PHEP LAM THEM: worker=${workerIdForBonus}, task=${task.id} — buyer CHARGED normally, worker NOT paid, view COUNTED`);
+    earning = 0; // Worker không được trả
+    // buyerCpc giữ nguyên — buyer vẫn bị trừ tiền
   }
 
   await pool.execute(
