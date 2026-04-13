@@ -1430,11 +1430,22 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
     // Dùng VN timezone date (Asia/Ho_Chi_Minh) để đồng nhất với Admin Anti-Cheat
     const vnDateToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
     const [todayTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND bot_detected = 0 AND DATE(completed_at) = ?`,
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn
+       FROM vuot_link_tasks
+       WHERE ${wlCondition}
+         AND status = 'completed'
+         AND bot_detected = 0
+         AND is_over_limit = 0
+         AND DATE(completed_at) = ?`,
       [...wlParams, vnDateToday]
     );
     const [totalTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND bot_detected = 0`,
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn
+       FROM vuot_link_tasks
+       WHERE ${wlCondition}
+         AND status = 'completed'
+         AND bot_detected = 0
+         AND is_over_limit = 0`,
       wlParams
     );
     const [pendingTasks] = await pool.execute(
@@ -1464,7 +1475,7 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
       wlParams
     );
 
-    // Remaining daily views = SUM(daily_views) - today's completed tasks
+    // Remaining daily views — dùng vnDateToday (giờ VN) thay vì CURDATE() (giờ UTC MySQL)
     const [remRows] = await pool.execute(
       `SELECT
         COALESCE(SUM(c.daily_views), 0) as total_daily,
@@ -1472,10 +1483,11 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
        FROM campaigns c
        LEFT JOIN (
          SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks
-         WHERE status = 'completed' AND DATE(completed_at) = CURDATE()
+         WHERE status = 'completed' AND DATE(completed_at) = ?
          GROUP BY campaign_id
        ) td ON td.campaign_id = c.id
-       WHERE c.status = 'running' AND c.daily_views > 0`
+       WHERE c.status = 'running' AND c.daily_views > 0`,
+      [vnDateToday]
     );
 
     res.json({
