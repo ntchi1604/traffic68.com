@@ -1544,6 +1544,7 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
       : `worker_id = ?`;
     const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
 
+    // MySQL server chạy giờ VN → completed_at đã là giờ VN, dùng DATE() trực tiếp
     const [daily] = await pool.execute(
       `SELECT DATE(completed_at) as date,
               COUNT(*) as tasks,
@@ -1567,7 +1568,8 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
     const [todayR] = await pool.execute(
       `SELECT COALESCE(SUM(earning), 0) as earn, COUNT(*) as tasks
        FROM vuot_link_tasks
-       WHERE ${wlCondition} AND status = 'completed' AND DATE(completed_at) = CURDATE()`,
+       WHERE ${wlCondition} AND status = 'completed'
+         AND DATE(completed_at) = CURDATE()`,
       wlParams
     );
 
@@ -1585,6 +1587,8 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 
 // GET /api/vuot-link/worker/balance
