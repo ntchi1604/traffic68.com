@@ -187,10 +187,10 @@ router.get('/summary', async (req, res) => {
        WHERE user_id = ? AND wallet_type = 'main' AND type = 'deposit' AND status = 'completed'`,
       [req.userId]
     );
-    // Hoa hồng: tất cả giao dịch trong ví commission đã hoàn tất
+    // Hoa hồng: chỉ tính tx type='commission' (hoa hồng nhận), không tính withdraw
     const [[commissionRow]] = await pool.execute(
       `SELECT COALESCE(SUM(amount), 0) as total FROM transactions
-       WHERE user_id = ? AND wallet_type = 'commission' AND status = 'completed'`,
+       WHERE user_id = ? AND wallet_type = 'commission' AND type = 'commission' AND status = 'completed'`,
       [req.userId]
     );
     // Chi campaign: deduct từ ví main, type=campaign
@@ -205,12 +205,30 @@ router.get('/summary', async (req, res) => {
        WHERE user_id = ? AND wallet_type = 'earning' AND type = 'withdraw' AND status = 'completed'`,
       [req.userId]
     );
+    // Thu nhập worker: tổng tiền VÀO ví earning (tất cả type trừ withdraw)
+    const [[earningRow]] = await pool.execute(
+      `SELECT COALESCE(SUM(amount), 0) as total FROM transactions
+       WHERE user_id = ? AND wallet_type = 'earning'
+         AND type NOT IN ('withdraw')
+         AND status = 'completed'`,
+      [req.userId]
+    );
+    // Tổng đã rút (kể cả pending - vì ví đã bị trừ ngay khi rút)
+    const [[withdrawAllRow]] = await pool.execute(
+      `SELECT COALESCE(SUM(amount), 0) as total FROM transactions
+       WHERE user_id = ? AND wallet_type = 'earning'
+         AND type = 'withdraw'
+         AND status != 'rejected'`,
+      [req.userId]
+    );
 
     res.json({
       deposit: Number(depositRow.total),
       commission: Number(commissionRow.total),
       campaign: Number(campaignRow.total),
-      withdraw: Number(withdrawRow.total),
+      withdraw: Number(withdrawRow.total),         // chỉ completed (đã duyệt)
+      withdrawAll: Number(withdrawAllRow.total),   // cả pending
+      earning: Number(earningRow.total),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -222,21 +240,31 @@ router.get('/transactions', async (req, res) => {
   const { type, period, scope, page = 1, limit = 20 } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
 
+  let countSql, sql;
+  const params = [];
 
-  const walletType = scope === 'worker' ? 'earning' : 'main';
-
-  let countSql = `SELECT COUNT(*) as c FROM transactions WHERE user_id = ? AND wallet_type = ?`;
-  let sql = `SELECT * FROM transactions WHERE user_id = ? AND wallet_type = ?`;
-  const params = [req.userId, walletType];
-
-  if (type && type !== 'all') {
-    if (type === 'commission') {
-
+  if (scope === 'worker') {
+    if (!type || type === 'all') {
+      // Hiển thị cả earning + commission wallet
+      countSql = `SELECT COUNT(*) as c FROM transactions WHERE user_id = ? AND wallet_type IN ('earning', 'commission')`;
+      sql = `SELECT * FROM transactions WHERE user_id = ? AND wallet_type IN ('earning', 'commission')`;
+      params.push(req.userId);
+    } else if (type === 'commission') {
       countSql = `SELECT COUNT(*) as c FROM transactions WHERE user_id = ? AND wallet_type = 'commission'`;
       sql = `SELECT * FROM transactions WHERE user_id = ? AND wallet_type = 'commission'`;
-      params.length = 0;
       params.push(req.userId);
     } else {
+      // earning, withdraw, deposit, refund... → chỉ ví earning
+      countSql = `SELECT COUNT(*) as c FROM transactions WHERE user_id = ? AND wallet_type = 'earning' AND type = ?`;
+      sql = `SELECT * FROM transactions WHERE user_id = ? AND wallet_type = 'earning' AND type = ?`;
+      params.push(req.userId, type);
+    }
+  } else {
+    // Buyer: ví main
+    countSql = `SELECT COUNT(*) as c FROM transactions WHERE user_id = ? AND wallet_type = 'main'`;
+    sql = `SELECT * FROM transactions WHERE user_id = ? AND wallet_type = 'main'`;
+    params.push(req.userId);
+    if (type && type !== 'all') {
       countSql += ' AND type = ?';
       sql += ' AND type = ?';
       params.push(type);
@@ -383,9 +411,28 @@ router.post('/withdraw', async (req, res) => {
 
     const [wallets] = await conn.execute('SELECT balance FROM wallets WHERE user_id = ? AND type = ? FOR UPDATE', [req.userId, 'earning']);
     const balance = wallets[0] ? Number(wallets[0].balance) : 0;
+
+    // Kiểm tra số dư âm hoặc bằng 0
+    if (balance <= 0) {
+      await conn.rollback(); conn.release();
+      return res.status(400).json({ error: `Số dư ví Thu nhập không đủ (hiện có: ${Math.max(0, balance).toLocaleString('vi-VN')} đ)` });
+    }
+
+    // Kiểm tra số dư đủ
     if (balance < num) {
       await conn.rollback(); conn.release();
-      return res.status(400).json({ error: `Số dư không đủ (hiện có ${balance.toLocaleString('vi-VN')} đ)` });
+      return res.status(400).json({ error: `Số dư không đủ. Hiện có: ${balance.toLocaleString('vi-VN')} đ, yêu cầu rút: ${num.toLocaleString('vi-VN')} đ` });
+    }
+
+    // Kiểm tra không có lệnh rút pending đang chờ
+    const [pendingWd] = await conn.execute(
+      `SELECT id, amount FROM transactions WHERE user_id = ? AND wallet_type = 'earning' AND type = 'withdraw' AND status = 'pending' LIMIT 1`,
+      [req.userId]
+    );
+    if (pendingWd.length > 0) {
+      await conn.rollback(); conn.release();
+      const pendingAmount = Number(pendingWd[0].amount).toLocaleString('vi-VN');
+      return res.status(400).json({ error: `Bạn đang có lệnh rút ${pendingAmount} đ chưa được duyệt. Vui lòng chờ xử lý trước khi rút thêm.` });
     }
 
     await conn.execute('UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = ?', [num, req.userId, 'earning']);

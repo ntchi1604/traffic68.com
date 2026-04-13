@@ -109,15 +109,14 @@ export default function WorkerTransactions() {
 
   useEffect(() => { fetchData(1); }, [fetchData]);
 
-  // Fetch summary (all, no limit)
+  // Fetch summary từ API (đúng, bao gồm cả commission wallet)
   useEffect(() => {
-    api.get('/finance/transactions?scope=worker&limit=1000&page=1')
+    api.get('/finance/summary')
       .then(d => {
-        const all = d.transactions || [];
         setSummary({
-          earning: all.filter(t => t.type === 'earning' && t.status === 'completed').reduce((s, t) => s + Number(t.amount), 0),
-          commission: all.filter(t => t.type === 'commission' && t.status === 'completed').reduce((s, t) => s + Number(t.amount), 0),
-          withdraw: all.filter(t => t.type === 'withdraw' && t.status === 'completed').reduce((s, t) => s + Number(t.amount), 0),
+          earning:    d.earning    || 0,
+          commission: d.commission || 0,
+          withdraw:   d.withdraw   || 0,
         });
       }).catch(() => {});
   }, []);

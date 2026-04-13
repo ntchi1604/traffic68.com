@@ -5,7 +5,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { TrendingUp, Calendar, DollarSign, Eye, Zap } from 'lucide-react';
+import { TrendingUp, Calendar, DollarSign, Eye, Zap, Wallet } from 'lucide-react';
 import api from '../../lib/api';
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
@@ -29,6 +29,8 @@ export default function DailyEarnings() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
+  const [balance, setBalance] = useState(0);
+  const [withdraw, setWithdraw] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -36,6 +38,11 @@ export default function DailyEarnings() {
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, [days]);
+
+  useEffect(() => {
+    api.get('/vuot-link/worker/balance').then(d => setBalance(d.balance || 0)).catch(() => {});
+    api.get('/finance/summary').then(d => setWithdraw(d.withdraw || 0)).catch(() => {});
+  }, []);
 
   // Sắp xếp tăng dần (cũ → mới) cho chart
   const chartData = (data?.daily || [])
@@ -113,6 +120,24 @@ export default function DailyEarnings() {
             <p className="text-lg font-black text-slate-900 truncate">{fmt(totalViews)}</p>
             <p className="text-[11px] text-slate-400">trong {days} ngày</p>
           </div>
+        </div>
+      </div>
+
+      {/* Wallet balance row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="rounded-xl p-5 text-white flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+          <div>
+            <p className="text-xs font-semibold text-indigo-200 uppercase tracking-wide">Số dư ví Thu nhập</p>
+            <p className="text-2xl font-black mt-1">{fmt(balance)} đ</p>
+          </div>
+          <Wallet size={28} className="text-white/40" />
+        </div>
+        <div className="rounded-xl p-5 text-white flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
+          <div>
+            <p className="text-xs font-semibold text-red-200 uppercase tracking-wide">Tổng đã rút (đã duyệt)</p>
+            <p className="text-2xl font-black mt-1">{fmt(withdraw)} đ</p>
+          </div>
+          <TrendingUp size={28} className="text-white/40" />
         </div>
       </div>
 
