@@ -1786,16 +1786,21 @@ router.get('/worker-tasks', async (req, res) => {
 router.get('/worker-withdrawals', async (req, res) => {
   try {
     const pool = getPool();
-    const { status, page = 1, limit = 30 } = req.query;
+    const { status, page = 1, limit = 30, search = '' } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
     // Include both worker earning withdrawals AND buyer commission withdrawals
     let where = "t.type = 'withdraw' AND t.wallet_type IN ('earning', 'commission')";
     const params = [];
     if (status && status !== 'all') { where += ' AND t.status = ?'; params.push(status); }
+    if (search.trim()) {
+      where += ' AND (u.name LIKE ? OR u.email LIKE ? OR t.ref_code LIKE ? OR t.note LIKE ?)';
+      const s = `%${search.trim()}%`;
+      params.push(s, s, s, s);
+    }
 
     const [countR] = await pool.execute(
-      `SELECT COUNT(*) as c FROM transactions t WHERE ${where}`, params
+      `SELECT COUNT(*) as c FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE ${where}`, params
     );
     const [rows] = await pool.execute(
       `SELECT t.*, u.name as user_name, u.email as user_email, u.service_type
@@ -1808,6 +1813,7 @@ router.get('/worker-withdrawals', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 

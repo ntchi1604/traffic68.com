@@ -19,15 +19,31 @@ export default function AdminWorkerWithdrawals() {
   const [processingBatch, setProcessingBatch] = useState(false);
   const [processingId, setProcessingId] = useState(null);
   const [expandedNote, setExpandedNote] = useState(null);
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
 
-  const fetch = (p = 1) => {
+  const fetch = (p = 1, q = search) => {
     setLoading(true);
-    api.get(`/admin/worker-withdrawals?status=${filter}&page=${p}&limit=${LIMIT}`)
+    const params = new URLSearchParams({ status: filter, page: p, limit: LIMIT });
+    if (q.trim()) params.set('search', q.trim());
+    api.get(`/admin/worker-withdrawals?${params}`)
       .then(d => { setRows(d.withdrawals || []); setTotal(d.total || 0); setPage(p); setLoading(false); })
       .catch(() => setLoading(false));
   };
 
-  useEffect(() => { fetch(1); }, [filter]);
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setSearch(searchInput);
+    fetch(1, searchInput);
+  };
+
+  const clearSearch = () => {
+    setSearchInput('');
+    setSearch('');
+    fetch(1, '');
+  };
+
+  useEffect(() => { setSearch(''); setSearchInput(''); fetch(1, ''); }, [filter]);
 
   const handleAction = async (id, action) => {
     if (action === 'reject' && !await toast.confirm('Từ chối yêu cầu rút tiền này?')) return;
@@ -103,43 +119,65 @@ export default function AdminWorkerWithdrawals() {
       </div>
 
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {[['pending', 'Chờ duyệt'], ['completed', 'Đã duyệt'], ['rejected', 'Từ chối'], ['all', 'Tất cả']].map(([v, l]) => (
             <button key={v} onClick={() => setFilter(v)} disabled={processingBatch}
               className={`px-3 py-2 text-xs font-bold rounded-lg transition ${filter === v ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'} disabled:opacity-50`}>{l}</button>
           ))}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {rows.length > 0 && (
-            <button
-              onClick={exportExcel}
-              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg transition"
-            >
-              <FileSpreadsheet size={14} />
-              Xuất Excel ({rows.length})
-            </button>
+        {/* Search bar */}
+        <form onSubmit={handleSearch} className="flex gap-2 flex-1 max-w-md">
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              placeholder="Tên, email, mã ref, thông tin TK..."
+              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
+          </div>
+          <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition">Tìm</button>
+          {search && (
+            <button type="button" onClick={clearSearch} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold rounded-xl transition">✕</button>
           )}
-          {filter === 'pending' && rows.length > 0 && (
-            <>
-              <button
-                onClick={() => handleBulkAction('approve')} disabled={processingBatch}
-                className="flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
-              >
-                {processingBatch ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle2 size={14} />}
-                {processingBatch ? 'Đang xử lý...' : `Duyệt tất cả (${rows.length})`}
-              </button>
-              <button
-                onClick={() => handleBulkAction('reject')} disabled={processingBatch}
-                className="flex items-center gap-1.5 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
-              >
-                <XCircle size={14} />
-                Từ chối tất cả
-              </button>
-            </>
-          )}
-        </div>
+        </form>
       </div>
+
+      {search && (
+        <p className="text-xs text-indigo-600 font-medium -mt-3">Đang lọc: "{search}" — {total} kết quả</p>
+      )}
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {rows.length > 0 && (
+          <button
+            onClick={exportExcel}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg transition"
+          >
+            <FileSpreadsheet size={14} />
+            Xuất Excel ({rows.length})
+          </button>
+        )}
+        {filter === 'pending' && rows.length > 0 && (
+          <>
+            <button
+              onClick={() => handleBulkAction('approve')} disabled={processingBatch}
+              className="flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
+            >
+              {processingBatch ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle2 size={14} />}
+              {processingBatch ? 'Đang xử lý...' : `Duyệt tất cả (${rows.length})`}
+            </button>
+            <button
+              onClick={() => handleBulkAction('reject')} disabled={processingBatch}
+              className="flex items-center gap-1.5 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
+            >
+              <XCircle size={14} />
+              Từ chối tất cả
+            </button>
+          </>
+        )}
+      </div>
+
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
         {loading ? (

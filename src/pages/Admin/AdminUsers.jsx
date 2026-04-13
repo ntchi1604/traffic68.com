@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet, Briefcase, HardHat, MoreVertical, ShieldCheck, CheckCircle2, XCircle, Clock, Gift } from 'lucide-react';
+import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet, Briefcase, HardHat, MoreVertical, ShieldCheck, CheckCircle2, XCircle, Clock, Infinity } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
@@ -183,8 +183,8 @@ export default function AdminUsers({ type }) {
     try {
       const res = await api.put(`/admin/users/${u.id}/bonus-mode`);
       toast.success(res.bonus_mode
-        ? `✅ Đã bật "Cho phép làm thêm" cho ${u.name}`
-        : `❌ Đã tắt "Cho phép làm thêm" cho ${u.name}`);
+        ? `✅ Đã bật "Vượt giới hạn IP" cho ${u.name}`
+        : `❌ Đã tắt "Vượt giới hạn IP" cho ${u.name}`);
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, bonus_mode: res.bonus_mode } : x));
     } catch (err) { toast.error(err.message); }
   };
@@ -250,8 +250,8 @@ export default function AdminUsers({ type }) {
                       </span>
                     )}
                     {isWorker && !!u.bonus_mode && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-violet-100 text-violet-700 mt-0.5">
-                        <Gift size={9} /> Làm thêm
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-orange-100 text-orange-700 mt-0.5">
+                        <Infinity size={9} /> Vượt IP
                       </span>
                     )}
                     {isWorker && u.source_status && (
@@ -374,12 +374,12 @@ export default function AdminUsers({ type }) {
                                 onClick={() => { toggleBonusMode(u); setOpenMenuId(null); }}
                                 className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition text-left ${
                                   u.bonus_mode
-                                    ? 'text-violet-700 bg-violet-50 hover:bg-violet-100'
-                                    : 'text-slate-700 hover:bg-violet-50 hover:text-violet-700'
+                                    ? 'text-orange-700 bg-orange-50 hover:bg-orange-100'
+                                    : 'text-slate-700 hover:bg-orange-50 hover:text-orange-700'
                                 }`}
                               >
-                                <Gift size={14} className={u.bonus_mode ? 'text-violet-500' : 'text-slate-400'} />
-                                {u.bonus_mode ? '🟢 Cho phép làm thêm: BẬT' : '⚪ Cho phép làm thêm: TẮT'}
+                                <Infinity size={14} className={u.bonus_mode ? 'text-orange-500' : 'text-slate-400'} />
+                                {u.bonus_mode ? '🟢 Vượt giới hạn IP: BẬT' : '⚪ Vượt giới hạn IP: TẮT'}
                               </button>
                             </>
                           )}
