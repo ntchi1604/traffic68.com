@@ -720,11 +720,11 @@ router.get('/transactions', async (req, res) => {
 
 
   const [depRows] = await pool.execute(
-    `SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t WHERE t.status = 'completed' AND t.type IN ('deposit','earning','commission','refund')${filterCondition}`,
+    `SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE t.status = 'completed' AND t.type IN ('deposit','earning','commission','refund')${filterCondition}`,
     filterParams
   );
   const [wdRows] = await pool.execute(
-    `SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t WHERE t.status = 'completed' AND t.type IN ('withdraw','campaign')${filterCondition}`,
+    `SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE t.status = 'completed' AND t.type IN ('withdraw','campaign')${filterCondition}`,
     filterParams
   );
 
