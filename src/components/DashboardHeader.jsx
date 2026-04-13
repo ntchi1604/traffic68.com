@@ -15,8 +15,8 @@ export default function DashboardHeader({ onMenuClick }) {
   const isWorker = pathname.startsWith('/worker');
   const profileRef = useRef(null);
 
-  // Fetch wallets + user from API
-  useEffect(() => {
+  // Fetch wallets + user — refresh mỗi khi navigate trang hoặc mỗi 60s
+  const fetchWallets = () => {
     api.get('/finance').then((data) => {
       setWallets({
         main: data.wallets?.main?.balance || 0,
@@ -24,11 +24,18 @@ export default function DashboardHeader({ onMenuClick }) {
         earning: data.wallets?.earning?.balance || 0,
       });
     }).catch(() => {});
+  };
 
+  useEffect(() => {
+    fetchWallets();
     api.get('/auth/me').then((data) => {
       if (data.user) setUser(data.user);
     }).catch(() => {});
-  }, []);
+
+    // Auto-refresh mỗi 60 giây
+    const interval = setInterval(fetchWallets, 60000);
+    return () => clearInterval(interval);
+  }, [pathname]); // re-fetch khi chuyển trang
 
   useEffect(() => {
     if (!profileOpen) return;
