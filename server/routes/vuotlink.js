@@ -7,16 +7,22 @@ const { analyzeDevice } = require('../lib/behavior');
 
 const router = express.Router();
 
-// Helper: ensure wallet exists then credit — fixes bug where UPDATE affects 0 rows if wallet missing
+// Helper: ensure wallet exists then credit
 async function ensureWalletCredit(pool, userId, walletType, amount) {
   const [res] = await pool.execute(
     'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
     [amount, userId, walletType]
   );
   if (res.affectedRows === 0) {
+    // Dùng INSERT IGNORE tránh race condition tạo ví trùng
     await pool.execute(
-      'INSERT INTO wallets (user_id, type, balance) VALUES (?, ?, ?)',
+      'INSERT IGNORE INTO wallets (user_id, type, balance) VALUES (?, ?, ?)',
       [userId, walletType, amount]
+    );
+    // Nếu INSERT IGNORE bị bỏ qua (ví vừa được tạo bởi request khác) → UPDATE lại
+    await pool.execute(
+      'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ? AND balance = 0',
+      [amount, userId, walletType]
     );
   }
 }
@@ -1098,13 +1104,17 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   }
 
   // ── Cộng tiền worker (theo giá set) ──
+  // paidWorkerId = worker thực sự được nhận tiền (để tính hoa hồng referral)
   let paidWorkerId = null;
+
   if (task.worker_id && !task.worker_link_id && earning > 0) {
+    // Case 1: Task trực tiếp từ worker
     paidWorkerId = task.worker_id;
     await ensureWalletCredit(pool, task.worker_id, 'earning', earning);
     const refCode = 'VL-' + Date.now();
     await pool.execute(
-      `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'earning', 'earning', 'system', ?, 'completed', ?, ?)`,
+      `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+       VALUES (?, 'earning', 'earning', 'system', ?, 'completed', ?, ?)`,
       [task.worker_id, earning, refCode, `${task.keyword || 'Vượt link'} - ${campaign.name} #${task.id}`]
     );
   }
@@ -1119,11 +1129,14 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
         const wl = wlRows[0];
         destinationUrl = wl.destination_url;
         gatewaySlug = wl.slug || null;
-        paidWorkerId = wl.worker_id;
+        paidWorkerId = wl.worker_id; // Case 2: Gateway link
 
         if (earning > 0) {
           await ensureWalletCredit(pool, wl.worker_id, 'earning', earning);
-          await pool.execute('UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?', [earning, wl.id]);
+          await pool.execute(
+            'UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?',
+            [earning, wl.id]
+          );
           const refCode = 'GL-' + Date.now();
           await pool.execute(
             `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
@@ -1137,56 +1150,53 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     } catch (e) { console.error('[VuotLink] Gateway link pay error:', e.message); }
   }
 
-  // ── Ref link mode: cộng earning cho worker ref ──
-  // Áp dụng khi task được tạo qua ?ref=username (không phải slug/gateway)
+  // ── Ref link mode: cộng % earning cho worker ref ──
+  // KHÔNG set paidWorkerId ở đây để tránh trigger hoa hồng lần 2
   if (!paidWorkerId && task.ref_worker_id && earning > 0) {
     try {
-      // Lấy % hoa hồng ref từ site_settings (tái dùng referral_commission_worker)
       const [refCommSetting] = await pool.execute(
         "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_worker'"
       );
       const refCommPct = Number(refCommSetting[0]?.setting_value || 0);
       const refEarning = refCommPct > 0 ? Math.floor(earning * refCommPct / 100) : 0;
       if (refEarning > 0) {
-        paidWorkerId = task.ref_worker_id; // set để trigger referral bên dưới
         await ensureWalletCredit(pool, task.ref_worker_id, 'earning', refEarning);
         const refTxCode = 'RL-' + Date.now();
         await pool.execute(
           `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
            VALUES (?, 'earning', 'earning', 'ref_link', ?, 'completed', ?, ?)`,
           [task.ref_worker_id, refEarning, refTxCode,
-          `Hoa hong ref ${refCommPct}% - ${task.keyword || 'Vượt link'} #${task.id} (${earning} đ)`]
+           `Hoa hong ref ${refCommPct}% - ${task.keyword || 'Vượt link'} #${task.id} (${earning} đ)`]
         );
         console.log(`[VuotLink] Ref earning: paid ${refEarning} to ref_worker_id=${task.ref_worker_id} (${refCommPct}% of ${earning})`);
+        // Ref link không trigger hoa hồng referral thêm lần nữa
       }
     } catch (e) { console.error('[VuotLink] Ref link earning error:', e.message); }
   }
 
-  // ── Hoa hồng referral: cộng % cho người đã ref paidWorker ──
+  // ── Hoa hồng referral: cộng % cho người đã ref paidWorker (Case 1 & 2 only) ──
+  // Chỉ chạy khi paidWorkerId được set (task trực tiếp hoặc gateway link)
+  // KHÔNG chạy cho ref_link để tránh double-commission
   if (paidWorkerId && earning > 0) {
     try {
-      console.log(`[Commission] Checking referral for worker=${paidWorkerId}, earning=${earning}`);
       const [refRows] = await pool.execute('SELECT referred_by FROM users WHERE id = ?', [paidWorkerId]);
       const referrerId = refRows[0]?.referred_by;
-      console.log(`[Commission] referred_by=${referrerId}`);
       if (referrerId) {
         const [commSetting] = await pool.execute(
           "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_worker'"
         );
         const commPct = Number(commSetting[0]?.setting_value || 0);
-        console.log(`[Commission] commPct=${commPct}`);
         if (commPct > 0) {
           const commAmount = Math.floor(earning * commPct / 100);
-          console.log(`[Commission] commAmount=${commAmount}, paying referrerId=${referrerId}`);
           if (commAmount > 0) {
             await ensureWalletCredit(pool, referrerId, 'commission', commAmount);
             const commRef = `COMM-WORKER-${Date.now()}`;
             await pool.execute(
               `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
                VALUES (?, 'commission', 'commission', 'referral', ?, 'completed', ?, ?)`,
-              [referrerId, commAmount, commRef, `Hoa hong ${commPct}% tu worker vuot link (${earning} d)`]
+              [referrerId, commAmount, commRef, `Hoa hong ${commPct}% tu worker #${paidWorkerId} - task #${task.id} (${earning} d)`]
             );
-            console.log(`[Commission] Paid ${commAmount} to referrer ${referrerId}`);
+            console.log(`[Commission] Paid ${commAmount} to referrer ${referrerId} for worker ${paidWorkerId}`);
           }
         }
       }
