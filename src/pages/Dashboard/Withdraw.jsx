@@ -60,7 +60,6 @@ export default function Withdraw() {
     fetchWithdrawals(1);
     // Auto-refresh số dư mỗi 30 giây
     balanceIntervalRef.current = setInterval(() => fetchBalance(), 30000);
-    return () => clearInterval(balanceIntervalRef.current);
 
     // Fetch withdraw method settings
     api.get('/finance/withdraw-config').then(d => {
@@ -100,6 +99,8 @@ export default function Withdraw() {
       .then(r => r.json())
       .then(d => { if (d?.tether?.vnd) setUsdtRate(d.tether.vnd); })
       .catch(() => { setUsdtRate(25500); });
+
+    return () => clearInterval(balanceIntervalRef.current);
   }, []);
 
   const handleTransferCommission = async () => {
