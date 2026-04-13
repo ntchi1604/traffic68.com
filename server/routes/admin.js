@@ -1956,6 +1956,13 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
         'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
         [tx.amount, tx.user_id, tx.wallet_type]
       );
+      // Ghi lại transaction hoàn tiền để tính số dư từ transactions luôn đúng
+      await conn.execute(
+        `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+         VALUES (?, ?, 'deposit', 'refund', ?, 'completed', ?, ?)`,
+        [tx.user_id, tx.wallet_type, tx.amount, 'REFUND-' + tx.ref_code,
+         `Hoàn tiền rút bị từ chối (${tx.ref_code})`]
+      );
     }
 
     const isCommission = tx.wallet_type === 'commission';
