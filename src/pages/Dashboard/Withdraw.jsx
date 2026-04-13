@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import usePageTitle from '../../hooks/usePageTitle';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
-import { Wallet, Building2, Bitcoin, AlertCircle, CheckCircle2, Clock, Gift, ShieldCheck, Settings } from 'lucide-react';
+import { Wallet, Building2, Bitcoin, AlertCircle, CheckCircle2, Clock, Gift, ShieldCheck, Settings, RefreshCw } from 'lucide-react';
 import api from '../../lib/api';
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
@@ -16,7 +16,9 @@ export default function Withdraw() {
   const [trafficSource, setTrafficSource] = useState('');
   const [balance, setBalance] = useState(0);
   const [commission, setCommission] = useState(0);
+  const [balanceRefreshing, setBalanceRefreshing] = useState(false);
   const [withdrawals, setWithdrawals] = useState([]);
+  const balanceIntervalRef = useRef(null);
   const [wdTotal, setWdTotal] = useState(0);
   const [wdPage, setWdPage] = useState(1);
   const WD_LIMIT = 5;
@@ -37,11 +39,14 @@ export default function Withdraw() {
 
   const minWithdraw = 50000;
 
-  const fetchBalance = () => {
+  const fetchBalance = (showSpinner = false) => {
+    if (showSpinner) setBalanceRefreshing(true);
     api.get('/vuot-link/worker/balance').then(d => {
       setBalance(d.balance || 0);
       setCommission(d.commission || 0);
-    }).catch(() => { });
+    }).catch(() => { }).finally(() => {
+      if (showSpinner) setTimeout(() => setBalanceRefreshing(false), 500);
+    });
   };
 
   const fetchWithdrawals = (p = 1) => {
@@ -53,6 +58,9 @@ export default function Withdraw() {
   useEffect(() => {
     fetchBalance();
     fetchWithdrawals(1);
+    // Auto-refresh số dư mỗi 30 giây
+    balanceIntervalRef.current = setInterval(() => fetchBalance(), 30000);
+    return () => clearInterval(balanceIntervalRef.current);
 
     // Fetch withdraw method settings
     api.get('/finance/withdraw-config').then(d => {
@@ -201,7 +209,14 @@ export default function Withdraw() {
         <div className="lg:col-span-2 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="rounded-xl p-5 text-white" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-              <div className="flex items-center gap-3 mb-2"><Wallet size={20} /><span className="text-sm font-medium text-indigo-100">Ví Thu nhập</span></div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3"><Wallet size={20} /><span className="text-sm font-medium text-indigo-100">Ví Thu nhập</span></div>
+                <button onClick={() => fetchBalance(true)} title="Làm mới số dư"
+                  className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition"
+                >
+                  <RefreshCw size={13} className={balanceRefreshing ? 'animate-spin' : ''} />
+                </button>
+              </div>
               <p className="text-3xl font-black">{fmt(balance)} đ</p>
               <p className="text-xs text-indigo-200 mt-1">Tối thiểu rút: {fmt(minWithdraw)} đ</p>
             </div>

@@ -4,8 +4,8 @@ const VN_TZ = 'Asia/Ho_Chi_Minh';
  * Format number with Vietnamese style: 10.000
  */
 export function formatMoney(n) {
-  const num = Number(n) || 0;
-  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const num = Math.round(Number(n) || 0);
+  return num.toLocaleString('vi-VN');
 }
 
 /**
