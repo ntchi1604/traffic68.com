@@ -393,12 +393,13 @@ export default function LinkGateway() {
 
   // Called when shake/curve challenge passes — fetch server-side token
   const handleChallengePass = useCallback(async (shakeLog) => {
-    setShowChallenge(false);
+    // Không đóng overlay ngay — để ShakeChallenge tự đóng sau khi hiện overlay xanh
     setChallengeLoading(true);
     try {
       const headers = { 'Content-Type': 'application/json' };
       const token = localStorage.getItem('token');
       if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (!task) throw new Error('Task không còn tồn tại, vui lòng thử lại');
       const body = { _tk: task._tk };
       if (Array.isArray(shakeLog) && shakeLog.length >= 3) body.shakeLog = shakeLog;
       const res = await fetch(`${API}/task/${task.id}/challenge-passed`, {
@@ -409,6 +410,7 @@ export default function LinkGateway() {
 
       // Task hết hạn → tự động lấy task mới
       if (res.status === 410) {
+        setShowChallenge(false);
         setTask(null);
         setInputCode('');
         setHumanPassed(false);
@@ -420,12 +422,18 @@ export default function LinkGateway() {
       }
 
       if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
+      setShowChallenge(false);
       setChallengeToken(data.challengeToken);
       setHumanPassed(true);
     } catch (err) {
+      // Lỗi → đóng overlay nhưng hiện lại nút lắc để user thử lại
+      setShowChallenge(false);
       setShowError(true);
       setError('Xác minh thất bại, vui lòng thử lại: ' + (err.message || ''));
-      setTimeout(() => setShowError(false), 5000);
+      setTimeout(() => {
+        setShowError(false);
+        setShowChallenge(true); // Tự mở lại challenge để user thử lại
+      }, 3000);
     } finally {
       setChallengeLoading(false);
     }
@@ -1024,6 +1032,13 @@ function ShakeChallenge({ onPass, onClose }) {
     const cleanup = requestAndListen();
     return () => { cleanup.then && cleanup.then(fn => fn && fn()); };
   }, [onPass]);
+
+  // Khi passed=true: tự động đóng overlay sau 1.2s (sau khi user thấy màn xanh xác nhận)
+  useEffect(() => {
+    if (!passed) return;
+    const t = setTimeout(() => onClose(), 1200);
+    return () => clearTimeout(t);
+  }, [passed, onClose]);
 
   return (
     <div style={{
