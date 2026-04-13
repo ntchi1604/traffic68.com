@@ -633,9 +633,11 @@ async function _handleTaskPost(req, res) {
     [ip, cleanVidCancel, cleanVidCancel]
   ).catch(() => { });
 
+  // is_over_limit: view vượt giới hạn IP nhưng được phép qua bonus_mode
+  const isOverLimit = (workerBonusMode && ipLimitReached) ? 1 : 0;
   const [result] = await pool.execute(
-    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id, ref_worker_id, security_detail) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?, ?)`,
-    [campaign.id, req.userId || null, selectedKeyword, selectedUrl, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId, refWorkerId, securityDetail]
+    `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id, ref_worker_id, security_detail, is_over_limit) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?, ?, ?)`,
+    [campaign.id, req.userId || null, selectedKeyword, selectedUrl, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId, refWorkerId, securityDetail, isOverLimit]
   );
 
   // ── Race-condition guard: recount sau INSERT để bắt concurrent requests ──
@@ -964,15 +966,10 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
   const campaign = campaigns[0];
 
-  // Kiểm tra worker có bonus_mode không (user-level)
-  let isBonusMode = false;
+  // workerIdForBonus: dùng cho log và commission referral
   const workerIdForBonus = task.ref_worker_id || task.worker_id;
-  if (workerIdForBonus) {
-    try {
-      const [bmUser] = await pool.execute('SELECT bonus_mode FROM users WHERE id = ?', [workerIdForBonus]);
-      isBonusMode = bmUser.length > 0 && bmUser[0].bonus_mode === 1;
-    } catch (_) { }
-  }
+  // Lưu ý: Không cần check bonus_mode ở đây nữa.
+  // "is_over_limit" đã được lưu vào task khi tạo → dùng task.is_over_limit để quyết định earning.
 
   let buyerCpc = campaign.cpc || 0;
   try {
@@ -1041,11 +1038,12 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     earning = 0;
   }
 
-  // Cho phép làm thêm (user-level): buyer VẪN bị trừ tiền bình thường, chỉ worker không được trả
-  if (isBonusMode && !isBotUser) {
-    console.log(`[VuotLink] CHO PHEP LAM THEM: worker=${workerIdForBonus}, task=${task.id} — buyer CHARGED normally, worker NOT paid, view COUNTED`);
-    earning = 0; // Worker không được trả
-    // buyerCpc giữ nguyên — buyer vẫn bị trừ tiền
+  // View vượt giới hạn (bonus mode): buyer VỬɔN bị trừ tiền bình thường, chỉ worker không được trả
+  // View hợp lệ (is_over_limit = 0): cộng tiền bình thường dù worker có bonus_mode
+  if (task.is_over_limit === 1 && !isBotUser) {
+    console.log(`[VuotLink] OVER LIMIT VIEW: worker=${workerIdForBonus}, task=${task.id} — buyer CHARGED normally, worker NOT paid (bonus mode over-limit)`);
+    earning = 0; // Worker không được trả vì view vượt giới hạn
+    // buyerCpc giữ nguyên — buyer vọn bị trừ tiền
   }
 
   await pool.execute(

@@ -161,6 +161,7 @@ CREATE TABLE IF NOT EXISTS vuot_link_tasks (
   code_given   VARCHAR(100) DEFAULT '',
   expires_at   DATETIME DEFAULT NULL,
   ip_country   VARCHAR(10)  DEFAULT NULL,
+  is_over_limit TINYINT(1)  NOT NULL DEFAULT 0,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_visitor_status    (visitor_id, status, created_at),
   KEY idx_ip_status         (ip_address, status, created_at),

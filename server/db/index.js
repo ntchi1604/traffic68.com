@@ -76,15 +76,18 @@ async function initDb() {
   // Auto-migrations for existing databases
   try {
     const p2 = getPool();
-    await p2.execute("ALTER TABLE notifications ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'all' AFTER type").catch(() => {});
-    await p2.execute("ALTER TABLE campaigns ADD COLUMN keyword_config TEXT DEFAULT NULL AFTER keyword").catch(() => {});
-    await p2.execute("ALTER TABLE campaigns MODIFY COLUMN keyword TEXT DEFAULT NULL").catch(() => {});
-    await p2.execute("ALTER TABLE campaigns ADD COLUMN priority TINYINT DEFAULT NULL AFTER discount_applied").catch(() => {});
-    await p2.execute("ALTER TABLE campaigns ADD COLUMN bonus_mode TINYINT(1) NOT NULL DEFAULT 0 AFTER priority").catch(() => {});
-    await p2.execute("ALTER TABLE users ADD COLUMN withdraw_wallet JSON DEFAULT NULL").catch(() => {});
-    await p2.execute("ALTER TABLE users ADD COLUMN bonus_mode TINYINT(1) NOT NULL DEFAULT 1").catch(() => {});
+    await p2.execute("ALTER TABLE notifications ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'all' AFTER type").catch(() => { });
+    await p2.execute("ALTER TABLE campaigns ADD COLUMN keyword_config TEXT DEFAULT NULL AFTER keyword").catch(() => { });
+    await p2.execute("ALTER TABLE campaigns MODIFY COLUMN keyword TEXT DEFAULT NULL").catch(() => { });
+    await p2.execute("ALTER TABLE campaigns ADD COLUMN priority TINYINT DEFAULT NULL AFTER discount_applied").catch(() => { });
+    await p2.execute("ALTER TABLE campaigns ADD COLUMN bonus_mode TINYINT(1) NOT NULL DEFAULT 0 AFTER priority").catch(() => { });
+    await p2.execute("ALTER TABLE users ADD COLUMN withdraw_wallet JSON DEFAULT NULL").catch(() => { });
+    await p2.execute("ALTER TABLE users ADD COLUMN bonus_mode TINYINT(1) NOT NULL DEFAULT 1").catch(() => { });
+    // is_over_limit: đánh dấu view được phép qua bonus_mode (vượt giới hạn IP)
+    // Nếu = 1: worker không được cộng tiền; Nếu = 0: view hợp lệ, cộng tiền bình thường
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD COLUMN is_over_limit TINYINT(1) NOT NULL DEFAULT 0").catch(() => { });
     // NOTE: Không chạy UPDATE bonus_mode = 1 ở đây vì sẽ reset cài đặt thủ công của admin mỗi lần deploy
-  } catch (_) {}
+  } catch (_) { };
 }
 
 
