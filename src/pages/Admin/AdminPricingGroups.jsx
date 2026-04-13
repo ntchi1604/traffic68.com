@@ -430,7 +430,9 @@ function GroupCard({ group, allGroups, onRefresh, onEdit, onDelete, buyerTiers }
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
-                                {items.map(tier => {
+                                {[...items]
+                                  .sort((a, b) => parseInt(a.duration) - parseInt(b.duration))
+                                  .map(tier => {
                                   const v1 = getRate(tt, tier.duration, 'v1_price');
                                   const v2 = getRate(tt, tier.duration, 'v2_price');
                                   const changed = editedRates[`${tt}_${tier.duration}`];

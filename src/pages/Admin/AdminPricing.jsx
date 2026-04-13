@@ -227,7 +227,9 @@ export default function AdminPricing() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {items.map(tier => {
+                      {[...items]
+                        .sort((a, b) => parseInt(a.duration) - parseInt(b.duration))
+                        .map(tier => {
                         const v1 = getVal(tier, 'v1_price');
                         const v2 = getVal(tier, 'v2_price');
                         const isChanged = editedTiers[tier.id] !== undefined;

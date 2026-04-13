@@ -2667,7 +2667,10 @@ router.get('/pricing-groups/:id/rates', async (req, res) => {
   const pool = getPool();
   try {
     await ensurePgTables(pool);
-    const [rates] = await pool.execute('SELECT * FROM worker_pricing_group_rates WHERE group_id = ?', [req.params.id]);
+    const [rates] = await pool.execute(
+      'SELECT * FROM worker_pricing_group_rates WHERE group_id = ? ORDER BY traffic_type, CAST(REPLACE(duration,\'s\',\'\') AS UNSIGNED)',
+      [req.params.id]
+    );
     res.json({ rates });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
