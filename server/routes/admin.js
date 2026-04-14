@@ -212,23 +212,41 @@ router.get('/finance/top-workers', async (req, res) => {
     const pool = getPool();
     const month = req.query.month || new Date().toISOString().slice(0, 7);
     const limit = Math.min(Number(req.query.limit) || 10, 50);
+
+    // Dùng UNION ALL để gộp cả 2 nguồn earning của worker:
+    //   1. Task trực tiếp: worker_id = u.id (không qua gateway link)
+    //   2. Task qua gateway link: worker_link_id → worker_links.worker_id = u.id
+    // Giống logic trong /worker/stats (wlCondition = worker_id OR worker_link_id IN ...)
     const [rows] = await pool.execute(
       `SELECT u.id, u.name, u.email,
               COALESCE(we.balance, 0) as current_balance,
-              COALESCE(SUM(vt.earning), 0) as month_earning,
+              COALESCE(SUM(combined.earning), 0) as month_earning,
               COUNT(*) as month_tasks
-       FROM vuot_link_tasks vt
-       JOIN users u ON u.id = vt.worker_id
+       FROM (
+         SELECT worker_id as uid, earning
+         FROM vuot_link_tasks
+         WHERE worker_link_id IS NULL AND worker_id IS NOT NULL
+           AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
+           AND DATE_FORMAT(completed_at, '%Y-%m') = ?
+         UNION ALL
+         SELECT wl.worker_id as uid, vt.earning
+         FROM vuot_link_tasks vt
+         JOIN worker_links wl ON wl.id = vt.worker_link_id
+         WHERE vt.worker_link_id IS NOT NULL
+           AND vt.status = 'completed' AND vt.bot_detected = 0 AND vt.is_over_limit = 0
+           AND DATE_FORMAT(vt.completed_at, '%Y-%m') = ?
+       ) combined
+       JOIN users u ON u.id = combined.uid
        LEFT JOIN wallets we ON we.user_id = u.id AND we.type = 'earning'
-       WHERE vt.status = 'completed' AND vt.bot_detected = 0 AND vt.is_over_limit = 0
-         AND DATE_FORMAT(vt.completed_at, '%Y-%m') = ?
        GROUP BY u.id, u.name, u.email, we.balance
+       HAVING month_earning > 0
        ORDER BY month_earning DESC
        LIMIT ?`,
-      [month, limit]
+      [month, month, limit]
     );
     res.json({ month, data: rows.map(r => ({ ...r, month_earning: Number(r.month_earning), current_balance: Number(r.current_balance), month_tasks: Number(r.month_tasks) })) });
   } catch (err) {
+
     res.status(500).json({ error: err.message });
   }
 });
