@@ -142,10 +142,10 @@ router.get('/finance/summary', async (req, res) => {
     res.json({
       // ── Số dư hiện tại trong hệ thống ──
       currentBalances: {
-        main:       Number(balMain[0].total),       // Ví Traffic (buyer)
-        earning:    Number(balEarning[0].total),    // Ví Thu nhập (worker)
+        main: Number(balMain[0].total),       // Ví Traffic (buyer)
+        earning: Number(balEarning[0].total),    // Ví Thu nhập (worker)
         commission: Number(balCommission[0].total), // Ví Hoa hồng (tất cả)
-        total:      Number(balMain[0].total) + Number(balEarning[0].total) + Number(balCommission[0].total),
+        total: Number(balMain[0].total) + Number(balEarning[0].total) + Number(balCommission[0].total),
       },
       // ── Tổng chi: tiền đã ra khỏi ví buyer sang worker ──
       totalSpent: {
@@ -153,24 +153,24 @@ router.get('/finance/summary', async (req, res) => {
       },
       // ── Tổng rút: tiền đã ra khỏi hệ thống ──
       totalWithdrawn: {
-        worker:     Number(totalWithdrawWorker[0].total),     // Worker rút ví earning
+        worker: Number(totalWithdrawWorker[0].total),     // Worker rút ví earning
         commission: Number(totalWithdrawCommission[0].total), // Buyer/worker rút ví commission
-        total:      Number(totalWithdrawWorker[0].total) + Number(totalWithdrawCommission[0].total),
+        total: Number(totalWithdrawWorker[0].total) + Number(totalWithdrawCommission[0].total),
       },
       // ── Đang chờ xử lý (chưa ra khỏi hệ thống, ví đã bị trừ) ──
       pending: {
-        withdrawWorker:     { amount: Number(pendingWithdrawWorker[0].total),     count: Number(pendingWithdrawWorker[0].cnt) },
+        withdrawWorker: { amount: Number(pendingWithdrawWorker[0].total), count: Number(pendingWithdrawWorker[0].cnt) },
         withdrawCommission: { amount: Number(pendingWithdrawCommission[0].total), count: Number(pendingWithdrawCommission[0].cnt) },
-        deposit:            { amount: Number(pendingDeposit[0].total),            count: Number(pendingDeposit[0].cnt) },
+        deposit: { amount: Number(pendingDeposit[0].total), count: Number(pendingDeposit[0].cnt) },
       },
       // ── Tổng nạp vào hệ thống (đã duyệt) ──
       totalDeposited: Number(totalDeposit[0].total),
       // ── Tổng worker đã kiếm + hoa hồng đã trả ──
-      totalWorkerEarned:   Number(totalWorkerEarned[0].total),
+      totalWorkerEarned: Number(totalWorkerEarned[0].total),
       totalCommissionPaid: Number(totalCommissionPaid[0].total),
       // ── Breakdown theo loại user ──
       breakdown: {
-        buyer:  { count: Number(userCounts.buyer_count),  mainBalance: Number(userCounts.buyer_main_balance) },
+        buyer: { count: Number(userCounts.buyer_count), mainBalance: Number(userCounts.buyer_main_balance) },
         worker: { count: Number(userCounts.worker_count), earningBalance: Number(userCounts.worker_earning_balance) },
       },
     });
@@ -180,10 +180,98 @@ router.get('/finance/summary', async (req, res) => {
   }
 });
 
+// ── Top 10 Buyers nạp nhiều nhất trong tháng ──
+router.get('/finance/top-buyers', async (req, res) => {
+  try {
+    const pool = getPool();
+    const month = req.query.month || new Date().toISOString().slice(0, 7); // YYYY-MM
+    const limit = Math.min(Number(req.query.limit) || 10, 50);
+    const [rows] = await pool.execute(
+      `SELECT u.id, u.name, u.email,
+              COALESCE(w.balance, 0) as current_balance,
+              COALESCE(SUM(t.amount), 0) as month_deposit
+       FROM transactions t
+       JOIN users u ON u.id = t.user_id
+       LEFT JOIN wallets w ON w.user_id = u.id AND w.type = 'main'
+       WHERE t.wallet_type = 'main' AND t.type = 'deposit' AND t.status = 'completed'
+         AND DATE_FORMAT(t.created_at, '%Y-%m') = ?
+       GROUP BY u.id, u.name, u.email, w.balance
+       ORDER BY month_deposit DESC
+       LIMIT ?`,
+      [month, limit]
+    );
+    res.json({ month, data: rows.map(r => ({ ...r, month_deposit: Number(r.month_deposit), current_balance: Number(r.current_balance) })) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
+// ── Top 10 Workers doanh thu cao nhất trong tháng ──
+router.get('/finance/top-workers', async (req, res) => {
+  try {
+    const pool = getPool();
+    const month = req.query.month || new Date().toISOString().slice(0, 7);
+    const limit = Math.min(Number(req.query.limit) || 10, 50);
+    const [rows] = await pool.execute(
+      `SELECT u.id, u.name, u.email,
+              COALESCE(we.balance, 0) as current_balance,
+              COALESCE(SUM(vt.earning), 0) as month_earning,
+              COUNT(*) as month_tasks
+       FROM vuot_link_tasks vt
+       JOIN users u ON u.id = vt.worker_id
+       LEFT JOIN wallets we ON we.user_id = u.id AND we.type = 'earning'
+       WHERE vt.status = 'completed' AND vt.bot_detected = 0 AND vt.is_over_limit = 0
+         AND DATE_FORMAT(vt.completed_at, '%Y-%m') = ?
+       GROUP BY u.id, u.name, u.email, we.balance
+       ORDER BY month_earning DESC
+       LIMIT ?`,
+      [month, limit]
+    );
+    res.json({ month, data: rows.map(r => ({ ...r, month_earning: Number(r.month_earning), current_balance: Number(r.current_balance), month_tasks: Number(r.month_tasks) })) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
+// ── Danh sách user sắp xếp theo số dư ví từ cao đến thấp ──
+router.get('/finance/wallet-ranking', async (req, res) => {
+  try {
+    const pool = getPool();
+    const walletType = ['main', 'earning', 'commission'].includes(req.query.type) ? req.query.type : 'main';
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const [rows] = await pool.execute(
+      `SELECT u.id, u.name, u.email, u.status,
+              w.balance,
+              COALESCE(td.total_deposit, 0) as total_deposit,
+              COALESCE(ts.total_spent, 0) as total_spent
+       FROM wallets w
+       JOIN users u ON u.id = w.user_id
+       LEFT JOIN (
+         SELECT user_id, SUM(amount) as total_deposit
+         FROM transactions WHERE wallet_type = ? AND type = 'deposit' AND status = 'completed'
+         GROUP BY user_id
+       ) td ON td.user_id = u.id
+       LEFT JOIN (
+         SELECT user_id, SUM(amount) as total_spent
+         FROM transactions WHERE wallet_type = ? AND type IN ('campaign','withdraw') AND status = 'completed'
+         GROUP BY user_id
+       ) ts ON ts.user_id = u.id
+       WHERE w.type = ? AND w.balance > 0
+       ORDER BY w.balance DESC
+       LIMIT ?`,
+      [walletType, walletType, walletType, limit]
+    );
+    res.json({
+      walletType,
+      data: rows.map(r => ({ ...r, balance: Number(r.balance), total_deposit: Number(r.total_deposit), total_spent: Number(r.total_spent) })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── Source Approval: stats ──
+
 router.get('/source-approval/stats', async (req, res) => {
   try {
     const pool = getPool();
@@ -2092,7 +2180,7 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
         `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
          VALUES (?, ?, 'deposit', 'refund', ?, 'completed', ?, ?)`,
         [tx.user_id, tx.wallet_type, tx.amount, 'REFUND-' + tx.ref_code,
-         `Hoàn tiền rút bị từ chối (${tx.ref_code})`]
+        `Hoàn tiền rút bị từ chối (${tx.ref_code})`]
       );
     }
 
@@ -2101,14 +2189,14 @@ router.put('/worker-withdrawals/:id', async (req, res) => {
     await conn.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
       [tx.user_id,
-        action === 'approve'
-          ? (isCommission ? 'Rút hoa hồng thành công' : 'Rút tiền thành công')
-          : (isCommission ? 'Rút hoa hồng bị từ chối' : 'Rút tiền bị từ chối'),
-        action === 'approve'
-          ? `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) đã được duyệt.`
-          : `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) bị từ chối. Số tiền đã hoàn lại ví.`,
-        action === 'approve' ? 'success' : 'warning',
-        isCommission ? 'buyer' : 'worker',
+      action === 'approve'
+        ? (isCommission ? 'Rút hoa hồng thành công' : 'Rút tiền thành công')
+        : (isCommission ? 'Rút hoa hồng bị từ chối' : 'Rút tiền bị từ chối'),
+      action === 'approve'
+        ? `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) đã được duyệt.`
+        : `Yêu cầu rút ${fmtAmount} đ (${tx.ref_code}) bị từ chối. Số tiền đã hoàn lại ví.`,
+      action === 'approve' ? 'success' : 'warning',
+      isCommission ? 'buyer' : 'worker',
       ]
     );
 
