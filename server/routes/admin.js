@@ -780,20 +780,42 @@ router.get('/campaigns/:id/detailed-stats', async (req, res) => {
   try {
     const pool = getPool();
     const [data] = await pool.execute(
-      `SELECT DATE(vlt.created_at) as date, vlt.keyword, c.daily_views,
+      `SELECT DATE(vlt.created_at) as date, vlt.keyword, c.daily_views as campaign_daily_views,
+              c.keyword_config,
               COUNT(*) as total,
               SUM(CASE WHEN vlt.status = 'completed' AND vlt.bot_detected = 0 THEN 1 ELSE 0 END) as completed,
               COALESCE(SUM(vlt.earning), 0) as cost
        FROM vuot_link_tasks vlt
        JOIN campaigns c ON c.id = vlt.campaign_id
        WHERE vlt.campaign_id = ?
-       GROUP BY date, c.daily_views, vlt.keyword
+       GROUP BY date, c.daily_views, c.keyword_config, vlt.keyword
        ORDER BY date DESC, completed DESC`,
       [req.params.id]
     );
-    const safeData = data.map(r => ({
-      ...r, date: localDateStr(new Date(r.date))
-    }));
+
+    // — Tính per-keyword daily_views từ keyword_config —
+    const safeData = data.map(r => {
+      let kwDailyViews = Number(r.campaign_daily_views) || 0;
+      try {
+        const cfg = r.keyword_config ? JSON.parse(r.keyword_config) : null;
+        if (Array.isArray(cfg) && cfg.length > 0) {
+          const kwEntry = cfg.find(k => k.keyword === r.keyword);
+          if (kwEntry && Number(kwEntry.daily_views) > 0) {
+            kwDailyViews = Number(kwEntry.daily_views);
+          } else if (kwEntry && !(Number(kwEntry.daily_views) > 0)) {
+            const explicit = cfg.filter(k => Number(k.daily_views) > 0);
+            const totalExplicit = explicit.reduce((s, k) => s + Number(k.daily_views), 0);
+            const unsetCount = cfg.filter(k => !(Number(k.daily_views) > 0)).length;
+            const remaining = Math.max(0, Number(r.campaign_daily_views) - totalExplicit);
+            kwDailyViews = unsetCount > 0 && Number(r.campaign_daily_views) > 0
+              ? Math.floor(remaining / unsetCount) : 0;
+          }
+        }
+      } catch (_) { /* fallback to campaign_daily_views */ }
+
+      const { keyword_config, campaign_daily_views, ...rest } = r;
+      return { ...rest, date: localDateStr(new Date(r.date)), daily_views: kwDailyViews };
+    });
     res.json({ detailed: safeData });
   } catch (err) {
     res.status(500).json({ error: err.message });
