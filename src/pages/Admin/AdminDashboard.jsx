@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Users, Megaphone, TrendingUp, Wallet, LifeBuoy, UserPlus, Play, Clock, Calendar, ArrowUpRight } from 'lucide-react';
+import { Users, Megaphone, TrendingUp, Wallet, LifeBuoy, UserPlus, Play, Clock, Calendar, ArrowUpRight, ArrowDownRight, Banknote, PiggyBank, ShoppingCart, CreditCard } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../../lib/api';
 import { formatMoney as fmt, fmtDateTime } from '../../lib/format';
@@ -20,9 +20,153 @@ const TX_TYPE_LABEL = {
   commission: 'Hoa hồng', referral: 'Giới thiệu', earning: 'Thu nhập',
 };
 
+function FinanceSummary({ fs }) {
+  if (!fs) return null;
+  const cards = [
+    {
+      label: 'Tổng số dư hệ thống',
+      sub: 'Tất cả ví (main + earning + commission)',
+      value: fs.currentBalances?.total ?? 0,
+      icon: PiggyBank,
+      color: '#6366f1',
+      bg: '#eef2ff',
+      border: '#c7d2fe',
+      format: true,
+    },
+    {
+      label: 'Ví Traffic (Buyer)',
+      sub: `${fs.breakdown?.buyer?.count ?? 0} buyer`,
+      value: fs.currentBalances?.main ?? 0,
+      icon: Wallet,
+      color: '#0ea5e9',
+      bg: '#f0f9ff',
+      border: '#bae6fd',
+      format: true,
+    },
+    {
+      label: 'Ví Thu nhập (Worker)',
+      sub: `${fs.breakdown?.worker?.count ?? 0} worker`,
+      value: fs.currentBalances?.earning ?? 0,
+      icon: Banknote,
+      color: '#10b981',
+      bg: '#ecfdf5',
+      border: '#a7f3d0',
+      format: true,
+    },
+    {
+      label: 'Ví Hoa hồng',
+      sub: 'Referral cộng vào',
+      value: fs.currentBalances?.commission ?? 0,
+      icon: TrendingUp,
+      color: '#f59e0b',
+      bg: '#fffbeb',
+      border: '#fde68a',
+      format: true,
+    },
+    {
+      label: 'Tổng buyer đã chi',
+      sub: 'Chi phí lượt xem campaign',
+      value: fs.totalSpent?.campaign ?? 0,
+      icon: ShoppingCart,
+      color: '#ef4444',
+      bg: '#fef2f2',
+      border: '#fecaca',
+      format: true,
+    },
+    {
+      label: 'Tổng đã rút',
+      sub: `Worker ${fmt(fs.totalWithdrawn?.worker ?? 0)} + HH ${fmt(fs.totalWithdrawn?.commission ?? 0)}`,
+      value: fs.totalWithdrawn?.total ?? 0,
+      icon: ArrowDownRight,
+      color: '#ec4899',
+      bg: '#fdf2f8',
+      border: '#fbcfe8',
+      format: true,
+    },
+    {
+      label: 'Chờ duyệt rút (Worker)',
+      sub: `${fs.pending?.withdrawWorker?.count ?? 0} lệnh đang chờ`,
+      value: fs.pending?.withdrawWorker?.amount ?? 0,
+      icon: Clock,
+      color: '#f97316',
+      bg: '#fff7ed',
+      border: '#fed7aa',
+      format: true,
+      badge: fs.pending?.withdrawWorker?.count > 0,
+    },
+    {
+      label: 'Chờ duyệt nạp (Buyer)',
+      sub: `${fs.pending?.deposit?.count ?? 0} đơn đang chờ`,
+      value: fs.pending?.deposit?.amount ?? 0,
+      icon: CreditCard,
+      color: '#8b5cf6',
+      bg: '#f5f3ff',
+      border: '#ddd6fe',
+      format: true,
+      badge: fs.pending?.deposit?.count > 0,
+    },
+  ];
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-purple-50/50">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
+            <PiggyBank size={14} className="text-white" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-800">Tổng hợp tài chính hệ thống</h3>
+            <p className="text-[10px] text-slate-400 font-medium">Số dư thực tế trong tất cả ví người dùng</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {cards.map((c) => {
+          const Icon = c.icon;
+          return (
+            <div key={c.label}
+              className="relative rounded-xl border p-3.5 hover:shadow-md transition-all duration-200 group"
+              style={{ borderColor: c.border, background: c.bg }}>
+              <div className="flex items-start justify-between mb-2">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: `${c.color}18` }}>
+                  <Icon size={15} style={{ color: c.color }} />
+                </div>
+                {c.badge && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 text-[8px] font-black bg-red-500 text-white rounded-full animate-pulse">
+                    PENDING
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-tight mb-1">{c.label}</p>
+              <p className="text-lg font-black tabular-nums leading-none" style={{ color: c.color }}>
+                {fmt(c.value)}<span className="text-[10px] font-bold ml-0.5 opacity-60">đ</span>
+              </p>
+              <p className="text-[9px] text-slate-400 mt-1 truncate">{c.sub}</p>
+            </div>
+          );
+        })}
+      </div>
+      {/* Footer tổng kết */}
+      <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap gap-x-6 gap-y-1">
+        {[
+          { label: 'Worker đã kiếm:', val: fs.totalWorkerEarned },
+          { label: 'Hoa hồng đã trả:', val: fs.totalCommissionPaid },
+          { label: 'Buyer đã nạp:', val: fs.totalDeposited },
+        ].map(r => (
+          <span key={r.label} className="text-[10px] text-slate-500">
+            {r.label} <strong className="text-slate-700 tabular-nums">{fmt(r.val ?? 0)} đ</strong>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   usePageTitle('Admin - Tổng quan');
   const [data, setData] = useState(null);
+  const [finSummary, setFinSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fromDate, setFromDate] = useState('');
@@ -37,9 +181,11 @@ export default function AdminDashboard() {
     Promise.all([
       api.get(`/admin/overview?${params}`),
       api.get('/admin/transactions?limit=10').catch(() => ({ transactions: [] })),
-    ]).then(([ov, tx]) => {
+      api.get('/admin/finance/summary').catch(() => null),
+    ]).then(([ov, tx, fs]) => {
       setData(ov);
       setTransactions(tx.transactions || []);
+      setFinSummary(fs);
     }).catch(console.error).finally(() => setLoading(false));
   };
 
@@ -139,6 +285,9 @@ export default function AdminDashboard() {
               );
             })}
           </div>
+
+          {/* Finance Summary Section */}
+          <FinanceSummary fs={finSummary} />
 
           {/* Revenue chart */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
