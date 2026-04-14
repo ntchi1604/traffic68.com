@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Block fingerprinting files — không có giá trị SEO, không follow
+Disallow: /creep-frame.html
+Disallow: /creep.js
+Disallow: /api/
+
+Sitemap: https://traffic68.com/sitemap.xml
