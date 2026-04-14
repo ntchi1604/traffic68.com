@@ -14,12 +14,12 @@ async function ensureWalletCredit(pool, userId, walletType, amount) {
     [amount, userId, walletType]
   );
   if (res.affectedRows === 0) {
-    // Dùng INSERT IGNORE tránh race condition tạo ví trùng
+    // Tạo ví với balance=0 trước (INSERT IGNORE tránh race condition tạo trùng)
     await pool.execute(
-      'INSERT IGNORE INTO wallets (user_id, type, balance) VALUES (?, ?, ?)',
-      [userId, walletType, amount]
+      'INSERT IGNORE INTO wallets (user_id, type, balance) VALUES (?, ?, 0)',
+      [userId, walletType]
     );
-    // Nếu INSERT IGNORE bị bỏ qua (ví vừa được tạo bởi request khác) → UPDATE lại (không điều kiện balance = 0 để tránh miss)
+    // Ví chắc chắn tồn tại sau đây (dù INSERT bị ignore vì concurrent) → cộng tiền an toàn
     await pool.execute(
       'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
       [amount, userId, walletType]
@@ -1061,12 +1061,12 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     earning = 0;
   }
 
-  // View vượt giới hạn (bonus mode): buyer VỬɔN bị trừ tiền bình thường, chỉ worker không được trả
+  // View vượt giới hạn (bonus mode): buyer VẪN bị trừ tiền bình thường, chỉ worker không được trả
   // View hợp lệ (is_over_limit = 0): cộng tiền bình thường dù worker có bonus_mode
   if (task.is_over_limit === 1 && !isBotUser) {
     console.log(`[VuotLink] OVER LIMIT VIEW: worker=${workerIdForBonus}, task=${task.id} — buyer CHARGED normally, worker NOT paid (bonus mode over-limit)`);
     earning = 0; // Worker không được trả vì view vượt giới hạn
-    // buyerCpc giữ nguyên — buyer vọn bị trừ tiền
+    // buyerCpc giữ nguyên — buyer vẫn bị trừ tiền
   }
 
   await pool.execute(
@@ -1584,12 +1584,15 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
     const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
 
     // MySQL server chạy giờ VN → completed_at đã là giờ VN, dùng DATE() trực tiếp
+    // Đồng bộ filter bot_detected=0 AND is_over_limit=0 với worker/stats để số liệu nhất quán
     const [daily] = await pool.execute(
       `SELECT DATE(completed_at) as date,
               COUNT(*) as tasks,
               COALESCE(SUM(earning), 0) as earnings
        FROM vuot_link_tasks
        WHERE ${wlCondition} AND status = 'completed'
+         AND bot_detected = 0
+         AND is_over_limit = 0
          AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
        GROUP BY DATE(completed_at)
        ORDER BY date DESC`,
@@ -1600,6 +1603,8 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
       `SELECT COALESCE(SUM(earning), 0) as total, COUNT(*) as tasks
        FROM vuot_link_tasks
        WHERE ${wlCondition} AND status = 'completed'
+         AND bot_detected = 0
+         AND is_over_limit = 0
          AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
       [...wlParams, days]
     );
@@ -1608,6 +1613,8 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
       `SELECT COALESCE(SUM(earning), 0) as earn, COUNT(*) as tasks
        FROM vuot_link_tasks
        WHERE ${wlCondition} AND status = 'completed'
+         AND bot_detected = 0
+         AND is_over_limit = 0
          AND DATE(completed_at) = CURDATE()`,
       wlParams
     );

@@ -85,6 +85,104 @@ router.get('/overview', async (req, res) => {
 });
 
 
+// ── Tổng hợp tài chính toàn hệ thống ──
+router.get('/finance/summary', async (req, res) => {
+  try {
+    const pool = getPool();
+
+    const [
+      // Số dư hiện tại trong các ví (toàn bộ user)
+      [balMain],
+      [balEarning],
+      [balCommission],
+      // Buyer: tổng nạp đã duyệt
+      [totalDeposit],
+      // Buyer: tổng chi campaign đã khấu trừ
+      [totalCampaignSpent],
+      // Worker: tổng đã rút (completed)
+      [totalWithdrawWorker],
+      // Buyer commission: tổng đã rút (completed)
+      [totalWithdrawCommission],
+      // Pending: rút chờ duyệt (đã trừ ví, chưa completed)
+      [pendingWithdrawWorker],
+      [pendingWithdrawCommission],
+      // Pending: nạp chờ duyệt (chưa vào ví)
+      [pendingDeposit],
+      // Worker: tổng đã kiếm được (earning tasks)
+      [totalWorkerEarned],
+      // Hoa hồng referral đã trả
+      [totalCommissionPaid],
+    ] = await Promise.all([
+      pool.execute(`SELECT COALESCE(SUM(balance), 0) as total FROM wallets WHERE type = 'main'`),
+      pool.execute(`SELECT COALESCE(SUM(balance), 0) as total FROM wallets WHERE type = 'earning'`),
+      pool.execute(`SELECT COALESCE(SUM(balance), 0) as total FROM wallets WHERE type = 'commission'`),
+      pool.execute(`SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_type = 'main' AND type = 'deposit' AND status = 'completed'`),
+      pool.execute(`SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_type = 'main' AND type = 'campaign' AND status = 'completed'`),
+      pool.execute(`SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_type = 'earning' AND type = 'withdraw' AND status = 'completed'`),
+      pool.execute(`SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_type = 'commission' AND type = 'withdraw' AND status = 'completed'`),
+      pool.execute(`SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as cnt FROM transactions WHERE wallet_type = 'earning' AND type = 'withdraw' AND status = 'pending'`),
+      pool.execute(`SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as cnt FROM transactions WHERE wallet_type = 'commission' AND type = 'withdraw' AND status = 'pending'`),
+      pool.execute(`SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as cnt FROM transactions WHERE type = 'deposit' AND status = 'pending'`),
+      pool.execute(`SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_type = 'earning' AND type = 'earning' AND status = 'completed'`),
+      pool.execute(`SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_type = 'commission' AND type = 'commission' AND status = 'completed'`),
+    ]);
+
+    // Số lượng user theo loại ví
+    const [[userCounts]] = await pool.execute(`
+      SELECT
+        COUNT(DISTINCT CASE WHEN u.service_type = 'traffic' THEN u.id END) as buyer_count,
+        COUNT(DISTINCT CASE WHEN u.service_type = 'shortlink' THEN u.id END) as worker_count,
+        COALESCE(SUM(CASE WHEN u.service_type = 'traffic'   THEN w.balance ELSE 0 END), 0) as buyer_main_balance,
+        COALESCE(SUM(CASE WHEN u.service_type = 'shortlink' THEN we.balance ELSE 0 END), 0) as worker_earning_balance
+      FROM users u
+      LEFT JOIN wallets w  ON w.user_id  = u.id AND w.type  = 'main'
+      LEFT JOIN wallets we ON we.user_id = u.id AND we.type = 'earning'
+    `);
+
+    res.json({
+      // ── Số dư hiện tại trong hệ thống ──
+      currentBalances: {
+        main:       Number(balMain[0].total),       // Ví Traffic (buyer)
+        earning:    Number(balEarning[0].total),    // Ví Thu nhập (worker)
+        commission: Number(balCommission[0].total), // Ví Hoa hồng (tất cả)
+        total:      Number(balMain[0].total) + Number(balEarning[0].total) + Number(balCommission[0].total),
+      },
+      // ── Tổng chi: tiền đã ra khỏi ví buyer sang worker ──
+      totalSpent: {
+        campaign: Number(totalCampaignSpent[0].total), // Buyer đã trả cho views
+      },
+      // ── Tổng rút: tiền đã ra khỏi hệ thống ──
+      totalWithdrawn: {
+        worker:     Number(totalWithdrawWorker[0].total),     // Worker rút ví earning
+        commission: Number(totalWithdrawCommission[0].total), // Buyer/worker rút ví commission
+        total:      Number(totalWithdrawWorker[0].total) + Number(totalWithdrawCommission[0].total),
+      },
+      // ── Đang chờ xử lý (chưa ra khỏi hệ thống, ví đã bị trừ) ──
+      pending: {
+        withdrawWorker:     { amount: Number(pendingWithdrawWorker[0].total),     count: Number(pendingWithdrawWorker[0].cnt) },
+        withdrawCommission: { amount: Number(pendingWithdrawCommission[0].total), count: Number(pendingWithdrawCommission[0].cnt) },
+        deposit:            { amount: Number(pendingDeposit[0].total),            count: Number(pendingDeposit[0].cnt) },
+      },
+      // ── Tổng nạp vào hệ thống (đã duyệt) ──
+      totalDeposited: Number(totalDeposit[0].total),
+      // ── Tổng worker đã kiếm + hoa hồng đã trả ──
+      totalWorkerEarned:   Number(totalWorkerEarned[0].total),
+      totalCommissionPaid: Number(totalCommissionPaid[0].total),
+      // ── Breakdown theo loại user ──
+      breakdown: {
+        buyer:  { count: Number(userCounts.buyer_count),  mainBalance: Number(userCounts.buyer_main_balance) },
+        worker: { count: Number(userCounts.worker_count), earningBalance: Number(userCounts.worker_earning_balance) },
+      },
+    });
+  } catch (err) {
+    console.error('[Admin] finance/summary error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+
 // ── Source Approval: stats ──
 router.get('/source-approval/stats', async (req, res) => {
   try {
