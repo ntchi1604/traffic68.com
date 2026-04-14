@@ -408,49 +408,17 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputCls} />
           </div>
 
-          <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-4">
-            <h4 className="text-sm font-bold text-indigo-900 mb-1">Cấu hình URL và Hình ảnh (Mặc định dùng chung)</h4>
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Mặc định: URL đích</label>
-                <input
-                  type="text"
-                  placeholder="https://example.com"
-                  value={urls[0] || ''}
-                  onChange={e => updateItem(setUrls, 0, e.target.value)}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Mặc định: Hình ảnh</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Link ảnh hoặc Dán ảnh (Ctrl+V)"
-                    value={imageUrls[0] || ''}
-                    onChange={e => updateItem(setImageUrls, 0, e.target.value)}
-                    onPaste={async e => {
-                      const items = e.clipboardData?.items;
-                      if (!items) return;
-                      for (let j = 0; j < items.length; j++) {
-                        const item = items[j];
-                        if (item.type.startsWith('image/')) {
-                          e.preventDefault();
-                          const file = item.getAsFile();
-                          if (file) handleImageUpload({ target: { files: [file] } }, 0);
-                          break;
-                        }
-                      }
-                    }}
-                    className={inputCls}
-                  />
-                  <label className="flex items-center justify-center p-2 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-slate-100 transition flex-shrink-0">
-                    {uploadingIdx === 0 ? <span className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin" /> : <Upload size={14} className="text-slate-500" />}
-                    <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 0)} />
-                  </label>
-                </div>
-              </div>
-            </div>
+          {/* URL đích mặc định */}
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích</label>
+            <input
+              type="text"
+              placeholder="https://example.com"
+              value={urls[0] || ''}
+              onChange={e => updateItem(setUrls, 0, e.target.value)}
+              className={inputCls}
+            />
+            <p className="mt-1 text-xs text-slate-400">URL chung cho tất cả từ khoá. Bật “Cài Link/Ảnh riêng” để đặt riêng cho từng từ khoá.</p>
           </div>
 
           {/* Keywords */}
@@ -583,23 +551,25 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
 
 
-          {/* Daily views + Total views */}
+          {/* Daily views — ẩn khi đã bật view/ngày riêng cho từng từ khóa */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-semibold text-slate-600 mb-1 block">View / ngày</label>
-              <div className="relative">
-                <input
-                  type="number" min="0"
-                  value={dailyViews}
-                  onChange={e => setDailyViews(Number(e.target.value) || 0)}
-                  className={inputCls + ' pr-16'}
-                  placeholder="0 = không giới hạn"
-                />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-medium pointer-events-none">/ngày</span>
+            {!useKeywordDailyViews && (
+              <div>
+                <label className="text-sm font-semibold text-slate-600 mb-1 block">View / ngày</label>
+                <div className="relative">
+                  <input
+                    type="number" min="0"
+                    value={dailyViews}
+                    onChange={e => setDailyViews(Number(e.target.value) || 0)}
+                    className={inputCls + ' pr-16'}
+                    placeholder="0 = không giới hạn"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-medium pointer-events-none">/ngày</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-400">0 = không giới hạn</p>
               </div>
-              <p className="mt-1 text-xs text-slate-400">0 = không giới hạn</p>
-            </div>
-            <div>
+            )}
+            <div className={useKeywordDailyViews ? 'col-span-2' : ''}>
               <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view mua</label>
               {useKeywordViews ? (
                 <div className="relative">
@@ -621,23 +591,28 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-slate-700">Chia view theo giờ</p>
-              <p className="text-xs text-slate-400">
-                Phân bố đều view trong 24h ({allocatedDailyViews > 0
-                  ? Math.ceil(allocatedDailyViews / 24)
-                  : Math.ceil(totalViews / 24)}/giờ)
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setViewByHour(!viewByHour)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${viewByHour ? 'bg-indigo-500' : 'bg-slate-300'}`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${viewByHour ? 'translate-x-5' : ''}`} />
-            </button>
-          </div>
+          {/* Phân phối theo giờ: ẩn khi không có daily_views hợp lệ */}
+          {(() => {
+            const effectiveDaily = useKeywordDailyViews ? allocatedDailyViews : Number(dailyViews);
+            if (effectiveDaily <= 0) return null;
+            return (
+              <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Chia view theo giờ</p>
+                  <p className="text-xs text-slate-400">
+                    Phân bố đều view trong 24h ({Math.ceil(effectiveDaily / 24)}/giờ)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewByHour(!viewByHour)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${viewByHour ? 'bg-indigo-500' : 'bg-slate-300'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${viewByHour ? 'translate-x-5' : ''}`} />
+                </button>
+              </div>
+            );
+          })()}
 
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Version</label>

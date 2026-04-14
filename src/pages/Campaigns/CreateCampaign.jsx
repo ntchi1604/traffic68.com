@@ -639,14 +639,18 @@ export default function CreateCampaign() {
                 }
               </div>
 
-              {/* View by hour */}
-              <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-                <Toggle checked={form.viewByHour} onChange={() => set('viewByHour', !form.viewByHour)} />
-                <div>
-                  <p className="text-sm font-semibold text-slate-700">Phân phối theo giờ</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Chia đều view trong 24h mỗi ngày</p>
+              {/* Phân phối theo giờ: chỉ hiện khi có daily_views hợp lệ (= 0 → CEIL(0/24)=0, hourly check vô nghĩa) */}
+              {!form.useKeywordViews && (
+                isDirect ? form.directDailyViews > 0 : allocatedDailyViews > 0
+              ) && (
+                <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                  <Toggle checked={form.viewByHour} onChange={() => set('viewByHour', !form.viewByHour)} />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">Phân phối theo giờ</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Chia đều view trong 24h mỗi ngày — cần có giới hạn view/ngày</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </SectionCard>
 
             {/* ── 2. URL đích (Direct) hoặc Từ khóa & URL ── */}
@@ -693,50 +697,15 @@ export default function CreateCampaign() {
             ) : (
               /* ── Google Search / Social: cần từ khóa & URL ── */
               <SectionCard icon={Globe} iconBg="bg-amber-50" iconColor="text-amber-600" title="Từ khóa & Địa chỉ web">
-                {/* Default Target Configs */}
-                <div className="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Globe size={16} className="text-indigo-600" />
-                    <h4 className="text-sm font-bold text-indigo-900">Cấu hình URL và Hình ảnh (Mặc định dùng chung)</h4>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label hint="Sử dụng làm URL đích nếu từ khóa không có cấu hình URL riêng">Mặc định: URL đích</Label>
-                      <TextInput
-                        placeholder="https://example.com"
-                        value={form.urls[0]}
-                        onChange={e => updateArrayItem('urls', 0, e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label hint="Sử dụng làm Hình ảnh nếu từ khóa không cài ảnh riêng">Mặc định: Hình ảnh</Label>
-                      <div className="flex gap-2">
-                        <TextInput
-                          placeholder="Link ảnh hoặc Dán ảnh (Ctrl+V)"
-                          value={form.imageUrls[0]}
-                          onChange={e => updateArrayItem('imageUrls', 0, e.target.value)}
-                          onPaste={async e => {
-                            const items = e.clipboardData?.items;
-                            if (!items) return;
-                            for (let i = 0; i < items.length; i++) {
-                              const item = items[i];
-                              if (item.type.startsWith('image/')) {
-                                e.preventDefault();
-                                const file = item.getAsFile();
-                                if (file) handleImageUpload({ target: { files: [file] } }, 0);
-                                break;
-                              }
-                            }
-                          }}
-                          className="flex-1"
-                        />
-                        <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
-                          {uploadingIdx === 0 ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
-                          <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 0)} />
-                        </label>
-                      </div>
-                    </div>
-                  </div>
+                {/* URL đích mặc định dùng chung */}
+                <div className="mb-4">
+                  <Label required hint="URL đích visitor sẽ truy cập. Nếu từ khoá có URL riêng thì URL riêng sẽ được ưu tiên.">URL đích</Label>
+                  <TextInput
+                    placeholder="https://example.com"
+                    value={form.urls[0]}
+                    onChange={e => updateArrayItem('urls', 0, e.target.value)}
+                  />
+                  <Hint>URL chung cho tất cả từ khoá. Bật "Cài Link/Ảnh riêng" để đặt URL/Ảnh riêng cho từng từ khoá.</Hint>
                 </div>
 
                 {/* Keywords */}

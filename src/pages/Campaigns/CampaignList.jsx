@@ -234,7 +234,7 @@ function ToggleSwitch({ checked, onChange }) {
 /* ── Edit Modal ── */
 function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
-  const [dailyViews, setDailyViews] = useState(campaign.daily_views || 500);
+  const [dailyViews, setDailyViews] = useState(campaign.daily_views != null ? Number(campaign.daily_views) : 0);
   const [totalViews, setTotalViews] = useState(Number(campaign.total_views) || 1000);
 
   const [useKeywordViews, setUseKeywordViews] = useState(() => {
@@ -367,8 +367,14 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         image: k.image || '',
       }));
 
+      // Tính đúng dailyViews gửi lên: khi bật per-keyword daily limit, tổng daily = sum các keyword
+      const finalDailyViews = useKeywordViews
+        ? keywordConfig.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)
+        : Number(dailyViews) || 0;
+
       await api.put(`/campaigns/${campaign.id}`, {
-        dailyViews:     Number(dailyViews),
+        dailyViews:     finalDailyViews,
+        viewByHour:     0, // buyer không edit view_by_hour trong modal này
         keyword:        JSON.stringify(validKws.map(k => k.keyword)),
         keyword_config: JSON.stringify(keywordConfig),
         totalViews:     computedTotal,
@@ -409,52 +415,17 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
           {/* Keywords with per-keyword traffic config */}
           <div>
-            <div className="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Globe size={16} className="text-indigo-600" />
-                <h4 className="text-sm font-bold text-indigo-900">Cấu hình URL và Hình ảnh (Mặc định dùng chung)</h4>
-              </div>
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Mặc định: URL đích</label>
-                  <input
-                    type="text"
-                    placeholder="https://example.com"
-                    value={urls[0] || ''}
-                    onChange={e => updateUrlItem(0, e.target.value)}
-                    className={input}
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Mặc định: Hình ảnh</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Link ảnh hoặc Dán ảnh (Ctrl+V)"
-                      value={imageUrls[0] || ''}
-                      onChange={e => updateImgItem(0, e.target.value)}
-                      onPaste={async e => {
-                        const items = e.clipboardData?.items;
-                        if (!items) return;
-                        for (let j = 0; j < items.length; j++) {
-                          const item = items[j];
-                          if (item.type.startsWith('image/')) {
-                            e.preventDefault();
-                            const file = item.getAsFile();
-                            if (file) handleImageUpload({ target: { files: [file] } }, 0);
-                            break;
-                          }
-                        }
-                      }}
-                      className={input + " flex-1"}
-                    />
-                    <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
-                      {uploadingIdx === 0 ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
-                      <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 0)} />
-                    </label>
-                  </div>
-                </div>
-              </div>
+            {/* URL đích mặc định */}
+            <div className="mb-4">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">URL đích</label>
+              <input
+                type="text"
+                placeholder="https://example.com"
+                value={urls[0] || ''}
+                onChange={e => updateUrlItem(0, e.target.value)}
+                className={input}
+              />
+              <p className="mt-1 text-xs text-slate-400">URL chung cho tất cả từ khoá. Bật “Cài Link/Ảnh riêng” để đặt URL/ảnh riêng cho từng từ khoá.</p>
             </div>
 
             <div className="flex items-center justify-between mb-2">
@@ -581,17 +552,19 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           </div>
 
 
-          {/* Daily views + Total views */}
+          {/* Daily views — ẩn khi đã bật view/ngày riêng cho từng từ khóa */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Số view / ngày</label>
-              <div className="relative">
-                <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={input + ' pr-24'} />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view/ngày</span>
+            {!useKeywordViews && (
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Số view / ngày</label>
+                <div className="relative">
+                  <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={input + ' pr-24'} />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view/ngày</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-400">Giới hạn phân phối hàng ngày</p>
               </div>
-              <p className="mt-1 text-xs text-slate-400">Giới hạn phân phối hàng ngày</p>
-            </div>
-            <div>
+            )}
+            <div className={useKeywordViews ? 'sm:col-span-2' : ''}>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Tổng view mua</label>
               <div className="relative">
                 <input

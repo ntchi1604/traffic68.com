@@ -1009,11 +1009,15 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
       } else {
         buyerCpc = hasDiscount && tier.v1_discount > 0 ? tier.v1_discount : tier.v1_price;
       }
+    } else {
+      // ⚠️ Không tìm thấy pricing tier → fallback về cpc cũ trong bảng campaigns
+      // Có thể gây tính phí sai nếu bảng giá chưa được cấu hình đúng
+      console.warn(`[VuotLink] ⚠️ No pricing tier found for type=${campaign.traffic_type || 'google_search'}, duration=${duration} → fallback to campaign.cpc=${buyerCpc} (campaign #${task.campaign_id})`);
     }
   } catch (e) {
     console.error('[VuotLink] Buyer CPC lookup error:', e.message);
   }
-  console.log(`[VuotLink] buyerCpc=${buyerCpc} (discount=${campaign.discount_applied}, cpc_col=${campaign.cpc})`);
+  console.log(`[VuotLink] buyerCpc=${buyerCpc} (discount=${campaign.discount_applied}, cpc_col=${campaign.cpc}, campaign=#${task.campaign_id})`);
 
   // NOTE: Không check balance ở đây nữa — sẽ dùng atomic UPDATE bên dưới (tránh race condition)
 
@@ -1108,9 +1112,19 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
       [buyerCpc, campaign.user_id, buyerCpc]
     );
     if (deductResult.affectedRows === 0) {
-      // Ví không còn đủ tiền (race condition hoặc hết budget) → auto-pause
-      console.log(`[VuotLink] Wallet insufficient (atomic check): buyer=${campaign.user_id}, campaign=${task.campaign_id}`);
+      // Ví không còn đủ tiền (race condition hoặc hết budget) → auto-pause + ghi log thất bại
+      console.warn(`[VuotLink] ⚠️ Wallet insufficient (atomic): buyer=${campaign.user_id}, campaign=#${task.campaign_id}, required=${buyerCpc} — view COUNTED but buyer NOT charged`);
       await pool.execute("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [task.campaign_id]);
+      // Ghi transaction thất bại để admin có thể audit (view đã completed nhưng không trừ tiền được)
+      try {
+        const failRef = 'VW-FAIL-' + Date.now();
+        await pool.execute(
+          `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'failed', ?, ?)`,
+          [campaign.user_id, buyerCpc, failRef, `[Ví không đủ tiền] Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id}) - task #${task.id}`]
+        );
+      } catch (txErr) {
+        console.error('[VuotLink] Failed to log insufficient deduction transaction:', txErr.message);
+      }
     } else {
       const buyerRef = 'VW-' + Date.now();
       await pool.execute(

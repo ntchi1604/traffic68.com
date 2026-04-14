@@ -112,9 +112,14 @@ router.post('/', async (req, res) => {
     const { name, url, url2, budget, cpc, keyword, note, trafficType, traffic_type, dailyViews, daily_views, totalViews, total_views, viewByHour, view_by_hour, version, targetPage, target_page, timeOnSite, time_on_site, duration, discount_applied, discount_code, image1_url, image2_url } = req.body;
 
     const _trafficType = trafficType || traffic_type || 'google_search';
-    const _dailyViews = dailyViews || daily_views || 500;
+    // ⚠️ Dùng ?? thay vì || để tránh 0 bị coi là falsy (0 = không giới hạn, khác với undefined)
+    const _dailyViews = (dailyViews !== undefined && dailyViews !== null) ? Number(dailyViews)
+      : (daily_views !== undefined && daily_views !== null) ? Number(daily_views)
+      : 0; // 0 = không giới hạn (mặc định)
     const _totalViews = totalViews || total_views || 1000;
-    const _viewByHour = viewByHour || view_by_hour || 0;
+    const _viewByHour = (viewByHour !== undefined && viewByHour !== null) ? (viewByHour ? 1 : 0)
+      : (view_by_hour !== undefined && view_by_hour !== null) ? (view_by_hour ? 1 : 0)
+      : 0;
     const _targetPage = targetPage || target_page || '';
     const _timeOnSite = timeOnSite || time_on_site || (duration ? String(duration) : '60');
     const _version = version || 'v1';
