@@ -379,7 +379,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         keyword_config: JSON.stringify(keywordConfig),
         totalViews:     computedTotal,
         total_views:    computedTotal,
-        url:            globalUrl || u[0] || 'https://traffic68.com', // fallback
+        url:            u[0] || '', // lấy từ keyword URL riêng
         url2:           JSON.stringify([]),
         image1_url:     allImages.length ? JSON.stringify(allImages) : null,
         image2_url:     null,
@@ -415,18 +415,6 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
           {/* Keywords with per-keyword traffic config */}
           <div>
-            {/* URL đích mặc định */}
-            <div className="mb-4">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">URL đích</label>
-              <input
-                type="text"
-                placeholder="https://example.com"
-                value={urls[0] || ''}
-                onChange={e => updateUrlItem(0, e.target.value)}
-                className={input}
-              />
-              <p className="mt-1 text-xs text-slate-400">URL chung cho tất cả từ khoá. Bật “Cài Link/Ảnh riêng” để đặt URL/ảnh riêng cho từng từ khoá.</p>
-            </div>
 
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Từ khóa tìm kiếm</label>

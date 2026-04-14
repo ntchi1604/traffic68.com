@@ -420,8 +420,8 @@ export default function CreateCampaign() {
     const validKeywords = form.keywords.filter(k => k.keyword.trim());
     const extractedUrls = validKeywords.map(k => k.url).filter(u => u && u.trim());
 
-    if (!form.campaignName || !form.trafficType || !form.duration || validKeywords.length === 0 || (!validGlobalUrl && extractedUrls.length === 0)) {
-      setError('Vui lòng điền đầy đủ Tên, Loại traffic, Thời gian và ít nhất 1 từ khoá kèm 1 URL đích (chung hoặc riêng).');
+    if (!form.campaignName || !form.trafficType || !form.duration || validKeywords.length === 0) {
+      setError('Vui lòng điền đầy đủ Tên, Loại traffic, Thời gian và ít nhất 1 từ khoá.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -443,7 +443,7 @@ export default function CreateCampaign() {
 
       await api.post('/campaigns', {
         name: form.campaignName,
-        url: validGlobalUrl || extractedUrls[0] || 'https://traffic68.com', // fallback
+        url: extractedUrls[0] || '', // lấy từ URL riêng của keyword
         url2: JSON.stringify([]),
         traffic_type: form.trafficType,
         keyword: JSON.stringify(validKeywords.map(k => k.keyword)),
@@ -697,16 +697,6 @@ export default function CreateCampaign() {
             ) : (
               /* ── Google Search / Social: cần từ khóa & URL ── */
               <SectionCard icon={Globe} iconBg="bg-amber-50" iconColor="text-amber-600" title="Từ khóa & Địa chỉ web">
-                {/* URL đích mặc định dùng chung */}
-                <div className="mb-4">
-                  <Label required hint="URL đích visitor sẽ truy cập. Nếu từ khoá có URL riêng thì URL riêng sẽ được ưu tiên.">URL đích</Label>
-                  <TextInput
-                    placeholder="https://example.com"
-                    value={form.urls[0]}
-                    onChange={e => updateArrayItem('urls', 0, e.target.value)}
-                  />
-                  <Hint>URL chung cho tất cả từ khoá. Bật "Cài Link/Ảnh riêng" để đặt URL/Ảnh riêng cho từng từ khoá.</Hint>
-                </div>
 
                 {/* Keywords */}
                 <div>

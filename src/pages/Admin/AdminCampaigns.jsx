@@ -366,7 +366,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           url: useKeywordUrls ? (k.url || '') : '',
           image: useKeywordUrls ? (k.image || '') : ''
         })) : []),
-        url: globalUrl || u[0] || 'https://traffic68.com', // fallback
+        url: u[0] || '', // lấy từ URL riêng của keyword
         url2: JSON.stringify([]),
         dailyViews: finalDailyViews,
         totalViews: useKeywordViews
@@ -408,18 +408,6 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputCls} />
           </div>
 
-          {/* URL đích mặc định */}
-          <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích</label>
-            <input
-              type="text"
-              placeholder="https://example.com"
-              value={urls[0] || ''}
-              onChange={e => updateItem(setUrls, 0, e.target.value)}
-              className={inputCls}
-            />
-            <p className="mt-1 text-xs text-slate-400">URL chung cho tất cả từ khoá. Bật “Cài Link/Ảnh riêng” để đặt riêng cho từng từ khoá.</p>
-          </div>
 
           {/* Keywords */}
           <div>
