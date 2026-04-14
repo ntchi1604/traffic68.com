@@ -327,8 +327,8 @@ async function _handleTaskPost(req, res) {
     AND (c.daily_views <= 0 OR COALESCE(td.today_done, 0) < c.daily_views)
     AND (
       c.view_by_hour <= 0
-      OR (c.daily_views > 0 AND COALESCE(th.hour_done, 0) < CEIL(c.daily_views / 24))
-      OR (c.daily_views <= 0 AND COALESCE(th.hour_done, 0) < CEIL(c.total_views / 24))
+      OR c.daily_views <= 0
+      OR COALESCE(th.hour_done, 0) < CEIL(c.daily_views / 24)
     )`;
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
