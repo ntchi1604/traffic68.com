@@ -752,10 +752,15 @@ router.put('/transactions/:id/approve', async (req, res) => {
 
 
     await conn.execute("UPDATE transactions SET status = 'completed' WHERE id = ?", [req.params.id]);
-    await conn.execute(
-      'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
-      [tx.amount, tx.user_id, tx.wallet_type || 'main']
-    );
+
+    // Chỉ cộng tiền vào ví cho deposit/refund.
+    // Với withdraw: tiền đã bị trừ khi worker TẠO đơn → duyệt chỉ confirm đã chuyển, KHÔNG cộng lại.
+    if (tx.type !== 'withdraw') {
+      await conn.execute(
+        'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
+        [tx.amount, tx.user_id, tx.wallet_type || 'main']
+      );
+    }
 
     const fmt = new Intl.NumberFormat('vi-VN').format(tx.amount);
     await conn.execute(
@@ -825,7 +830,8 @@ router.put('/transactions/:id/approve', async (req, res) => {
 
     await conn.commit();
     conn.release();
-    res.json({ message: `Đã duyệt đơn nạp ${fmt} VND` });
+    const actionLabel = tx.type === 'withdraw' ? 'rút tiền' : 'nạp tiền';
+    res.json({ message: `Đã duyệt đơn ${actionLabel} ${fmt} VND` });
   } catch (err) {
     await conn.rollback();
     conn.release();
@@ -837,23 +843,50 @@ router.put('/transactions/:id/approve', async (req, res) => {
 
 
 router.put('/transactions/:id/reject', async (req, res) => {
+  const pool = getPool();
+  const conn = await pool.getConnection();
   try {
-    const pool = getPool();
+    await conn.beginTransaction();
     const { reason } = req.body;
-    const [txs] = await pool.execute('SELECT * FROM transactions WHERE id = ?', [req.params.id]);
-    if (txs.length === 0) return res.status(404).json({ error: 'Không tìm thấy giao dịch' });
+    const [txs] = await conn.execute('SELECT * FROM transactions WHERE id = ? FOR UPDATE', [req.params.id]);
+    if (txs.length === 0) { await conn.rollback(); conn.release(); return res.status(404).json({ error: 'Không tìm thấy giao dịch' }); }
     const tx = txs[0];
-    if (tx.status !== 'pending') return res.status(400).json({ error: 'Giao dịch này đã được xử lý' });
+    if (tx.status !== 'pending') { await conn.rollback(); conn.release(); return res.status(400).json({ error: 'Giao dịch này đã được xử lý' }); }
 
-    await pool.execute("UPDATE transactions SET status = 'failed', note = ? WHERE id = ?", [reason || 'Admin từ chối', req.params.id]);
+    await conn.execute("UPDATE transactions SET status = 'rejected', note = ? WHERE id = ?", [reason || 'Admin từ chối', req.params.id]);
 
     const fmt = new Intl.NumberFormat('vi-VN').format(tx.amount);
-    await pool.execute(
-      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
-      [tx.user_id, 'Đơn nạp tiền bị từ chối', `Đơn nạp ${fmt} VND (Mã: ${tx.ref_code}) đã bị từ chối. Lý do: ${reason || 'Không hợp lệ'}`, 'error', 'buyer']
-    );
-    res.json({ message: 'Đã từ chối đơn nạp' });
+
+    // Nếu là đơn RÚT TIỀN bị từ chối → hoàn tiền lại vào ví (tiền đã bị trừ khi tạo đơn)
+    if (tx.type === 'withdraw') {
+      await conn.execute(
+        'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
+        [tx.amount, tx.user_id, tx.wallet_type || 'earning']
+      );
+      // Ghi transaction hoàn tiền
+      await conn.execute(
+        `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, ?, 'refund', 'admin', ?, 'completed', ?, ?)`,
+        [tx.user_id, tx.wallet_type || 'earning', tx.amount, 'REFUND-' + tx.ref_code, `Hoàn tiền đơn rút bị từ chối (${tx.ref_code}). Lý do: ${reason || 'Không hợp lệ'}`]
+      );
+      await conn.execute(
+        `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+        [tx.user_id, '❌ Đơn rút tiền bị từ chối', `Đơn rút ${fmt} VND (Mã: ${tx.ref_code}) bị từ chối. Lý do: ${reason || 'Không hợp lệ'}. Tiền đã được hoàn lại vào ví.`, 'error', 'worker']
+      );
+    } else {
+      // Deposit bị từ chối: không cần hoàn tiền (chưa cộng vào ví)
+      await conn.execute(
+        `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+        [tx.user_id, '❌ Đơn nạp tiền bị từ chối', `Đơn nạp ${fmt} VND (Mã: ${tx.ref_code}) đã bị từ chối. Lý do: ${reason || 'Không hợp lệ'}`, 'error', 'buyer']
+      );
+    }
+
+    await conn.commit();
+    conn.release();
+    const actionLabel = tx.type === 'withdraw' ? 'rút tiền (đã hoàn tiền vào ví)' : 'nạp tiền';
+    res.json({ message: `Đã từ chối đơn ${actionLabel}` });
   } catch (err) {
+    await conn.rollback();
+    conn.release();
     console.error('Reject error:', err);
     res.status(500).json({ error: 'Lỗi từ chối giao dịch: ' + err.message });
   }
@@ -2061,7 +2094,7 @@ router.post('/web3/batch-pay', async (req, res) => {
     const results = [];
     for (const row of rows) {
       try {
-        const r = await getWeb3Pay().processAutoPayment(row.id, privateKey);
+        const r = await getWeb3Pay().processAutoPayment(row.id, pk);
         results.push({ id: row.id, status: 'success', txHash: r.txHash });
       } catch (err) {
         results.push({ id: row.id, status: 'error', error: err.message });
@@ -2506,8 +2539,15 @@ router.post('/security/batch-ban', async (req, res) => {
             [uid]
           );
           for (const tx of txs) {
-            await pool.execute("UPDATE transactions SET status = 'rejected', note = 'Từ chối tự động - tài khoản gian lận' WHERE id = ?", [tx.id]);
-
+            await pool.execute(
+              "UPDATE transactions SET status = 'rejected', note = 'Từ chối tự động - tài khoản gian lận' WHERE id = ?",
+              [tx.id]
+            );
+            // Hoàn tiền lại ví earning vì tiền đã bị trừ khi worker tạo lệnh rút
+            await pool.execute(
+              'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
+              [tx.amount, uid, 'earning']
+            );
             rejectedWithdrawals++;
           }
         }

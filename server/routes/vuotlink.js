@@ -19,9 +19,9 @@ async function ensureWalletCredit(pool, userId, walletType, amount) {
       'INSERT IGNORE INTO wallets (user_id, type, balance) VALUES (?, ?, ?)',
       [userId, walletType, amount]
     );
-    // Nếu INSERT IGNORE bị bỏ qua (ví vừa được tạo bởi request khác) → UPDATE lại
+    // Nếu INSERT IGNORE bị bỏ qua (ví vừa được tạo bởi request khác) → UPDATE lại (không điều kiện balance = 0 để tránh miss)
     await pool.execute(
-      'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ? AND balance = 0',
+      'UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?',
       [amount, userId, walletType]
     );
   }
@@ -475,15 +475,31 @@ async function _handleTaskPost(req, res) {
       const campaignDailyViews = Number(campaign.daily_views) || 0;
       const hasAnyExplicitDaily = kwConfig.some(k => Number(k.daily_views) > 0);
       const totalExplicitDaily = kwConfig.reduce((s, k) => s + (Number(k.daily_views) > 0 ? Number(k.daily_views) : 0), 0);
+      const limitedCount = kwConfig.filter(k => Number(k.daily_views) > 0).length;
       const unsetCount = kwConfig.filter(k => !(Number(k.daily_views) > 0)).length;
       const remainingDaily = Math.max(0, campaignDailyViews - totalExplicitDaily);
       const autoDaily = (hasAnyExplicitDaily && campaignDailyViews > 0 && unsetCount > 0)
         ? Math.floor(remainingDaily / unsetCount)
         : 0; // 0 = no per-keyword daily limit (toggle OFF or all keywords explicitly set)
 
-      // Build weighted list — weight = dailyRemaining tuyệt đối (số lượt còn lại trong ngày)
-      //   Key daily=500 → weight≈500, key daily=100 → weight≈100 → tỷ lệ 5:1 tự nhiên
-      //   Khi todayDone tăng dần, weight giảm dần đều → duy trì tỷ lệ suốt cả ngày
+      // [FIX 1] Virtual target cho keyword không có daily limit:
+      //   Thay vì dùng 1000 cứng (làm kw unlimited áp đảo kw có daily_views nhỏ),
+      //   tính virtualTargetForUnlimited = avg daily_views của các kw có giới hạn tường minh,
+      //   hoặc campaignDailyViews / tổng số kw nếu không có kw nào set daily tường minh.
+      //   Sau đó trừ todayDone để weight cũng giảm dần theo thời gian (tự cân bằng).
+      const avgExplicitDaily = hasAnyExplicitDaily && limitedCount > 0
+        ? Math.ceil(totalExplicitDaily / limitedCount)
+        : 0;
+      const virtualTargetForUnlimited =
+        campaignDailyViews > 0
+          ? (unsetCount > 0 ? Math.max(1, Math.floor(remainingDaily / unsetCount)) : campaignDailyViews)
+          : avgExplicitDaily > 0
+            ? avgExplicitDaily                     // dùng avg của kw có giới hạn tường minh
+            : 1000;                                // không có gì tham chiếu → fallback
+
+      // Build weighted list — weight = dailyRemaining còn lại trong ngày (tuyệt đối)
+      //   Keywords với daily_views cao hơn có weight lớn hơn → phân bổ đúng tỷ lệ
+      //   Khi todayDone tăng, weight giảm đều → tự cân bằng suốt ngày
       //   daily limit là hard stop (weight=0); k.views overrun → giảm 95% priority thay vì block
       const weighted = kwConfig
         .filter(k => k.keyword && k.keyword.trim())
@@ -500,17 +516,18 @@ async function _handleTaskPost(req, res) {
           // Daily limit: hard stop — weight = 0 nếu đã hết quota ngày
           if (!dailyOk) return { ...k, weight: 0 };
 
-          // Base weight = số lượt còn lại trong ngày (tuyệt đối)
-          // → key 500/ngày có weight 5x so với key 100/ngày → phân bổ đúng tỷ lệ
+          // Base weight = số lượt còn lại (tuyệt đối) để duy trì tỷ lệ đúng
           let baseWeight;
           if (effectiveDailyLimit > 0) {
+            // Có daily limit tường minh (hoặc autoDaily) → weight = remaining
             baseWeight = dailyRemaining; // = effectiveDailyLimit - todayDone > 0
           } else if (!hasNoTotalLimit) {
             // Không giới hạn ngày, có quota tổng → dùng total remaining
             baseWeight = Math.max(totalRemaining, 1);
           } else {
-            // Không giới hạn cả ngày lẫn tổng → dùng campaign daily views làm tham chiếu
-            baseWeight = campaignDailyViews > 0 ? campaignDailyViews : 1000;
+            // Không giới hạn cả ngày lẫn tổng → dùng virtualTarget (đã normalize)
+            // Trừ todayDone để weight giảm dần như các kw có limit → tự cân bằng
+            baseWeight = Math.max(1, virtualTargetForUnlimited - todayDone);
           }
 
           // Nếu vượt k.views quota tổng (do bug cũ) → giảm 95% priority, không block hoàn toàn
