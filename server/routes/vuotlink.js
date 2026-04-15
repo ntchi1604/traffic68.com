@@ -65,12 +65,33 @@ setInterval(() => {
 const ipTaskCount = {};
 setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 3600000);
 
-// Challenge store (anti-replay)
-const challenges = {};
-setInterval(() => {
-  const now = Date.now();
-  Object.keys(challenges).forEach(k => { if (now - challenges[k].createdAt > 120000) delete challenges[k]; });
-}, 30000);
+// ── Stateless challenge (HMAC-signed, works across PM2 cluster workers) ──
+// Format: HMAC_SECRET signs payload so ANY worker can verify without shared memory
+// Payload: base64url({ prefix, ts, ip, workerLinkId, refWorkerId })
+const CHALLENGE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function _b64(s) { return Buffer.from(s).toString('base64url'); }
+function _unb64(s) { try { return JSON.parse(Buffer.from(s, 'base64url').toString('utf8')); } catch { return null; } }
+
+function signChallenge(payload) {
+  const data = _b64(JSON.stringify(payload));
+  const sig = crypto.createHmac('sha256', HMAC_SECRET).update(data).digest('base64url');
+  return `${data}.${sig}`;
+}
+
+function verifyChallenge(token) {
+  if (!token || typeof token !== 'string') return null;
+  const dot = token.lastIndexOf('.');
+  if (dot < 1) return null;
+  const data = token.substring(0, dot);
+  const sig = token.substring(dot + 1);
+  const expected = crypto.createHmac('sha256', HMAC_SECRET).update(data).digest('base64url');
+  // Constant-time compare to prevent timing attacks
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  const payload = _unb64(data);
+  if (!payload || !payload.ts || Date.now() - payload.ts > CHALLENGE_TTL_MS) return null;
+  return payload;
+}
 
 
 router.get('/challenge', async (req, res) => {
@@ -134,14 +155,14 @@ router.get('/challenge', async (req, res) => {
     }
   }
 
-  const challengeId = crypto.randomBytes(16).toString('hex');
   const prefix = crypto.randomBytes(8).toString('hex');
   const difficulty = 4;
-  challenges[challengeId] = { createdAt: Date.now(), used: false, ip, prefix, difficulty, workerLinkId, refWorkerId };
+  const payload = { prefix, ts: Date.now(), ip, difficulty, wlid: workerLinkId, rwid: refWorkerId };
+  const token = signChallenge(payload);
   // Prevent browser/proxy from caching this response — each challenge must be unique
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.set('Pragma', 'no-cache');
-  res.json({ c: challengeId, p: prefix, d: difficulty });
+  res.json({ c: token, p: prefix, d: difficulty });
 });
 
 router.post('/task', optionalAuth, (req, res) => {
@@ -178,35 +199,36 @@ async function _handleTaskPost(req, res) {
   let detectionLog = [];
 
   if (!challengeId || powNonce === undefined) return res.status(403).json(ERR);
-  const ch = challenges[challengeId];
-  if (!ch) return res.status(403).json(ERR);
-  if (ch.used) { delete challenges[challengeId]; return res.status(403).json(ERR); }
-  if (Date.now() - ch.createdAt > 300000) { delete challenges[challengeId]; return res.status(403).json(ERR); }
-  if (ch.ip && ch.ip !== ip) return res.status(403).json(ERR);
 
-  const hash = crypto.createHash('sha256').update(ch.prefix + String(powNonce)).digest('hex');
-  const target = '0'.repeat(ch.difficulty);
-  if (!hash.startsWith(target)) {
-    delete challenges[challengeId];
-    return res.status(403).json(ERR);
+  // Verify stateless HMAC challenge token
+  const ch = verifyChallenge(challengeId);
+  if (!ch) return res.status(403).json(ERR);
+  // IP binding: soft check — log mismatch but don't block
+  // Dual-stack (IPv4/IPv6) routing can cause GET /challenge and POST /task to come from different IPs.
+  // HMAC signature + PoW prevents token forgery, so this is defense-in-depth only.
+  if (ch.ip && ch.ip !== ip) {
+    console.warn(`[VuotLink] IP mismatch (allowed): challenge_ip=${ch.ip} request_ip=${ip} — likely dual-stack`);
   }
 
+  const hash = crypto.createHash('sha256').update(ch.prefix + String(powNonce)).digest('hex');
+  const target = '0'.repeat(ch.difficulty || 4);
+  if (!hash.startsWith(target)) return res.status(403).json(ERR);
 
-  ch.used = true;
+  // Extract workerLinkId / refWorkerId from signed token
+  const workerLinkIdFromCh = ch.wlid || null;
+  const refWorkerIdFromCh = ch.rwid || null;
 
   // ── Check if gateway link owner is still active (prevent banned user links) ──
-  if (ch.workerLinkId) {
+  if (workerLinkIdFromCh) {
     const pool = getPool();
     const [wlCheck] = await pool.execute(
       `SELECT u.status, u.source_status FROM worker_links wl JOIN users u ON u.id = wl.worker_id WHERE wl.id = ?`,
-      [ch.workerLinkId]
+      [workerLinkIdFromCh]
     );
     if (!wlCheck.length || wlCheck[0].status !== 'active') {
-      delete challenges[challengeId];
       return res.status(403).json({ error: 'Link này đã bị vô hiệu hóa.' });
     }
     if (wlCheck[0].source_status !== 'approved') {
-      delete challenges[challengeId];
       return res.status(403).json({ error: 'Link này chưa được kích hoạt. Vui lòng chờ admin duyệt nguồn.' });
     }
   }
@@ -309,7 +331,7 @@ async function _handleTaskPost(req, res) {
   // Khi IP hết lượt: kiểm tra chủ link (refWorkerId từ challenge) có bonus_mode không
   // refWorkerId = worker sở hữu link rút gọn mà IP đang dùng để vào task
   let workerBonusMode = false;
-  const bonusCheckWorkerId = ch.refWorkerId || null;
+  const bonusCheckWorkerId = refWorkerIdFromCh || null;
   if (ipLimitReached) {
     if (bonusCheckWorkerId) {
       try {
@@ -630,8 +652,8 @@ async function _handleTaskPost(req, res) {
 
   const expirySeconds = 1200; // 20 phút
 
-  const workerLinkId = ch.workerLinkId || null;
-  const refWorkerId = ch.refWorkerId || null;
+  const workerLinkId = workerLinkIdFromCh || null;
+  const refWorkerId = refWorkerIdFromCh || null;
 
   const secObj = {
     detectionLog: [...new Set(detectionLog)],
