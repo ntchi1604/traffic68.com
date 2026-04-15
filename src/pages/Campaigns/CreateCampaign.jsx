@@ -436,20 +436,24 @@ export default function CreateCampaign() {
       const keywordConfig = validKeywords.map(k => ({
         keyword: k.keyword,
         views: form.useKeywordTotalViews ? (Number(k.views) || 0) : computedTotalViews,
-        daily_views: form.useKeywordViews ? (Number(k.daily_views) || 0) : 0,
-        url: form.useKeywordUrls ? (k.url || '') : '',
-        image: form.useKeywordUrls ? (k.image || '') : ''
+        daily_views: Number(k.daily_views) || 0, // 0 = không giới hạn
+        url: k.url || '',
+        image: k.image || ''
       }));
+
+      // tổng daily = sum keyword daily; nếu tất cả = 0 thì dùng form.dailyViews (tính trong allocatedDailyViews)
+      const kwDailySum = keywordConfig.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
+      const finalDailyViews = kwDailySum > 0 ? kwDailySum : allocatedDailyViews;
 
       await api.post('/campaigns', {
         name: form.campaignName,
-        url: extractedUrls[0] || '', // lấy từ URL riêng của keyword
+        url: extractedUrls[0] || form.urls[0]?.trim() || '',
         url2: JSON.stringify([]),
         traffic_type: form.trafficType,
         keyword: JSON.stringify(validKeywords.map(k => k.keyword)),
         keyword_config: JSON.stringify(keywordConfig),
         total_views: computedTotalViews,
-        daily_views: allocatedDailyViews,
+        daily_views: finalDailyViews,
         duration: Number(form.duration),
         version: form.version,
         discount_applied: discountApplied,
@@ -639,10 +643,8 @@ export default function CreateCampaign() {
                 }
               </div>
 
-              {/* Phân phối theo giờ: chỉ hiện khi có daily_views hợp lệ (= 0 → CEIL(0/24)=0, hourly check vô nghĩa) */}
-              {!form.useKeywordViews && (
-                isDirect ? form.directDailyViews > 0 : allocatedDailyViews > 0
-              ) && (
+              {/* Phân phối theo giờ: hiện khi có daily views hợp lệ */}
+              {(isDirect ? form.directDailyViews > 0 : allocatedDailyViews > 0) && (
                 <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
                   <Toggle checked={form.viewByHour} onChange={() => set('viewByHour', !form.viewByHour)} />
                   <div>
@@ -700,42 +702,29 @@ export default function CreateCampaign() {
 
                 {/* Keywords */}
                 <div>
-                  {/* Header row with toggle */}
+                  {/* Header */}
                   <div className="flex items-center justify-between mb-2">
                     <Label required>Từ khóa tìm kiếm</Label>
-                    <div className="flex items-center gap-3 mb-1.5 flex-wrap justify-end">
-                      <div className="flex items-center gap-2 border-r border-slate-200 pr-3">
-                        <span className={`text-xs font-semibold transition-colors ${form.useKeywordUrls ? 'text-indigo-600' : 'text-slate-400'}`}>
-                          Cài Link/Ảnh riêng
-                        </span>
-                        <Toggle checked={form.useKeywordUrls} onChange={() => setForm(f => ({ ...f, useKeywordUrls: !f.useKeywordUrls }))} />
-                      </div>
-                      <div className="flex items-center gap-2 border-r border-slate-200 pr-3">
-                        <span className={`text-xs font-semibold transition-colors ${form.useKeywordTotalViews ? 'text-amber-600' : 'text-slate-400'}`}>
-                          Cài view riêng
-                        </span>
-                        <Toggle checked={form.useKeywordTotalViews} onChange={toggleKeywordTotalViews} />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-semibold transition-colors ${form.useKeywordViews ? 'text-sky-600' : 'text-slate-400'}`}>
-                          Cài view/ngày riêng
-                        </span>
-                        <Toggle checked={form.useKeywordViews} onChange={toggleKeywordViews} />
-                      </div>
-                    </div>
+                    <span className="text-[11px] text-slate-400 font-medium">0/ngày = không giới hạn</span>
                   </div>
 
-                  {form.useKeywordViews && (
-                    <div className="mb-3 flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
-                      <BarChart2 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-xs font-bold text-sky-700 mb-0.5">Giới hạn view/ngày cho từng từ khóa</p>
-                        <p className="text-xs text-sky-600 leading-relaxed">
-                          Đặt số view tối đa mỗi ngày cho từng từ khóa. Từ khóa để <b>0</b> sẽ tự nhận phần còn lại ({remainingDailyViews.toLocaleString()} view/ngày ÷ {form.keywords.filter(k => !(Number(k.daily_views) > 0)).length} từ khóa).
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  {/* Info box */}
+                  <div className="mb-3 flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
+                    <BarChart2 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-sky-700">
+                      <strong>Cài view/ngày riêng.</strong> Từ khóa để <b>0</b> = phân phối không giới hạn
+                      {(() => {
+                        const unsetCount = form.keywords.filter(k => !(Number(k.daily_views) > 0)).length;
+                        const allocDV = form.keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
+                        const autoPerKw = (allocDV > 0 && unsetCount > 0 && allocatedDailyViews > 0)
+                          ? Math.floor(Math.max(0, allocatedDailyViews - allocDV) / unsetCount)
+                          : 0;
+                        return unsetCount > 0 && autoPerKw > 0
+                          ? ` (${autoPerKw.toLocaleString()} view/ngày ÷ ${unsetCount} từ khóa)`
+                          : '';
+                      })()}.
+                    </p>
+                  </div>
 
                   <div className="space-y-4">
                     {form.keywords.map((kw, i) => (
@@ -751,35 +740,19 @@ export default function CreateCampaign() {
                             />
                           </div>
 
-                          {form.useKeywordTotalViews && (
-                            <div className="relative w-28 flex-shrink-0">
-                              <input
-                                type="number"
-                                min="1"
-                                value={kw.views || 0}
-                                onChange={e => updateKeywordTotalViews(i, e.target.value)}
-                                className="w-full px-2 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
-                                           focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
-                                           transition pr-10 font-black text-amber-900 text-right"
-                              />
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
-                            </div>
-                          )}
-
-                          {form.useKeywordViews && (
-                            <div className="relative w-28 flex-shrink-0">
-                              <input
-                                type="number"
-                                min="0"
-                                value={kw.daily_views || 0}
-                                onChange={e => updateKeywordDailyViews(i, e.target.value)}
-                                className="w-full px-2 py-2.5 text-sm border-2 border-sky-300 rounded-xl bg-sky-50
-                                           focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-500
-                                           transition pr-12 font-black text-sky-900 text-right"
-                              />
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
-                            </div>
-                          )}
+                          {/* daily_views — luôn hiện */}
+                          <div className="relative w-28 flex-shrink-0">
+                            <input
+                              type="number"
+                              min="0"
+                              value={kw.daily_views || 0}
+                              onChange={e => updateKeywordDailyViews(i, e.target.value)}
+                              className="w-full px-2 py-2.5 text-sm border border-slate-200 rounded-xl bg-white
+                                         focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400
+                                         transition pr-12 text-right text-slate-800"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold pointer-events-none">/ngày</span>
+                          </div>
 
                           {form.keywords.length > 1 && (
                             <button type="button" onClick={() => removeKeyword(i)}
@@ -788,41 +761,40 @@ export default function CreateCampaign() {
                             </button>
                           )}
                         </div>
-                        {form.useKeywordUrls && (
-                          <div className="flex gap-2 items-center mt-1">
+                        {/* URL + Image — luôn hiện */}
+                        <div className="flex gap-2 items-center mt-1">
+                          <TextInput
+                            placeholder="URL đích riêng (Tuỳ chọn)"
+                            value={kw.url}
+                            onChange={e => updateKeywordUrl(i, e.target.value)}
+                            className="flex-1 text-xs"
+                          />
+                          <div className="flex-1 flex gap-2">
                             <TextInput
-                              placeholder="URL đích riêng (Tuỳ chọn)"
-                              value={kw.url}
-                              onChange={e => updateKeywordUrl(i, e.target.value)}
+                              placeholder="Link Image - Ctrl+V dán ảnh"
+                              value={kw.image}
+                              onChange={e => updateKeywordImage(i, e.target.value)}
+                              onPaste={async e => {
+                                const items = e.clipboardData?.items;
+                                if (!items) return;
+                                for (let j = 0; j < items.length; j++) {
+                                  const item = items[j];
+                                  if (item.type.startsWith('image/')) {
+                                    e.preventDefault();
+                                    const file = item.getAsFile();
+                                    if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
+                                    break;
+                                  }
+                                }
+                              }}
                               className="flex-1 text-xs"
                             />
-                            <div className="flex-1 flex gap-2">
-                              <TextInput
-                                placeholder="Link Image riêng - Hoặc Ctrl+V dán ảnh"
-                                value={kw.image}
-                                onChange={e => updateKeywordImage(i, e.target.value)}
-                                onPaste={async e => {
-                                  const items = e.clipboardData?.items;
-                                  if (!items) return;
-                                  for (let j = 0; j < items.length; j++) {
-                                    const item = items[j];
-                                    if (item.type.startsWith('image/')) {
-                                      e.preventDefault();
-                                      const file = item.getAsFile();
-                                      if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
-                                      break;
-                                    }
-                                  }
-                                }}
-                                className="flex-1 text-xs"
-                              />
-                              <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
-                                {uploadingKwIdx === i ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
-                                <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
-                              </label>
-                            </div>
+                            <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
+                              {uploadingKwIdx === i ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
+                              <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
+                            </label>
                           </div>
-                        )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -849,11 +821,7 @@ export default function CreateCampaign() {
                     className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
                     <Plus size={13} /> Thêm từ khóa
                   </button>
-                  <Hint>
-                    {form.useKeywordViews
-                      ? 'Từ khóa để 0 sẽ tự nhận phần còn lại chia đều. Tổng view mua không thay đổi.'
-                      : 'Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt truy cập'}
-                  </Hint>
+                  <Hint>Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt truy cập</Hint>
                 </div>
               </SectionCard>
             )}
