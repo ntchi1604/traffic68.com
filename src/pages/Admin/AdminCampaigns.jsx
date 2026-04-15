@@ -379,22 +379,32 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           ? keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)
           : Number(dailyViews) || 0;
 
+      const finalTotalViews = useKeywordViews
+        ? kws.reduce((s, k) => s + (Number(k.views) || 0), 0)
+        : Number(totalViews);
+
+      // Direct: lưu URL đích vào keyword & keyword_config để thống kê hiển thị đúng
+      const finalKeyword = isDirect
+        ? JSON.stringify([globalUrl || ''])
+        : JSON.stringify(kws.length ? kws.map(k => k.keyword) : [campaign.keyword || '']);
+      const finalKeywordConfig = isDirect
+        ? JSON.stringify([{ keyword: globalUrl || '', views: finalTotalViews, daily_views: finalDailyViews, url: globalUrl || '', image: '' }])
+        : JSON.stringify(kws.length ? kws.map(k => ({
+            keyword: k.keyword,
+            views: useKeywordViews ? (Number(k.views) || 0) : Math.max(1, Math.floor((Number(totalViews) || 1000) / kws.length)),
+            daily_views: useKeywordDailyViews ? (Number(k.daily_views) || 0) : 0,
+            url: useKeywordUrls ? (k.url || '') : '',
+            image: useKeywordUrls ? (k.image || '') : ''
+          })) : []);
+
       await api.put(`/admin/campaigns/${campaign.id}`, {
         name,
-        keyword: JSON.stringify(kws.length ? kws.map(k => k.keyword) : [campaign.keyword || '']),
-        keyword_config: JSON.stringify(kws.length ? kws.map(k => ({
-          keyword: k.keyword,
-          views: useKeywordViews ? (Number(k.views) || 0) : Math.max(1, Math.floor((Number(totalViews) || 1000) / kws.length)),
-          daily_views: useKeywordDailyViews ? (Number(k.daily_views) || 0) : 0,
-          url: useKeywordUrls ? (k.url || '') : '',
-          image: useKeywordUrls ? (k.image || '') : ''
-        })) : []),
-        url: u[0] || urls[0]?.trim() || '',
+        keyword: finalKeyword,
+        keyword_config: finalKeywordConfig,
+        url: globalUrl || u[0] || '',
         url2: JSON.stringify([]),
         dailyViews: finalDailyViews,
-        totalViews: useKeywordViews
-          ? kws.reduce((s, k) => s + (Number(k.views) || 0), 0)
-          : Number(totalViews),
+        totalViews: finalTotalViews,
         viewByHour: viewByHour ? 1 : 0,
         image1_url: allImages.length ? JSON.stringify(allImages) : null,
         image2_url: null,
@@ -409,6 +419,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       setSaving(false);
     }
   };
+
 
   const allocatedDailyViews = useKeywordDailyViews
     ? keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)

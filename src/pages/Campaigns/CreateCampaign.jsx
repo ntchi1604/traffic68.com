@@ -364,14 +364,15 @@ export default function CreateCampaign() {
       setError('');
       setSubmitting(true);
       try {
+        const directTotalViews = Number(form.totalViews) || 1000;
         await api.post('/campaigns', {
           name: form.campaignName,
           url: validGlobalUrl,
           url2: JSON.stringify([]),
           traffic_type: 'direct',
-          keyword: JSON.stringify([]),
-          keyword_config: JSON.stringify([]),
-          total_views: Number(form.totalViews) || 1000,
+          keyword: JSON.stringify([validGlobalUrl]),
+          keyword_config: JSON.stringify([{ keyword: validGlobalUrl, views: directTotalViews, daily_views: Number(form.directDailyViews) || 0, url: validGlobalUrl, image: '' }]),
+          total_views: directTotalViews,
           daily_views: Number(form.directDailyViews) || 0,
           view_by_hour: form.viewByHour ? 1 : 0,
           duration: Number(form.duration),

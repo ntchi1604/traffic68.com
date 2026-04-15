@@ -373,15 +373,24 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       const kwDailySum = keywordConfig.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
       const finalDailyViews = kwDailySum > 0 ? kwDailySum : Number(dailyViews) || 0;
 
+      // Direct: lưu URL đích vào keyword & keyword_config để thống kê hiển thị đúng
+      const finalUrl = urls[0]?.trim() || '';
+      const finalKeyword = isDirect
+        ? JSON.stringify([finalUrl])
+        : JSON.stringify(validKws.map(k => k.keyword));
+      const finalKeywordConfig = isDirect
+        ? JSON.stringify([{ keyword: finalUrl, views: computedTotal, daily_views: finalDailyViews, url: finalUrl, image: '' }])
+        : JSON.stringify(keywordConfig);
+
       await api.put(`/campaigns/${campaign.id}`, {
         dailyViews:     finalDailyViews,
         viewByHour:     viewByHour ? 1 : 0,
-        keyword:        JSON.stringify(validKws.map(k => k.keyword)),
-        keyword_config: JSON.stringify(keywordConfig),
+        keyword:        finalKeyword,
+        keyword_config: finalKeywordConfig,
         totalViews:     computedTotal,
         total_views:    computedTotal,
         // Prefer per-keyword URL; fall back to campaign-level URL so old camps aren't wiped
-        url:            u[0] || urls[0]?.trim() || '',
+        url:            finalUrl || u[0] || '',
         url2:           JSON.stringify([]),
         image1_url:     allImages.length ? JSON.stringify(allImages) : null,
         image2_url:     null,
