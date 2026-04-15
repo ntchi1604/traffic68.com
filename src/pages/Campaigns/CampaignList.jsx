@@ -51,7 +51,7 @@ function TrafficBadge({ type }) {
 }
 
 /* ── Keyword Stats Panel ── */
-function KeywordStats({ campaignId }) {
+function KeywordStats({ campaignId, trafficType }) {
   const [stats, setStats] = useState(null);
   const [daily, setDaily] = useState([]);
   const [page, setPage] = useState(1);
@@ -177,7 +177,7 @@ function KeywordStats({ campaignId }) {
             <table className="w-full text-xs">
               <thead className="bg-slate-50/80 sticky top-0">
                 <tr>
-                  {['Ngày', 'Từ khoá', 'Hoàn thành', 'Chi phí'].map(h => (
+                  {['Ngày', ...(trafficType !== 'direct' ? ['Từ khoá'] : []), 'Hoàn thành', 'Chi phí'].map(h => (
                     <th key={h} className="px-4 py-2.5 font-bold text-slate-500 text-left last:text-right">{h}</th>
                   ))}
                 </tr>
@@ -188,7 +188,7 @@ function KeywordStats({ campaignId }) {
                 ) : daily.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((d, i) => (
                   <tr key={i} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-2.5 text-slate-600 font-medium whitespace-nowrap">{d.date?.slice(0, 10)}</td>
-                    <td className="px-4 py-2.5 font-semibold text-indigo-600 truncate max-w-[130px]">{d.keyword || '(Trống)'}</td>
+                    {trafficType !== 'direct' && <td className="px-4 py-2.5 font-semibold text-indigo-600 truncate max-w-[130px]">{d.keyword || '(Trống)'}</td>}
                     <td className="px-4 py-2.5 font-bold text-emerald-600 tabular-nums">
                       {d.completed}<span className="text-slate-400 font-medium text-[10px] ml-0.5">/ {Number(d.daily_views) > 0 ? d.daily_views : '∞'}</span>
                     </td>
@@ -904,7 +904,7 @@ export default function CampaignList() {
                               <TrendingUp size={14} className="text-indigo-500" />
                               <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Thống kê chi tiết – {c.name}</span>
                             </div>
-                            <KeywordStats campaignId={c.id} campaignUrl={c.url} />
+                            <KeywordStats campaignId={c.id} trafficType={c.traffic_type} campaignUrl={c.url} />
                           </div>
                         </td>
                       </tr>

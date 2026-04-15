@@ -34,7 +34,7 @@ const parseJsonArray = (val) => {
 };
 
 /* ── Keyword Stats Panel (admin version) ── */
-function KeywordStats({ campaignId }) {
+function KeywordStats({ campaignId, trafficType }) {
   const [stats, setStats] = useState(null);
   const [daily, setDaily] = useState([]);
   const [page, setPage] = useState(1);
@@ -166,7 +166,7 @@ function KeywordStats({ campaignId }) {
             <thead className="bg-slate-50/80 sticky top-0 shadow-sm">
               <tr>
                 <th className="px-4 py-2 font-semibold text-slate-500">Ngày</th>
-                <th className="px-4 py-2 font-semibold text-slate-500">Từ khoá</th>
+                {trafficType !== 'direct' && <th className="px-4 py-2 font-semibold text-slate-500">Từ khoá</th>}
                 <th className="px-4 py-2 font-semibold text-slate-500 text-right">Hoàn thành</th>
                 <th className="px-4 py-2 font-semibold text-slate-500 text-right">Chi phí</th>
               </tr>
@@ -177,7 +177,7 @@ function KeywordStats({ campaignId }) {
               ) : daily.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((d, i) => (
                 <tr key={i} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{d.date?.slice(0, 10)}</td>
-                  <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]" title={d.keyword}>{d.keyword || '(Trống)'}</td>
+                  {trafficType !== 'direct' && <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]" title={d.keyword}>{d.keyword || '(Trống)'}</td>}
                   <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
                     {d.completed} <span className="text-slate-500 font-medium text-[10px] ml-0.5">/ {Number(d.daily_views) > 0 ? d.daily_views : '∞'}</span>
                     <span className="block text-[10px] text-slate-400 font-normal mt-0.5">{d.total} lượt nhận</span>
@@ -907,7 +907,7 @@ export default function AdminCampaigns() {
                         <tr>
                           <td colSpan={7} className="p-0 border-t border-slate-100 bg-slate-50/80">
                             <div className="p-5 overflow-hidden shadow-inner">
-                              <KeywordStats campaignId={c.id} />
+                              <KeywordStats campaignId={c.id} trafficType={c.traffic_type} />
                             </div>
                           </td>
                         </tr>
@@ -1023,7 +1023,7 @@ export default function AdminCampaigns() {
                     </div>
                     {isExpanded && (
                       <div className="border-t border-slate-100 bg-slate-50/80 p-4">
-                        <KeywordStats campaignId={c.id} />
+                        <KeywordStats campaignId={c.id} trafficType={c.traffic_type} />
                       </div>
                     )}
                   </div>
