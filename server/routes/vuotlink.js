@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const geoip = require('geoip-lite');
 const crypto = require('crypto');
 const { getPool } = require('../db');
@@ -634,6 +634,11 @@ async function _handleTaskPost(req, res) {
   }
 
   const selectedUrl = (selectedKwUrl && selectedKwUrl.trim()) ? selectedKwUrl.trim() : campaign.url; // primary URL always used as target
+
+  // Direct traffic: lưu URL đích vào cột keyword (không có từ khóa tìm kiếm)
+  if (campaign.traffic_type === 'direct') {
+    selectedKeyword = selectedUrl;
+  }
   const allImages = [...parseImgArray(campaign.image1_url), ...parseImgArray(campaign.image2_url)].filter(Boolean);
   const selectedImage1 = (selectedKwImage && selectedKwImage.trim()) ? selectedKwImage.trim() : (allImages.length > 0 ? allImages[Math.floor(Math.random() * allImages.length)] : '');
   const selectedImage2 = allImages.length > 1 ? allImages.filter(u => u !== selectedImage1)[Math.floor(Math.random() * Math.max(1, allImages.length - 1))] || '' : '';
