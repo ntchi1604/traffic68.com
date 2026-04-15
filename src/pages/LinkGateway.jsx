@@ -191,6 +191,7 @@ export default function LinkGateway() {
   const [challengeLoading, setChallengeLoading] = useState(false);
   const [retryCountdown, setRetryCountdown] = useState(0);
   const retryTimerRef = useRef(null);
+  const _noTaskRetryCount = useRef(0);
   const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '');
 
   // Set tab title
@@ -252,8 +253,7 @@ export default function LinkGateway() {
     const sessionKey = `gw_task_${slug}`;
 
     // Clear any pending auto-retry timer
-    if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; }
-    setRetryCountdown(0);
+    if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
 
     if (!force) {
       try {
@@ -274,6 +274,7 @@ export default function LinkGateway() {
       } catch { }
     }
 
+    let _silentRetrying = false;
     try {
       setLoading(true); setError(''); setHumanPassed(false);
 
@@ -379,7 +380,7 @@ export default function LinkGateway() {
           }),
         });
         if (retryRes.status === 429) { const e2 = await retryRes.json(); setError(e2.error || 'Bạn đã đạt giới hạn hôm nay.'); return; }
-        if (retryRes.status === 404) { setError('no_task'); return; }
+        if (retryRes.status === 404) { _silentRetrying = true; retryTimerRef.current = setTimeout(() => { retryTimerRef.current = null; fetchTask(true, excludeList); }, 5000); return; }
         if (!retryRes.ok) throw new Error('Không thể lấy nhiệm vụ');
         const retryTask = await retryRes.json();
         setTask(retryTask);
@@ -388,15 +389,15 @@ export default function LinkGateway() {
         return;
       }
       if (!taskRes.ok) throw new Error('Không thể lấy nhiệm vụ');
+      _noTaskRetryCount.current = 0;
       const newTask = await taskRes.json();
       setTask(newTask);
       if (newTask.trusted) setHumanPassed(true);
-      // Save to sessionStorage with timestamp to drop old tasks on reload
       try { sessionStorage.setItem(sessionKey, JSON.stringify({ ...newTask, _fetched_at: Date.now() })); } catch { }
     } catch (err) {
       setError(err.message || 'Lỗi');
     } finally {
-      setLoading(false);
+      if (!_silentRetrying) setLoading(false);
     }
   }, [linkInfo, slug]);
 
