@@ -216,11 +216,8 @@ export default function CreateCampaign() {
     version: 'v1',
     duration: '',
     totalViews: 1000,
-    directDailyViews: 0,          // daily_views limit for direct campaigns
+    directDailyViews: 0,
     viewByHour: false,
-    useKeywordViews: false,       // per-keyword daily_views limit
-    useKeywordTotalViews: false,  // per-keyword total views (amber)
-    useKeywordUrls: false,
     keywords: [{ keyword: '', views: 1000, daily_views: 0, url: '', image: '' }],
     urls: [''],
     imageUrls: [''],
@@ -236,13 +233,7 @@ export default function CreateCampaign() {
   const addKeyword = () => setForm(f => ({
     ...f,
     keywords: [...f.keywords, {
-      keyword: '',
-      url: '',
-      image: '',
-      daily_views: 0,
-      views: f.useKeywordViews
-        ? Math.max(1, Math.floor(keywordTotalViews / (f.keywords.length + 1)))
-        : f.totalViews,
+      keyword: '', url: '', image: '', daily_views: 0, views: f.totalViews,
     }],
   }));
   const removeKeyword = (idx) => setForm(f => ({ ...f, keywords: f.keywords.filter((_, i) => i !== idx) }));
@@ -291,14 +282,10 @@ export default function CreateCampaign() {
   const updateArrayItem = (key, idx, val) => setForm(f => ({ ...f, [key]: f[key].map((v, i) => i === idx ? val : v) }));
 
   /* ── Computed totals ── */
-  const computedTotalViews = form.useKeywordTotalViews
-    ? form.keywords.reduce((s, k) => s + (Number(k.views) || 0), 0)
-    : form.totalViews;
+  const computedTotalViews = Number(form.totalViews) || 0;
   const keywordTotalViews = computedTotalViews;
-  const allocatedDailyViews = form.useKeywordViews
-    ? form.keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)
-    : 0;
-  const zeroKeywordsCount = form.keywords.filter(k => !(Number(k.daily_views) > 0)).length;
+  // sum of all keyword daily_views (0 = không giới hạn cho keyword đó)
+  const allocatedDailyViews = form.keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
   const remainingDailyViews = Math.max(0, computedTotalViews - allocatedDailyViews);
 
   const adminDiscountEnabled = pricingConfig.discount_enabled === 'true';
@@ -954,7 +941,7 @@ export default function CreateCampaign() {
                 <SummaryRow label="Loại traffic" value={TRAFFIC_TYPES.find(t => t.value === form.trafficType)?.label || '—'} />
                 <SummaryRow label="Version" value={form.version === 'v1' ? 'Version 1 (2 bước)' : 'Version 2 (1 bước)'} />
                 <SummaryRow label="Thời gian" value={DURATIONS.find(d => d.value === form.duration)?.label || '—'} />
-                <SummaryRow label="View/ngày" value={form.useKeywordViews ? `${fmt(allocatedDailyViews)} view` : '—'} />
+                <SummaryRow label="View/ngày" value={allocatedDailyViews > 0 ? `${fmt(allocatedDailyViews)} view` : 'Không giới hạn'} />
                 <SummaryRow label="Tổng view" value={`${fmt(keywordTotalViews)} view`} />
                 <SummaryRow
                   label="Đơn giá/view"
