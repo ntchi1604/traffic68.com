@@ -68,7 +68,7 @@ setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k])
 // ── Stateless challenge (HMAC-signed, works across PM2 cluster workers) ──
 // Format: HMAC_SECRET signs payload so ANY worker can verify without shared memory
 // Payload: base64url({ prefix, ts, ip, workerLinkId, refWorkerId })
-const CHALLENGE_TTL_MS = 15 * 60 * 1000; // 15 minutes — đủ cho user đọc trang + giải PoW
+const CHALLENGE_TTL_MS = 20 * 60 * 1000; // 20 minutes
 
 function _b64(s) { return Buffer.from(s).toString('base64url'); }
 function _unb64(s) { try { return JSON.parse(Buffer.from(s, 'base64url').toString('utf8')); } catch { return null; } }
