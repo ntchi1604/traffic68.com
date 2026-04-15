@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 
+// ── Public pages — static import (cần tải ngay) ──
 import Hero from './components/Hero';
 import CommitmentCards from './components/CommitmentCards';
 import TrustBar from './components/TrustBar';
@@ -12,7 +13,6 @@ import Testimonials from './components/Testimonials';
 import FAQ from './components/FAQ';
 import BottomCTA from './components/BottomCTA';
 import Footer from './components/Footer';
-
 import DangNhap from './pages/DangNhap';
 import DangKy from './pages/DangKy';
 import DichVu from './pages/DichVu';
@@ -23,57 +23,66 @@ import BlogPost from './pages/BlogPost';
 import LienHe from './pages/LienHe';
 import LinkGateway from './pages/LinkGateway';
 
-/* ── Buyer (traffic) pages ── */
+// ── Layout wrappers — static import (nhẹ, dùng làm shell) ──
 import DashboardLayout from './components/DashboardLayout';
-import TrafficDashboard from './pages/TrafficDashboard';
-import CreateCampaign from './pages/Campaigns/CreateCampaign';
-import CampaignList from './pages/Campaigns/CampaignList';
-import TrafficTracking from './pages/Reports/TrafficTracking';
-import Deposit from './pages/Finance/Deposit';
-import TransactionHistory from './pages/Finance/TransactionHistory';
-import SettingsAndSupport from './pages/General/SettingsAndSupport';
-import UserProfileAndAccountSettings from './pages/General/UserProfileAndAccountSettings';
-import ScriptGenerator from './pages/Script/ScriptGenerator';
-import UserPricing from './pages/Dashboard/UserPricing';
-import UserReferral from './pages/General/UserReferral';
-import BuyerSupport from './pages/Campaigns/BuyerSupport';
-import BuyerApi from './pages/Campaigns/BuyerApi';
-
-/* ── Worker (shortlink) pages ── */
 import WorkerDashboardLayout from './components/WorkerDashboardLayout';
-import MemberDashboard from './pages/Dashboard/MemberDashboard';
-import AllLinks from './pages/Dashboard/AllLinks';
-import HiddenLinks from './pages/Dashboard/HiddenLinks';
-import DailyEarnings from './pages/Dashboard/DailyEarnings';
-import Withdraw from './pages/Dashboard/Withdraw';
-import WorkerTransactions from './pages/Dashboard/WorkerTransactions';
-import WorkerPricing from './pages/Dashboard/WorkerPricing';
-import WorkerProfile from './pages/Dashboard/WorkerProfile';
-import WorkerSupport from './pages/Dashboard/WorkerSupport';
-import WorkerApi from './pages/Dashboard/WorkerApi';
-import WorkerShortLinks from './pages/Dashboard/WorkerShortLinks';
 
-/* ── Admin ── */
-import AdminLayout from './pages/Admin/AdminLayout';
-import AdminDashboard from './pages/Admin/AdminDashboard';
-import AdminUsers from './pages/Admin/AdminUsers';
-import AdminCampaigns from './pages/Admin/AdminCampaigns';
-import AdminTransactions from './pages/Admin/AdminTransactions';
-import AdminTickets from './pages/Admin/AdminTickets';
-import AdminPricing from './pages/Admin/AdminPricing';
-import AdminSettings from './pages/Admin/AdminSettings';
-import AdminSecurity from './pages/Admin/AdminSecurity';
-import AdminReferrals from './pages/Admin/AdminReferrals';
-import AdminWorkerTasks from './pages/Admin/AdminWorkerTasks';
-import AdminWorkerWithdrawals from './pages/Admin/AdminWorkerWithdrawals';
+// ── Buyer pages — lazy load ──
+const TrafficDashboard              = lazy(() => import('./pages/TrafficDashboard'));
+const CreateCampaign                = lazy(() => import('./pages/Campaigns/CreateCampaign'));
+const CampaignList                  = lazy(() => import('./pages/Campaigns/CampaignList'));
+const TrafficTracking               = lazy(() => import('./pages/Reports/TrafficTracking'));
+const Deposit                       = lazy(() => import('./pages/Finance/Deposit'));
+const TransactionHistory            = lazy(() => import('./pages/Finance/TransactionHistory'));
+const UserProfileAndAccountSettings = lazy(() => import('./pages/General/UserProfileAndAccountSettings'));
+const ScriptGenerator               = lazy(() => import('./pages/Script/ScriptGenerator'));
+const UserPricing                   = lazy(() => import('./pages/Dashboard/UserPricing'));
+const UserReferral                  = lazy(() => import('./pages/General/UserReferral'));
+const BuyerSupport                  = lazy(() => import('./pages/Campaigns/BuyerSupport'));
+const BuyerApi                      = lazy(() => import('./pages/Campaigns/BuyerApi'));
 
-import AdminPricingGroups from './pages/Admin/AdminPricingGroups';
-import AdminConfig from './pages/Admin/AdminConfig';
-import AdminWithdrawalAddresses from './pages/Admin/AdminWithdrawalAddresses';
-import AdminSourceApproval from './pages/Admin/AdminSourceApproval';
-import AdminWorkerLinks from './pages/Admin/AdminWorkerLinks';
+// ── Worker pages — lazy load ──
+const MemberDashboard   = lazy(() => import('./pages/Dashboard/MemberDashboard'));
+const AllLinks          = lazy(() => import('./pages/Dashboard/AllLinks'));
+const HiddenLinks       = lazy(() => import('./pages/Dashboard/HiddenLinks'));
+const DailyEarnings     = lazy(() => import('./pages/Dashboard/DailyEarnings'));
+const Withdraw          = lazy(() => import('./pages/Dashboard/Withdraw'));
+const WorkerTransactions= lazy(() => import('./pages/Dashboard/WorkerTransactions'));
+const WorkerPricing     = lazy(() => import('./pages/Dashboard/WorkerPricing'));
+const WorkerProfile     = lazy(() => import('./pages/Dashboard/WorkerProfile'));
+const WorkerSupport     = lazy(() => import('./pages/Dashboard/WorkerSupport'));
+const WorkerApi         = lazy(() => import('./pages/Dashboard/WorkerApi'));
+const WorkerShortLinks  = lazy(() => import('./pages/Dashboard/WorkerShortLinks'));
+
+// ── Admin pages — lazy load ──
+const AdminLayout              = lazy(() => import('./pages/Admin/AdminLayout'));
+const AdminDashboard           = lazy(() => import('./pages/Admin/AdminDashboard'));
+const AdminUsers               = lazy(() => import('./pages/Admin/AdminUsers'));
+const AdminCampaigns           = lazy(() => import('./pages/Admin/AdminCampaigns'));
+const AdminTransactions        = lazy(() => import('./pages/Admin/AdminTransactions'));
+const AdminTickets             = lazy(() => import('./pages/Admin/AdminTickets'));
+const AdminPricing             = lazy(() => import('./pages/Admin/AdminPricing'));
+const AdminSettings            = lazy(() => import('./pages/Admin/AdminSettings'));
+const AdminSecurity            = lazy(() => import('./pages/Admin/AdminSecurity'));
+const AdminReferrals           = lazy(() => import('./pages/Admin/AdminReferrals'));
+const AdminWorkerTasks         = lazy(() => import('./pages/Admin/AdminWorkerTasks'));
+const AdminWorkerWithdrawals   = lazy(() => import('./pages/Admin/AdminWorkerWithdrawals'));
+const AdminPricingGroups       = lazy(() => import('./pages/Admin/AdminPricingGroups'));
+const AdminConfig              = lazy(() => import('./pages/Admin/AdminConfig'));
+const AdminWithdrawalAddresses = lazy(() => import('./pages/Admin/AdminWithdrawalAddresses'));
+const AdminSourceApproval      = lazy(() => import('./pages/Admin/AdminSourceApproval'));
+const AdminWorkerLinks         = lazy(() => import('./pages/Admin/AdminWorkerLinks'));
 
 const DASHBOARD_ROUTES = ['/buyer', '/worker', '/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/admin'];
+
+// Spinner nhỏ khi lazy-load chunk đang tải (<100ms thường)
+function PageSpinner() {
+  return (
+    <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid #E2E8F0', borderTopColor: '#3B82F6', animation: 'spin 0.8s linear infinite' }} />
+    </div>
+  );
+}
 
 function NotFound() {
   return (
@@ -104,7 +113,6 @@ function HomePage() {
   );
 }
 
-
 function Layout() {
   const { pathname } = useLocation();
   const isDashboard = DASHBOARD_ROUTES.some((r) => pathname.startsWith(r));
@@ -112,80 +120,79 @@ function Layout() {
   return (
     <>
       {!isDashboard && <Navbar />}
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/dich-vu" element={<DichVu />} />
-        <Route path="/bang-gia" element={<BangGia />} />
-        <Route path="/faq" element={<FaqPage />} />
-        <Route path="/blog" element={<Blog />} />
-        <Route path="/blog/:slug" element={<BlogPost />} />
-        <Route path="/lien-he" element={<LienHe />} />
-        <Route path="/vuot-link/:slug" element={<><LinkGateway /><Footer /></>} />
-        <Route path="/dang-nhap" element={<DangNhap />} />
-        <Route path="/dang-ky" element={<DangKy />} />
+      <Suspense fallback={<PageSpinner />}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/dich-vu" element={<DichVu />} />
+          <Route path="/bang-gia" element={<BangGia />} />
+          <Route path="/faq" element={<FaqPage />} />
+          <Route path="/blog" element={<Blog />} />
+          <Route path="/blog/:slug" element={<BlogPost />} />
+          <Route path="/lien-he" element={<LienHe />} />
+          <Route path="/vuot-link/:slug" element={<><LinkGateway /><Footer /></>} />
+          <Route path="/dang-nhap" element={<DangNhap />} />
+          <Route path="/dang-ky" element={<DangKy />} />
 
-        {/* Redirect /dashboard → /buyer/dashboard (safety net) */}
-        <Route path="/dashboard" element={<Navigate to="/buyer/dashboard" replace />} />
+          <Route path="/dashboard" element={<Navigate to="/buyer/dashboard" replace />} />
 
+          {/* ═══ BUYER Dashboard ═══ */}
+          <Route path="/buyer/dashboard" element={<DashboardLayout />}>
+            <Route index element={<TrafficDashboard />} />
+            <Route path="campaigns" element={<CampaignList />} />
+            <Route path="campaigns/create" element={<CreateCampaign />} />
+            <Route path="reports" element={<TrafficTracking />} />
+            <Route path="finance/deposit" element={<Deposit />} />
+            <Route path="finance/transactions" element={<TransactionHistory />} />
+            <Route path="script" element={<ScriptGenerator />} />
+            <Route path="support" element={<BuyerSupport />} />
+            <Route path="pricing" element={<UserPricing />} />
+            <Route path="referral" element={<UserReferral />} />
+            <Route path="profile" element={<UserProfileAndAccountSettings />} />
+            <Route path="api" element={<BuyerApi />} />
+          </Route>
 
-        {/* ═══ BUYER Dashboard ═══ */}
-        <Route path="/buyer/dashboard" element={<DashboardLayout />}>
-          <Route index element={<TrafficDashboard />} />
-          <Route path="campaigns" element={<CampaignList />} />
-          <Route path="campaigns/create" element={<CreateCampaign />} />
-          <Route path="reports" element={<TrafficTracking />} />
-          <Route path="finance/deposit" element={<Deposit />} />
-          <Route path="finance/transactions" element={<TransactionHistory />} />
-          <Route path="script" element={<ScriptGenerator />} />
-          <Route path="support" element={<BuyerSupport />} />
-          <Route path="pricing" element={<UserPricing />} />
-          <Route path="referral" element={<UserReferral />} />
-          <Route path="profile" element={<UserProfileAndAccountSettings />} />
-          <Route path="api" element={<BuyerApi />} />
-        </Route>
+          {/* ═══ WORKER Dashboard ═══ */}
+          <Route path="/worker/dashboard" element={<WorkerDashboardLayout />}>
+            <Route index element={<MemberDashboard />} />
+            <Route path="links" element={<AllLinks />} />
+            <Route path="links/hidden" element={<HiddenLinks />} />
+            <Route path="earnings" element={<DailyEarnings />} />
+            <Route path="withdraw" element={<Withdraw />} />
+            <Route path="transactions" element={<WorkerTransactions />} />
+            <Route path="pricing" element={<WorkerPricing />} />
+            <Route path="profile" element={<WorkerProfile />} />
+            <Route path="support" element={<WorkerSupport />} />
+            <Route path="referral" element={<UserReferral />} />
+            <Route path="api" element={<WorkerApi />} />
+            <Route path="short-links" element={<WorkerShortLinks />} />
+          </Route>
 
-        {/* ═══ WORKER Dashboard ═══ */}
-        <Route path="/worker/dashboard" element={<WorkerDashboardLayout />}>
-          <Route index element={<MemberDashboard />} />
-          <Route path="links" element={<AllLinks />} />
-          <Route path="links/hidden" element={<HiddenLinks />} />
-          <Route path="earnings" element={<DailyEarnings />} />
-          <Route path="withdraw" element={<Withdraw />} />
-          <Route path="transactions" element={<WorkerTransactions />} />
-          <Route path="pricing" element={<WorkerPricing />} />
-          <Route path="profile" element={<WorkerProfile />} />
-          <Route path="support" element={<WorkerSupport />} />
-          <Route path="referral" element={<UserReferral />} />
-          <Route path="api" element={<WorkerApi />} />
-          <Route path="short-links" element={<WorkerShortLinks />} />
-        </Route>
+          {/* ═══ Admin ═══ */}
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers type="buyers" />} />
+            <Route path="campaigns" element={<AdminCampaigns />} />
+            <Route path="transactions" element={<AdminTransactions />} />
+            <Route path="tickets" element={<AdminTickets defaultRole="buyer" />} />
+            <Route path="pricing" element={<AdminPricing />} />
+            <Route path="security" element={<AdminSecurity />} />
+            <Route path="referrals/buyers" element={<AdminReferrals type="buyers" />} />
+            <Route path="referrals/workers" element={<AdminReferrals type="workers" />} />
+            <Route path="worker-users" element={<AdminUsers type="workers" />} />
+            <Route path="worker-tasks" element={<AdminWorkerTasks />} />
+            <Route path="worker-withdrawals" element={<AdminWorkerWithdrawals />} />
+            <Route path="withdrawal-addresses" element={<AdminWithdrawalAddresses />} />
+            <Route path="worker-pricing-groups" element={<AdminPricingGroups />} />
+            <Route path="source-approval" element={<AdminSourceApproval />} />
+            <Route path="worker-tickets" element={<AdminTickets defaultRole="worker" />} />
+            <Route path="worker-links" element={<AdminWorkerLinks />} />
+            <Route path="config" element={<AdminConfig />} />
+            <Route path="settings" element={<AdminSettings />} />
+          </Route>
 
-        {/* ═══ Admin ═══ */}
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<AdminDashboard />} />
-          <Route path="users" element={<AdminUsers type="buyers" />} />
-          <Route path="campaigns" element={<AdminCampaigns />} />
-          <Route path="transactions" element={<AdminTransactions />} />
-          <Route path="tickets" element={<AdminTickets defaultRole="buyer" />} />
-          <Route path="pricing" element={<AdminPricing />} />
-          <Route path="security" element={<AdminSecurity />} />
-          <Route path="referrals/buyers" element={<AdminReferrals type="buyers" />} />
-          <Route path="referrals/workers" element={<AdminReferrals type="workers" />} />
-          <Route path="worker-users" element={<AdminUsers type="workers" />} />
-          <Route path="worker-tasks" element={<AdminWorkerTasks />} />
-          <Route path="worker-withdrawals" element={<AdminWorkerWithdrawals />} />
-          <Route path="withdrawal-addresses" element={<AdminWithdrawalAddresses />} />
-
-          <Route path="worker-pricing-groups" element={<AdminPricingGroups />} />
-          <Route path="source-approval" element={<AdminSourceApproval />} />
-          <Route path="worker-tickets" element={<AdminTickets defaultRole="worker" />} />
-          <Route path="worker-links" element={<AdminWorkerLinks />} />
-          <Route path="config" element={<AdminConfig />} />
-          <Route path="settings" element={<AdminSettings />} />
-        </Route>
-
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </>
   );
 }

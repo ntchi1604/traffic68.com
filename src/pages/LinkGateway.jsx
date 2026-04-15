@@ -55,17 +55,14 @@ if (typeof window !== 'undefined') {
     };
     document.body.appendChild(iframe);
 
-    // Timeout 30s → retry
+    // Timeout 5s → resolve ngay với bot:false (không chặn user chờ lâu)
     setTimeout(() => {
       if (!_creepDone && (!_creepVisitorId || _creepVisitorId === 'unknown')) {
-        if (_retryCount < 3) {
-          _retryCount++;
-          _loadCreepIframe();
-        } else {
-          _resolveCreep({ bot: false, creepTimeout: true });
-        }
+        // Giảm từ 30s → 5s: nếu iframe chưa xong sau 5s thì coi như không phải bot
+        // (bot thực sự sẽ bị bắt qua các layer khác: PoW, IP check, server-side)
+        _resolveCreep({ bot: false, creepTimeout: true });
       }
-    }, 30000);
+    }, 5000);
   };
 
   if (document.body) _loadCreepIframe();
@@ -222,6 +219,20 @@ export default function LinkGateway() {
     detectAdBlock();
   }, []);
 
+  // Pre-fetch challenge SONG SONG với linkInfo — không chờ linkInfo xong mới bắt đầu
+  // Điều này giúp tiết kiệm ~200-500ms trên mỗi lần load
+  const _prefetchedChallengeRef = useRef(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}&_t=${Date.now()}`, {
+      cache: 'no-store',
+      signal: controller.signal,
+    }).then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) _prefetchedChallengeRef.current = data; })
+      .catch(() => {}); // ignore lỗi, fetchTask sẽ tự fetch lại
+    return () => controller.abort();
+  }, [slug]);
+
   useEffect(() => {
     fetch(`/api/shortlink/info/${slug}`)
       .then(r => r.json())
@@ -276,10 +287,13 @@ export default function LinkGateway() {
 
       // ── Parallel: start creep detection AND fetch challenge at the same time ──
       const creepPromise = getCreepData();
-      const chPromise = fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}&_t=${Date.now()}`, { cache: 'no-store' }).then(r => {
-        if (!r.ok) throw new Error('Không thể lấy challenge');
-        return r.json();
-      });
+      // Dùng challenge đã pre-fetch nếu có (tiết kiệm 1 round-trip)
+      const chPromise = _prefetchedChallengeRef.current
+        ? Promise.resolve(_prefetchedChallengeRef.current).finally(() => { _prefetchedChallengeRef.current = null; })
+        : fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}&_t=${Date.now()}`, { cache: 'no-store' }).then(r => {
+            if (!r.ok) throw new Error('Không thể lấy challenge');
+            return r.json();
+          });
 
       // Solve PoW while waiting for creep data (can overlap CPU work with network)
       const challenge = await chPromise;
