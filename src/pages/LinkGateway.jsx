@@ -460,7 +460,8 @@ export default function LinkGateway() {
 
   // Called when shake/curve challenge passes — fetch server-side token
   const handleChallengePass = useCallback(async (shakeLog) => {
-    // Không đóng overlay ngay — để ShakeChallenge tự đóng sau khi hiện overlay xanh
+    // KHÔNG đóng overlay ngay — ShakeChallenge tự đóng theo timer 1200ms
+    // Việc gọi setShowChallenge(false) sớm khiến overlay xanh + spinner biến mất cùng lúc → flash trắng
     setChallengeLoading(true);
     try {
       const headers = { 'Content-Type': 'application/json' };
@@ -489,11 +490,14 @@ export default function LinkGateway() {
       }
 
       if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
-      setShowChallenge(false);
+
+      // SUCCESS: KHÔNG gọi setShowChallenge(false) ở đây
+      // ShakeChallenge đang hiện overlay xanh và sẽ tự đóng sau 1200ms qua onClose timer
+      // Nếu API hoàn thành trước 1200ms → overlay xanh vẫn còn → page đã sẵn sàng khi overlay đóng → không flash trắng
       setChallengeToken(data.challengeToken);
       setHumanPassed(true);
     } catch (err) {
-      // Lỗi → đóng overlay nhưng hiện lại nút lắc để user thử lại
+      // Lỗi → đóng overlay ngay và hiện lại nút lắc để user thử lại
       setShowChallenge(false);
       setShowError(true);
       setError('Xác minh thất bại, vui lòng thử lại: ' + (err.message || ''));
