@@ -6,7 +6,7 @@ const { getPool } = require('../db');
 // ── In-memory cache: tránh query DB cho mỗi authenticated request ──
 // Key: userId, Value: { status, expiry }
 const userStatusCache = new Map();
-const USER_CACHE_TTL = 30 * 1000; // 30 giây
+const USER_CACHE_TTL = 10 * 1000; // 10 giây — đủ giảm DB queries mà vẫn gần real-time
 
 function getCachedStatus(userId) {
   const entry = userStatusCache.get(userId);
