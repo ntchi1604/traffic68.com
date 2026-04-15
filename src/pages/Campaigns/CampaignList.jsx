@@ -358,7 +358,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         keyword_config: JSON.stringify(keywordConfig),
         totalViews:     computedTotal,
         total_views:    computedTotal,
-        url:            u[0] || '',
+        // Prefer per-keyword URL; fall back to campaign-level URL so old camps aren't wiped
+        url:            u[0] || urls[0]?.trim() || '',
         url2:           JSON.stringify([]),
         image1_url:     allImages.length ? JSON.stringify(allImages) : null,
         image2_url:     null,
@@ -390,6 +391,64 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Tên chiến dịch</label>
             <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 font-medium">{campaign.name}</div>
+          </div>
+          {/* Campaign URL + Image — campaign-level fallback for old camps */}
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">URL đích (mặc định)</label>
+              <input
+                type="text"
+                value={urls[0] || ''}
+                onChange={e => setUrls([e.target.value])}
+                placeholder="https://example.com"
+                className={input}
+              />
+              <p className="mt-1 text-xs text-slate-400">URL mặc định khi từ khóa không có URL riêng</p>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Ảnh chiến dịch (mặc định)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={imageUrls[0] || ''}
+                  onChange={e => setImageUrls([e.target.value])}
+                  placeholder="https://... hoặc Ctrl+V dán ảnh"
+                  onPaste={async e => {
+                    const items = e.clipboardData?.items;
+                    if (!items) return;
+                    for (let j = 0; j < items.length; j++) {
+                      const item = items[j];
+                      if (item.type.startsWith('image/')) {
+                        e.preventDefault();
+                        const file = item.getAsFile();
+                        if (!file) return;
+                        setUploadingIdx(0);
+                        try {
+                          const fd = new FormData();
+                          fd.append('image', file);
+                          const token = localStorage.getItem('token');
+                          const res = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Upload thất bại');
+                          setImageUrls([data.imageUrl]);
+                        } catch (err) { toast.error(err.message); }
+                        finally { setUploadingIdx(-1); }
+                        break;
+                      }
+                    }
+                  }}
+                  className={input + ' flex-1'}
+                />
+                <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0">
+                  {uploadingIdx === 0 ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
+                  <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 0)} />
+                </label>
+              </div>
+              {imageUrls[0] && (
+                <img src={imageUrls[0]} alt="preview" className="mt-2 h-16 w-auto rounded-lg border border-slate-200 object-cover" />
+              )}
+              <p className="mt-1 text-xs text-slate-400">Ảnh mặc định khi từ khóa không có ảnh riêng</p>
+            </div>
           </div>
 
           {/* Keywords */}
