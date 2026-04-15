@@ -9,10 +9,10 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 async function run() {
   const pool = await mysql.createConnection({
-    host:     process.env.DB_HOST     || '127.0.0.1',
-    user:     process.env.DB_USER     || 'traffic68',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME     || 'traffic68',
+    host:     process.env.DB_HOST || '127.0.0.1',
+    user:     process.env.DB_USER || 'traffic68',
+    password: process.env.DB_PASS || '',
+    database: process.env.DB_NAME || 'traffic68',
     multipleStatements: true,
   });
 
