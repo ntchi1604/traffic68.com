@@ -2,13 +2,18 @@ import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
+  Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { Eye, TrendingUp, Zap, Wallet, Gift, CheckCircle2, Clock, XCircle, Bell, X } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import api from '../../lib/api';
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
+
+/* ── Skeleton placeholder ── */
+function Skeleton({ className = '', style }) {
+  return <div className={`bg-slate-100 animate-pulse rounded-lg ${className}`} style={style} />;
+}
 
 /* ── Custom Tooltip cho chart ── */
 function ChartTooltip({ active, payload, label }) {
@@ -29,12 +34,12 @@ function ChartTooltip({ active, payload, label }) {
 function StatusBadge({ status }) {
   const cfg = {
     completed: { label: 'Hoàn thành', cls: 'bg-emerald-50 text-emerald-600 ring-emerald-500/20', Icon: CheckCircle2 },
-    pending: { label: 'Đang xử lý', cls: 'bg-amber-50 text-amber-600 ring-amber-500/20', Icon: Clock },
-    step1: { label: 'Bước 1', cls: 'bg-blue-50 text-indigo-600 ring-indigo-500/20', Icon: Clock },
-    step2: { label: 'Bước 2', cls: 'bg-blue-50 text-indigo-600 ring-indigo-500/20', Icon: Clock },
-    step3: { label: 'Bước 3', cls: 'bg-blue-50 text-indigo-600 ring-indigo-500/20', Icon: Clock },
-    expired: { label: 'Hết hạn', cls: 'bg-slate-50 text-slate-500 ring-slate-500/20', Icon: XCircle },
-    failed: { label: 'Thất bại', cls: 'bg-red-50 text-red-500 ring-red-500/20', Icon: XCircle },
+    pending:   { label: 'Đang xử lý', cls: 'bg-amber-50 text-amber-600 ring-amber-500/20',       Icon: Clock },
+    step1:     { label: 'Bước 1',      cls: 'bg-blue-50 text-indigo-600 ring-indigo-500/20',       Icon: Clock },
+    step2:     { label: 'Bước 2',      cls: 'bg-blue-50 text-indigo-600 ring-indigo-500/20',       Icon: Clock },
+    step3:     { label: 'Bước 3',      cls: 'bg-blue-50 text-indigo-600 ring-indigo-500/20',       Icon: Clock },
+    expired:   { label: 'Hết hạn',    cls: 'bg-slate-50 text-slate-500 ring-slate-500/20',         Icon: XCircle },
+    failed:    { label: 'Thất bại',   cls: 'bg-red-50 text-red-500 ring-red-500/20',               Icon: XCircle },
   };
   const { label, cls, Icon } = cfg[status] || cfg.pending;
   return (
@@ -46,27 +51,25 @@ function StatusBadge({ status }) {
 
 export default function MemberDashboard() {
   usePageTitle('Tổng quan');
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [announcement, setAnnouncement] = useState(null);
+  const [data, setData]           = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [announcement, setAnnouncement]             = useState(null);
   const [announcementDismissed, setAnnouncementDismissed] = useState(false);
 
   useEffect(() => {
+    // Chạy 2 request song song, không chờ nhau
     api.get('/vuot-link/worker/stats')
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
 
-    // Fetch admin announcement (public, no auth needed)
-    fetch('/api/announcement')
+    fetch('/api/announcement?role=worker')
       .then(r => r.json())
       .then(d => { if (d.enabled && d.message) setAnnouncement(d); })
       .catch(() => {});
   }, []);
 
-  // Chart: mỗi ngày có views + earn
   const chartData = (() => {
     if (!data?.chart?.length) return [];
-    // Tạo map từ raw chart data
     const map = {};
     (data.chart || []).forEach(c => {
       const day = new Date(c.day).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
@@ -77,46 +80,43 @@ export default function MemberDashboard() {
 
   const statCards = [
     {
-      label: 'Hôm nay', value: `${data?.today?.tasks || 0} views`,
-      subtext: `Thu nhập: ${fmt(data?.today?.earnings || 0)} đ`,
+      label: 'Hôm nay',
+      value:   loading ? null : `${data?.today?.tasks || 0} views`,
+      subtext: loading ? null : `Thu nhập: ${fmt(data?.today?.earnings || 0)} đ`,
       Icon: Eye, bg: 'bg-blue-50', iconColor: 'text-indigo-600', border: 'border-blue-100',
       accent: 'from-blue-500 to-blue-600',
     },
     {
-      label: 'Tổng đã hoàn thành', value: `${fmt(data?.total?.tasks || 0)} views`,
-      subtext: `Tổng thu nhập: ${fmt(data?.total?.earnings || 0)} đ`,
+      label: 'Tổng đã hoàn thành',
+      value:   loading ? null : `${fmt(data?.total?.tasks || 0)} views`,
+      subtext: loading ? null : `Tổng thu nhập: ${fmt(data?.total?.earnings || 0)} đ`,
       Icon: TrendingUp, bg: 'bg-green-50', iconColor: 'text-green-600', border: 'border-green-100',
       accent: 'from-green-500 to-green-600',
     },
     {
-      label: 'View khả dụng / đang xử lý', value: `${fmt(data?.remainingDailyViews || 0)} views`,
-      subtext: `${data?.pending || 0} nhiệm vụ đang xử lý`,
+      label: 'View khả dụng / đang xử lý',
+      value:   loading ? null : `${fmt(data?.remainingDailyViews || 0)} views`,
+      subtext: loading ? null : `${data?.pending || 0} nhiệm vụ đang xử lý`,
       Icon: Zap, bg: 'bg-indigo-50', iconColor: 'text-indigo-600', border: 'border-indigo-100',
       accent: 'from-indigo-400 to-indigo-500',
     },
     {
-      label: 'Ví thu nhập', value: `${fmt(data?.balance || 0)} đ`,
-      subtext: data?.commissionBalance != null ? `Hoa hồng: ${fmt(data.commissionBalance)} đ` : 'Số dư khả dụng',
+      label: 'Ví thu nhập',
+      value:   loading ? null : `${fmt(data?.balance || 0)} đ`,
+      subtext: loading ? null : (data?.commissionBalance != null ? `Hoa hồng: ${fmt(data.commissionBalance)} đ` : 'Số dư khả dụng'),
       Icon: Wallet, bg: 'bg-purple-50', iconColor: 'text-purple-600', border: 'border-purple-100',
       accent: 'from-purple-500 to-purple-600',
     },
   ];
 
-  if (data?.commissionBalance > 0) {
+  if (!loading && data?.commissionBalance > 0) {
     statCards.push({
-      label: 'Hoa hồng referral', value: `${fmt(data.commissionBalance)} đ`,
+      label: 'Hoa hồng referral',
+      value: `${fmt(data.commissionBalance)} đ`,
       subtext: 'Từ F1 vượt link',
       Icon: Gift, bg: 'bg-pink-50', iconColor: 'text-pink-600', border: 'border-pink-100',
       accent: 'from-pink-500 to-pink-600',
     });
-  }
-
-  if (loading && !data) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
   }
 
   return (
@@ -126,10 +126,10 @@ export default function MemberDashboard() {
       {/* Admin Announcement Banner */}
       {announcement && !announcementDismissed && (() => {
         const styles = {
-          info:    { wrap: 'bg-blue-50 border-blue-200 text-blue-800',    icon: 'text-blue-500' },
-          warning: { wrap: 'bg-amber-50 border-amber-200 text-amber-800', icon: 'text-amber-500' },
+          info:    { wrap: 'bg-blue-50 border-blue-200 text-blue-800',         icon: 'text-blue-500' },
+          warning: { wrap: 'bg-amber-50 border-amber-200 text-amber-800',      icon: 'text-amber-500' },
           success: { wrap: 'bg-emerald-50 border-emerald-200 text-emerald-800', icon: 'text-emerald-500' },
-          error:   { wrap: 'bg-red-50 border-red-200 text-red-800',       icon: 'text-red-500' },
+          error:   { wrap: 'bg-red-50 border-red-200 text-red-800',            icon: 'text-red-500' },
         };
         const s = styles[announcement.type] || styles.info;
         return (
@@ -139,18 +139,15 @@ export default function MemberDashboard() {
               <p className="text-xs font-bold uppercase tracking-wide mb-1 opacity-60">Thông báo từ Admin</p>
               <p className="text-sm font-semibold leading-relaxed whitespace-pre-line">{announcement.message}</p>
             </div>
-            <button
-              onClick={() => setAnnouncementDismissed(true)}
-              className="flex-shrink-0 p-1 rounded-lg hover:bg-black/10 transition"
-              title="Đóng"
-            >
+            <button onClick={() => setAnnouncementDismissed(true)}
+              className="flex-shrink-0 p-1 rounded-lg hover:bg-black/10 transition" title="Đóng">
               <X size={15} />
             </button>
           </div>
         );
       })()}
 
-      {/* Stat Cards */}
+      {/* ── Stat Cards — luôn hiển thị ngay, skeleton khi đang load ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-w-0">
         {statCards.map(({ label, value, subtext, Icon, bg, iconColor, border, accent }, i) => (
           <div key={i} className={`group relative bg-white rounded-xl border ${border} p-5 flex items-start gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden`}>
@@ -158,28 +155,41 @@ export default function MemberDashboard() {
             <div className={`w-11 h-11 ${bg} rounded-xl flex items-center justify-center shrink-0`}>
               <Icon size={20} className={iconColor} />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide truncate">{label}</p>
-              <p className="text-xl font-black text-slate-900 mt-0.5 truncate">{value}</p>
-              <p className="text-xs text-slate-400 mt-0.5 truncate">{subtext}</p>
+              {value == null ? (
+                <>
+                  <Skeleton className="h-6 w-28 mt-1.5" />
+                  <Skeleton className="h-3 w-36 mt-2" />
+                </>
+              ) : (
+                <>
+                  <p className="text-xl font-black text-slate-900 mt-0.5 truncate">{value}</p>
+                  <p className="text-xs text-slate-400 mt-0.5 truncate">{subtext}</p>
+                </>
+              )}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Chart views + thu nhập */}
+      {/* ── Chart views + thu nhập ── */}
       <div className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-6 min-w-0">
         <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">Views & Thu nhập 7 ngày qua</h2>
-          </div>
+          <h2 className="text-base font-bold text-slate-900">Views & Thu nhập 7 ngày qua</h2>
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-400 inline-block" /> Views</span>
             <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-indigo-500 inline-block" /> Thu nhập</span>
           </div>
         </div>
 
-        {chartData.length > 0 ? (
+        {loading ? (
+          <div className="h-64 flex items-end gap-2 px-4 pb-4">
+            {[55, 80, 45, 90, 65, 70, 85].map((h, i) => (
+              <Skeleton key={i} className="flex-1 rounded-t-md rounded-b-none" style={{ height: `${h}%` }} />
+            ))}
+          </div>
+        ) : chartData.length > 0 ? (
           <div className="h-64 sm:h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData} margin={{ left: 0, right: 20, top: 5, bottom: 0 }}>
@@ -191,30 +201,17 @@ export default function MemberDashboard() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
                 <XAxis dataKey="day" tick={{ fill: '#94A3B8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                {/* Trục trái: views */}
-                <YAxis
-                  yAxisId="views"
-                  orientation="left"
-                  tick={{ fill: '#60a5fa', fontSize: 11 }}
-                  axisLine={false} tickLine={false}
-                  width={36}
-                  tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : v}
-                />
-                {/* Trục phải: earn */}
-                <YAxis
-                  yAxisId="earn"
-                  orientation="right"
-                  tick={{ fill: '#6366f1', fontSize: 11 }}
-                  axisLine={false} tickLine={false}
-                  width={50}
-                  tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : v}
-                />
+                <YAxis yAxisId="views" orientation="left"
+                  tick={{ fill: '#60a5fa', fontSize: 11 }} axisLine={false} tickLine={false} width={36}
+                  tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : v} />
+                <YAxis yAxisId="earn" orientation="right"
+                  tick={{ fill: '#6366f1', fontSize: 11 }} axisLine={false} tickLine={false} width={50}
+                  tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : v} />
                 <Tooltip content={<ChartTooltip />} />
                 <Bar yAxisId="views" dataKey="views" name="Views" fill="url(#barGrad)" radius={[4, 4, 0, 0]} maxBarSize={40} />
                 <Line yAxisId="earn" type="monotone" dataKey="earn" name="Thu nhập" stroke="#6366f1" strokeWidth={2.5}
                   dot={{ r: 4, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
-                  activeDot={{ r: 6, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
-                />
+                  activeDot={{ r: 6, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -226,7 +223,7 @@ export default function MemberDashboard() {
         )}
       </div>
 
-      {/* Recent Tasks */}
+      {/* ── Recent Tasks ── */}
       <div className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-5 min-w-0">
         <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
           <span className="w-1 h-5 bg-indigo-500 rounded-full" />
@@ -243,7 +240,16 @@ export default function MemberDashboard() {
               </tr>
             </thead>
             <tbody>
-              {(data?.recent || []).length === 0 ? (
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="border-b border-slate-50">
+                    <td className="py-3"><Skeleton className="h-4 w-32" /></td>
+                    <td className="py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
+                    <td className="py-3 flex justify-end"><Skeleton className="h-4 w-16" /></td>
+                    <td className="py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" /></td>
+                  </tr>
+                ))
+              ) : (data?.recent || []).length === 0 ? (
                 <tr><td colSpan={4} className="py-10 text-center text-slate-400 text-sm">Chưa có nhiệm vụ nào</td></tr>
               ) : data.recent.map(task => (
                 <tr key={task.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
