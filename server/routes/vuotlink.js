@@ -1480,87 +1480,69 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
     const uid = req.userId;
-
-    // Get worker's link IDs for gateway tasks
     const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
     const wlIds = wLinks.map(w => w.id);
-    const wlCondition = wlIds.length > 0
-      ? `(worker_id = ? OR worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
-      : `worker_id = ?`;
+    const wlCond = wlIds.length > 0
+      ? '(worker_id = ? OR worker_link_id IN (' + wlIds.map(() => '?').join(',') + '))'
+      : 'worker_id = ?';
     const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
+    const wlCondT = wlCond.replace(/worker_id/g, 't.worker_id').replace(/worker_link_id/g, 't.worker_link_id');
 
-    // Dùng VN timezone date (Asia/Ho_Chi_Minh) để đồng nhất với Admin Anti-Cheat
-    const vnDateToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-    const [todayTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn
-       FROM vuot_link_tasks
-       WHERE ${wlCondition}
-         AND status = 'completed'
-         AND bot_detected = 0
-         AND is_over_limit = 0
-         AND DATE(completed_at) = ?`,
-      [...wlParams, vnDateToday]
-    );
-    const [totalTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn
-       FROM vuot_link_tasks
-       WHERE ${wlCondition}
-         AND status = 'completed'
-         AND bot_detected = 0
-         AND is_over_limit = 0`,
-      wlParams
-    );
-    const [pendingTasks] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ${wlCondition} AND status IN ('pending','step1','step2','step3')`,
-      wlParams
-    );
-    const [wallets] = await pool.execute(
-      `SELECT type, balance FROM wallets WHERE user_id = ?`,
-      [uid]
-    );
+    // Dung date range thay vi DATE() -- giup MySQL dung index completed_at
+    const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+    const todayStart = vnToday + ' 00:00:00';
+    const todayEnd   = vnToday + ' 23:59:59';
+    const d7 = new Date(); d7.setDate(d7.getDate() - 7);
+    const sevenAgo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(d7) + ' 00:00:00';
+
+    // Chay SONG SONG voi Promise.all -- khong await tung cai
+    const [todayR, totalR, pendingR, walletR, chartR, recentR, remR] = await Promise.all([
+      // Today
+      pool.execute(
+        'SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ?",
+        [...wlParams, todayStart, todayEnd]
+      ),
+      // Total (gioi han 365 ngay tranh full scan)
+      pool.execute(
+        'SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= DATE_SUB(NOW(), INTERVAL 365 DAY)",
+        wlParams
+      ),
+      // Pending
+      pool.execute(
+        'SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ' + wlCond + " AND status IN ('pending','step1','step2','step3')",
+        wlParams
+      ),
+      // Wallets
+      pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
+      // 7-day chart
+      pool.execute(
+        'SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ? GROUP BY DATE(completed_at) ORDER BY day",
+        [...wlParams, sevenAgo, todayEnd]
+      ),
+      // Recent tasks
+      pool.execute(
+        'SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id WHERE ' + wlCondT + " AND (t.bot_detected = 0 OR t.status != 'completed') ORDER BY t.created_at DESC LIMIT 10",
+        wlParams
+      ),
+      // Remaining daily views
+      pool.execute(
+        "SELECT COALESCE(SUM(c.daily_views),0) as total_daily, COALESCE(SUM(LEAST(COALESCE(td.done,0),c.daily_views)),0) as today_done FROM campaigns c LEFT JOIN (SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks WHERE status = 'completed' AND completed_at >= ? AND completed_at <= ? GROUP BY campaign_id) td ON td.campaign_id = c.id WHERE c.status = 'running' AND c.daily_views > 0",
+        [todayStart, todayEnd]
+      ),
+    ]);
+
     const walletMap = {};
-    wallets.forEach(w => { walletMap[w.type] = Number(w.balance); });
-
-    // 7 day chart
-    const [chart] = await pool.execute(
-      `SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn
-       FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed' AND bot_detected = 0 AND DATE(completed_at) >= DATE_SUB(?, INTERVAL 7 DAY)
-       GROUP BY DATE(completed_at) ORDER BY day`,
-      [...wlParams, vnDateToday]
-    );
-
-    // Recent tasks
-    const [recent] = await pool.execute(
-      `SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at
-       FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id
-       WHERE ${wlCondition.replace(/worker_id/g, 't.worker_id').replace(/worker_link_id/g, 't.worker_link_id')} AND (t.bot_detected = 0 OR t.status != 'completed') ORDER BY t.created_at DESC LIMIT 10`,
-      wlParams
-    );
-
-    // Remaining daily views — dùng vnDateToday (giờ VN) thay vì CURDATE() (giờ UTC MySQL)
-    const [remRows] = await pool.execute(
-      `SELECT
-        COALESCE(SUM(c.daily_views), 0) as total_daily,
-        COALESCE(SUM(LEAST(COALESCE(td.done, 0), c.daily_views)), 0) as today_done
-       FROM campaigns c
-       LEFT JOIN (
-         SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks
-         WHERE status = 'completed' AND DATE(completed_at) = ?
-         GROUP BY campaign_id
-       ) td ON td.campaign_id = c.id
-       WHERE c.status = 'running' AND c.daily_views > 0`,
-      [vnDateToday]
-    );
+    walletR[0].forEach(w => { walletMap[w.type] = Number(w.balance); });
 
     res.json({
-      today: { tasks: todayTasks[0].cnt, earnings: Number(todayTasks[0].earn) },
-      total: { tasks: totalTasks[0].cnt, earnings: Number(totalTasks[0].earn) },
-      pending: pendingTasks[0].cnt,
-      remainingDailyViews: Math.max(0, Number(remRows[0].total_daily) - Number(remRows[0].today_done)),
-      balance: walletMap.earning || 0,
+      today:   { tasks: todayR[0][0].cnt,   earnings: Number(todayR[0][0].earn)   },
+      total:   { tasks: totalR[0][0].cnt,   earnings: Number(totalR[0][0].earn)   },
+      pending: pendingR[0][0].cnt,
+      remainingDailyViews: Math.max(0, Number(remR[0][0].total_daily) - Number(remR[0][0].today_done)),
+      balance:           walletMap.earning    || 0,
       commissionBalance: walletMap.commission || 0,
-      chart,
-      recent,
+      chart:  chartR[0],
+      recent: recentR[0],
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
