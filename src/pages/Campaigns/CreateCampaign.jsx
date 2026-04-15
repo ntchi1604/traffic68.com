@@ -673,7 +673,7 @@ export default function CreateCampaign() {
                   />
                   <Hint>Visitor sẽ được điều hướng thẳng đến URL này, không qua bước tìm kiếm.</Hint>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div>
                     <Label required hint="Tổng số lượt view cần mua">Tổng view</Label>
                     <NumberInput
@@ -684,14 +684,27 @@ export default function CreateCampaign() {
                     />
                   </div>
                   <div>
-                    <Label hint="Giới hạn số lượt view tối đa mỗi ngày. Đặt 0 để không giới hạn.">View / ngày (tùy chọn)</Label>
-                    <NumberInput
-                      value={form.directDailyViews}
-                      onChange={e => set('directDailyViews', Number(e.target.value) || 0)}
-                      suffix="view/ngày"
-                      min="0"
-                    />
-                    <Hint>Đặt 0 = không giới hạn.</Hint>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label hint="Giới hạn số lượt view tối đa mỗi ngày">View / ngày</Label>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-semibold transition-colors ${form.directDailyViews > 0 ? 'text-sky-600' : 'text-slate-400'}`}>
+                          Cài view/ngày
+                        </span>
+                        <Toggle
+                          checked={form.directDailyViews > 0}
+                          onChange={() => set('directDailyViews', form.directDailyViews > 0 ? 0 : 1000)}
+                        />
+                      </div>
+                    </div>
+                    {form.directDailyViews > 0 && (
+                      <NumberInput
+                        value={form.directDailyViews}
+                        onChange={e => set('directDailyViews', Number(e.target.value) || 0)}
+                        suffix="view/ngày"
+                        min="1"
+                      />
+                    )}
+                    <Hint>{form.directDailyViews > 0 ? 'Visitor sẽ được phân phối đều trong ngày.' : 'Không giới hạn — phân phối tự động.'}</Hint>
                   </div>
                 </div>
               </SectionCard>
