@@ -20,9 +20,19 @@ async function run() {
   console.log(`[DB Cleanup] Bắt đầu: ${startAt}`);
 
   const steps = [
-    // 1. Tasks expired > 3 ngày
+    // 0. Expired tasks (visitor lấy task nhưng không làm)
     {
-      label: 'Xóa tasks expired > 3 ngày',
+      label: 'Xóa tasks expired',
+      sql: `DELETE FROM vuot_link_tasks WHERE status = 'expired'`,
+    },
+    // 0b. Cancelled tasks
+    {
+      label: 'Xóa tasks cancelled',
+      sql: `DELETE FROM vuot_link_tasks WHERE status = 'cancelled'`,
+    },
+    // 1. Tasks pending/expired cũ > 3 ngày
+    {
+      label: 'Xóa tasks pending quá hạn > 3 ngày',
       sql: `DELETE FROM vuot_link_tasks
             WHERE status IN ('pending','step1','step2','step3')
               AND expires_at < DATE_SUB(NOW(), INTERVAL 3 DAY)`,
