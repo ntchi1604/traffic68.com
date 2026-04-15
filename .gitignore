@@ -34,3 +34,4 @@ obfuscate*.js
 !scripts/obfuscate.js
 
 .claude
+vuot_log.txt
