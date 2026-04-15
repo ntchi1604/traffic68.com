@@ -60,30 +60,36 @@ router.get('/overview', async (req, res) => {
   const pool = getPool();
   const { fromDate, toDate } = req.query;
 
+  // Dùng range thay vì DATE() — cho phép MySQL dùng index trên created_at
   let dateCondition = '';
   const dateParams = [];
-  if (fromDate) { dateCondition += " AND DATE(created_at) >= ?"; dateParams.push(fromDate); }
-  if (toDate) { dateCondition += " AND DATE(created_at) <= ?"; dateParams.push(toDate); }
+  if (fromDate) { dateCondition += ' AND created_at >= ?'; dateParams.push(fromDate + ' 00:00:00'); }
+  if (toDate)   { dateCondition += ' AND created_at <= ?'; dateParams.push(toDate   + ' 23:59:59'); }
 
-  const [tu] = await pool.execute('SELECT COUNT(*) as c FROM users');
-  const [tc] = await pool.execute('SELECT COUNT(*) as c FROM campaigns');
-  const [rc] = await pool.execute("SELECT COUNT(*) as c FROM campaigns WHERE status = 'running'");
-
-  const [td] = await pool.execute(`SELECT COALESCE(SUM(amount), 0) as s FROM transactions WHERE type = 'deposit' AND status = 'completed'${dateCondition}`, dateParams);
-  const [tr] = await pool.execute(`SELECT COALESCE(SUM(amount), 0) as s FROM transactions WHERE type = 'withdraw' AND status = 'completed'${dateCondition}`, dateParams);
-  const [pd] = await pool.execute(`SELECT COUNT(*) as c FROM transactions WHERE type = 'deposit' AND status = 'pending'${dateCondition}`, dateParams);
-  const [tv] = await pool.execute('SELECT COALESCE(SUM(views_done), 0) as s FROM campaigns');
-  const [pt] = await pool.execute("SELECT COUNT(*) as c FROM support_tickets WHERE status = 'open'");
-  const [nuw] = await pool.execute("SELECT COUNT(*) as c FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
-
+  // Chạy tất cả queries SONG SONG
+  const [tuR, tcR, rcR, tdR, trR, pdR, tvR, ptR, nuwR] = await Promise.all([
+    pool.execute('SELECT COUNT(*) as c FROM users'),
+    pool.execute('SELECT COUNT(*) as c FROM campaigns'),
+    pool.execute("SELECT COUNT(*) as c FROM campaigns WHERE status = 'running'"),
+    pool.execute(`SELECT COALESCE(SUM(amount), 0) as s FROM transactions WHERE type = 'deposit' AND status = 'completed'${dateCondition}`, dateParams),
+    pool.execute(`SELECT COALESCE(SUM(amount), 0) as s FROM transactions WHERE type = 'withdraw' AND status = 'completed'${dateCondition}`, dateParams),
+    pool.execute(`SELECT COUNT(*) as c FROM transactions WHERE type = 'deposit' AND status = 'pending'${dateCondition}`, dateParams),
+    pool.execute('SELECT COALESCE(SUM(views_done), 0) as s FROM campaigns'),
+    pool.execute("SELECT COUNT(*) as c FROM support_tickets WHERE status = 'open'"),
+    pool.execute("SELECT COUNT(*) as c FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"),
+  ]);
+  const [tu] = tuR, [tc] = tcR, [rc] = rcR, [td] = tdR, [tr] = trR, [pd] = pdR, [tv] = tvR, [pt] = ptR, [nuw] = nuwR;
 
   let chartSql, chartParams;
   if (fromDate || toDate) {
     chartSql = `SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE 1=1${dateCondition} GROUP BY DATE(created_at) ORDER BY date ASC`;
     chartParams = dateParams;
   } else {
-    chartSql = `SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) GROUP BY DATE(created_at) ORDER BY date ASC`;
-    chartParams = [];
+    // Dùng range string thay vì DATE() — dùng index
+    const d14 = new Date(); d14.setDate(d14.getDate() - 14);
+    const from14 = d14.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }) + ' 00:00:00';
+    chartSql = `SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE created_at >= ? GROUP BY DATE(created_at) ORDER BY date ASC`;
+    chartParams = [from14];
   }
   const [rawStats] = await pool.execute(chartSql, chartParams);
 
@@ -963,8 +969,9 @@ router.get('/transactions', async (req, res) => {
   if (txSearch) { baseWhere += ' AND (u.name LIKE ? OR u.email LIKE ?)'; params.push(`%${txSearch}%`, `%${txSearch}%`); filterCondition += ' AND (u.name LIKE ? OR u.email LIKE ?)'; filterParams.push(`%${txSearch}%`, `%${txSearch}%`); }
   if (type && type !== 'all') { baseWhere += ' AND t.type = ?'; params.push(type); filterCondition += ' AND t.type = ?'; filterParams.push(type); }
   if (status && status !== 'all') { baseWhere += ' AND t.status = ?'; params.push(status); filterCondition += ' AND t.status = ?'; filterParams.push(status); }
-  if (fromDate) { baseWhere += ' AND DATE(t.created_at) >= ?'; params.push(fromDate); filterCondition += ' AND DATE(t.created_at) >= ?'; filterParams.push(fromDate); }
-  if (toDate) { baseWhere += ' AND DATE(t.created_at) <= ?'; params.push(toDate); filterCondition += ' AND DATE(t.created_at) <= ?'; filterParams.push(toDate); }
+  // Dùng range thay vì DATE() — cho phép MySQL dùng index trên created_at
+  if (fromDate) { baseWhere += ' AND t.created_at >= ?'; params.push(fromDate + ' 00:00:00'); filterCondition += ' AND t.created_at >= ?'; filterParams.push(fromDate + ' 00:00:00'); }
+  if (toDate)   { baseWhere += ' AND t.created_at <= ?'; params.push(toDate   + ' 23:59:59'); filterCondition += ' AND t.created_at <= ?'; filterParams.push(toDate   + ' 23:59:59'); }
 
   const [countRows] = await pool.execute(
     `SELECT COUNT(*) as c FROM transactions t LEFT JOIN users u ON t.user_id = u.id ${baseWhere}`, params
