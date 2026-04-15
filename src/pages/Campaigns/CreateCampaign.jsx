@@ -622,24 +622,25 @@ export default function CreateCampaign() {
               {/* Total views only */}
               <div>
                 <Label required hint="Tổng số view cần mua cho chiến dịch">Tổng view mua</Label>
-                {form.useKeywordTotalViews ? (
-                  <div className="relative">
-                    <div className="w-full px-3.5 py-2.5 text-sm border border-amber-200 rounded-xl bg-amber-50 font-bold text-amber-900 pr-20">
-                      {computedTotalViews.toLocaleString()}
-                    </div>
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-500 font-bold pointer-events-none bg-amber-50 px-1.5 py-0.5 rounded-md">view</span>
+              <div className="relative">
+                  <div className={`w-full px-3.5 py-2.5 text-sm border rounded-xl pr-20 font-bold flex items-center ${
+                    form.useKeywordTotalViews
+                      ? 'border-amber-200 bg-amber-50 text-amber-900'
+                      : 'border-slate-200 bg-slate-50 text-slate-700'
+                  }`}>
+                    {computedTotalViews.toLocaleString()}
                   </div>
-                ) : (
-                  <NumberInput
-                    value={form.totalViews}
-                    onChange={e => set('totalViews', Number(e.target.value))}
-                    suffix="view"
-                  />
-                )}
+                  <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold pointer-events-none px-1.5 py-0.5 rounded-md ${
+                    form.useKeywordTotalViews ? 'text-amber-500 bg-amber-50' : 'text-slate-400 bg-slate-50'
+                  }`}>view</span>
+                </div>
                 {form.useKeywordTotalViews
                   ? <Hint>Tự tính từ tổng view của từng từ khóa</Hint>
-                  : <Hint>View dư ngày trước sẽ chuyển sang ngày sau</Hint>
+                  : isDirect
+                    ? <Hint>Chỉnh ở mục "Tổng view" bên dưới</Hint>
+                    : <Hint>Bật "Cài view riêng" ở từng từ khóa để thay đổi</Hint>
                 }
+
               </div>
 
               {/* Phân phối theo giờ: hiện khi có daily views hợp lệ */}
