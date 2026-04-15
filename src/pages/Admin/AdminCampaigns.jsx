@@ -133,14 +133,15 @@ function KeywordStats({ campaignId, trafficType }) {
         <div className="max-h-[300px] overflow-y-auto pr-1 space-y-2">
           {stats.map((kw, i) => {
             const pct = totalAll > 0 ? Math.round(Number(kw.completed) / totalAll * 100) : 0;
+            const isValidUrl = (v) => { try { return v && v !== '[]' && new URL(v) && true; } catch { return false; } };
             const displayLabel = trafficType === 'direct'
-              ? (kw.keyword || '—')
-              : (kw.keyword || '(trống)');
+              ? (isValidUrl(kw.keyword) ? kw.keyword : '—')
+              : (kw.keyword && kw.keyword !== '[]' ? kw.keyword : '(trống)');
             return (
               <div key={i} className="bg-slate-50 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-1.5">
                   <p className="text-sm font-bold text-slate-800 truncate flex-1" title={kw.keyword}>
-                    {trafficType === 'direct' && kw.keyword
+                    {trafficType === 'direct' && isValidUrl(kw.keyword)
                       ? <a href={kw.keyword} target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">{displayLabel}</a>
                       : displayLabel
                     }
@@ -185,14 +186,19 @@ function KeywordStats({ campaignId, trafficType }) {
             <tbody className="divide-y divide-slate-100">
               {daily.length === 0 ? (
                 <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-400">Không có dữ liệu</td></tr>
-              ) : daily.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((d, i) => (
+              ) : daily.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((d, i) => {
+                const isValidUrl = (v) => { try { return v && v !== '[]' && new URL(v) && true; } catch { return false; } };
+                const kwDisplay = (d.keyword && d.keyword !== '[]') ? d.keyword : null;
+                return (
                 <tr key={i} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{d.date?.slice(0, 10)}</td>
                   {trafficType === 'direct'
-                    ? <td className="px-4 py-2.5 font-bold text-violet-600 truncate max-w-[180px]" title={d.keyword}>
-                        <a href={d.keyword} target="_blank" rel="noopener noreferrer" className="hover:underline">{d.keyword || '—'}</a>
+                    ? <td className="px-4 py-2.5 font-bold text-violet-600 truncate max-w-[180px]" title={kwDisplay || ''}>
+                        {isValidUrl(kwDisplay)
+                          ? <a href={kwDisplay} target="_blank" rel="noopener noreferrer" className="hover:underline">{kwDisplay}</a>
+                          : '—'}
                       </td>
-                    : <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]" title={d.keyword}>{d.keyword || '(Trống)'}</td>
+                    : <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]" title={kwDisplay || ''}>{kwDisplay || '(Trống)'}</td>
                   }
                   <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
                     {d.completed} <span className="text-slate-500 font-medium text-[10px] ml-0.5">/ {Number(d.daily_views) > 0 ? d.daily_views : '∞'}</span>
@@ -200,7 +206,8 @@ function KeywordStats({ campaignId, trafficType }) {
                   </td>
                   <td className="px-4 py-2.5 text-right font-semibold text-slate-600">{fmt(d.cost)} đ</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
