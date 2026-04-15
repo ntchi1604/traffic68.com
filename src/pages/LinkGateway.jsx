@@ -144,7 +144,7 @@ function getDeviceData() {
   let fakeMobileWithMouse = false;
   try {
     fakeMobileWithMouse = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) && window.matchMedia && window.matchMedia('(pointer: fine)').matches;
-  } catch (e) {}
+  } catch (e) { }
 
   return {
     automation,
@@ -229,7 +229,7 @@ export default function LinkGateway() {
       signal: controller.signal,
     }).then(r => r.ok ? r.json() : null)
       .then(data => { if (data) _prefetchedChallengeRef.current = data; })
-      .catch(() => {}); // ignore lỗi, fetchTask sẽ tự fetch lại
+      .catch(() => { }); // ignore lỗi, fetchTask sẽ tự fetch lại
     return () => controller.abort();
   }, [slug]);
 
@@ -291,9 +291,9 @@ export default function LinkGateway() {
       const chPromise = _prefetchedChallengeRef.current
         ? Promise.resolve(_prefetchedChallengeRef.current).finally(() => { _prefetchedChallengeRef.current = null; })
         : fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}&_t=${Date.now()}`, { cache: 'no-store' }).then(r => {
-            if (!r.ok) throw new Error('Không thể lấy challenge');
-            return r.json();
-          });
+          if (!r.ok) throw new Error('Không thể lấy challenge');
+          return r.json();
+        });
 
       // Solve PoW while waiting for creep data (can overlap CPU work with network)
       const challenge = await chPromise;
@@ -337,20 +337,11 @@ export default function LinkGateway() {
       });
 
       if (taskRes.status === 404) {
-        // No campaigns available — auto-retry after 10s countdown
+        retryTimerRef.current = setTimeout(() => {
+          retryTimerRef.current = null;
+          fetchTask(true, excludeList);
+        }, 3000);
         setError('no_task');
-        const RETRY_SEC = 10;
-        setRetryCountdown(RETRY_SEC);
-        let remaining = RETRY_SEC;
-        retryTimerRef.current = setInterval(() => {
-          remaining -= 1;
-          setRetryCountdown(remaining);
-          if (remaining <= 0) {
-            clearInterval(retryTimerRef.current);
-            retryTimerRef.current = null;
-            fetchTask(true, excludeList);
-          }
-        }, 1000);
         return;
       }
       if (taskRes.status === 429) {
@@ -358,13 +349,11 @@ export default function LinkGateway() {
         setError(e.error || 'Bạn đã đạt giới hạn hôm nay.');
         return;
       }
-      // 403: challenge có thể hết hạn (TTL 15 phút) → fetch challenge mới + retry 1 lần
       if (taskRes.status === 403) {
         const body403 = await taskRes.json().catch(() => ({}));
         if (body403.error && (body403.error.includes('vô hiệu') || body403.error.includes('kích hoạt'))) {
           setError(body403.error); return;
         }
-        // Challenge hết hạn → xóa cache + fetch mới
         _prefetchedChallengeRef.current = null;
         const freshChRes = await fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}&_t=${Date.now()}`, { cache: 'no-store' });
         if (!freshChRes.ok) throw new Error('Không thể lấy challenge mới');
@@ -395,7 +384,7 @@ export default function LinkGateway() {
         const retryTask = await retryRes.json();
         setTask(retryTask);
         if (retryTask.trusted) setHumanPassed(true);
-        try { sessionStorage.setItem(sessionKey, JSON.stringify({ ...retryTask, _fetched_at: Date.now() })); } catch {}
+        try { sessionStorage.setItem(sessionKey, JSON.stringify({ ...retryTask, _fetched_at: Date.now() })); } catch { }
         return;
       }
       if (!taskRes.ok) throw new Error('Không thể lấy nhiệm vụ');
