@@ -192,6 +192,8 @@ export default function LinkGateway() {
   const [showChallenge, setShowChallenge] = useState(false);
   const [challengeToken, setChallengeToken] = useState(null);
   const [challengeLoading, setChallengeLoading] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(0);
+  const retryTimerRef = useRef(null);
   const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '');
 
   // Set tab title
@@ -238,6 +240,10 @@ export default function LinkGateway() {
     if (!linkInfo) return;
     const sessionKey = `gw_task_${slug}`;
 
+    // Clear any pending auto-retry timer
+    if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; }
+    setRetryCountdown(0);
+
     if (!force) {
       try {
         const cached = sessionStorage.getItem(sessionKey);
@@ -268,21 +274,15 @@ export default function LinkGateway() {
         }
       }
 
-      const creepData = await getCreepData();
-      let visitorId = creepData.visitorId || 'unknown';
-      let botDetectionResult = creepData.botDetection;
+      // ── Parallel: start creep detection AND fetch challenge at the same time ──
+      const creepPromise = getCreepData();
+      const chPromise = fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}`).then(r => {
+        if (!r.ok) throw new Error('Không thể lấy challenge');
+        return r.json();
+      });
 
-      if (window.clarity) {
-        window.clarity('set', 'visitor_id', visitorId);
-        window.clarity('identify', visitorId);
-      }
-
-      // Get challenge — pass slug so server binds worker_link_id to session
-      const chRes = await fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}`);
-      if (!chRes.ok) throw new Error('Không thể lấy challenge');
-      const challenge = await chRes.json();
-
-      // Solve PoW
+      // Solve PoW while waiting for creep data (can overlap CPU work with network)
+      const challenge = await chPromise;
       let powNonce = 0;
       const target = '0'.repeat(challenge.d || 4);
       const enc = new TextEncoder();
@@ -295,6 +295,15 @@ export default function LinkGateway() {
         if (powNonce > 5000000) throw new Error('PoW timeout');
       }
 
+      // Now collect creep result (likely already done by the time PoW finishes)
+      const creepData = await creepPromise;
+      const visitorId = creepData.visitorId || 'unknown';
+      const botDetectionResult = creepData.botDetection;
+
+      if (window.clarity) {
+        window.clarity('set', 'visitor_id', visitorId);
+        window.clarity('identify', visitorId);
+      }
 
       // Request task
       const token = localStorage.getItem('token');
@@ -314,7 +323,20 @@ export default function LinkGateway() {
       });
 
       if (taskRes.status === 404) {
-        setError('Hiện tại không có nhiệm vụ nào. Vui lòng thử lại sau.');
+        // No campaigns available — auto-retry after 10s countdown
+        setError('no_task');
+        const RETRY_SEC = 10;
+        setRetryCountdown(RETRY_SEC);
+        let remaining = RETRY_SEC;
+        retryTimerRef.current = setInterval(() => {
+          remaining -= 1;
+          setRetryCountdown(remaining);
+          if (remaining <= 0) {
+            clearInterval(retryTimerRef.current);
+            retryTimerRef.current = null;
+            fetchTask(true, excludeList);
+          }
+        }, 1000);
         return;
       }
       if (taskRes.status === 429) {
@@ -558,10 +580,34 @@ export default function LinkGateway() {
   if (error && !task) return (
     <Wrapper>
       <Center>
-        <Icon bg="#FEF2F2" border="#FECACA"><WifiOff size={32} color="#EF4444" /></Icon>
-        <h2 style={{ color: '#1E3A6E', fontWeight: 800, margin: '0 0 8px' }}>Không thể tải nhiệm vụ</h2>
-        <p style={{ color: '#64748B', margin: '0 0 16px' }}>{error}</p>
-        <button onClick={() => window.location.reload()} style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: '#3B82F6', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Thử lại</button>
+        {error === 'no_task' ? (
+          <>
+            <Icon bg="#FFF7ED" border="#FED7AA"><RefreshCw size={32} color="#F97316" style={retryCountdown > 0 ? { animation: 'spin 1s linear infinite' } : {}} /></Icon>
+            <h2 style={{ color: '#1E3A6E', fontWeight: 800, margin: '0 0 8px' }}>Chưa có nhiệm vụ</h2>
+            <p style={{ color: '#64748B', margin: '0 0 4px' }}>Hệ thống đang tìm chiến dịch phù hợp...</p>
+            {retryCountdown > 0 ? (
+              <p style={{ color: '#F97316', fontWeight: 700, fontSize: 13, margin: '0 0 16px' }}>
+                Tự động thử lại sau <strong>{retryCountdown}s</strong>
+              </p>
+            ) : (
+              <p style={{ color: '#94A3B8', fontSize: 13, margin: '0 0 16px' }}>Đang thử lại...</p>
+            )}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => { if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; } setRetryCountdown(0); fetchTask(true); }}
+                style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: '#F97316', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+              >Thử ngay</button>
+              <button onClick={() => window.location.reload()} style={{ padding: '10px 24px', borderRadius: 10, border: '1.5px solid #E2E8F0', background: '#fff', color: '#64748B', fontWeight: 700, cursor: 'pointer' }}>Tải lại trang</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Icon bg="#FEF2F2" border="#FECACA"><WifiOff size={32} color="#EF4444" /></Icon>
+            <h2 style={{ color: '#1E3A6E', fontWeight: 800, margin: '0 0 8px' }}>Không thể tải nhiệm vụ</h2>
+            <p style={{ color: '#64748B', margin: '0 0 16px' }}>{error}</p>
+            <button onClick={() => fetchTask(true)} style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: '#3B82F6', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Thử lại</button>
+          </>
+        )}
       </Center>
     </Wrapper>
   );
