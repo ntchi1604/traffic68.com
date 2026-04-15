@@ -2,6 +2,7 @@ const express = require('express');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 const geoip = require('geoip-lite');
+const cache = require('../lib/cache');
 
 const localDateStr = (d = new Date()) =>
   d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
@@ -10,67 +11,64 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get('/overview', async (req, res) => {
-  const pool = getPool();
-  const today = localDateStr();
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const fromDateTime = localDateStr(sevenDaysAgo) + ' 00:00:00';
+  const uid = req.userId;
+  try {
+    const data = await cache.get(
+      `reports:overview:${uid}`,
+      async () => {
+        const pool = getPool();
+        const today = localDateStr();
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const fromDateTime = localDateStr(sevenDaysAgo) + ' 00:00:00';
 
-  // Chay SONG SONG voi Promise.all
-  const [tcR, rcR, walletR, todayTR, totalVR, totalSR, viewR, spentR] = await Promise.all([
-    pool.execute('SELECT COUNT(*) as count FROM campaigns WHERE user_id = ?', [req.userId]),
-    pool.execute("SELECT COUNT(*) as count FROM campaigns WHERE user_id = ? AND status = 'running'", [req.userId]),
-    pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [req.userId]),
-    pool.execute(
-      'SELECT COALESCE(SUM(views),0) as views, COALESCE(SUM(clicks),0) as clicks FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ? AND tl.date = ?',
-      [req.userId, today]
-    ),
-    pool.execute(
-      'SELECT COALESCE(SUM(views),0) as total, COALESCE(SUM(clicks),0) as totalClicks FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ?',
-      [req.userId]
-    ),
-    pool.execute(
-      "SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE user_id = ? AND wallet_type = 'main' AND type = 'campaign' AND status = 'completed'",
-      [req.userId]
-    ),
-    pool.execute(
-      "SELECT DATE(completed_at) as day, COUNT(*) as views FROM vuot_link_tasks vlt JOIN campaigns c ON c.id = vlt.campaign_id WHERE c.user_id = ? AND vlt.status = 'completed' AND vlt.bot_detected = 0 AND completed_at >= ? GROUP BY 1 ORDER BY 1 ASC",
-      [req.userId, fromDateTime]
-    ),
-    pool.execute(
-      "SELECT DATE(created_at) as day, COALESCE(SUM(amount),0) as spent FROM transactions WHERE user_id = ? AND wallet_type = 'main' AND type = 'campaign' AND status = 'completed' AND created_at >= ? GROUP BY 1 ORDER BY 1 ASC",
-      [req.userId, fromDateTime]
-    ),
-  ]);
+        const [tcR, rcR, walletR, todayTR, totalVR, totalSR, viewR, spentR] = await Promise.all([
+          pool.execute('SELECT COUNT(*) as count FROM campaigns WHERE user_id = ?', [uid]),
+          pool.execute("SELECT COUNT(*) as count FROM campaigns WHERE user_id = ? AND status = 'running'", [uid]),
+          pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
+          pool.execute('SELECT COALESCE(SUM(views),0) as views, COALESCE(SUM(clicks),0) as clicks FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ? AND tl.date = ?', [uid, today]),
+          pool.execute('SELECT COALESCE(SUM(views),0) as total, COALESCE(SUM(clicks),0) as totalClicks FROM traffic_logs tl JOIN campaigns c ON c.id = tl.campaign_id WHERE c.user_id = ?', [uid]),
+          pool.execute("SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE user_id = ? AND wallet_type = 'main' AND type = 'campaign' AND status = 'completed'", [uid]),
+          pool.execute("SELECT DATE(completed_at) as day, COUNT(*) as views FROM vuot_link_tasks vlt JOIN campaigns c ON c.id = vlt.campaign_id WHERE c.user_id = ? AND vlt.status = 'completed' AND vlt.bot_detected = 0 AND completed_at >= ? GROUP BY 1 ORDER BY 1 ASC", [uid, fromDateTime]),
+          pool.execute("SELECT DATE(created_at) as day, COALESCE(SUM(amount),0) as spent FROM transactions WHERE user_id = ? AND wallet_type = 'main' AND type = 'campaign' AND status = 'completed' AND created_at >= ? GROUP BY 1 ORDER BY 1 ASC", [uid, fromDateTime]),
+        ]);
 
-  const walletMap = {};
-  walletR[0].forEach(w => { walletMap[w.type] = Number(w.balance); });
+        const walletMap = {};
+        walletR[0].forEach(w => { walletMap[w.type] = Number(w.balance); });
 
-  const viewMap = {}, spentMap = {};
-  viewR[0].forEach(r => { const k = r.day instanceof Date ? localDateStr(r.day) : String(r.day).slice(0,10); viewMap[k] = Number(r.views||0); });
-  spentR[0].forEach(r => { const k = r.day instanceof Date ? localDateStr(r.day) : String(r.day).slice(0,10); spentMap[k] = Number(r.spent||0); });
+        const viewMap = {}, spentMap = {};
+        viewR[0].forEach(r => { const k = r.day instanceof Date ? localDateStr(r.day) : String(r.day).slice(0,10); viewMap[k] = Number(r.views||0); });
+        spentR[0].forEach(r => { const k = r.day instanceof Date ? localDateStr(r.day) : String(r.day).slice(0,10); spentMap[k] = Number(r.spent||0); });
 
-  const chart = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    const key = localDateStr(d);
-    chart.push({ day: key, views: viewMap[key]||0, spent: spentMap[key]||0 });
+        const chart = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(); d.setDate(d.getDate() - i);
+          const key = localDateStr(d);
+          chart.push({ day: key, views: viewMap[key]||0, spent: spentMap[key]||0 });
+        }
+
+        return {
+          overview: {
+            totalCampaigns:    tcR[0][0].count,
+            runningCampaigns:  rcR[0][0].count,
+            mainBalance:       walletMap.main       || 0,
+            commissionBalance: walletMap.commission || 0,
+            todayViews:        todayTR[0][0].views,
+            todayClicks:       todayTR[0][0].clicks,
+            totalViews:        totalVR[0][0].total,
+            totalClicks:       totalVR[0][0].totalClicks,
+            totalSpent:        totalSR[0][0].total,
+            chart,
+          },
+        };
+      },
+      30 * 1000,  // 30s TTL per user
+      20 * 1000   // stale-while-revalidate
+    );
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  res.json({
-    overview: {
-      totalCampaigns:    tcR[0][0].count,
-      runningCampaigns:  rcR[0][0].count,
-      mainBalance:       walletMap.main       || 0,
-      commissionBalance: walletMap.commission || 0,
-      todayViews:        todayTR[0][0].views,
-      todayClicks:       todayTR[0][0].clicks,
-      totalViews:        totalVR[0][0].total,
-      totalClicks:       totalVR[0][0].totalClicks,
-      totalSpent:        totalSR[0][0].total,
-      chart,
-    },
-  });
 });
 
 router.get('/traffic', async (req, res) => {

@@ -1,9 +1,10 @@
-const express = require('express');
+﻿const express = require('express');
 const geoip = require('geoip-lite');
 const crypto = require('crypto');
 const { getPool } = require('../db');
 const { authMiddleware, optionalAuth } = require('../middleware/auth');
 const { analyzeDevice } = require('../lib/behavior');
+const cache = require('../lib/cache');
 
 const router = express.Router();
 
@@ -1362,6 +1363,17 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   } catch (e) { console.error('[VuotLink] Remaining calc error:', e.message); }
 
   res.json({ success: true, earning, destination_url: destinationUrl });
+  // Invalidate cache sau khi task completed
+  try {
+    const workerIdToInvalidate = task.worker_id || (task.worker_link_id ? paidWorkerId : null);
+    if (workerIdToInvalidate) {
+      cache.invalidate(worker:balance:+workerIdToInvalidate);
+      cache.invalidatePrefix(worker:stats:+workerIdToInvalidate);
+      cache.invalidatePrefix(worker:earnings:+workerIdToInvalidate+:);
+    }
+    if (campaign && campaign.user_id) cache.invalidate(eports:overview:+campaign.user_id);
+    cache.invalidatePrefix('admin:overview:');
+  } catch (e) {}
 });
 
 router.post('/task/:id/complete', optionalAuth, async (req, res) => {
@@ -1483,72 +1495,52 @@ router.get('/stats', async (req, res) => {
 // GET /api/vuot-link/worker/stats
 router.get('/worker/stats', authMiddleware, async (req, res) => {
   try {
-    const pool = getPool();
     const uid = req.userId;
-    const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
-    const wlIds = wLinks.map(w => w.id);
-    const wlCond = wlIds.length > 0
-      ? '(worker_id = ? OR worker_link_id IN (' + wlIds.map(() => '?').join(',') + '))'
-      : 'worker_id = ?';
-    const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
-    const wlCondT = wlCond.replace(/worker_id/g, 't.worker_id').replace(/worker_link_id/g, 't.worker_link_id');
+    const data = await cache.get(
+      `worker:stats:${uid}`,
+      async () => {
+        const pool = getPool();
+        const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
+        const wlIds = wLinks.map(w => w.id);
+        const wlCond = wlIds.length > 0
+          ? '(worker_id = ? OR worker_link_id IN (' + wlIds.map(() => '?').join(',') + '))'
+          : 'worker_id = ?';
+        const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
+        const wlCondT = wlCond.replace(/worker_id/g, 't.worker_id').replace(/worker_link_id/g, 't.worker_link_id');
 
-    // Dung date range thay vi DATE() -- giup MySQL dung index completed_at
-    const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-    const todayStart = vnToday + ' 00:00:00';
-    const todayEnd   = vnToday + ' 23:59:59';
-    const d7 = new Date(); d7.setDate(d7.getDate() - 7);
-    const sevenAgo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(d7) + ' 00:00:00';
+        const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+        const todayStart = vnToday + ' 00:00:00';
+        const todayEnd   = vnToday + ' 23:59:59';
+        const d7 = new Date(); d7.setDate(d7.getDate() - 7);
+        const sevenAgo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(d7) + ' 00:00:00';
 
-    // Chay SONG SONG voi Promise.all -- khong await tung cai
-    const [todayR, totalR, pendingR, walletR, chartR, recentR, remR] = await Promise.all([
-      // Today
-      pool.execute(
-        'SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ?",
-        [...wlParams, todayStart, todayEnd]
-      ),
-      // Total (gioi han 365 ngay tranh full scan)
-      pool.execute(
-        'SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= DATE_SUB(NOW(), INTERVAL 365 DAY)",
-        wlParams
-      ),
-      // Pending
-      pool.execute(
-        'SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ' + wlCond + " AND status IN ('pending','step1','step2','step3')",
-        wlParams
-      ),
-      // Wallets
-      pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
-      // 7-day chart
-      pool.execute(
-        'SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ? GROUP BY DATE(completed_at) ORDER BY day",
-        [...wlParams, sevenAgo, todayEnd]
-      ),
-      // Recent tasks
-      pool.execute(
-        'SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id WHERE ' + wlCondT + " AND (t.bot_detected = 0 OR t.status != 'completed') ORDER BY t.created_at DESC LIMIT 10",
-        wlParams
-      ),
-      // Remaining daily views
-      pool.execute(
-        "SELECT COALESCE(SUM(c.daily_views),0) as total_daily, COALESCE(SUM(LEAST(COALESCE(td.done,0),c.daily_views)),0) as today_done FROM campaigns c LEFT JOIN (SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks WHERE status = 'completed' AND completed_at >= ? AND completed_at <= ? GROUP BY campaign_id) td ON td.campaign_id = c.id WHERE c.status = 'running' AND c.daily_views > 0",
-        [todayStart, todayEnd]
-      ),
-    ]);
+        const [todayR, totalR, pendingR, walletR, chartR, recentR, remR] = await Promise.all([
+          pool.execute('SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ?", [...wlParams, todayStart, todayEnd]),
+          pool.execute('SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= DATE_SUB(NOW(), INTERVAL 365 DAY)", wlParams),
+          pool.execute('SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ' + wlCond + " AND status IN ('pending','step1','step2','step3')", wlParams),
+          pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
+          pool.execute('SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ? GROUP BY DATE(completed_at) ORDER BY day", [...wlParams, sevenAgo, todayEnd]),
+          pool.execute('SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id WHERE ' + wlCondT + " AND (t.bot_detected = 0 OR t.status != 'completed') ORDER BY t.created_at DESC LIMIT 10", wlParams),
+          pool.execute("SELECT COALESCE(SUM(c.daily_views),0) as total_daily, COALESCE(SUM(LEAST(COALESCE(td.done,0),c.daily_views)),0) as today_done FROM campaigns c LEFT JOIN (SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks WHERE status = 'completed' AND completed_at >= ? AND completed_at <= ? GROUP BY campaign_id) td ON td.campaign_id = c.id WHERE c.status = 'running' AND c.daily_views > 0", [todayStart, todayEnd]),
+        ]);
 
-    const walletMap = {};
-    walletR[0].forEach(w => { walletMap[w.type] = Number(w.balance); });
-
-    res.json({
-      today:   { tasks: todayR[0][0].cnt,   earnings: Number(todayR[0][0].earn)   },
-      total:   { tasks: totalR[0][0].cnt,   earnings: Number(totalR[0][0].earn)   },
-      pending: pendingR[0][0].cnt,
-      remainingDailyViews: Math.max(0, Number(remR[0][0].total_daily) - Number(remR[0][0].today_done)),
-      balance:           walletMap.earning    || 0,
-      commissionBalance: walletMap.commission || 0,
-      chart:  chartR[0],
-      recent: recentR[0],
-    });
+        const walletMap = {};
+        walletR[0].forEach(w => { walletMap[w.type] = Number(w.balance); });
+        return {
+          today:   { tasks: todayR[0][0].cnt,   earnings: Number(todayR[0][0].earn)   },
+          total:   { tasks: totalR[0][0].cnt,   earnings: Number(totalR[0][0].earn)   },
+          pending: pendingR[0][0].cnt,
+          remainingDailyViews: Math.max(0, Number(remR[0][0].total_daily) - Number(remR[0][0].today_done)),
+          balance:           walletMap.earning    || 0,
+          commissionBalance: walletMap.commission || 0,
+          chart:  chartR[0],
+          recent: recentR[0],
+        };
+      },
+      30 * 1000,  // 30s TTL — đủ real-time cho dashboard
+      20 * 1000   // stale-while-revalidate: refresh background sau 20s
+    );
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1603,64 +1595,60 @@ router.get('/worker/tasks', authMiddleware, async (req, res) => {
 // GET /api/vuot-link/worker/earnings?days=30
 router.get('/worker/earnings', authMiddleware, async (req, res) => {
   try {
-    const pool = getPool();
     const uid = req.userId;
     const days = Math.min(90, Math.max(7, parseInt(req.query.days) || 7));
+    const data = await cache.get(
+      `worker:earnings:${uid}:${days}`,
+      async () => {
+        const pool = getPool();
+        const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
+        const wlIds = wLinks.map(w => w.id);
+        const wlCondition = wlIds.length > 0
+          ? `(worker_id = ? OR worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
+          : `worker_id = ?`;
+        const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
 
-    const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
-    const wlIds = wLinks.map(w => w.id);
-    const wlCondition = wlIds.length > 0
-      ? `(worker_id = ? OR worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
-      : `worker_id = ?`;
-    const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
+        const vnNow = new Date();
+        const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(vnNow);
+        const startD = new Date(vnNow); startD.setDate(startD.getDate() - days);
+        const startStr  = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(startD) + ' 00:00:00';
+        const todayStart = vnToday + ' 00:00:00';
+        const todayEnd   = vnToday + ' 23:59:59';
 
-    // Dùng date range thay vì DATE() — giúp MySQL dùng index trên completed_at
-    const vnNow = new Date();
-    const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(vnNow);
-    const startD = new Date(vnNow);
-    startD.setDate(startD.getDate() - days);
-    const startStr  = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(startD) + ' 00:00:00';
-    const todayStart = vnToday + ' 00:00:00';
-    const todayEnd   = vnToday + ' 23:59:59';
+        const [[dailyRows], [todayR]] = await Promise.all([
+          pool.execute(
+            `SELECT DATE(completed_at) as date, COUNT(*) as tasks, COALESCE(SUM(earning), 0) as earnings
+             FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed'
+               AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ?
+             GROUP BY DATE(completed_at) ORDER BY date DESC`,
+            [...wlParams, startStr]
+          ),
+          pool.execute(
+            `SELECT COALESCE(SUM(earning), 0) as earn, COUNT(*) as tasks FROM vuot_link_tasks
+             WHERE ${wlCondition} AND status = 'completed'
+               AND bot_detected = 0 AND is_over_limit = 0
+               AND completed_at >= ? AND completed_at <= ?`,
+            [...wlParams, todayStart, todayEnd]
+          ),
+        ]);
 
-    // Chạy 2 query SONG SONG — daily bao gồm cả today, tính summary từ JS (không cần query riêng)
-    const [[dailyRows], [todayR]] = await Promise.all([
-      pool.execute(
-        `SELECT DATE(completed_at) as date,
-                COUNT(*) as tasks,
-                COALESCE(SUM(earning), 0) as earnings
-         FROM vuot_link_tasks
-         WHERE ${wlCondition} AND status = 'completed'
-           AND bot_detected = 0 AND is_over_limit = 0
-           AND completed_at >= ?
-         GROUP BY DATE(completed_at)
-         ORDER BY date DESC`,
-        [...wlParams, startStr]
-      ),
-      pool.execute(
-        `SELECT COALESCE(SUM(earning), 0) as earn, COUNT(*) as tasks
-         FROM vuot_link_tasks
-         WHERE ${wlCondition} AND status = 'completed'
-           AND bot_detected = 0 AND is_over_limit = 0
-           AND completed_at >= ? AND completed_at <= ?`,
-        [...wlParams, todayStart, todayEnd]
-      ),
-    ]);
-
-    // Tính summary từ daily rows — không cần query riêng lần 3
-    const totalEarnings = dailyRows.reduce((s, d) => s + Number(d.earnings), 0);
-    const totalTasks    = dailyRows.reduce((s, d) => s + Number(d.tasks), 0);
-
-    res.json({
-      daily: dailyRows,
-      summary: {
-        total:    totalEarnings,
-        tasks:    totalTasks,
-        avgDaily: dailyRows.length > 0 ? Math.round(totalEarnings / dailyRows.length) : 0,
+        const totalEarnings = dailyRows.reduce((s, d) => s + Number(d.earnings), 0);
+        const totalTasks    = dailyRows.reduce((s, d) => s + Number(d.tasks), 0);
+        return {
+          daily: dailyRows,
+          summary: {
+            total:    totalEarnings,
+            tasks:    totalTasks,
+            avgDaily: dailyRows.length > 0 ? Math.round(totalEarnings / dailyRows.length) : 0,
+          },
+          today:      Number(todayR[0].earn),
+          todayTasks: Number(todayR[0].tasks),
+        };
       },
-      today:      Number(todayR[0].earn),
-      todayTasks: Number(todayR[0].tasks),
-    });
+      60 * 1000,  // 60s TTL cho biểu đồ lịch sử
+      45 * 1000   // stale-while-revalidate sau 45s
+    );
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1673,11 +1661,19 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
 // GET /api/vuot-link/worker/balance
 router.get('/worker/balance', authMiddleware, async (req, res) => {
   try {
-    const pool = getPool();
-    const [wallets] = await pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [req.userId]);
-    const map = {};
-    wallets.forEach(w => { map[w.type] = Number(w.balance); });
-    res.json({ balance: map.earning || 0, main: map.main || 0, commission: map.commission || 0 });
+    const uid = req.userId;
+    const data = await cache.get(
+      `worker:balance:${uid}`,
+      async () => {
+        const pool = getPool();
+        const [wallets] = await pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]);
+        const map = {};
+        wallets.forEach(w => { map[w.type] = Number(w.balance); });
+        return { balance: map.earning || 0, main: map.main || 0, commission: map.commission || 0 };
+      },
+      10 * 1000  // 10s TTL — balance cần tương đối real-time
+    );
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

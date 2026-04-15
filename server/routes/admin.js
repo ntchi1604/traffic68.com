@@ -1,7 +1,7 @@
 const express = require('express');
 const { getPool } = require('../db');
 const { authMiddleware, invalidateUserCache } = require('../middleware/auth');
-
+const cache = require('../lib/cache');
 
 const localDateStr = (d = new Date()) =>
   d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
@@ -57,63 +57,74 @@ router.use(async (req, res, next) => {
 
 
 router.get('/overview', async (req, res) => {
-  const pool = getPool();
   const { fromDate, toDate } = req.query;
+  const cacheKey = `admin:overview:${fromDate || ''}:${toDate || ''}`;
+  try {
+    const data = await cache.get(
+      cacheKey,
+      async () => {
+        const pool = getPool();
+        // Dùng range thay vì DATE() — cho phép MySQL dùng index trên created_at
+        let dateCondition = '';
+        const dateParams = [];
+        if (fromDate) { dateCondition += ' AND created_at >= ?'; dateParams.push(fromDate + ' 00:00:00'); }
+        if (toDate)   { dateCondition += ' AND created_at <= ?'; dateParams.push(toDate   + ' 23:59:59'); }
 
-  // Dùng range thay vì DATE() — cho phép MySQL dùng index trên created_at
-  let dateCondition = '';
-  const dateParams = [];
-  if (fromDate) { dateCondition += ' AND created_at >= ?'; dateParams.push(fromDate + ' 00:00:00'); }
-  if (toDate)   { dateCondition += ' AND created_at <= ?'; dateParams.push(toDate   + ' 23:59:59'); }
+        // Chạy tất cả queries SONG SONG
+        const [tuR, tcR, rcR, tdR, trR, pdR, tvR, ptR, nuwR] = await Promise.all([
+          pool.execute('SELECT COUNT(*) as c FROM users'),
+          pool.execute('SELECT COUNT(*) as c FROM campaigns'),
+          pool.execute("SELECT COUNT(*) as c FROM campaigns WHERE status = 'running'"),
+          pool.execute(`SELECT COALESCE(SUM(amount), 0) as s FROM transactions WHERE type = 'deposit' AND status = 'completed'${dateCondition}`, dateParams),
+          pool.execute(`SELECT COALESCE(SUM(amount), 0) as s FROM transactions WHERE type = 'withdraw' AND status = 'completed'${dateCondition}`, dateParams),
+          pool.execute(`SELECT COUNT(*) as c FROM transactions WHERE type = 'deposit' AND status = 'pending'${dateCondition}`, dateParams),
+          pool.execute('SELECT COALESCE(SUM(views_done), 0) as s FROM campaigns'),
+          pool.execute("SELECT COUNT(*) as c FROM support_tickets WHERE status = 'open'"),
+          pool.execute("SELECT COUNT(*) as c FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"),
+        ]);
+        const [tu] = tuR, [tc] = tcR, [rc] = rcR, [td] = tdR, [tr] = trR, [pd] = pdR, [tv] = tvR, [pt] = ptR, [nuw] = nuwR;
 
-  // Chạy tất cả queries SONG SONG
-  const [tuR, tcR, rcR, tdR, trR, pdR, tvR, ptR, nuwR] = await Promise.all([
-    pool.execute('SELECT COUNT(*) as c FROM users'),
-    pool.execute('SELECT COUNT(*) as c FROM campaigns'),
-    pool.execute("SELECT COUNT(*) as c FROM campaigns WHERE status = 'running'"),
-    pool.execute(`SELECT COALESCE(SUM(amount), 0) as s FROM transactions WHERE type = 'deposit' AND status = 'completed'${dateCondition}`, dateParams),
-    pool.execute(`SELECT COALESCE(SUM(amount), 0) as s FROM transactions WHERE type = 'withdraw' AND status = 'completed'${dateCondition}`, dateParams),
-    pool.execute(`SELECT COUNT(*) as c FROM transactions WHERE type = 'deposit' AND status = 'pending'${dateCondition}`, dateParams),
-    pool.execute('SELECT COALESCE(SUM(views_done), 0) as s FROM campaigns'),
-    pool.execute("SELECT COUNT(*) as c FROM support_tickets WHERE status = 'open'"),
-    pool.execute("SELECT COUNT(*) as c FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"),
-  ]);
-  const [tu] = tuR, [tc] = tcR, [rc] = rcR, [td] = tdR, [tr] = trR, [pd] = pdR, [tv] = tvR, [pt] = ptR, [nuw] = nuwR;
+        let chartSql, chartParams;
+        if (fromDate || toDate) {
+          chartSql = `SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE 1=1${dateCondition} GROUP BY DATE(created_at) ORDER BY date ASC`;
+          chartParams = dateParams;
+        } else {
+          const d14 = new Date(); d14.setDate(d14.getDate() - 14);
+          const from14 = d14.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }) + ' 00:00:00';
+          chartSql = `SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE created_at >= ? GROUP BY DATE(created_at) ORDER BY date ASC`;
+          chartParams = [from14];
+        }
+        const [rawStats] = await pool.execute(chartSql, chartParams);
 
-  let chartSql, chartParams;
-  if (fromDate || toDate) {
-    chartSql = `SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE 1=1${dateCondition} GROUP BY DATE(created_at) ORDER BY date ASC`;
-    chartParams = dateParams;
-  } else {
-    // Dùng range string thay vì DATE() — dùng index
-    const d14 = new Date(); d14.setDate(d14.getDate() - 14);
-    const from14 = d14.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }) + ' 00:00:00';
-    chartSql = `SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM transactions WHERE created_at >= ? GROUP BY DATE(created_at) ORDER BY date ASC`;
-    chartParams = [from14];
+        const statsMap = {};
+        rawStats.forEach(r => { statsMap[r.date instanceof Date ? localDateStr(r.date) : r.date] = r; });
+
+        const dailyStats = [];
+        const startStr = fromDate || (rawStats.length ? (rawStats[0].date instanceof Date ? localDateStr(rawStats[0].date) : rawStats[0].date) : localDateStr());
+        const endStr = toDate || localDateStr();
+        const start = new Date(startStr + 'T00:00:00+07:00');
+        const end = new Date(endStr + 'T00:00:00+07:00');
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const key = localDateStr(d);
+          dailyStats.push(statsMap[key] || { date: key, count: 0, total: 0 });
+        }
+
+        return {
+          overview: {
+            totalUsers: tu[0].c, totalCampaigns: tc[0].c, runningCampaigns: rc[0].c,
+            totalDeposits: td[0].s, totalRevenue: tr[0].s, totalViews: tv[0].s,
+            pendingTickets: pt[0].c, newUsersWeek: nuw[0].c, pendingDeposits: pd[0].c,
+          },
+          dailyStats,
+        };
+      },
+      30 * 1000,  // 30s TTL — admin dashboard
+      20 * 1000   // stale-while-revalidate sau 20s
+    );
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  const [rawStats] = await pool.execute(chartSql, chartParams);
-
-  const statsMap = {};
-  rawStats.forEach(r => { statsMap[r.date instanceof Date ? localDateStr(r.date) : r.date] = r; });
-
-  const dailyStats = [];
-  const startStr = fromDate || (rawStats.length ? (rawStats[0].date instanceof Date ? localDateStr(rawStats[0].date) : rawStats[0].date) : localDateStr());
-  const endStr = toDate || localDateStr();
-  const start = new Date(startStr + 'T00:00:00+07:00');
-  const end = new Date(endStr + 'T00:00:00+07:00');
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const key = localDateStr(d);
-    dailyStats.push(statsMap[key] || { date: key, count: 0, total: 0 });
-  }
-
-  res.json({
-    overview: {
-      totalUsers: tu[0].c, totalCampaigns: tc[0].c, runningCampaigns: rc[0].c,
-      totalDeposits: td[0].s, totalRevenue: tr[0].s, totalViews: tv[0].s,
-      pendingTickets: pt[0].c, newUsersWeek: nuw[0].c, pendingDeposits: pd[0].c,
-    },
-    dailyStats,
-  });
 });
 
 
