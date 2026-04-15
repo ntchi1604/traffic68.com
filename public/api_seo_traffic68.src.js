@@ -1100,7 +1100,7 @@
   /* ── Check if session exists (pre-countdown) ───────────── */
   var _sessionVerified = false;
   var _requireGoogle = false;
-  function checkSession(callback) {
+  function checkSession(callback, _retried) {
     if (_sessionVerified) { callback(true); return; }
     if (!_widgetToken) { callback(false); return; }
 
@@ -1126,7 +1126,12 @@
             var resp = JSON.parse(xhr.responseText);
             if (resp.requireGoogle) _requireGoogle = true;
           } catch (e) { }
-          callback(false);
+          // Auto-retry 1 lần sau 1.5s nếu 404 (race condition visitorId chưa sẵn sàng)
+          if (!_retried && xhr.status === 404) {
+            setTimeout(function () { checkSession(callback, true); }, 1500);
+          } else {
+            callback(false);
+          }
         }
       };
       xhr.onerror = function () { callback(false); };

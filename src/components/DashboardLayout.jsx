@@ -5,7 +5,6 @@ import Sidebar from './Sidebar';
 import { WalletProvider } from '../context/WalletContext';
 import api from '../lib/api';
 
-/** Decode JWT payload mà không cần thư viện — chỉ để kiểm tra local nhanh */
 function decodeJwtPayload(token) {
   try {
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');

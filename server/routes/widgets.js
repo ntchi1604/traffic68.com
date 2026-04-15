@@ -35,7 +35,6 @@ async function logSecurityEvent(reason, ip, ua, visitorId, extra) {
 const widgetRateLimit = {};
 setInterval(() => { Object.keys(widgetRateLimit).forEach(k => delete widgetRateLimit[k]); }, 60000);
 
-// Cache trusted visitor/IP — reset 5 phút, tránh query DB mỗi lần
 const _trustedCache = new Map();
 setInterval(() => _trustedCache.clear(), 5 * 60 * 1000);
 
