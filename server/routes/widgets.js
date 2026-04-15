@@ -9,6 +9,19 @@ const router = express.Router();
 const HMAC_SECRET = process.env.CHALLENGE_KEY || crypto.randomBytes(32).toString('hex');
 const BOT_UA = /curl|wget|python|httpie|postman|insomnia|axios|node-fetch|got\/|bot|crawler|spider|headlesschrome|phantomjs|selenium/i;
 
+// ── Cache captcha_enabled setting (tšánh query DB mỗi visitor request) ──
+let _captchaEnabledCache = null;
+let _captchaEnabledExpiry = 0;
+async function getCaptchaEnabled(pool) {
+  if (_captchaEnabledCache !== null && Date.now() < _captchaEnabledExpiry) return _captchaEnabledCache;
+  try {
+    const [rows] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'captcha_enabled'");
+    _captchaEnabledCache = !(rows.length > 0 && rows[0].setting_value === 'false');
+  } catch { _captchaEnabledCache = true; }
+  _captchaEnabledExpiry = Date.now() + 60 * 1000; // cache 60 giây
+  return _captchaEnabledCache;
+}
+
 async function logSecurityEvent(reason, ip, ua, visitorId, extra) {
   try {
     const pool = getPool();
@@ -209,43 +222,37 @@ router.get('/public/:token', async (req, res) => {
   }
 
 
-  let captchaEnabled = true;
-  try {
-    const [settings] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'captcha_enabled'");
-    if (settings.length > 0 && settings[0].setting_value === 'false') captchaEnabled = false;
-  } catch (e) { }
+  let captchaEnabled = await getCaptchaEnabled(pool);
 
   if (captchaEnabled) {
     try {
+      // Batch: kiểm tra owner admin + trusted worker trong 1 query (có thể skip captcha)
+      const visitorId = req.query.v || req.query.visitorId || '';
+      const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
+
+      // Kiểm tra owner có phải admin không
       const [ownerRows] = await pool.execute('SELECT role FROM users WHERE id = ?', [widgets[0].user_id]);
       if (ownerRows.length > 0 && ownerRows[0].role === 'admin') {
         captchaEnabled = false;
       }
-    } catch (e) { }
 
-    if (captchaEnabled) {
-      try {
-        const visitorId = req.query.v || req.query.visitorId || '';
-        const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
+      if (captchaEnabled) {
+        // Kiểm tra worker trusted
         const [tasks] = await pool.execute(
-          `SELECT ref_worker_id, worker_id FROM vuot_link_tasks 
-           WHERE (ip_address = ? OR (visitor_id = ? AND visitor_id != '')) 
-             AND status IN ('pending', 'step1', 'step2', 'step3') 
-             AND expires_at > NOW() 
-           ORDER BY created_at DESC LIMIT 1`,
+          `SELECT vt.ref_worker_id, vt.worker_id, u.trusted
+           FROM vuot_link_tasks vt
+           LEFT JOIN users u ON u.id = COALESCE(vt.ref_worker_id, vt.worker_id)
+           WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id != ''))
+             AND vt.status IN ('pending', 'step1', 'step2', 'step3')
+             AND vt.expires_at > NOW()
+           ORDER BY vt.created_at DESC LIMIT 1`,
           [ip, cleanVid]
         );
-        if (tasks.length > 0) {
-          const targetCheckId = tasks[0].ref_worker_id || tasks[0].worker_id;
-          if (targetCheckId) {
-            const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
-            if (tRows.length > 0 && tRows[0].trusted === 1) {
-              captchaEnabled = false;
-            }
-          }
+        if (tasks.length > 0 && tasks[0].trusted === 1) {
+          captchaEnabled = false;
         }
-      } catch (e) { }
-    }
+      }
+    } catch (e) { }
   }
 
   const resp = { campaignFound: !!campaignInfo, captchaEnabled };

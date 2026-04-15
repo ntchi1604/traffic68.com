@@ -6,6 +6,26 @@ const { authMiddleware, invalidateUserCache } = require('../middleware/auth');
 const localDateStr = (d = new Date()) =>
   d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
 
+// ── In-memory cache role admin (tránh query DB mỗi request) ──
+// TTL 30s — đủ nhanh để phản ánh thay đổi quyền, đủ hiệu quả giảm load
+const adminRoleCache = new Map();
+const ADMIN_ROLE_TTL = 30 * 1000;
+function getCachedAdminRole(userId) {
+  const e = adminRoleCache.get(userId);
+  if (!e || Date.now() > e.expiry) { adminRoleCache.delete(userId); return null; }
+  return e.role;
+}
+function setCachedAdminRole(userId, role) {
+  adminRoleCache.set(userId, { role, expiry: Date.now() + ADMIN_ROLE_TTL });
+}
+function invalidateAdminRoleCache(userId) {
+  adminRoleCache.delete(userId);
+}
+// Dọn cache định kỳ 5 phút
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of adminRoleCache.entries()) if (now > v.expiry) adminRoleCache.delete(k);
+}, 5 * 60 * 1000);
 
 let _web3pay = null;
 function getWeb3Pay() {
@@ -21,9 +41,15 @@ router.use(authMiddleware);
 
 
 router.use(async (req, res, next) => {
-  const pool = getPool();
-  const [users] = await pool.execute('SELECT role FROM users WHERE id = ?', [req.userId]);
-  if (!users[0] || users[0].role !== 'admin') {
+  // Check cache trước — chỉ query DB khi cache miss
+  let role = getCachedAdminRole(req.userId);
+  if (!role) {
+    const pool = getPool();
+    const [users] = await pool.execute('SELECT role FROM users WHERE id = ?', [req.userId]);
+    role = users[0]?.role;
+    if (role) setCachedAdminRole(req.userId, role);
+  }
+  if (role !== 'admin') {
     return res.status(403).json({ error: 'Bạn không có quyền truy cập trang admin' });
   }
   next();
@@ -604,7 +630,7 @@ router.post('/users/:id/balance', async (req, res) => {
 
 router.get('/campaigns', async (req, res) => {
   const pool = getPool();
-  const { search, status, page = 1, limit = 20 } = req.query;
+  const { search, status, page = 1, limit = 20, sync } = req.query;
   const offset = (page - 1) * limit;
   let sql = `SELECT c.*, u.name as user_name, u.email as user_email FROM campaigns c LEFT JOIN users u ON c.user_id = u.id WHERE 1=1`;
   const params = [];
@@ -614,27 +640,27 @@ router.get('/campaigns', async (req, res) => {
   params.push(Number(limit), Number(offset));
   const [campaigns] = await pool.execute(sql, params);
 
-  // ── Auto-sync views_done cho các campaign trong kết quả ──
-  try {
-    const ids = campaigns.map(c => c.id);
-    if (ids.length > 0) {
-      const ph = ids.map(() => '?').join(',');
-      await pool.execute(
-        `UPDATE campaigns c SET views_done = (
-          SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
-        ) WHERE c.id IN (${ph}) AND c.views_done != (
-          SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
-        )`, ids
-      );
-      // Auto-resume campaigns that fell below target after bot cleanup
-      await pool.execute(
-        `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views`, ids
-      );
-      // Refetch to get corrected values
-      const [updated] = await pool.execute(sql, params);
-      return res.json({ campaigns: updated });
-    }
-  } catch (_) { /* ignore sync errors */ }
+  // ── Auto-sync views_done: chỉ chạy khi có flag ?sync=1 (tránh nặng mỗi GET) ──
+  if (sync === '1') {
+    try {
+      const ids = campaigns.map(c => c.id);
+      if (ids.length > 0) {
+        const ph = ids.map(() => '?').join(',');
+        await pool.execute(
+          `UPDATE campaigns c SET views_done = (
+            SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
+          ) WHERE c.id IN (${ph}) AND c.views_done != (
+            SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
+          )`, ids
+        );
+        await pool.execute(
+          `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views`, ids
+        );
+        const [updated] = await pool.execute(sql, params);
+        return res.json({ campaigns: updated });
+      }
+    } catch (_) { /* ignore sync errors */ }
+  }
 
   res.json({ campaigns });
 });
@@ -858,37 +884,41 @@ router.get('/campaigns/:id/tasks-export', async (req, res) => {
     )];
     const geoMap = {};
     const BATCH = 100;
-    for (let i = 0; i < uniqueIps.length; i += BATCH) {
-      const batch = uniqueIps.slice(i, i + BATCH);
-      try {
-        const result = await new Promise((resolve) => {
-          const body = JSON.stringify(batch.map(ip => ({ query: ip, fields: 'query,country,city,status' })));
-          const options = {
-            hostname: 'ip-api.com',
-            path: '/batch?fields=query,country,city,status',
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-          };
-          const req2 = require('http').request(options, (resp) => {
-            let data = '';
-            resp.on('data', chunk => data += chunk);
-            resp.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve([]); } });
-          });
-          req2.on('error', () => resolve([]));
-          req2.setTimeout(5000, () => { req2.destroy(); resolve([]); });
-          req2.write(body);
-          req2.end();
-        });
+    const PARALLEL = 5; // tối đa 5 batch song song
+
+    // Helper: gọi 1 batch IP-API
+    const callIpApi = (batch) => new Promise((resolve) => {
+      const body = JSON.stringify(batch.map(ip => ({ query: ip, fields: 'query,country,city,status' })));
+      const options = {
+        hostname: 'ip-api.com',
+        path: '/batch?fields=query,country,city,status',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      };
+      const req2 = require('http').request(options, (resp) => {
+        let data = '';
+        resp.on('data', chunk => data += chunk);
+        resp.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve([]); } });
+      });
+      req2.on('error', () => resolve([]));
+      req2.setTimeout(5000, () => { req2.destroy(); resolve([]); });
+      req2.write(body);
+      req2.end();
+    });
+
+    // Chạy song song theo nhóm PARALLEL batches
+    const batches = [];
+    for (let i = 0; i < uniqueIps.length; i += BATCH) batches.push(uniqueIps.slice(i, i + BATCH));
+    for (let i = 0; i < batches.length; i += PARALLEL) {
+      const group = batches.slice(i, i + PARALLEL);
+      const results = await Promise.all(group.map(b => callIpApi(b).catch(() => [])));
+      results.forEach(result => {
         if (Array.isArray(result)) {
           result.forEach(r => {
-            if (r.status === 'success' && r.query) {
-              geoMap[r.query] = { country: r.country || '', city: r.city || '' };
-            }
+            if (r.status === 'success' && r.query) geoMap[r.query] = { country: r.country || '', city: r.city || '' };
           });
         }
-      } catch (e) {
-        console.error('[Admin Export] ip-api batch error:', e.message);
-      }
+      });
     }
     uniqueIps.forEach(ip => {
       if (!geoMap[ip]) {
@@ -2679,49 +2709,52 @@ router.get('/security/delayed-ban-audit', async (req, res) => {
       [Number(threshold)]
     );
 
-
-    const result = [];
-    for (const row of suspects) {
-      const [detectionTypes] = await pool.execute(
-        `SELECT JSON_EXTRACT(security_detail, '$.detectionLog') as dl_raw
-         FROM vuot_link_tasks
-         WHERE (worker_id = ? OR worker_link_id IN (SELECT id FROM worker_links WHERE worker_id = ?))
-           AND bot_detected = 1
-           AND security_detail IS NOT NULL
-         LIMIT 20`,
-        [row.id, row.id]
+    // ── Batch fetch detectionTypes cho tất cả suspects (tránh N+1 loop) ──
+    const suspectIds = suspects.map(r => r.id);
+    const detectionMap = {}; // userId -> { detectionType: count }
+    if (suspectIds.length > 0) {
+      const ph = suspectIds.map(() => '?').join(',');
+      const [detRows] = await pool.execute(
+        `SELECT COALESCE(vt.worker_id, wl.worker_id) as uid,
+                JSON_EXTRACT(vt.security_detail, '$.detectionLog') as dl_raw
+         FROM vuot_link_tasks vt
+         LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+         WHERE COALESCE(vt.worker_id, wl.worker_id) IN (${ph})
+           AND vt.bot_detected = 1
+           AND vt.security_detail IS NOT NULL`,
+        suspectIds
       );
-
-      const detectionCounts = {};
-      detectionTypes.forEach(r => {
+      detRows.forEach(r => {
+        if (!r.uid) return;
+        if (!detectionMap[r.uid]) detectionMap[r.uid] = {};
         try {
           const dl = JSON.parse(r.dl_raw || '[]');
           if (Array.isArray(dl)) {
-            dl.forEach(d => { detectionCounts[d] = (detectionCounts[d] || 0) + 1; });
+            dl.forEach(d => { detectionMap[r.uid][d] = (detectionMap[r.uid][d] || 0) + 1; });
           }
         } catch { }
       });
-
-      result.push({
-        id: row.id,
-        name: row.name,
-        email: row.email,
-        status: row.status,
-        botTasks: Number(row.bot_tasks),
-        botCompleted: Number(row.bot_completed),
-        suspiciousEarning: Number(row.suspicious_earning),
-        totalEarning: Number(row.total_earning),
-        pendingBalance: Number(row.pending_balance || 0),
-        pendingWithdrawals: Number(row.pending_withdrawals),
-        lastActivity: row.last_activity,
-        detectionTypes: detectionCounts,
-        riskScore: Math.min(100,
-          Number(row.bot_tasks) * 5 +
-          Number(row.bot_completed) * 10 +
-          (Number(row.pending_withdrawals) > 0 ? 20 : 0)
-        ),
-      });
     }
+
+    const result = suspects.map(row => ({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      status: row.status,
+      botTasks: Number(row.bot_tasks),
+      botCompleted: Number(row.bot_completed),
+      suspiciousEarning: Number(row.suspicious_earning),
+      totalEarning: Number(row.total_earning),
+      pendingBalance: Number(row.pending_balance || 0),
+      pendingWithdrawals: Number(row.pending_withdrawals),
+      lastActivity: row.last_activity,
+      detectionTypes: detectionMap[row.id] || {},
+      riskScore: Math.min(100,
+        Number(row.bot_tasks) * 5 +
+        Number(row.bot_completed) * 10 +
+        (Number(row.pending_withdrawals) > 0 ? 20 : 0)
+      ),
+    }));
 
 
     const highRisk = result.filter(r => r.riskScore >= 50);

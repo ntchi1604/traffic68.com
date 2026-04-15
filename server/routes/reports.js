@@ -226,42 +226,41 @@ router.get('/tasks/export', async (req, res) => {
 
     const geoMap = {}; // ip -> { country, city }
 
-    // Batch requests: 100 IPs per call
+    // Batch requests: 100 IPs per call, chạy song song tối đa 5 batch
     const BATCH = 100;
-    for (let i = 0; i < uniqueIps.length; i += BATCH) {
-      const batch = uniqueIps.slice(i, i + BATCH);
-      try {
-        const result = await new Promise((resolve) => {
-          const body = JSON.stringify(batch.map(ip => ({ query: ip, fields: 'query,country,city,status' })));
-          const options = {
-            hostname: 'ip-api.com',
-            path: '/batch?fields=query,country,city,status',
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-          };
-          const req2 = require('http').request(options, (resp) => {
-            let data = '';
-            resp.on('data', chunk => data += chunk);
-            resp.on('end', () => {
-              try { resolve(JSON.parse(data)); } catch { resolve([]); }
-            });
-          });
-          req2.on('error', () => resolve([]));
-          req2.setTimeout(5000, () => { req2.destroy(); resolve([]); });
-          req2.write(body);
-          req2.end();
-        });
+    const PARALLEL = 5;
 
+    const callIpApi = (batch) => new Promise((resolve) => {
+      const body = JSON.stringify(batch.map(ip => ({ query: ip, fields: 'query,country,city,status' })));
+      const options = {
+        hostname: 'ip-api.com',
+        path: '/batch?fields=query,country,city,status',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      };
+      const req2 = require('http').request(options, (resp) => {
+        let data = '';
+        resp.on('data', chunk => data += chunk);
+        resp.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve([]); } });
+      });
+      req2.on('error', () => resolve([]));
+      req2.setTimeout(5000, () => { req2.destroy(); resolve([]); });
+      req2.write(body);
+      req2.end();
+    });
+
+    const batches = [];
+    for (let i = 0; i < uniqueIps.length; i += BATCH) batches.push(uniqueIps.slice(i, i + BATCH));
+    for (let i = 0; i < batches.length; i += PARALLEL) {
+      const group = batches.slice(i, i + PARALLEL);
+      const results = await Promise.all(group.map(b => callIpApi(b).catch(() => [])));
+      results.forEach(result => {
         if (Array.isArray(result)) {
           result.forEach(r => {
-            if (r.status === 'success' && r.query) {
-              geoMap[r.query] = { country: r.country || '', city: r.city || '' };
-            }
+            if (r.status === 'success' && r.query) geoMap[r.query] = { country: r.country || '', city: r.city || '' };
           });
         }
-      } catch (e) {
-        console.error('[Export] ip-api batch error:', e.message);
-      }
+      });
     }
 
     // Fallback: use geoip-lite for IPs not resolved by ip-api.com

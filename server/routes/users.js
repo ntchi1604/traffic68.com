@@ -54,20 +54,21 @@ router.post('/avatar', upload.single('avatar'), async (req, res) => {
 
 router.get('/profile', async (req, res) => {
   const pool = getPool();
+  // Merge 2 queries thành 1 — giảm 1 round-trip DB
   const [users] = await pool.execute(
-    `SELECT id, email, name, phone, avatar_url, role, referral_code, created_at, withdraw_wallet FROM users WHERE id = ?`,
+    `SELECT id, email, name, phone, avatar_url, role, referral_code, created_at, withdraw_wallet,
+            (SELECT COUNT(*) FROM users r WHERE r.referred_by = u.id) as referralCount
+     FROM users u WHERE u.id = ?`,
     [req.userId]
   );
 
   if (users.length === 0) return res.status(404).json({ error: 'Không tìm thấy người dùng' });
 
-  const [refCount] = await pool.execute('SELECT COUNT(*) as count FROM users WHERE referred_by = ?', [req.userId]);
   const user = users[0];
-  // Parse withdraw_wallet JSON if stored as string
   if (user.withdraw_wallet && typeof user.withdraw_wallet === 'string') {
     try { user.withdraw_wallet = JSON.parse(user.withdraw_wallet); } catch { user.withdraw_wallet = null; }
   }
-  res.json({ user: { ...user, referralCount: refCount[0].count } });
+  res.json({ user });
 });
 
 router.put('/profile', async (req, res) => {

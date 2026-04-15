@@ -65,6 +65,17 @@ setInterval(() => {
 const ipTaskCount = {};
 setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 3600000);
 
+// ── Cache site_settings 'views_per_ip' ─ tránh query DB mỗi task request ──
+let _viewsPerIpCache = null;
+let _viewsPerIpExpiry = 0;
+async function getViewsPerIp(pool) {
+  if (_viewsPerIpCache !== null && Date.now() < _viewsPerIpExpiry) return _viewsPerIpCache;
+  const [rows] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
+  _viewsPerIpCache = rows.length > 0 ? (parseInt(rows[0].setting_value) || 2) : 2;
+  _viewsPerIpExpiry = Date.now() + 60 * 1000; // cache 60 giây
+  return _viewsPerIpCache;
+}
+
 // ── Stateless challenge (HMAC-signed, works across PM2 cluster workers) ──
 // Format: HMAC_SECRET signs payload so ANY worker can verify without shared memory
 // Payload: base64url({ prefix, ts, ip, workerLinkId, refWorkerId })
@@ -262,10 +273,9 @@ async function _handleTaskPost(req, res) {
   }
 
 
-  // ── Limit check: load setting ONCE ──
+  // ── Limit check: load setting qua cache (tránh query DB mỗi request) ──
   const pool = getPool();
-  const [limitSetting] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
-  const maxViewsPerIp = limitSetting.length > 0 ? parseInt(limitSetting[0].setting_value) || 2 : 2;
+  const maxViewsPerIp = await getViewsPerIp(pool);
 
   // Explicitly calculate Vietnam Day and Hour string to enforce limits flawlessly
   // MySQL server timezone = +07:00 (VN) → completed_at lưu giờ VN
@@ -479,27 +489,22 @@ async function _handleTaskPost(req, res) {
   try {
     const kwConfig = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
     if (Array.isArray(kwConfig) && kwConfig.length > 0) {
-      const [kwCounts] = await pool.execute(
-        `SELECT keyword, COUNT(*) as done
+      // ── Merge 2 queries thành 1: total + today done cùng lúc (giảm 1 round-trip DB) ──
+      const [kwCombined] = await pool.execute(
+        `SELECT keyword,
+                COUNT(*) as done,
+                SUM(CASE WHEN completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_done
          FROM vuot_link_tasks
          WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0
          GROUP BY keyword`,
-        [campaign.id]
+        [vnDayStart, vnDayEnd, campaign.id]
       );
       const doneMap = {};
-      kwCounts.forEach(r => { doneMap[r.keyword] = Number(r.done); });
-
-      // Today's completed per keyword (for daily_views limit check) - dùng UTC tương đương của VN timezone
-      const [kwTodayCounts] = await pool.execute(
-        `SELECT keyword, COUNT(*) as today_done
-         FROM vuot_link_tasks
-         WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0
-           AND completed_at >= ? AND completed_at <= ?
-         GROUP BY keyword`,
-        [campaign.id, vnDayStart, vnDayEnd]
-      );
       const todayMap = {};
-      kwTodayCounts.forEach(r => { todayMap[r.keyword] = Number(r.today_done); });
+      kwCombined.forEach(r => {
+        doneMap[r.keyword] = Number(r.done);
+        todayMap[r.keyword] = Number(r.today_done);
+      });
 
       const campaignDailyViews = Number(campaign.daily_views) || 0;
       const hasAnyExplicitDaily = kwConfig.some(k => Number(k.daily_views) > 0);

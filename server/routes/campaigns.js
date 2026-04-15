@@ -66,10 +66,14 @@ router.get('/', async (req, res) => {
     const dYes = new Date(); dYes.setDate(dYes.getDate() - 1);
     const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(dYes);
 
+    // ── Dùng LEFT JOIN thay correlated subqueries — giảm từ O(2N) xuống O(1) ──
     let sql = `SELECT c.*,
-      COALESCE((SELECT clicks FROM traffic_logs tl WHERE tl.campaign_id = c.id AND tl.date = ?), 0) as views_today,
-      COALESCE((SELECT clicks FROM traffic_logs tl WHERE tl.campaign_id = c.id AND tl.date = ?), 0) as views_yesterday
-      FROM campaigns c WHERE c.user_id = ?`;
+      COALESCE(tl_today.clicks, 0) as views_today,
+      COALESCE(tl_yes.clicks, 0) as views_yesterday
+      FROM campaigns c
+      LEFT JOIN traffic_logs tl_today ON tl_today.campaign_id = c.id AND tl_today.date = ?
+      LEFT JOIN traffic_logs tl_yes   ON tl_yes.campaign_id   = c.id AND tl_yes.date   = ?
+      WHERE c.user_id = ?`;
     const params = [today, yesterday, req.userId];
 
     if (status && status !== 'all') { sql += ' AND c.status = ?'; params.push(status); }
@@ -78,12 +82,12 @@ router.get('/', async (req, res) => {
 
     const [campaigns] = await pool.execute(sql, params);
 
-    // ── Auto-sync views_done ──
+    // ── Auto-sync views_done (chỉ refetch khi có row bị thay đổi thực sự) ──
     try {
       const ids = campaigns.map(c => c.id);
       if (ids.length > 0) {
         const ph = ids.map(() => '?').join(',');
-        await pool.execute(
+        const [syncResult] = await pool.execute(
           `UPDATE campaigns c SET views_done = (
             SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
           ) WHERE c.id IN (${ph}) AND c.views_done != (
@@ -93,8 +97,11 @@ router.get('/', async (req, res) => {
         await pool.execute(
           `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views`, ids
         );
-        const [updated] = await pool.execute(sql, params);
-        return res.json({ campaigns: updated });
+        // Chỉ refetch khi có rows thực sự bị update
+        if (syncResult.affectedRows > 0) {
+          const [updated] = await pool.execute(sql, params);
+          return res.json({ campaigns: updated });
+        }
       }
     } catch (_) { }
 
