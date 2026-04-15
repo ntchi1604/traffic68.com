@@ -276,7 +276,7 @@ export default function LinkGateway() {
 
       // ── Parallel: start creep detection AND fetch challenge at the same time ──
       const creepPromise = getCreepData();
-      const chPromise = fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}`).then(r => {
+      const chPromise = fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}&_t=${Date.now()}`, { cache: 'no-store' }).then(r => {
         if (!r.ok) throw new Error('Không thể lấy challenge');
         return r.json();
       });

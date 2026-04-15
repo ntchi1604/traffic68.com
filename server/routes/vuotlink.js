@@ -138,6 +138,9 @@ router.get('/challenge', async (req, res) => {
   const prefix = crypto.randomBytes(8).toString('hex');
   const difficulty = 4;
   challenges[challengeId] = { createdAt: Date.now(), used: false, ip, prefix, difficulty, workerLinkId, refWorkerId };
+  // Prevent browser/proxy from caching this response — each challenge must be unique
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
   res.json({ c: challengeId, p: prefix, d: difficulty });
 });
 
