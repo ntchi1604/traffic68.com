@@ -366,7 +366,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           url: useKeywordUrls ? (k.url || '') : '',
           image: useKeywordUrls ? (k.image || '') : ''
         })) : []),
-        url: u[0] || '', // lấy từ URL riêng của keyword
+        url: u[0] || urls[0]?.trim() || '',
         url2: JSON.stringify([]),
         dailyViews: finalDailyViews,
         totalViews: useKeywordViews
@@ -409,7 +409,21 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           </div>
 
 
-          {/* Keywords */}
+          {/* Global URL field — luôn hiện để admin sửa URL chính */}
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">URL đích {!isDirect && '(mặc định)'}</label>
+            <input
+              type="text"
+              value={urls[0] || ''}
+              onChange={e => setUrls([e.target.value])}
+              placeholder="https://example.com"
+              className={inputCls}
+            />
+            {!isDirect && <p className="mt-1 text-xs text-slate-400">URL dùng khi từ khóa không có URL riêng</p>}
+          </div>
+
+          {/* Keywords — chỉ hiện với non-direct */}
+          {!isDirect && (
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-sm font-semibold text-slate-600">Từ khóa tìm kiếm</label>
@@ -536,6 +550,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             </div>
             <button onClick={addKeyword} className="mt-2.5 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm</button>
           </div>
+          )}{/* end !isDirect keywords */}
 
 
 
