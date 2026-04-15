@@ -1443,6 +1443,8 @@ async function _secretLookup(req, res) {
   }
 }
 router.get('/secret/lookup', secretApiAuth, _secretLookup);
+router.get('/secret/campaigns', secretApiAuth, _secretLookup); // alias
+
 
 /* ═════════════════════════════════════════════════════════
    PROTECTED endpoints
