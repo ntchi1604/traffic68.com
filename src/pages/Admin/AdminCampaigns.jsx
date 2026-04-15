@@ -133,10 +133,18 @@ function KeywordStats({ campaignId, trafficType }) {
         <div className="max-h-[300px] overflow-y-auto pr-1 space-y-2">
           {stats.map((kw, i) => {
             const pct = totalAll > 0 ? Math.round(Number(kw.completed) / totalAll * 100) : 0;
+            const displayLabel = trafficType === 'direct'
+              ? (kw.keyword || '—')
+              : (kw.keyword || '(trống)');
             return (
               <div key={i} className="bg-slate-50 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-sm font-bold text-slate-800 truncate flex-1">{kw.keyword || '(trống)'}</p>
+                  <p className="text-sm font-bold text-slate-800 truncate flex-1" title={kw.keyword}>
+                    {trafficType === 'direct' && kw.keyword
+                      ? <a href={kw.keyword} target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">{displayLabel}</a>
+                      : displayLabel
+                    }
+                  </p>
                   <span className="text-xs font-bold text-emerald-600 ml-2">{Number(kw.completed)} view</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-1.5 mb-2">
@@ -166,7 +174,10 @@ function KeywordStats({ campaignId, trafficType }) {
             <thead className="bg-slate-50/80 sticky top-0 shadow-sm">
               <tr>
                 <th className="px-4 py-2 font-semibold text-slate-500">Ngày</th>
-                {trafficType !== 'direct' && <th className="px-4 py-2 font-semibold text-slate-500">Từ khoá</th>}
+                {trafficType === 'direct'
+                  ? <th className="px-4 py-2 font-semibold text-slate-500">URL</th>
+                  : <th className="px-4 py-2 font-semibold text-slate-500">Từ khoá</th>
+                }
                 <th className="px-4 py-2 font-semibold text-slate-500 text-right">Hoàn thành</th>
                 <th className="px-4 py-2 font-semibold text-slate-500 text-right">Chi phí</th>
               </tr>
@@ -177,7 +188,12 @@ function KeywordStats({ campaignId, trafficType }) {
               ) : daily.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((d, i) => (
                 <tr key={i} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{d.date?.slice(0, 10)}</td>
-                  {trafficType !== 'direct' && <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]" title={d.keyword}>{d.keyword || '(Trống)'}</td>}
+                  {trafficType === 'direct'
+                    ? <td className="px-4 py-2.5 font-bold text-violet-600 truncate max-w-[180px]" title={d.keyword}>
+                        <a href={d.keyword} target="_blank" rel="noopener noreferrer" className="hover:underline">{d.keyword || '—'}</a>
+                      </td>
+                    : <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]" title={d.keyword}>{d.keyword || '(Trống)'}</td>
+                  }
                   <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
                     {d.completed} <span className="text-slate-500 font-medium text-[10px] ml-0.5">/ {Number(d.daily_views) > 0 ? d.daily_views : '∞'}</span>
                     <span className="block text-[10px] text-slate-400 font-normal mt-0.5">{d.total} lượt nhận</span>

@@ -147,10 +147,18 @@ function KeywordStats({ campaignId, trafficType }) {
           <div className="max-h-[260px] overflow-y-auto pr-1 space-y-2">
             {stats.map((kw, i) => {
               const pct = totalAll > 0 ? Math.round(Number(kw.completed) / totalAll * 100) : 0;
+              const displayLabel = trafficType === 'direct'
+                ? (kw.keyword || '—')
+                : (kw.keyword || '(trống)');
               return (
                 <div key={i} className="bg-white border border-slate-200 rounded-xl p-3 hover:shadow-sm transition">
                   <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs font-bold text-slate-800 truncate flex-1">{kw.keyword || '(trống)'}</p>
+                    <p className="text-xs font-bold text-slate-800 truncate flex-1" title={kw.keyword}>
+                      {trafficType === 'direct' && kw.keyword
+                        ? <a href={kw.keyword} target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">{displayLabel}</a>
+                        : displayLabel
+                      }
+                    </p>
                     <span className="text-xs font-black text-emerald-600 ml-2 tabular-nums">{Number(kw.completed)}</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-1.5 mb-2">
@@ -178,7 +186,7 @@ function KeywordStats({ campaignId, trafficType }) {
             <table className="w-full text-xs">
               <thead className="bg-slate-50/80 sticky top-0">
                 <tr>
-                  {['Ngày', ...(trafficType !== 'direct' ? ['Từ khoá'] : []), 'Hoàn thành', 'Chi phí'].map(h => (
+                  {['Ngày', trafficType === 'direct' ? 'URL' : 'Từ khoá', 'Hoàn thành', 'Chi phí'].map(h => (
                     <th key={h} className="px-4 py-2.5 font-bold text-slate-500 text-left last:text-right">{h}</th>
                   ))}
                 </tr>
@@ -189,7 +197,12 @@ function KeywordStats({ campaignId, trafficType }) {
                 ) : daily.slice((page - 1) * rowsPerPage, page * rowsPerPage).map((d, i) => (
                   <tr key={i} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-2.5 text-slate-600 font-medium whitespace-nowrap">{d.date?.slice(0, 10)}</td>
-                    {trafficType !== 'direct' && <td className="px-4 py-2.5 font-semibold text-indigo-600 truncate max-w-[130px]">{d.keyword || '(Trống)'}</td>}
+                    {trafficType === 'direct'
+                      ? <td className="px-4 py-2.5 font-semibold text-violet-600 truncate max-w-[160px]" title={d.keyword}>
+                          <a href={d.keyword} target="_blank" rel="noopener noreferrer" className="hover:underline">{d.keyword || '—'}</a>
+                        </td>
+                      : <td className="px-4 py-2.5 font-semibold text-indigo-600 truncate max-w-[130px]">{d.keyword || '(Trống)'}</td>
+                    }
                     <td className="px-4 py-2.5 font-bold text-emerald-600 tabular-nums">
                       {d.completed}<span className="text-slate-400 font-medium text-[10px] ml-0.5">/ {Number(d.daily_views) > 0 ? d.daily_views : '∞'}</span>
                     </td>
