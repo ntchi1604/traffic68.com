@@ -620,9 +620,10 @@ export default function CreateCampaign() {
             {isDirect ? (
               /* ── Direct: URL đích + View/ngày ── */
               <SectionCard icon={Link2} iconBg="bg-violet-50" iconColor="text-violet-600" title="URL đích & Lượt xem" badge="Direct">
-                {/* Sub-header: giống search pattern — URL đích label + toggle Cài view/ngày ở phải */}
+
+                {/* Header — giống search: label ở trái, toggle ở phải */}
                 <div className="flex items-center justify-between mb-2">
-                  <Label required hint="URL đích mà visitor sẽ truy cập trực tiếp">URL đích</Label>
+                  <Label required>URL đích</Label>
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-semibold transition-colors ${form.directDailyViews > 0 ? 'text-sky-600' : 'text-slate-400'}`}>
                       Cài view/ngày
@@ -633,37 +634,58 @@ export default function CreateCampaign() {
                     />
                   </div>
                 </div>
-                <TextInput
-                  placeholder="https://example.com"
-                  value={form.urls[0]}
-                  onChange={e => updateArrayItem('urls', 0, e.target.value)}
-                />
-                <Hint>Visitor sẽ được điều hướng thẳng đến URL này, không qua bước tìm kiếm.</Hint>
 
-                <div className="grid grid-cols-1 gap-4 mt-4">
-                  <div>
-                    <Label required hint="Tổng số lượt view cần mua">Tổng view</Label>
-                    <NumberInput
-                      value={form.totalViews}
-                      onChange={e => set('totalViews', Number(e.target.value) || 0)}
-                      suffix="view"
-                      min="1"
+                {/* Row — giống keyword row: URL + amber views + sky daily */}
+                <div className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="flex gap-2 items-center">
+                    <TextInput
+                      placeholder="https://example.com"
+                      value={form.urls[0]}
+                      onChange={e => updateArrayItem('urls', 0, e.target.value)}
+                      className="flex-1"
                     />
-                  </div>
-                  {form.directDailyViews > 0 && (
-                    <div>
-                      <Label hint="Giới hạn số lượt view tối đa mỗi ngày">View / ngày</Label>
-                      <NumberInput
-                        value={form.directDailyViews}
-                        onChange={e => set('directDailyViews', Number(e.target.value) || 0)}
-                        suffix="view/ngày"
-                        min="1"
+
+                    {/* Tổng view — amber như keyword views */}
+                    <div className="relative w-28 flex-shrink-0">
+                      <input
+                        type="number" min="1"
+                        value={form.totalViews}
+                        onChange={e => set('totalViews', Number(e.target.value) || 1)}
+                        className="w-full px-2 py-2.5 text-sm border-2 border-amber-300 rounded-xl bg-amber-50
+                                   focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500
+                                   transition pr-10 font-black text-amber-900 text-right"
                       />
-                      <Hint>Visitor sẽ được phân phối đều trong ngày.</Hint>
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
                     </div>
-                  )}
+
+                    {/* View/ngày — sky như keyword daily */}
+                    {form.directDailyViews > 0 && (
+                      <div className="relative w-28 flex-shrink-0">
+                        <input
+                          type="number" min="1"
+                          value={form.directDailyViews}
+                          onChange={e => set('directDailyViews', Number(e.target.value) || 1)}
+                          className="w-full px-2 py-2.5 text-sm border-2 border-sky-300 rounded-xl bg-sky-50
+                                     focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-500
+                                     transition pr-12 font-black text-sky-900 text-right"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Tổng view summary — amber box giống bên search */}
+                <div className="mt-3 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                  <span className="text-xs font-bold text-amber-700">Tổng view</span>
+                  <span className="text-sm font-black text-amber-900 tabular-nums">
+                    {Number(form.totalViews).toLocaleString()}
+                    <span className="text-[10px] font-semibold text-amber-500 ml-1">view</span>
+                  </span>
+                </div>
+
               </SectionCard>
+
             ) : (
               /* ── Google Search / Social: cần từ khóa & URL ── */
               <SectionCard icon={Globe} iconBg="bg-amber-50" iconColor="text-amber-600" title="Từ khóa & Địa chỉ web">
