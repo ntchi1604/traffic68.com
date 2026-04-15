@@ -7,6 +7,16 @@ import {
 } from 'lucide-react';
 import api from '../../lib/api';
 
+/** Decode JWT payload mà không cần thư viện — chỉ để kiểm tra local nhanh */
+function decodeJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(base64));
+  } catch {
+    return null;
+  }
+}
+
 const BUYER_NAV = [
   { to: '/admin/users',        icon: Users,           label: 'Người dùng' },
   { to: '/admin/campaigns',    icon: Megaphone,       label: 'Chiến dịch' },
@@ -44,8 +54,30 @@ export default function AdminLayout() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) { navigate('/dang-nhap'); return; }
+
+    // Decode JWT local ngay lập tức (không cần API) để kiểm tra hết hạn
+    const payload = decodeJwtPayload(token);
+    if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      navigate('/dang-nhap');
+      return;
+    }
+
+    // Kiểm tra cached user trong localStorage — nếu có, render ngay
+    const cachedUser = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; } })();
+    if (cachedUser && cachedUser.role === 'admin') {
+      setAdmin(cachedUser);
+      setLoading(false);
+    } else if (cachedUser && cachedUser.role !== 'admin') {
+      navigate('/dang-nhap');
+      return;
+    }
+
+    // Verify server ngầm (background) — không block UI
     api.get('/auth/me').then(data => {
       if (data.user?.role !== 'admin') { navigate('/dang-nhap'); return; }
+      localStorage.setItem('user', JSON.stringify(data.user));
       setAdmin(data.user);
       setLoading(false);
     }).catch(() => {

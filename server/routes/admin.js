@@ -1,6 +1,6 @@
 const express = require('express');
 const { getPool } = require('../db');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, invalidateUserCache } = require('../middleware/auth');
 
 
 const localDateStr = (d = new Date()) =>
@@ -1374,6 +1374,8 @@ router.post('/security/user/:uid/ban', async (req, res) => {
     const { action } = req.body;
     const status = action === 'ban' ? 'banned' : 'active';
     await pool.execute('UPDATE users SET status = ? WHERE id = ?', [status, req.params.uid]);
+    // Xóa cache ngay để ban có hiệu lực tức thì
+    invalidateUserCache(Number(req.params.uid));
     res.json({ ok: true, status });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2756,6 +2758,8 @@ router.post('/security/batch-ban', async (req, res) => {
       try {
 
         await pool.execute("UPDATE users SET status = 'banned' WHERE id = ?", [uid]);
+        // Xóa cache ngay để ban có hiệu lực tức thì
+        invalidateUserCache(Number(uid));
 
 
         let rejectedWithdrawals = 0;

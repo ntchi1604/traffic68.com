@@ -5,6 +5,16 @@ import Sidebar from './Sidebar';
 import { WalletProvider } from '../context/WalletContext';
 import api from '../lib/api';
 
+/** Decode JWT payload mà không cần thư viện — chỉ để kiểm tra local nhanh */
+function decodeJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(base64));
+  } catch {
+    return null;
+  }
+}
+
 export default function DashboardLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -17,10 +27,31 @@ export default function DashboardLayout() {
       navigate('/dang-nhap');
       return;
     }
+
+    // Decode JWT local ngay lập tức (không cần API) để kiểm tra hết hạn
+    const payload = decodeJwtPayload(token);
+    if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      navigate('/dang-nhap');
+      return;
+    }
+
+    // Kiểm tra cached user trong localStorage — nếu có, render ngay
+    const cachedUser = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; } })();
+    if (cachedUser) {
+      if (cachedUser.role !== 'admin' && cachedUser.service_type === 'shortlink') {
+        navigate('/worker/dashboard');
+        return;
+      }
+      setAuthChecked(true);
+    }
+
+    // Verify server ngầm (background) — không block UI
     api.get('/auth/me')
       .then((data) => {
         const user = data.user;
-        // Only traffic buyers and admins can access buyer dashboard
+        localStorage.setItem('user', JSON.stringify(user));
         if (user.role !== 'admin' && user.service_type === 'shortlink') {
           navigate('/worker/dashboard');
           return;
