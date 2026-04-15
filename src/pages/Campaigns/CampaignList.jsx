@@ -279,6 +279,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   });
   const [saving, setSaving] = useState(false);
   const [uploadingIdx, setUploadingIdx] = useState(-1);
+  const [viewByHour, setViewByHour] = useState(!!campaign.view_by_hour);
 
   const keywordTotal = keywords.reduce((s, k) => s + (Number(k.views) || 0), 0);
 
@@ -374,7 +375,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
       await api.put(`/campaigns/${campaign.id}`, {
         dailyViews:     finalDailyViews,
-        viewByHour:     0, // buyer không edit view_by_hour trong modal này
+        viewByHour:     viewByHour ? 1 : 0,
         keyword:        JSON.stringify(validKws.map(k => k.keyword)),
         keyword_config: JSON.stringify(keywordConfig),
         totalViews:     computedTotal,
@@ -566,6 +567,35 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
               <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> / {Number(campaign.total_views || 0).toLocaleString()} view</p>
             </div>
           </div>
+
+          {/* Chia view theo giờ — chỉ hiện khi có daily views */}
+          {(() => {
+            const effectiveDaily = useKeywordViews
+              ? keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)
+              : Number(dailyViews);
+            if (effectiveDaily <= 0) return null;
+            return (
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-xs font-bold text-slate-700">Chia view theo giờ</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Phân bổ đều trong 24h (~{Math.ceil(effectiveDaily / 24).toLocaleString()} view/giờ)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewByHour(v => !v)}
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                    viewByHour ? 'bg-indigo-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                    viewByHour ? 'translate-x-5' : 'translate-x-0'
+                  }`} />
+                </button>
+              </div>
+            );
+          })()}
 
         </div>
 
