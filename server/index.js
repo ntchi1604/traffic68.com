@@ -453,6 +453,32 @@ app.use((err, req, res, next) => {
         } catch (e) {  }
       }, 60000);
 
+      // ── Data cleanup: giữ vuot_link_tasks nhỏ để query nhanh ──
+      // traffic_logs đã aggregate daily stats → raw tasks > 90 ngày thừa
+      const runCleanup = async () => {
+        try {
+          const pool = getPool();
+          // 1. Xóa completed tasks cũ hơn 90 ngày (LIMIT tránh lock table lâu)
+          const [del1] = await pool.execute(
+            `DELETE FROM vuot_link_tasks
+             WHERE status = 'completed'
+               AND completed_at < DATE_SUB(NOW(), INTERVAL 90 DAY)
+             LIMIT 2000`
+          );
+          // 2. Xóa pending/expired cũ hơn 7 ngày
+          const [del2] = await pool.execute(
+            `DELETE FROM vuot_link_tasks
+             WHERE status IN ('pending','expired','failed','step1','step2','step3')
+               AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
+             LIMIT 2000`
+          );
+          const total = del1.affectedRows + del2.affectedRows;
+          if (total > 0) console.log(`[Cleanup] Pruned ${del1.affectedRows} old completed + ${del2.affectedRows} stale tasks`);
+        } catch (e) { console.error('[Cleanup] Error:', e.message); }
+      };
+      setTimeout(runCleanup, 30 * 1000);          // chạy lần đầu sau 30s
+      setInterval(runCleanup, 3 * 60 * 60 * 1000); // mỗi 3 giờ
+
       // Start crypto deposit watcher
       try {
         const web3pay = require('./lib/web3pay');

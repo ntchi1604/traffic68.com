@@ -17,7 +17,8 @@ function getPool() {
       password: process.env.DB_PASS || '',
       database: process.env.DB_NAME || 'traffic68',
       waitForConnections: true,
-      connectionLimit: 10,
+      connectionLimit: 20,      // tăng từ 10 → 20 cho traffic cao điểm
+      queueLimit: 50,           // tối đa 50 request chờ connection
       charset: 'utf8mb4',
       multipleStatements: true,
       timezone: '+07:00',
@@ -84,6 +85,26 @@ async function initDb() {
     await p2.execute("ALTER TABLE users ADD COLUMN withdraw_wallet JSON DEFAULT NULL").catch(() => { });
     await p2.execute("ALTER TABLE users ADD COLUMN bonus_mode TINYINT(1) NOT NULL DEFAULT 1").catch(() => { });
     await p2.execute("ALTER TABLE vuot_link_tasks ADD COLUMN is_over_limit TINYINT(1) NOT NULL DEFAULT 0").catch(() => { });
+
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_completed_at (completed_at)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_camp_completed_status (campaign_id, completed_at, status, bot_detected)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_ip_completed_status (ip_address(50), completed_at, status, bot_detected)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_vid_completed_status (visitor_id(50), completed_at, status, bot_detected)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_kw_camp_completed (campaign_id, keyword, completed_at, status, bot_detected)").catch(() => { });
+
+    // ── Index cho campaigns (dùng trong mọi dashboard API) ──
+    await p2.execute("ALTER TABLE campaigns ADD INDEX idx_user_status (user_id, status)").catch(() => { });
+    await p2.execute("ALTER TABLE campaigns ADD INDEX idx_status (status)").catch(() => { });
+
+    // ── Index cho traffic_logs ──
+    await p2.execute("ALTER TABLE traffic_logs ADD INDEX idx_camp_date (campaign_id, date)").catch(() => { });
+
+    // ── Index cho transactions ──
+    await p2.execute("ALTER TABLE transactions ADD INDEX idx_user_type_status (user_id, wallet_type, type, status)").catch(() => { });
+    await p2.execute("ALTER TABLE transactions ADD INDEX idx_user_created (user_id, created_at)").catch(() => { });
+
+    // ── Index cho notifications ──
+    await p2.execute("ALTER TABLE notifications ADD INDEX idx_user_read (user_id, is_read)").catch(() => { });
   } catch (_) { };
 }
 
