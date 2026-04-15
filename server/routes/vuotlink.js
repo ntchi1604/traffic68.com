@@ -1607,7 +1607,6 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
     const uid = req.userId;
     const days = Math.min(90, Math.max(7, parseInt(req.query.days) || 7));
 
-    // Bao gồm cả gateway link tasks (giống worker/stats)
     const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
     const wlIds = wLinks.map(w => w.id);
     const wlCondition = wlIds.length > 0
@@ -1615,56 +1614,58 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
       : `worker_id = ?`;
     const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
 
-    // MySQL server chạy giờ VN → completed_at đã là giờ VN, dùng DATE() trực tiếp
-    // Đồng bộ filter bot_detected=0 AND is_over_limit=0 với worker/stats để số liệu nhất quán
-    const [daily] = await pool.execute(
-      `SELECT DATE(completed_at) as date,
-              COUNT(*) as tasks,
-              COALESCE(SUM(earning), 0) as earnings
-       FROM vuot_link_tasks
-       WHERE ${wlCondition} AND status = 'completed'
-         AND bot_detected = 0
-         AND is_over_limit = 0
-         AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-       GROUP BY DATE(completed_at)
-       ORDER BY date DESC`,
-      [...wlParams, days]
-    );
+    // Dùng date range thay vì DATE() — giúp MySQL dùng index trên completed_at
+    const vnNow = new Date();
+    const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(vnNow);
+    const startD = new Date(vnNow);
+    startD.setDate(startD.getDate() - days);
+    const startStr  = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(startD) + ' 00:00:00';
+    const todayStart = vnToday + ' 00:00:00';
+    const todayEnd   = vnToday + ' 23:59:59';
 
-    const [summary] = await pool.execute(
-      `SELECT COALESCE(SUM(earning), 0) as total, COUNT(*) as tasks
-       FROM vuot_link_tasks
-       WHERE ${wlCondition} AND status = 'completed'
-         AND bot_detected = 0
-         AND is_over_limit = 0
-         AND DATE(completed_at) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
-      [...wlParams, days]
-    );
+    // Chạy 2 query SONG SONG — daily bao gồm cả today, tính summary từ JS (không cần query riêng)
+    const [[dailyRows], [todayR]] = await Promise.all([
+      pool.execute(
+        `SELECT DATE(completed_at) as date,
+                COUNT(*) as tasks,
+                COALESCE(SUM(earning), 0) as earnings
+         FROM vuot_link_tasks
+         WHERE ${wlCondition} AND status = 'completed'
+           AND bot_detected = 0 AND is_over_limit = 0
+           AND completed_at >= ?
+         GROUP BY DATE(completed_at)
+         ORDER BY date DESC`,
+        [...wlParams, startStr]
+      ),
+      pool.execute(
+        `SELECT COALESCE(SUM(earning), 0) as earn, COUNT(*) as tasks
+         FROM vuot_link_tasks
+         WHERE ${wlCondition} AND status = 'completed'
+           AND bot_detected = 0 AND is_over_limit = 0
+           AND completed_at >= ? AND completed_at <= ?`,
+        [...wlParams, todayStart, todayEnd]
+      ),
+    ]);
 
-    const [todayR] = await pool.execute(
-      `SELECT COALESCE(SUM(earning), 0) as earn, COUNT(*) as tasks
-       FROM vuot_link_tasks
-       WHERE ${wlCondition} AND status = 'completed'
-         AND bot_detected = 0
-         AND is_over_limit = 0
-         AND DATE(completed_at) = CURDATE()`,
-      wlParams
-    );
+    // Tính summary từ daily rows — không cần query riêng lần 3
+    const totalEarnings = dailyRows.reduce((s, d) => s + Number(d.earnings), 0);
+    const totalTasks    = dailyRows.reduce((s, d) => s + Number(d.tasks), 0);
 
     res.json({
-      daily,
+      daily: dailyRows,
       summary: {
-        total: Number(summary[0].total),
-        tasks: Number(summary[0].tasks),
-        avgDaily: daily.length > 0 ? Math.round(Number(summary[0].total) / daily.length) : 0,
+        total:    totalEarnings,
+        tasks:    totalTasks,
+        avgDaily: dailyRows.length > 0 ? Math.round(totalEarnings / dailyRows.length) : 0,
       },
-      today: Number(todayR[0].earn),
+      today:      Number(todayR[0].earn),
       todayTasks: Number(todayR[0].tasks),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 
