@@ -1314,8 +1314,8 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
       }
 
       const logReason = specificReasons.length > 0
-        ? specificReasons[0] + (specificReasons.length > 1 ? ` (+${specificReasons.length - 1} lý do)` : '')
-        : 'Phát hiện Bot';
+        ? specificReasons[0] + (specificReasons.length > 1 ? ' (+' + (specificReasons.length - 1) + ' ly do)' : '')
+        : 'Phat hien Bot';
 
       logSecurityEvent(logReason, task.ip_address, task.user_agent, task.visitor_id, {
         taskId: task.id,
@@ -1331,7 +1331,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
         reasons: specificReasons,
         deviceScore: secDetail.deviceScore ?? null,
         deviceType: secDetail.deviceType || null,
-        automationFlags: secDetail.detail?.automation || null,
+        automationFlags: secDetail.detail && secDetail.detail.automation || null,
         canvasHash: secDetail.canvasHash || null,
         audioHash: secDetail.audioHash || null,
         creepSummary: secDetail.creepSummary || null,
@@ -1367,11 +1367,11 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   try {
     const workerIdToInvalidate = task.worker_id || (task.worker_link_id ? paidWorkerId : null);
     if (workerIdToInvalidate) {
-      cache.invalidate(worker:balance:+workerIdToInvalidate);
-      cache.invalidatePrefix(worker:stats:+workerIdToInvalidate);
-      cache.invalidatePrefix(worker:earnings:+workerIdToInvalidate+:);
+      cache.invalidate('worker:balance:' + workerIdToInvalidate);
+      cache.invalidatePrefix('worker:stats:' + workerIdToInvalidate);
+      cache.invalidatePrefix('worker:earnings:' + workerIdToInvalidate + ':');
     }
-    if (campaign && campaign.user_id) cache.invalidate(eports:overview:+campaign.user_id);
+    if (campaign && campaign.user_id) cache.invalidate('reports:overview:' + campaign.user_id);
     cache.invalidatePrefix('admin:overview:');
   } catch (e) {}
 });
