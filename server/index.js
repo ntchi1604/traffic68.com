@@ -35,6 +35,24 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
   },
 }));
 
+// ── Serve dist/ (React build output) — assets có content-hash → cache 1 năm an toàn ──
+app.use('/assets', express.static(path.join(__dirname, '..', 'dist', 'assets'), {
+  maxAge: '1y',
+  immutable: true,
+}));
+// Serve các file khác trong dist/ (favicon, manifest, v.v.)
+app.use(express.static(path.join(__dirname, '..', 'dist'), {
+  maxAge: '1h',
+  setHeaders: (res, filePath) => {
+    // index.html không được cache — luôn nhận file mới nhất sau build
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  },
+}));
+
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), { maxAge: '7d' }));
 
 app.get('/api/health', (req, res) => {
@@ -188,10 +206,14 @@ app.use('/api', (req, res) => {
   res.status(404).json({ error: `API endpoint không tồn tại: ${req.method} ${req.originalUrl}` });
 });
 
-// ── SPA Fallback: trả về index.html cho tất cả route không phải /api ──
+// ── SPA Fallback: trả về dist/index.html cho tất cả route không phải /api ──
 // Cần thiết để React Router hoạt động khi user reload trang hoặc truy cập trực tiếp
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  // Không cache index.html — đảm bảo browser luôn nhận file mới nhất sau build
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
 });
 
 app.use((err, req, res, next) => {
