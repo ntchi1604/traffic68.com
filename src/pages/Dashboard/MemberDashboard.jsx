@@ -111,10 +111,21 @@ export default function MemberDashboard() {
     });
   }
 
-  if (loading) {
+  // Skeleton card — hiện ngay, không chờ API
+  if (loading && !data) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-6 w-full min-w-0">
+        <div className="h-6 w-48 bg-slate-100 rounded animate-pulse" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-slate-100 p-5">
+              <div className="w-11 h-11 bg-slate-100 rounded-xl animate-pulse mb-3" />
+              <div className="h-3 w-20 bg-slate-100 rounded animate-pulse mb-2" />
+              <div className="h-6 w-28 bg-slate-100 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+        <div className="bg-white rounded-xl border border-slate-100 h-64 animate-pulse" />
       </div>
     );
   }
