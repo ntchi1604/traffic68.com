@@ -11,6 +11,7 @@ import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
 import { exportToExcel } from '../../lib/exportExcel';
+import { SkTableRows } from '../../components/SkeletonLoader';
 
 /* ── helpers ── */
 const parseJsonArray = (val) => {
@@ -769,9 +770,19 @@ export default function CampaignList() {
 
       {/* ── Campaign Table ── */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
-          <RefreshCw size={24} className="animate-spin text-indigo-400" />
-          <span className="text-sm font-medium animate-pulse">Đang tải chiến dịch...</span>
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {['Chiến dịch', 'Trạng thái', 'Tổng tiến độ', 'Ngân sách', 'Hành động'].map(h => (
+                    <th key={h} className="px-5 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-left">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody><SkTableRows rows={6} cols={5} /></tbody>
+            </table>
+          </div>
         </div>
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm py-20 flex flex-col items-center gap-3">

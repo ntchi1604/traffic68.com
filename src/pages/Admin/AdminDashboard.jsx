@@ -8,6 +8,7 @@ import {
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../../lib/api';
 import { formatMoney as fmt, fmtDateTime } from '../../lib/format';
+import { Sk, SkStatGrid, SkChart, SkTableRows } from '../../components/SkeletonLoader';
 
 const localDate = (d = new Date()) => d.toLocaleDateString('en-CA');
 const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return localDate(d); };
@@ -303,13 +304,7 @@ export default function AdminDashboard() {
 
   const applyPreset = (p) => { const r = p.getRange(); setFromDate(r.from); setToDate(r.to); };
 
-  if (loading && !data) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  // Không block — hiển thị skeleton inline
 
   const o = data?.overview || {};
   const chart = data?.dailyStats || [];
@@ -363,6 +358,16 @@ export default function AdminDashboard() {
         <div className="flex justify-center py-8">
           <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         </div>
+      ) : loading ? (
+        <div className="space-y-5">
+          <SkStatGrid count={8} cols="grid-cols-2 lg:grid-cols-4" />
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {Array.from({length:8}).map((_,i)=><Sk key={i} className="h-20 rounded-xl" />)}
+            </div>
+          </div>
+          <SkChart height="h-64" />
+        </div>
       ) : (
         <>
           {/* Stats grid */}
@@ -383,6 +388,7 @@ export default function AdminDashboard() {
               );
             })}
           </div>
+
 
           {/* Finance Summary */}
           <FinanceSummary fs={finSummary} onCardClick={(type) => setRankingModal(type)} />

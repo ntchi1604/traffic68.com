@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import usePageTitle from '../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
+import { SkStatGrid, SkChart, SkTableRows } from '../components/SkeletonLoader';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -153,14 +154,9 @@ export default function TrafficDashboard() {
       .catch(() => {});
   }, []);
 
-  if (loading) return (
-    <div className="flex flex-col items-center justify-center h-80 gap-4">
-      <RefreshCw size={24} className="animate-spin text-indigo-500" />
-      <span className="text-sm font-medium text-slate-400 animate-pulse">Đang tải dữ liệu...</span>
-    </div>
-  );
 
-  const ov = overview || {};
+  const ov = loading ? {} : (overview || {});
+
 
   const runningCamps    = campaigns.filter(c => c.status === 'running');
   const completedCamps  = campaigns.filter(c => {
