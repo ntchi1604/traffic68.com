@@ -358,6 +358,46 @@ export default function LinkGateway() {
         setError(e.error || 'Bạn đã đạt giới hạn hôm nay.');
         return;
       }
+      // 403: challenge có thể hết hạn (TTL 15 phút) → fetch challenge mới + retry 1 lần
+      if (taskRes.status === 403) {
+        const body403 = await taskRes.json().catch(() => ({}));
+        if (body403.error && (body403.error.includes('vô hiệu') || body403.error.includes('kích hoạt'))) {
+          setError(body403.error); return;
+        }
+        // Challenge hết hạn → xóa cache + fetch mới
+        _prefetchedChallengeRef.current = null;
+        const freshChRes = await fetch(`${API}/challenge?slug=${encodeURIComponent(slug)}&_t=${Date.now()}`, { cache: 'no-store' });
+        if (!freshChRes.ok) throw new Error('Không thể lấy challenge mới');
+        const freshCh = await freshChRes.json();
+        let freshNonce = 0;
+        const freshTarget = '0'.repeat(freshCh.d || 4);
+        const enc2 = new TextEncoder();
+        while (true) {
+          const d2 = enc2.encode(freshCh.p + freshNonce);
+          const b2 = await crypto.subtle.digest('SHA-256', d2);
+          const h2 = Array.from(new Uint8Array(b2)).map(b => b.toString(16).padStart(2, '0')).join('');
+          if (h2.startsWith(freshTarget)) break;
+          freshNonce++;
+          if (freshNonce > 5000000) throw new Error('PoW timeout');
+        }
+        const retryRes = await fetch(`${API}/task`, {
+          method: 'POST', headers,
+          body: JSON.stringify({
+            challengeId: freshCh.c, powNonce: freshNonce,
+            visitorId, botDetection: botDetectionResult,
+            deviceData: getDeviceData(),
+            excludeCampaigns: excludeList || skippedCampaigns,
+          }),
+        });
+        if (retryRes.status === 429) { const e2 = await retryRes.json(); setError(e2.error || 'Bạn đã đạt giới hạn hôm nay.'); return; }
+        if (retryRes.status === 404) { setError('no_task'); return; }
+        if (!retryRes.ok) throw new Error('Không thể lấy nhiệm vụ');
+        const retryTask = await retryRes.json();
+        setTask(retryTask);
+        if (retryTask.trusted) setHumanPassed(true);
+        try { sessionStorage.setItem(sessionKey, JSON.stringify({ ...retryTask, _fetched_at: Date.now() })); } catch {}
+        return;
+      }
       if (!taskRes.ok) throw new Error('Không thể lấy nhiệm vụ');
       const newTask = await taskRes.json();
       setTask(newTask);

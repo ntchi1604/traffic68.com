@@ -154,27 +154,9 @@ export default function TrafficDashboard() {
   }, []);
 
   if (loading) return (
-    <div className="space-y-5 w-full min-w-0 pb-6">
-      {/* KPI skeleton */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-slate-100 p-5">
-            <div className="w-10 h-10 bg-slate-100 rounded-xl animate-pulse mb-3" />
-            <div className="h-3 w-24 bg-slate-100 rounded animate-pulse mb-2" />
-            <div className="h-7 w-32 bg-slate-100 rounded animate-pulse" />
-          </div>
-        ))}
-      </div>
-      {/* Chart skeleton */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 p-6 h-64 animate-pulse" />
-        <div className="bg-white rounded-2xl border border-slate-100 p-6 h-64 animate-pulse" />
-      </div>
-      {/* Table skeleton */}
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-        <div className="xl:col-span-3 bg-white rounded-2xl border border-slate-100 h-72 animate-pulse" />
-        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 h-72 animate-pulse" />
-      </div>
+    <div className="flex flex-col items-center justify-center h-80 gap-4">
+      <RefreshCw size={24} className="animate-spin text-indigo-500" />
+      <span className="text-sm font-medium text-slate-400 animate-pulse">Đang tải dữ liệu...</span>
     </div>
   );
 
