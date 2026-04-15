@@ -574,12 +574,29 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           {/* Daily views + Tổng view */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">View / ngày</label>
-              <div className="relative">
-                <input type="number" min="0" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={input + ' pr-24'} />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view/ngày</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">View / ngày</label>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] font-semibold transition-colors ${Number(dailyViews) > 0 ? 'text-sky-600' : 'text-slate-400'}`}>
+                    Cài view/ngày
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setDailyViews(Number(dailyViews) > 0 ? 0 : 1000)}
+                    className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ${Number(dailyViews) > 0 ? 'bg-sky-500' : 'bg-slate-200'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ${Number(dailyViews) > 0 ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
               </div>
-              <p className="mt-1 text-xs text-slate-400">0 = không giới hạn</p>
+              {Number(dailyViews) > 0 ? (
+                <div className="relative">
+                  <input type="number" min="1" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={input + ' pr-24'} />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view/ngày</span>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 py-2">Không giới hạn — phân phối tự động</p>
+              )}
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Tổng view mua</label>
