@@ -619,29 +619,7 @@ export default function CreateCampaign() {
                 <Hint>Thời gian dài → SEO tín hiệu tốt hơn. Giá sẽ hiển thị sau khi chọn loại traffic.</Hint>
               </div>
 
-              {/* Total views only */}
-              <div>
-                <Label required hint="Tổng số view cần mua cho chiến dịch">Tổng view mua</Label>
-              <div className="relative">
-                  <div className={`w-full px-3.5 py-2.5 text-sm border rounded-xl pr-20 font-bold flex items-center ${
-                    form.useKeywordTotalViews
-                      ? 'border-amber-200 bg-amber-50 text-amber-900'
-                      : 'border-slate-200 bg-slate-50 text-slate-700'
-                  }`}>
-                    {computedTotalViews.toLocaleString()}
-                  </div>
-                  <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold pointer-events-none px-1.5 py-0.5 rounded-md ${
-                    form.useKeywordTotalViews ? 'text-amber-500 bg-amber-50' : 'text-slate-400 bg-slate-50'
-                  }`}>view</span>
-                </div>
-                {form.useKeywordTotalViews
-                  ? <Hint>Tự tính từ tổng view của từng từ khóa</Hint>
-                  : isDirect
-                    ? <Hint>Chỉnh ở mục "Tổng view" bên dưới</Hint>
-                    : <Hint>Bật "Cài view riêng" ở từng từ khóa để thay đổi</Hint>
-                }
 
-              </div>
 
               {/* Phân phối theo giờ: hiện khi có daily views hợp lệ */}
               {(isDirect ? form.directDailyViews > 0 : allocatedDailyViews > 0) && (
@@ -851,6 +829,32 @@ export default function CreateCampaign() {
                       </div>
                     </div>
                   )}
+
+                  {/* Tổng view — editable when Cài view riêng OFF, computed when ON */}
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Label required hint="Tổng số view cần mua">Tổng view</Label>
+                      {form.useKeywordTotalViews && (
+                        <span className="text-[11px] text-amber-500 font-semibold">Ự tặt “Cài view riêng” để nhập trực tiếp</span>
+                      )}
+                    </div>
+                    {form.useKeywordTotalViews ? (
+                      <div className="relative">
+                        <div className="w-full px-3.5 py-2.5 text-sm border border-amber-200 bg-amber-50 rounded-xl font-black text-amber-900 pr-16">
+                          {computedTotalViews.toLocaleString()}
+                        </div>
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-500 font-bold pointer-events-none">view</span>
+                      </div>
+                    ) : (
+                      <NumberInput
+                        value={form.totalViews}
+                        onChange={e => set('totalViews', Number(e.target.value) || 1000)}
+                        suffix="view"
+                        min="1"
+                      />
+                    )}
+                    <Hint>{form.useKeywordTotalViews ? 'Tự tính từ tổng view của từng từ khóa' : 'View được phân bổ đều cho tất cả từ khóa'}</Hint>
+                  </div>
 
                   <button type="button" onClick={addKeyword}
                     className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
