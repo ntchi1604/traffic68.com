@@ -620,22 +620,27 @@ export default function CreateCampaign() {
             {isDirect ? (
               /* ── Direct: URL đích + View/ngày ── */
               <SectionCard icon={Link2} iconBg="bg-violet-50" iconColor="text-violet-600" title="URL đích & Lượt xem" badge="Direct">
-                <div className="flex items-start gap-3 mb-4 p-3.5 bg-violet-50 border border-violet-200 rounded-xl">
-                  <Link2 size={15} className="text-violet-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-violet-700 leading-relaxed">
-                    <strong>Direct / Redirect traffic</strong> — Không cần từ khóa hay hình ảnh. Visitor sẽ truy cập trực tiếp vào URL bên dưới.
-                  </p>
-                </div>
-                <div>
+                {/* Sub-header: giống search pattern — URL đích label + toggle Cài view/ngày ở phải */}
+                <div className="flex items-center justify-between mb-2">
                   <Label required hint="URL đích mà visitor sẽ truy cập trực tiếp">URL đích</Label>
-                  <TextInput
-                    placeholder="https://example.com"
-                    value={form.urls[0]}
-                    onChange={e => updateArrayItem('urls', 0, e.target.value)}
-                  />
-                  <Hint>Visitor sẽ được điều hướng thẳng đến URL này, không qua bước tìm kiếm.</Hint>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold transition-colors ${form.directDailyViews > 0 ? 'text-sky-600' : 'text-slate-400'}`}>
+                      Cài view/ngày
+                    </span>
+                    <Toggle
+                      checked={form.directDailyViews > 0}
+                      onChange={() => set('directDailyViews', form.directDailyViews > 0 ? 0 : 1000)}
+                    />
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 gap-4">
+                <TextInput
+                  placeholder="https://example.com"
+                  value={form.urls[0]}
+                  onChange={e => updateArrayItem('urls', 0, e.target.value)}
+                />
+                <Hint>Visitor sẽ được điều hướng thẳng đến URL này, không qua bước tìm kiếm.</Hint>
+
+                <div className="grid grid-cols-1 gap-4 mt-4">
                   <div>
                     <Label required hint="Tổng số lượt view cần mua">Tổng view</Label>
                     <NumberInput
@@ -645,29 +650,18 @@ export default function CreateCampaign() {
                       min="1"
                     />
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
+                  {form.directDailyViews > 0 && (
+                    <div>
                       <Label hint="Giới hạn số lượt view tối đa mỗi ngày">View / ngày</Label>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-semibold transition-colors ${form.directDailyViews > 0 ? 'text-sky-600' : 'text-slate-400'}`}>
-                          Cài view/ngày
-                        </span>
-                        <Toggle
-                          checked={form.directDailyViews > 0}
-                          onChange={() => set('directDailyViews', form.directDailyViews > 0 ? 0 : 1000)}
-                        />
-                      </div>
-                    </div>
-                    {form.directDailyViews > 0 && (
                       <NumberInput
                         value={form.directDailyViews}
                         onChange={e => set('directDailyViews', Number(e.target.value) || 0)}
                         suffix="view/ngày"
                         min="1"
                       />
-                    )}
-                    <Hint>{form.directDailyViews > 0 ? 'Visitor sẽ được phân phối đều trong ngày.' : 'Không giới hạn — phân phối tự động.'}</Hint>
-                  </div>
+                      <Hint>Visitor sẽ được phân phối đều trong ngày.</Hint>
+                    </div>
+                  )}
                 </div>
               </SectionCard>
             ) : (
