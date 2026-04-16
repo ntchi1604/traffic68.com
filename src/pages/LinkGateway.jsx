@@ -292,7 +292,10 @@ export default function LinkGateway() {
 
     let _silentRetrying = false;
     try {
-      setLoading(true); setError(''); setHumanPassed(false);
+      setLoading(true); setError('');
+      // Chỉ reset humanPassed khi thực sự cần (forceRefresh=true)
+      // KHÔNG reset khi user vừa pass challenge (tránh race condition)
+      if (forceNew) { setHumanPassed(false); setChallengeToken(null); setShakeApiStatus('idle'); }
 
       if (navigator.storage && navigator.storage.estimate) {
         const { quota } = await navigator.storage.estimate();
@@ -441,6 +444,8 @@ export default function LinkGateway() {
           setInputCode('');
           setShowError(false);
           setHumanPassed(false);
+          setChallengeToken(null);
+          setShakeApiStatus('idle');
           try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
           fetchTask(true);
           return 0;
