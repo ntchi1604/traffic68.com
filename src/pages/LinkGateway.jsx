@@ -1081,7 +1081,7 @@ function ShakeChallenge({ onPass, onClose }) {
       }
       const handler = (e) => {
         if (!(e instanceof DeviceMotionEvent)) return;
-        if (!e.isTrusted) return;
+        // Không check e.isTrusted — in-app browser (Facebook/TikTok/Zalo) báo isTrusted=false dù là lắc thật
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
         const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
