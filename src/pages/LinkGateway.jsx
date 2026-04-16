@@ -189,8 +189,10 @@ export default function LinkGateway() {
   const [showChallenge, setShowChallenge] = useState(false);
   const [challengeToken, setChallengeToken] = useState(null);
   const [challengeLoading, setChallengeLoading] = useState(false);
-  const challengeLoadingRef = useRef(false); // ref để onClose đọc đúng giá trị mới nhất
   const challengeRetryTimerRef = useRef(null); // timer auto-reopen challenge — phải hủy khi thành công
+  // shakeApiStatus: trạng thái của ShakeChallenge ('idle'|'verifying'|'success'|'error')
+  // Màn xanh chỉ hiện khi 'success' — không hiện trước khi API confirm
+  const [shakeApiStatus, setShakeApiStatus] = useState('idle');
   const [retryCountdown, setRetryCountdown] = useState(0);
   const retryTimerRef = useRef(null);
   const _noTaskRetryCount = useRef(0);
@@ -467,7 +469,8 @@ export default function LinkGateway() {
       clearTimeout(challengeRetryTimerRef.current);
       challengeRetryTimerRef.current = null;
     }
-    challengeLoadingRef.current = true;
+    // Hiện spinner "Đang xác minh" bên trong ShakeChallenge (không hiện màn xanh)
+    setShakeApiStatus('verifying');
     setChallengeLoading(true);
     try {
       const headers = { 'Content-Type': 'application/json' };
@@ -484,6 +487,7 @@ export default function LinkGateway() {
 
       // Task hết hạn → tự động lấy task mới
       if (res.status === 410) {
+        setShakeApiStatus('idle');
         setShowChallenge(false);
         setTask(null);
         setInputCode('');
@@ -497,24 +501,19 @@ export default function LinkGateway() {
 
       if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
 
-      // SUCCESS: đóng challenge và cập nhật state
-      // Gọi setShowChallenge(false) ngay để đảm bảo overlay đóng (không phụ thuộc vào timer trong ShakeChallenge)
+      // SUCCESS: hiện màn xanh "Xác minh thành công" rồi ShakeChallenge tự đóng sau 1.2s
       setChallengeToken(data.challengeToken);
       setHumanPassed(true);
-      setShowChallenge(false); // Đóng challenge overlay
+      setShakeApiStatus('success'); // → ShakeChallenge hiện xanh, tự đóng sau 1.2s
     } catch (err) {
-      // Lỗi → đóng overlay và hiện thông báo lỗi
-      // KHÔNG auto-reopen (gây vòng lặp vô tận khi API liên tục thất bại)
-      // User sẽ thấy nút lắc lại và tự click để thử lại
-      setShowChallenge(false);
-      setShowError(true);
-      setError('Xác minh thất bại, vui lòng thử lại: ' + (err.message || ''));
+      // Lỗi → ShakeChallenge ở lại và hiện màn "❌ Xác minh thất bại" để user lắc lại
+      setShakeApiStatus('error');
+      // Reset về idle sau 2.5s để user lắc lại
       challengeRetryTimerRef.current = setTimeout(() => {
-        setShowError(false);
+        setShakeApiStatus('idle');
         challengeRetryTimerRef.current = null;
-      }, 3000);
+      }, 2500);
     } finally {
-      challengeLoadingRef.current = false;
       setChallengeLoading(false);
     }
   }, [task, slug, fetchTask]);
@@ -996,7 +995,14 @@ export default function LinkGateway() {
 
       {showChallenge && (
         isMobileDevice
-          ? <ShakeChallenge onPass={handleChallengePass} onClose={() => setShowChallenge(false)} />
+          ? <ShakeChallenge
+              onPass={handleChallengePass}
+              apiStatus={shakeApiStatus}
+              onClose={() => {
+                setShakeApiStatus('idle'); // reset để lần sau mở lại bắt đầu từ đầu
+                setShowChallenge(false);
+              }}
+            />
           : <CurveChallenge onPass={handleChallengePass} onClose={() => setShowChallenge(false)} />
 
       )}
@@ -1078,15 +1084,14 @@ function CopyBtn({ text }) {
   );
 }
 
-function ShakeChallenge({ onPass, onClose }) {
+function ShakeChallenge({ onPass, onClose, apiStatus }) {
+  // apiStatus: 'idle' | 'verifying' | 'success' | 'error'
   const [shakeCount, setShakeCount] = useState(0);
   const [flashing, setFlashing] = useState(false);
-  const [passed, setPassed] = useState(false);
   const [fakeDetected, setFakeDetected] = useState(false);
   const lastShakeRef = useRef(0);
   const rawLogRef = useRef([]);
   const passedRef = useRef(false); // guard: ngăn onPass gọi nhiều lần
-  // Dùng ref để stabilize callbacks — tránh re-fire effects khi parent re-render
   const onPassRef = useRef(onPass);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onPassRef.current = onPass; }, [onPass]);
@@ -1103,17 +1108,15 @@ function ShakeChallenge({ onPass, onClose }) {
       }
       const handler = (e) => {
         if (!(e instanceof DeviceMotionEvent)) return;
-        // KHÔNG check isTrusted — một số Android ROM (MIUI, One UI) mark false
-        // thay vào đó dùng kiểm tra giá trị cảm biến bên dưới để chống fake
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
         const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
         const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
         if (ax === ay && ay === az) return;
-        if (passedRef.current) return; // đã pass rồi, bỏ qua mọi event tiếp theo
+        if (passedRef.current) return;
         const now = Date.now();
         rawLogRef.current.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
-        if (rawLogRef.current.length > 50) rawLogRef.current.shift();
+        if (rawLogRef.current.length > 60) rawLogRef.current.shift();
 
         if (total > 26 && now - lastShakeRef.current > 500) {
           lastShakeRef.current = now;
@@ -1126,18 +1129,13 @@ function ShakeChallenge({ onPass, onClose }) {
               const log = [...rawLogRef.current];
               const allAzZero = log.every(s => s.az === 0);
               const allAxZero = log.every(s => s.ax === 0);
-
               if (allAzZero || allAxZero) {
                 setFakeDetected(true);
                 return next;
               }
-
-              // Đánh dấu đã pass NGAY trong updater để ngăn double-trigger
               passedRef.current = true;
-              setPassed(true);
-              // setTimeout nằm NGOÀI updater (dùng setTimeout với 0ms để thoát khỏi render phase)
-              // Điều này gọi onPass đúng 1 lần, sau khi render hoàn tất
-              setTimeout(() => onPassRef.current(log), 800);
+              // Gọi onPass ngay (không delay) — API sẽ chạy trong khi hiện spinner
+              setTimeout(() => onPassRef.current(log), 0);
             }
             return next;
           });
@@ -1148,64 +1146,69 @@ function ShakeChallenge({ onPass, onClose }) {
     };
     const cleanup = requestAndListen();
     return () => { cleanup.then && cleanup.then(fn => fn && fn()); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps — dùng ref để tránh re-register devicemotion
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Khi passed=true: tự động đóng overlay sau 1.5s (sau khi user thấy màn xanh xác nhận)
-  // Dùng onCloseRef để timer không bị reset khi parent re-render
+  // Khi API thành công → đóng overlay sau 1.2s (để user thấy màn xanh)
   useEffect(() => {
-    if (!passed) return;
-    const t = setTimeout(() => onCloseRef.current(), 1500);
+    if (apiStatus !== 'success') return;
+    const t = setTimeout(() => onCloseRef.current(), 1200);
     return () => clearTimeout(t);
-  }, [passed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [apiStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Khi API lỗi → reset để user lắc lại
+  useEffect(() => {
+    if (apiStatus !== 'error') return;
+    passedRef.current = false;
+    setShakeCount(0);
+    setFlashing(false);
+  }, [apiStatus]);
+
+  const isVerifying = passedRef.current && apiStatus === 'verifying';
+  const isSuccess = apiStatus === 'success';
 
   return (
     <>
-      {/* Layer 1: nền đen solid — LUÔN hiển thị, không bao giờ bị recreate compositor */}
-      {/* overscroll-behavior:none + touch-action:none → ngăn Android 16 Predictive Back trigger khi lắc */}
+      {/* Layer 1: nền đen solid */}
       <div style={{
-        position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
-        zIndex: 998,
-        background: '#0a0a1a',
-        overscrollBehavior: 'none',
-        touchAction: 'none',
-        userSelect: 'none',
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        zIndex: 998, background: '#0a0a1a',
+        overscrollBehavior: 'none', touchAction: 'none', userSelect: 'none',
       }} />
 
-      {/* Layer 2: màu xanh khi passed — opacity transition, không backdrop-filter */}
+      {/* Layer 2: màu xanh chỉ khi API confirm thành công */}
       <div style={{
-        position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
         zIndex: 999,
-        background: passed ? '#22C55E' : 'transparent',
-        opacity: passed ? 0.93 : 0,
-        transition: 'opacity 0.35s ease, background 0s',
+        background: isSuccess ? '#22C55E' : 'transparent',
+        opacity: isSuccess ? 0.93 : 0,
+        transition: 'opacity 0.35s ease',
         pointerEvents: 'none',
-        overscrollBehavior: 'none',
-        touchAction: 'none',
+        overscrollBehavior: 'none', touchAction: 'none',
       }} />
 
       {/* Layer 3: content */}
       <div style={{
-        position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
         zIndex: 1000,
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         padding: 'max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left))',
         color: '#fff',
-        overscrollBehavior: 'none',
-        touchAction: 'none',
-        userSelect: 'none',
+        overscrollBehavior: 'none', touchAction: 'none', userSelect: 'none',
       }}>
-        {/* Close */}
         <button onClick={onClose} style={{ position: 'absolute', top: 'max(20px, env(safe-area-inset-top))', right: 'max(20px, env(safe-area-inset-right))', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
 
-        {passed ? (
+        {isSuccess ? (
           <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.3s ease' }}>
             <div style={{ fontSize: 72, marginBottom: 16 }}>✅</div>
             <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 8px' }}>Xác minh thành công!</h2>
             <p style={{ fontSize: 16, opacity: 0.9 }}>Đang mở ô nhập mã...</p>
+          </div>
+        ) : isVerifying ? (
+          <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.3s ease' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', border: '5px solid rgba(255,255,255,0.2)', borderTopColor: '#22C55E', animation: 'spin 0.8s linear infinite', margin: '0 auto 20px' }} />
+            <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 8px' }}>Đang xác minh...</h2>
+            <p style={{ fontSize: 14, opacity: 0.75, margin: 0 }}>Vui lòng chờ trong giây lát</p>
           </div>
         ) : fakeDetected ? (
           <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.3s ease' }}>
@@ -1214,23 +1217,31 @@ function ShakeChallenge({ onPass, onClose }) {
             <p style={{ fontSize: 14, opacity: 0.8, margin: '0 0 24px' }}>Cảm biến điện thoại cho thấy thiết bị không hợp lệ.<br />Vui lòng dùng thiết bị thật.</p>
             <button onClick={onClose} style={{ padding: '10px 24px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>Đóng</button>
           </div>
+        ) : apiStatus === 'error' ? (
+          <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.3s ease' }}>
+            <div style={{ fontSize: 72, marginBottom: 16 }}>❌</div>
+            <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 8px', color: '#fca5a5' }}>Xác minh thất bại</h2>
+            <p style={{ fontSize: 14, opacity: 0.8, margin: '0 0 24px' }}>Lắc mạnh hơn và thử lại nhé!</p>
+            <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginBottom: 16 }}>
+              {Array.from({ length: TARGET }).map((_, i) => (
+                <div key={i} style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', border: '2px solid rgba(255,255,255,0.4)' }} />
+              ))}
+            </div>
+            <p style={{ fontSize: 13, opacity: 0.6 }}>Chưa phát hiện lắc...</p>
+          </div>
         ) : (
           <div style={{ textAlign: 'center', color: '#fff' }}>
-            {/* Phone animation */}
             <div style={{
               fontSize: 72, marginBottom: 24,
               animation: flashing ? 'shake-anim 0.3s ease' : 'phone-idle 2s ease-in-out infinite',
               display: 'inline-block',
             }}>📱</div>
-
             <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 8px', letterSpacing: 0.5 }}>
               LẮC ĐIỆN THOẠI ĐỂ XÁC MINH
             </h2>
             <p style={{ fontSize: 14, opacity: 0.75, margin: '0 0 32px' }}>
               Lắc mạnh điện thoại <strong>{TARGET} lần</strong> để chứng minh bạn là người thật
             </p>
-
-            {/* Progress dots */}
             <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginBottom: 28 }}>
               {Array.from({ length: TARGET }).map((_, i) => (
                 <div key={i} style={{
@@ -1243,7 +1254,6 @@ function ShakeChallenge({ onPass, onClose }) {
                 }} />
               ))}
             </div>
-
             <p style={{ fontSize: 13, opacity: 0.6 }}>
               {shakeCount === 0 ? 'Chưa phát hiện lắc...' : `Đã lắc ${shakeCount}/${TARGET} lần 💪`}
             </p>
@@ -1261,12 +1271,14 @@ function ShakeChallenge({ onPass, onClose }) {
             75% { transform: rotate(15deg) scale(1.2); }
             100% { transform: rotate(0deg) scale(1); }
           }
+          @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
           @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
         `}</style>
       </div>
     </>
   );
 }
+
 
 function _genCurve(w, h) {
   const m = 60;
