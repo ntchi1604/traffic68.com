@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+// Timestamp để bust cache browser sau mỗi lần build
+const buildTime = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
@@ -16,10 +19,10 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        // Tên file cố định, không có hash — tránh lỗi CSS không tìm thấy sau build
-        entryFileNames: 'assets/[name].js',
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name].[ext]',
+        // Thêm timestamp vào tên file để bust browser cache sau mỗi lần build
+        entryFileNames: `assets/[name].${buildTime}.js`,
+        chunkFileNames: `assets/[name].${buildTime}.js`,
+        assetFileNames: `assets/[name].${buildTime}.[ext]`,
         manualChunks(id) {
           if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
             return 'vendor-react';
