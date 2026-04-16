@@ -77,6 +77,61 @@ async function getViewsPerIp(pool) {
   return _viewsPerIpCache;
 }
 
+// ── Campaign pool cache: tránh JOIN nặng mỗi request ──
+// TTL = 5s — today_done stale tối đa 5s là chấp nhận được
+let _campPoolCache = null;
+let _campPoolExpiry = 0;
+let _campPoolHourKey = '';
+async function _getCampaignPool(pool, todaySubquery, campaignWhere) {
+  const now = Date.now();
+  const hourKey = new Date().toISOString().substring(0, 13); // đổi mỗi giờ (view_by_hour)
+  if (_campPoolCache !== null && _campPoolHourKey === hourKey && now < _campPoolExpiry) {
+    return _campPoolCache;
+  }
+  const [rows] = await pool.execute(
+    `SELECT c.*, COALESCE(td.today_done, 0) AS _today_done FROM campaigns c ${todaySubquery} WHERE ${campaignWhere} ORDER BY COALESCE(td.today_done, 0) ASC LIMIT 500`
+  );
+  _campPoolCache = rows;
+  _campPoolHourKey = hourKey;
+  _campPoolExpiry = now + 5000; // 5 giây
+  return rows;
+}
+
+// ── Widget config helper — dùng chung, khởi động sớm (parallel) ──
+async function _fetchWidgetConfig(pool, userId, selectedUrl) {
+  try {
+    let wRows;
+    try {
+      const campaignDomain = new URL(selectedUrl).hostname.replace(/^www\./, '');
+      [wRows] = await pool.execute(
+        `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 AND website_url LIKE ? ORDER BY created_at DESC LIMIT 1`,
+        [userId, `%${campaignDomain}%`]
+      );
+    } catch (_) { /* invalid URL */ }
+    if (!wRows || wRows.length === 0) {
+      [wRows] = await pool.execute(
+        `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1`,
+        [userId]
+      );
+    }
+    console.log(`[VuotLink] Widget query: user_id=${userId}, found=${wRows ? wRows.length : 0}`);
+    if (wRows && wRows.length > 0) {
+      const raw = JSON.parse(wRows[0].config || '{}');
+      const DEFAULTS = {
+        buttonText: 'Lấy Mã', buttonColor: '#f97316', textColor: '#ffffff',
+        borderRadius: 50, fontSize: 15, shadow: true,
+        iconUrl: '', iconBg: 'rgba(255,255,255,0.92)', iconSize: 22,
+      };
+      const cfg = { ...DEFAULTS, ...raw };
+      console.log(`[VuotLink] widgetConfig: color=${cfg.buttonColor}, text=${cfg.buttonText}`);
+      return cfg;
+    }
+  } catch (e) {
+    console.error('[VuotLink] Widget config error:', e.message);
+  }
+  return null;
+}
+
 // ── Stateless challenge (HMAC-signed, works across PM2 cluster workers) ──
 // Format: HMAC_SECRET signs payload so ANY worker can verify without shared memory
 // Payload: base64url({ prefix, ts, ip, workerLinkId, refWorkerId })
@@ -293,29 +348,29 @@ async function _handleTaskPost(req, res) {
   const vnHourStart = `${todayVn} ${hourPad}:00:00`; // VN giờ hiện tại
   const hourStartVn = vnHourStart; // giữ tên cũ để không sửa thêm
 
-  let deviceViewsToday = 0;
-  if (visitorId && visitorId !== 'unknown') {
-    const [vCount] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
-      [visitorId, vnDayStart, vnDayEnd]
-    );
-    deviceViewsToday = vCount[0].cnt;
-    // Device limit: block nếu đã vượt maxViewsPerIp
-    // (bonus_mode không áp dụng cho device limit vì không có IP theofixe)
-    if (deviceViewsToday >= maxViewsPerIp) {
-      console.log(`[VuotLink] Device limit: visitorId=${visitorId.substring(0, 8)}..., count=${deviceViewsToday}, max=${maxViewsPerIp}`);
-      return res.status(429).json({ error: `Thiết bị đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Thử lại sau.`, remaining: 0, maxViews: maxViewsPerIp });
-    }
+  // ── Chạy song song device-count + IP-count (tiết kiệm 1 DB round-trip) ──
+  const _cleanVidCount = (visitorId && visitorId !== 'unknown') ? visitorId : null;
+  const [deviceResult, ipResult] = await Promise.all([
+    _cleanVidCount
+      ? pool.execute(
+          `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
+          [_cleanVidCount, vnDayStart, vnDayEnd]
+        )
+      : Promise.resolve([[{ cnt: 0 }]]),
+    pool.execute(
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
+      [ip, vnDayStart, vnDayEnd]
+    ),
+  ]);
+
+  const deviceViewsToday = _cleanVidCount ? Number(deviceResult[0][0].cnt) : 0;
+  // Device limit: block nếu đã vượt maxViewsPerIp
+  if (_cleanVidCount && deviceViewsToday >= maxViewsPerIp) {
+    console.log(`[VuotLink] Device limit: visitorId=${_cleanVidCount.substring(0, 8)}..., count=${deviceViewsToday}, max=${maxViewsPerIp}`);
+    return res.status(429).json({ error: `Thiết bị đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Thử lại sau.`, remaining: 0, maxViews: maxViewsPerIp });
   }
 
-  // Count completed views today for this IP
-  // IMPORTANT: dùng completed_at, bot_detected = 0
-  const [ipCount] = await pool.execute(
-    `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
-    [ip, vnDayStart, vnDayEnd]
-  );
-  const ipViewsToday = ipCount[0].cnt;
-  // Thay vì block ngay, ghi nhớ trạng thái để kiểm tra bonus_mode ở bước chọn campaign
+  const ipViewsToday = Number(ipResult[0][0].cnt);
   const ipLimitReached = ipViewsToday >= maxViewsPerIp;
   if (ipLimitReached) {
     console.log(`[VuotLink] IP limit reached: IP ${ip} (${ipViewsToday}/${maxViewsPerIp}) → checking bonus_mode`);
@@ -327,17 +382,10 @@ async function _handleTaskPost(req, res) {
     console.log(`[VuotLink] ✅ VN_DATE=${todayVn} | PASS: IP=${ip}, visitor=${visitorId?.substring(0, 8) || '?'}, views=${viewsUsed}/${maxViewsPerIp}`);
   }
 
-
-  try {
-    await pool.execute(
-      `UPDATE campaigns SET status = 'running'
-       WHERE status = 'completed'
-         AND views_done < total_views
-         AND user_id IS NOT NULL`
-    );
-  } catch (recoverErr) {
-    console.warn('[VuotLink] Auto-recover status error (non-fatal):', recoverErr.message);
-  }
+  // Auto-recover campaigns bị stuck — chạy nền, không chặn response
+  pool.execute(
+    `UPDATE campaigns SET status = 'running' WHERE status = 'completed' AND views_done < total_views AND user_id IS NOT NULL`
+  ).catch(e => console.warn('[VuotLink] Auto-recover error:', e.message));
 
   // Khi IP hết lượt: kiểm tra chủ link (refWorkerId từ challenge) có bonus_mode không
   // refWorkerId = worker sở hữu link rút gọn mà IP đang dùng để vào task
@@ -384,48 +432,39 @@ async function _handleTaskPost(req, res) {
       GROUP BY campaign_id
     ) th ON th.campaign_id = c.id`;
 
-  // ── Server-enforced excludes: campaigns this IP/visitor did today OR has active task for ──
+  // ── Chạy song song: exclude-list + campaign pool (cached) — tiết kiệm 1 DB round-trip ──
   const cleanVidExcl = (visitorId && visitorId !== 'unknown') ? visitorId : '';
-  const [ipDoneRows] = await pool.execute(
-    `SELECT DISTINCT campaign_id FROM vuot_link_tasks
-     WHERE (ip_address = ? OR (? != '' AND visitor_id = ?))
-       AND (
-         (status = 'completed' AND completed_at >= '${vnDayStart}' AND completed_at <= '${vnDayEnd}')
-         OR
-         (status IN ('pending', 'step1', 'step2', 'step3') AND expires_at > NOW())
-       )`,
-    [ip, cleanVidExcl, cleanVidExcl]
-  );
-  const serverExcludeIds = ipDoneRows.map(r => Number(r.campaign_id));
-
-  // Merge: server-enforced (hard) + client-provided skips (soft)
   const clientExcludes = Array.isArray(excludeCampaigns)
     ? excludeCampaigns.filter(id => Number.isInteger(Number(id))).map(Number)
     : [];
-  const allExcludeIds = [...new Set([...serverExcludeIds, ...clientExcludes])];
-  let excludeFilter = allExcludeIds.length > 0
-    ? ` AND c.id NOT IN (${allExcludeIds.join(',')})`
-    : '';
 
-  // ORDER BY chỉ theo today_done ASC — không ưu tiîn camp nào theo tổng views
-  const [topCampaigns] = await pool.execute(
-    `SELECT c.*, COALESCE(td.today_done, 0) AS _today_done FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${excludeFilter}
-     ORDER BY COALESCE(td.today_done, 0) ASC
-     LIMIT 200`
-  );
+  const [ipDoneResult, allCandidates] = await Promise.all([
+    pool.execute(
+      `SELECT DISTINCT campaign_id FROM vuot_link_tasks
+       WHERE (ip_address = ? OR (? != '' AND visitor_id = ?))
+         AND (
+           (status = 'completed' AND completed_at >= '${vnDayStart}' AND completed_at <= '${vnDayEnd}')
+           OR
+           (status IN ('pending', 'step1', 'step2', 'step3') AND expires_at > NOW())
+         )`,
+      [ip, cleanVidExcl, cleanVidExcl]
+    ),
+    _getCampaignPool(pool, todaySubquery, campaignWhere),
+  ]);
+  const serverExcludeIds = ipDoneResult[0].map(r => Number(r.campaign_id));
+  const allExcludeIds = [...new Set([...serverExcludeIds, ...clientExcludes])];
+
+  // Apply excludes in memory — không cần query DB lần 2
+  let topCampaigns = allExcludeIds.length > 0
+    ? allCandidates.filter(c => !allExcludeIds.includes(c.id))
+    : allCandidates;
 
   let campaigns;
   if (topCampaigns.length === 0 && clientExcludes.length > 0) {
-    // Fallback: drop client skips but KEEP server-enforced (done-today) exclusions
-    const hardExclude = serverExcludeIds.length > 0
-      ? ` AND c.id NOT IN (${serverExcludeIds.join(',')})`
-      : '';
-    const [fallbackCampaigns] = await pool.execute(
-      `SELECT c.*, COALESCE(td.today_done, 0) AS _today_done FROM campaigns c ${todaySubquery} WHERE ${campaignWhere}${hardExclude}
-       ORDER BY COALESCE(td.today_done, 0) ASC
-       LIMIT 200`
-    );
-    campaigns = fallbackCampaigns;
+    // Fallback: drop client skips, keep server-enforced excludes (in memory)
+    campaigns = serverExcludeIds.length > 0
+      ? allCandidates.filter(c => !serverExcludeIds.includes(c.id))
+      : allCandidates;
   } else {
     campaigns = topCampaigns;
   }
@@ -640,6 +679,10 @@ async function _handleTaskPost(req, res) {
   if (campaign.traffic_type === 'direct') {
     selectedKeyword = selectedUrl;
   }
+
+  // ── Bắt đầu fetch widget config sớm (song song với INSERT / race check) ──
+  const _widgetConfigPromise = _fetchWidgetConfig(pool, campaign.user_id, selectedUrl);
+
   const allImages = [...parseImgArray(campaign.image1_url), ...parseImgArray(campaign.image2_url)].filter(Boolean);
   const selectedImage1 = (selectedKwImage && selectedKwImage.trim()) ? selectedKwImage.trim() : (allImages.length > 0 ? allImages[Math.floor(Math.random() * allImages.length)] : '');
   const selectedImage2 = allImages.length > 1 ? allImages.filter(u => u !== selectedImage1)[Math.floor(Math.random() * Math.max(1, allImages.length - 1))] || '' : '';
@@ -747,51 +790,23 @@ async function _handleTaskPost(req, res) {
     } catch (_) { }
   }
 
-  // Track view (worker entered the page/claimed task)
-  try {
-    const [vLogs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [campaign.id, todayVn]);
-    if (vLogs.length > 0) {
-      await pool.execute('UPDATE traffic_logs SET views = views + 1 WHERE id = ?', [vLogs[0].id]);
-    } else {
-      await pool.execute(
-        'INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source) VALUES (?, ?, 1, 0, 1, ?)',
-        [campaign.id, todayVn, campaign.traffic_type || 'google_search']
-      );
-    }
-  } catch (_) { }
-
-  // Fetch widget config from advertiser (for button preview in Step 4)
-  let widgetConfig = null;
-  try {
-    let wRows;
-    // Priority 1: Auto-match by domain from selectedUrl
+  // Track view — fire-and-forget (không chặn response)
+  ;(async () => {
     try {
-      const campaignDomain = new URL(selectedUrl).hostname.replace(/^www\./, '');
-      [wRows] = await pool.execute(
-        `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 AND website_url LIKE ? ORDER BY created_at DESC LIMIT 1`,
-        [campaign.user_id, `%${campaignDomain}%`]
-      );
-    } catch (_) { /* invalid URL, skip */ }
-    if (!wRows || wRows.length === 0) {
-      [wRows] = await pool.execute(
-        `SELECT config FROM widgets WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1`,
-        [campaign.user_id]
-      );
-    }
-    console.log(`[VuotLink] Widget query: user_id=${campaign.user_id}, found=${wRows.length}`);
-    if (wRows.length > 0) {
-      const raw = JSON.parse(wRows[0].config || '{}');
-      const DEFAULTS = {
-        buttonText: 'Lấy Mã', buttonColor: '#f97316', textColor: '#ffffff',
-        borderRadius: 50, fontSize: 15, shadow: true,
-        iconUrl: '', iconBg: 'rgba(255,255,255,0.92)', iconSize: 22,
-      };
-      widgetConfig = { ...DEFAULTS, ...raw };
-      console.log(`[VuotLink] widgetConfig: color=${widgetConfig.buttonColor}, text=${widgetConfig.buttonText}`);
-    }
-  } catch (e) {
-    console.error('[VuotLink] Widget config error:', e.message);
-  }
+      const [vLogs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [campaign.id, todayVn]);
+      if (vLogs.length > 0) {
+        await pool.execute('UPDATE traffic_logs SET views = views + 1 WHERE id = ?', [vLogs[0].id]);
+      } else {
+        await pool.execute(
+          'INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source) VALUES (?, ?, 1, 0, 1, ?)',
+          [campaign.id, todayVn, campaign.traffic_type || 'google_search']
+        );
+      }
+    } catch (_) { }
+  })();
+
+  // Await widget config (đã được khởi động sớm song song — thường đã xong rồi)
+  const widgetConfig = await _widgetConfigPromise;
 
   const _tk = signTask(result.insertId, ip);
 
