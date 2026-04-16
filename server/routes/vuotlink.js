@@ -353,9 +353,9 @@ async function _handleTaskPost(req, res) {
   const [deviceResult, ipResult] = await Promise.all([
     _cleanVidCount
       ? pool.execute(
-          `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
-          [_cleanVidCount, vnDayStart, vnDayEnd]
-        )
+        `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
+        [_cleanVidCount, vnDayStart, vnDayEnd]
+      )
       : Promise.resolve([[{ cnt: 0 }]]),
     pool.execute(
       `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
@@ -791,7 +791,7 @@ async function _handleTaskPost(req, res) {
   }
 
   // Track view — fire-and-forget (không chặn response)
-  ;(async () => {
+  ; (async () => {
     try {
       const [vLogs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [campaign.id, todayVn]);
       if (vLogs.length > 0) {
@@ -854,7 +854,6 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     return res.status(500).json({ error: 'Lỗi server' });
   }
 
-  // ── Trusted worker: bỏ qua challenge hoàn toàn ──
   try {
     const pool = getPool();
     const workerId = req.userId;
@@ -897,20 +896,17 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     // ── [SERVER] Timestamp validation — không tin client time nhưng dùng để phát hiện replay ──
     const serverNow = Date.now();
     const logStart = Number(shakeLog[0]?.t || 0);
-    const logEnd   = Number(shakeLog[shakeLog.length - 1]?.t || 0);
-    const logSpan  = logEnd - logStart;
+    const logEnd = Number(shakeLog[shakeLog.length - 1]?.t || 0);
+    const logSpan = logEnd - logStart;
 
-    // (1) Log phải span ít nhất 800ms — tạo giả instant trong console không pass được
     if (logSpan < 800) {
       console.log(`[VuotLink] ShakeLog time span too short: ${logSpan}ms < 800ms (task #${req.params.id})`);
       return res.status(403).json({ error: 'Dữ liệu cảm biến không hợp lệ.' });
     }
-    // (2) Log không được quá cũ (> 5 phút) — chống replay attack: lưu log cũ dùng lại
     if (serverNow - logEnd > 300_000) {
       console.log(`[VuotLink] ShakeLog too old: ${serverNow - logEnd}ms (task #${req.params.id})`);
       return res.status(403).json({ error: 'Dữ liệu cảm biến đã hết hạn.' });
     }
-    // (3) Log không được từ tương lai (clock manipulation)
     if (logEnd > serverNow + 10_000) {
       console.log(`[VuotLink] ShakeLog from future: logEnd=${logEnd}, now=${serverNow} (task #${req.params.id})`);
       return res.status(403).json({ error: 'Dữ liệu cảm biến không hợp lệ.' });
@@ -980,19 +976,6 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
       return res.status(403).json({ error: 'Thiếu dữ liệu xác minh trỏ chuột.' });
     }
     const points = curveLog.slice(0, 50);
-
-    // ── [SERVER] Timestamp validation cho curveLog ──
-    const serverNow = Date.now();
-    const cLogStart = Number(points[0]?.t || 0);
-    const cLogEnd   = Number(points[points.length - 1]?.t || 0);
-    const cLogSpan  = cLogEnd - cLogStart;
-    // curveLog dùng performance.now() (ms từ khi tab mở) → giá trị thường < vài trăm nghìn ms
-    // Không check absolute time vì performance.now() != Date.now()
-    // Nhưng vẫn check span: kéo chuột thật phải span >= 500ms
-    if (cLogSpan < 500) {
-      console.log(`[VuotLink] CurveLog span too short: ${cLogSpan}ms (task #${req.params.id})`);
-      return res.status(403).json({ error: 'Dữ liệu chuột không hợp lệ.' });
-    }
 
     const speeds = [];
     for (let i = 1; i < points.length; i++) {
@@ -1305,7 +1288,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
           `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
            VALUES (?, 'earning', 'earning', 'ref_link', ?, 'completed', ?, ?)`,
           [task.ref_worker_id, refEarning, refTxCode,
-           `Hoa hong ref ${refCommPct}% - ${task.keyword || 'Vượt link'} #${task.id} (${earning} đ)`]
+          `Hoa hong ref ${refCommPct}% - ${task.keyword || 'Vượt link'} #${task.id} (${earning} đ)`]
         );
         console.log(`[VuotLink] Ref earning: paid ${refEarning} to ref_worker_id=${task.ref_worker_id} (${refCommPct}% of ${earning})`);
         // Ref link không trigger hoa hồng referral thêm lần nữa
@@ -1446,7 +1429,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     }
     if (campaign && campaign.user_id) cache.invalidate('reports:overview:' + campaign.user_id);
     cache.invalidatePrefix('admin:overview:');
-  } catch (e) {}
+  } catch (e) { }
 });
 
 router.post('/task/:id/complete', optionalAuth, async (req, res) => {
@@ -1583,7 +1566,7 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
 
         const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
         const todayStart = vnToday + ' 00:00:00';
-        const todayEnd   = vnToday + ' 23:59:59';
+        const todayEnd = vnToday + ' 23:59:59';
         const d7 = new Date(); d7.setDate(d7.getDate() - 7);
         const sevenAgo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(d7) + ' 00:00:00';
 
@@ -1600,13 +1583,13 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
         const walletMap = {};
         walletR[0].forEach(w => { walletMap[w.type] = Number(w.balance); });
         return {
-          today:   { tasks: todayR[0][0].cnt,   earnings: Number(todayR[0][0].earn)   },
-          total:   { tasks: totalR[0][0].cnt,   earnings: Number(totalR[0][0].earn)   },
+          today: { tasks: todayR[0][0].cnt, earnings: Number(todayR[0][0].earn) },
+          total: { tasks: totalR[0][0].cnt, earnings: Number(totalR[0][0].earn) },
           pending: pendingR[0][0].cnt,
           remainingDailyViews: Math.max(0, Number(remR[0][0].total_daily) - Number(remR[0][0].today_done)),
-          balance:           walletMap.earning    || 0,
+          balance: walletMap.earning || 0,
           commissionBalance: walletMap.commission || 0,
-          chart:  chartR[0],
+          chart: chartR[0],
           recent: recentR[0],
         };
       },
@@ -1684,9 +1667,9 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
         const vnNow = new Date();
         const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(vnNow);
         const startD = new Date(vnNow); startD.setDate(startD.getDate() - days);
-        const startStr  = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(startD) + ' 00:00:00';
+        const startStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(startD) + ' 00:00:00';
         const todayStart = vnToday + ' 00:00:00';
-        const todayEnd   = vnToday + ' 23:59:59';
+        const todayEnd = vnToday + ' 23:59:59';
 
         const [[dailyRows], [todayR]] = await Promise.all([
           pool.execute(
@@ -1706,15 +1689,15 @@ router.get('/worker/earnings', authMiddleware, async (req, res) => {
         ]);
 
         const totalEarnings = dailyRows.reduce((s, d) => s + Number(d.earnings), 0);
-        const totalTasks    = dailyRows.reduce((s, d) => s + Number(d.tasks), 0);
+        const totalTasks = dailyRows.reduce((s, d) => s + Number(d.tasks), 0);
         return {
           daily: dailyRows,
           summary: {
-            total:    totalEarnings,
-            tasks:    totalTasks,
+            total: totalEarnings,
+            tasks: totalTasks,
             avgDaily: dailyRows.length > 0 ? Math.round(totalEarnings / dailyRows.length) : 0,
           },
-          today:      Number(todayR[0].earn),
+          today: Number(todayR[0].earn),
           todayTasks: Number(todayR[0].tasks),
         };
       },
