@@ -126,15 +126,11 @@ function getDeviceData() {
     automation.selenium = !!(document.__selenium_unwrapped || document.__webdriver_evaluate || window._Selenium_IDE_Recorder);
   } catch (e) { }
 
-  // Detect extension overriding Event.prototype.isTrusted
-  // Only flag if we CONFIRM tampering — not when browser simply doesn't expose a getter
   try {
     const desc = Object.getOwnPropertyDescriptor(Event.prototype, 'isTrusted');
     if (desc && typeof desc.get === 'function') {
-      // Browser has getter — check if it's native
       automation.eventTampered = !desc.get.toString().includes('[native code]');
     } else {
-      // Browser doesn't expose isTrusted getter (Safari iOS, Firefox) — not tampered
       automation.eventTampered = false;
     }
   } catch (e) {
@@ -277,8 +273,6 @@ export default function LinkGateway() {
 
     const handleMotion = (e) => {
       if (!(e instanceof DeviceMotionEvent)) return;
-      // Chặn event giả từ console (window.dispatchEvent luôn có isTrusted=false)
-      if (!e.isTrusted) return;
       const acc = e.accelerationIncludingGravity;
       if (!acc) return;
       const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
@@ -294,20 +288,17 @@ export default function LinkGateway() {
         lastShake = now;
         shakeCount++;
 
-        // Flash icon
         const icon = document.getElementById('_sk_icon');
         if (icon) {
           icon.style.animation = '_sk_shake .3s ease';
           setTimeout(() => { if (icon) icon.style.animation = '_sk_idle 2s ease-in-out infinite'; }, 300);
         }
-        // Update dots + text
         const dotsEl = document.getElementById('_sk_dots');
         const txtEl = document.getElementById('_sk_txt');
         if (dotsEl) dotsEl.innerHTML = dots();
         if (txtEl) txtEl.textContent = `Đã lắc ${shakeCount}/${TARGET} lần 💪`;
 
         if (shakeCount >= TARGET) {
-          // Kiểm tra fake (all-zero axes)
           const log = [...rawLog];
           const allAzZero = log.every(s => s.az === 0);
           const allAxZero = log.every(s => s.ax === 0);
