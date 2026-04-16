@@ -890,9 +890,32 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
   const clientClaimsMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
   const isMobile = clientClaimsMobile; // giữ để tương thích log
   if (clientClaimsMobile) {
-    if (!Array.isArray(shakeLog) || shakeLog.length < 5) {
+    if (!Array.isArray(shakeLog) || shakeLog.length < 8) {
       return res.status(403).json({ error: 'Thiếu dữ liệu xác minh cảm biến.' });
     }
+
+    // ── [SERVER] Timestamp validation — không tin client time nhưng dùng để phát hiện replay ──
+    const serverNow = Date.now();
+    const logStart = Number(shakeLog[0]?.t || 0);
+    const logEnd   = Number(shakeLog[shakeLog.length - 1]?.t || 0);
+    const logSpan  = logEnd - logStart;
+
+    // (1) Log phải span ít nhất 800ms — tạo giả instant trong console không pass được
+    if (logSpan < 800) {
+      console.log(`[VuotLink] ShakeLog time span too short: ${logSpan}ms < 800ms (task #${req.params.id})`);
+      return res.status(403).json({ error: 'Dữ liệu cảm biến không hợp lệ.' });
+    }
+    // (2) Log không được quá cũ (> 5 phút) — chống replay attack: lưu log cũ dùng lại
+    if (serverNow - logEnd > 300_000) {
+      console.log(`[VuotLink] ShakeLog too old: ${serverNow - logEnd}ms (task #${req.params.id})`);
+      return res.status(403).json({ error: 'Dữ liệu cảm biến đã hết hạn.' });
+    }
+    // (3) Log không được từ tương lai (clock manipulation)
+    if (logEnd > serverNow + 10_000) {
+      console.log(`[VuotLink] ShakeLog from future: logEnd=${logEnd}, now=${serverNow} (task #${req.params.id})`);
+      return res.status(403).json({ error: 'Dữ liệu cảm biến không hợp lệ.' });
+    }
+
     const EMULATOR_UA = /bluestacks|bstk|nox|ldplayer|memu|andy|genymotion|android.*x86_64|android.*x86;|com\.vphone|goldfish|ranchu/i;
 
     const rawEvents = shakeLog;
