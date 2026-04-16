@@ -336,7 +336,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   );
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
-  const { visitorId, pageReferrer } = req.body || {};
+  const { visitorId, pageReferrer, navProof } = req.body || {};
 
   const cleanVisitorId = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const [tasks] = await pool.execute(
@@ -364,7 +364,6 @@ router.post('/public/:token/check-session', async (req, res) => {
     const isCfChallenge = CF_CHALLENGE.test(clientRef) || CF_PATH.test(clientRef);
 
     // Cho phép điều hướng nội bộ: user vào từ Google → click link trong cùng trang web
-    // Referrer lúc này là trang trước trên cùng domain → hợp lệ
     let isSelfReferrer = false;
     if (clientRef && task.campaign_url) {
       try {
@@ -374,9 +373,23 @@ router.post('/public/:token/check-session', async (req, res) => {
       } catch (_) { }
     }
 
-    // Cho phép referrer trống: browser ẩn referrer (HTTPS→HTTP, privacy mode, refresh)
-    // Chỉ block khi có referrer RÕ RÀNG từ domain KHÔNG phải Google và không phải self
     const isGoogleRef = clientRef && GOOGLE_DOMAINS.test(clientRef);
+
+    const np = navProof || {};
+    const navType = np.navType || null;
+    const hasGoogleParams = !!np.hasGoogleParams;
+
+    const hasCfClearance = !!np.hasCfClearance;
+    let isDirectPaste = false;
+    if (!clientRef && navType === 'navigate' && !hasGoogleParams && !isCfChallenge && !hasCfClearance) {
+      isDirectPaste = true;
+    }
+
+    if (isDirectPaste) {
+      console.log(`[Widget] check-session BLOCKED: Direct paste detected — IP: ${ip}, task: #${task.id}, navType: ${navType}, hasGoogleParams: ${hasGoogleParams}`);
+      return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.', requireGoogle: true });
+    }
+
     if (!isCfChallenge && !isSelfReferrer && !isGoogleRef && clientRef !== '') {
       console.log(`[Widget] check-session BLOCKED: Non-Google referrer — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
       return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.', requireGoogle: true });
@@ -386,6 +399,9 @@ router.post('/public/:token/check-session', async (req, res) => {
     }
     if (isSelfReferrer) {
       console.log(`[Widget] check-session: Self-referrer allowed (internal nav) — IP: ${ip}, task: #${task.id}, ref: "${clientRef.substring(0, 80)}"`);
+    }
+    if (!clientRef && hasGoogleParams) {
+      console.log(`[Widget] check-session: Empty referrer but Google params present — IP: ${ip}, task: #${task.id}, params: ${JSON.stringify(np.googleParams || {})}`);
     }
   }
 
@@ -590,9 +606,31 @@ router.post('/public/:token/get-code', async (req, res) => {
         isSelfReferrer = refHost === campHost;
       } catch (_) { }
     }
-    // Chỉ block khi referrer RÕ RÀNG từ domain ngoài (không phải Google, không phải self, không trống)
-    // Referrer trống = hợp lệ: refresh, privacy mode, Referrer-Policy header, direct type
+
     const isGoogleRef = clientRef && GOOGLE_DOMAINS.test(clientRef);
+
+    // ── navProof từ Performance Navigation API + Google URL params ──
+    const np2 = navProof || {};
+    const navType2 = np2.navType || null;
+    const hasGoogleParams2 = !!np2.hasGoogleParams;
+
+    // Dán link trực tiếp: navType='navigate' + referrer rỗng + không có Google params + không qua CF → block
+    const hasCfClearance2 = !!np2.hasCfClearance;
+    let isDirectPaste2 = false;
+    if (!clientRef && navType2 === 'navigate' && !hasGoogleParams2 && !isCfChallenge && !hasCfClearance2) {
+      isDirectPaste2 = true;
+    }
+
+    if (isDirectPaste2) {
+      console.log(`[Widget] BLOCKED: Direct paste for search campaign — IP: ${ip}, task: #${task.id}, navType: ${navType2}`);
+      await pool.execute(
+        `UPDATE vuot_link_tasks SET security_detail = JSON_SET(COALESCE(security_detail,'{}'), '$.direct_paste', true, '$.nav_type', ?) WHERE id = ?`,
+        [navType2 || 'unknown', task.id]
+      ).catch(() => { });
+      return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.' });
+    }
+
+    // Chỉ block khi referrer RÕ RÀNG từ domain ngoài (không phải Google, không phải self, không trống)
     if (!isCfChallenge && !isSelfReferrer && !isGoogleRef && clientRef !== '') {
       console.log(`[Widget] BLOCKED: Non-Google referrer for search campaign — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
       await pool.execute(

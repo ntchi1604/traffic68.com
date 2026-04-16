@@ -1206,9 +1206,66 @@
           }
         };
         xhr.onerror = function () { callback(false); };
-        xhr.send(JSON.stringify({ visitorId: _visitorId || '', pageReferrer: document.referrer || '' }));
+        xhr.send(JSON.stringify({ visitorId: _visitorId || '', pageReferrer: document.referrer || '', navProof: _buildNavigationProof() }));
       });
     });
+  }
+
+  /* ── Navigation proof: detect direct-paste vs real Google click ──────── */
+  function _buildNavigationProof() {
+    var proof = {
+      navType: null,    // 'navigate' | 'reload' | 'back_forward' | 'prerender' | null
+      hasGoogleParams: false,  // true nếu URL chứa ved= / usg= / sca_esv= / source=
+      googleParams: {},        // các tham số Google tìm thấy
+      pageUrl: window.location.href,
+    };
+
+    // 1. Performance Navigation Timing API (ưu tiên)
+    try {
+      var navEntries = performance.getEntriesByType('navigation');
+      if (navEntries && navEntries.length > 0) {
+        proof.navType = navEntries[0].type; // 'navigate' | 'reload' | 'back_forward' | 'prerender'
+      } else if (performance.navigation) {
+        // Fallback: legacy API
+        var typeMap = { 0: 'navigate', 1: 'reload', 2: 'back_forward' };
+        proof.navType = typeMap[performance.navigation.type] || null;
+      }
+    } catch (e) { }
+
+    // 2. Kiểm tra Google URL parameters trong URL hiện tại
+    // Khi click từ Google Search thật → Google thường append các param này vào URL đích
+    try {
+      var urlParams = new URLSearchParams(window.location.search);
+      var GOOGLE_PARAMS = ['ved', 'usg', 'sca_esv', 'source', 'sa', 'ei', 'bih', 'biw'];
+      for (var gi = 0; gi < GOOGLE_PARAMS.length; gi++) {
+        var gp = GOOGLE_PARAMS[gi];
+        var gpVal = urlParams.get(gp);
+        if (gpVal) {
+          proof.googleParams[gp] = gpVal.substring(0, 64); // trim để tránh quá dài
+          proof.hasGoogleParams = true;
+        }
+      }
+    } catch (e) { }
+
+    // 3. Phát hiện Cloudflare: kiểm tra cookie và CF URL params
+    // cf_clearance = CF đầt sau khi user pass JS challenge
+    // __cf_bm = CF Bot Management cookie
+    // Nếu có CF cookie → user đã qua CF challenge → không thể phán đoán từ referrer/navType
+    proof.hasCfClearance = false;
+    try {
+      var cookies = document.cookie || '';
+      if (cookies.indexOf('cf_clearance=') !== -1 || cookies.indexOf('__cf_bm=') !== -1) {
+        proof.hasCfClearance = true;
+      }
+      // CF tạm thời append param vào URL trong lúc challenge
+      var urlParamsAll = new URLSearchParams(window.location.search);
+      var CF_URL_PARAMS = ['__cf_chl_tk', '__cf_chl_f_tk', 'cf_chl_prog', 'cf_chl_opt'];
+      for (var ci = 0; ci < CF_URL_PARAMS.length; ci++) {
+        if (urlParamsAll.get(CF_URL_PARAMS[ci])) { proof.hasCfClearance = true; break; }
+      }
+    } catch (e) { }
+
+    return proof;
   }
 
   var _domText = '', _domFontSize = 16, _glColor = [0, 0, 0];
@@ -1459,7 +1516,8 @@
           dpr: window.devicePixelRatio || 1
         }
       },
-      pageReferrer: _isDirect ? '' : (document.referrer || '')
+      pageReferrer: _isDirect ? '' : (document.referrer || ''),
+      navProof: _isDirect ? null : _buildNavigationProof()
     };
   }
 
