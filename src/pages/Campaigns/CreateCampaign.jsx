@@ -605,16 +605,33 @@ export default function CreateCampaign() {
 
 
 
-              {/* Phân phối theo giờ: hiện khi có daily views hợp lệ */}
-              {(isDirect ? form.directDailyViews > 0 : allocatedDailyViews > 0) && (
-                <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-                  <Toggle checked={form.viewByHour} onChange={() => set('viewByHour', !form.viewByHour)} />
-                  <div>
-                    <p className="text-sm font-semibold text-slate-700">Phân phối theo giờ</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Chia đều view trong 24h mỗi ngày — cần có giới hạn view/ngày</p>
+              {/* Phân phối theo giờ: luôn hiện, disable khi chưa có daily views */}
+              {(() => {
+                const hasDaily = isDirect ? form.directDailyViews > 0 : allocatedDailyViews > 0;
+                // Tự tắt nếu daily views bị xóa
+                if (!hasDaily && form.viewByHour) set('viewByHour', false);
+                return (
+                  <div className={`flex items-center gap-4 border rounded-xl px-4 py-3 transition-colors ${
+                    hasDaily
+                      ? 'bg-slate-50 border-slate-200'
+                      : 'bg-slate-50/50 border-slate-100 opacity-50 cursor-not-allowed'
+                  }`}>
+                    <Toggle
+                      checked={form.viewByHour}
+                      onChange={() => hasDaily && set('viewByHour', !form.viewByHour)}
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">Phân phối theo giờ</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {hasDaily
+                          ? 'Chia đều view trong 24h mỗi ngày — áp dụng cho từng từ khóa'
+                          : 'Cần cài giới hạn view/ngày trước khi bật'}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
+
             </SectionCard>
 
             {/* ── 2. URL đích (Direct) hoặc Từ khóa & URL ── */}

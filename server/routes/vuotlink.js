@@ -416,8 +416,7 @@ async function _handleTaskPost(req, res) {
     )
     AND (
       c.view_by_hour <= 0
-      OR c.daily_views <= 0
-      OR COALESCE(th.hour_done, 0) < CEIL(c.daily_views / 24)
+      OR COALESCE(th.hour_done, 0) < CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24)
     )`;
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
@@ -502,12 +501,15 @@ async function _handleTaskPost(req, res) {
     return { ...c, _weight: w };
   });
 
-  let rand = Math.random() * totalWeight;
-  let campaign = weightedCamps[weightedCamps.length - 1]; // fallback
+  const rand = Math.random() * totalWeight;
+  let campaign = null;
+  let cumulative = 0;
   for (const c of weightedCamps) {
-    rand -= c._weight;
-    if (rand <= 0) { campaign = c; break; }
+    cumulative += c._weight;
+    if (rand <= cumulative) { campaign = c; break; }
   }
+
+  if (!campaign) campaign = weightedCamps[weightedCamps.length - 1];
   const pLabel = campaign.priority ? `priority=${campaign.priority}(×${campaign._weight})` : 'no-priority(×1)';
   console.log(`[VuotLink] Selected campaign id=${campaign.id} ${pLabel} today=${campaign._today_done} daily=${campaign.daily_views} (pool: ${campaigns.length} camps, weighted-random totalW=${totalWeight})`);
 
@@ -530,21 +532,24 @@ async function _handleTaskPost(req, res) {
   try {
     const kwConfig = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
     if (Array.isArray(kwConfig) && kwConfig.length > 0) {
-      // ── Merge 2 queries thành 1: total + today done cùng lúc (giảm 1 round-trip DB) ──
+      // ── Merge 3 metrics thành 1 query: total + today_done + hour_done (giảm round-trip DB) ──
       const [kwCombined] = await pool.execute(
         `SELECT keyword,
                 COUNT(*) as done,
-                SUM(CASE WHEN completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_done
+                SUM(CASE WHEN completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_done,
+                SUM(CASE WHEN completed_at >= ? THEN 1 ELSE 0 END) as hour_done
          FROM vuot_link_tasks
          WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0
          GROUP BY keyword`,
-        [vnDayStart, vnDayEnd, campaign.id]
+        [vnDayStart, vnDayEnd, vnHourStart, campaign.id]
       );
       const doneMap = {};
       const todayMap = {};
+      const hourMap = {};
       kwCombined.forEach(r => {
         doneMap[r.keyword] = Number(r.done);
         todayMap[r.keyword] = Number(r.today_done);
+        hourMap[r.keyword] = Number(r.hour_done);
       });
 
       const campaignDailyViews = Number(campaign.daily_views) || 0;
@@ -576,11 +581,20 @@ async function _handleTaskPost(req, res) {
       //   Keywords với daily_views cao hơn có weight lớn hơn → phân bổ đúng tỷ lệ
       //   Khi todayDone tăng, weight giảm đều → tự cân bằng suốt ngày
       //   daily limit là hard stop (weight=0); k.views overrun → giảm 95% priority thay vì block
+      // ── Tính hourly cap per-keyword (áp dụng khi campaign bật view_by_hour) ──
+      //   Cách tính kwHourlyCap:
+      //   • Keyword có daily_views tường minh → hourly = CEIL(daily_views / 24)
+      //   • Keyword không set daily, camp có daily_views → hourly = CEIL(autoDaily / 24)
+      //   • Keyword không set daily, camp không set daily → hourly = CEIL(total_views / 24)
+      const kwViewByHour = campaign.view_by_hour > 0;
+      const campTotalViews = Number(campaign.total_views) || 0;
+
       const weighted = kwConfig
         .filter(k => k.keyword && k.keyword.trim())
         .map(k => {
           const totalDone = doneMap[k.keyword] || 0;
           const todayDone = todayMap[k.keyword] || 0;
+          const hourDone = hourMap[k.keyword] || 0;
           const kwTotalViews = Number(k.views) || 0;
           const hasNoTotalLimit = kwTotalViews <= 0;
           const totalRemaining = hasNoTotalLimit ? Infinity : Math.max(0, kwTotalViews - totalDone);
@@ -590,6 +604,23 @@ async function _handleTaskPost(req, res) {
 
           // Daily limit: hard stop — weight = 0 nếu đã hết quota ngày
           if (!dailyOk) return { ...k, weight: 0 };
+
+          // ── Hourly cap per-keyword khi view_by_hour bật ──
+          let kwHourlyCap = 0; // 0 = không giới hạn theo giờ
+          if (kwViewByHour) {
+            if (effectiveDailyLimit > 0) {
+              // Có daily limit tường minh (hoặc autoDaily) → hourly = daily / 24
+              kwHourlyCap = Math.max(1, Math.ceil(effectiveDailyLimit / 24));
+            } else {
+              // Không có daily limit → chia từ total_views của campaign
+              const refViews = campaignDailyViews > 0 ? campaignDailyViews : campTotalViews;
+              kwHourlyCap = refViews > 0 ? Math.max(1, Math.ceil(refViews / 24)) : 0;
+            }
+            // Hard stop: keyword đã đủ lượt trong giờ này → loại khỏi pool
+            if (kwHourlyCap > 0 && hourDone >= kwHourlyCap) {
+              return { ...k, weight: 0 };
+            }
+          }
 
           // Base weight = số lượt còn lại (tuyệt đối) để duy trì tỷ lệ đúng
           let baseWeight;
@@ -603,6 +634,12 @@ async function _handleTaskPost(req, res) {
             // Không giới hạn cả ngày lẫn tổng → dùng virtualTarget (đã normalize)
             // Trừ todayDone để weight giảm dần như các kw có limit → tự cân bằng
             baseWeight = Math.max(1, virtualTargetForUnlimited - todayDone);
+          }
+
+          // Khi view_by_hour bật: cap weight theo hourly remaining → trải đều trong giờ
+          if (kwViewByHour && kwHourlyCap > 0) {
+            const hourlyRemaining = Math.max(0, kwHourlyCap - hourDone);
+            baseWeight = Math.min(baseWeight, hourlyRemaining);
           }
 
           // Nếu vượt k.views quota tổng (do bug cũ) → giảm 95% priority, không block hoàn toàn
