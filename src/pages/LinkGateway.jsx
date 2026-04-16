@@ -1084,7 +1084,13 @@ function ShakeChallenge({ onPass, onClose }) {
       }
       const handler = (e) => {
         if (!(e instanceof DeviceMotionEvent)) return;
-        // Không check e.isTrusted — in-app browser (Facebook/TikTok/Zalo) báo isTrusted=false dù là lắc thật
+        // isTrusted = false khi dispatch bằng console (tấn công giả lắc)
+        // Ngoại lệ: in-app browser (FB/TikTok/Zalo/Instagram) cũng báo false dù lắc thật
+        // → Chỉ bỏ qua isTrusted khi UA là in-app browser đã biết
+        const _ua = navigator.userAgent || '';
+        const _isInApp = /FBAN|FBAV|Instagram|TikTok|Line\/|ZaloApp|Twitter\/|Snapchat|Viber/i.test(_ua);
+        if (!e.isTrusted && !_isInApp) return; // block fake dispatch từ console
+
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
         const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
