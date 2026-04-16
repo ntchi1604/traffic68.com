@@ -190,6 +190,7 @@ export default function LinkGateway() {
   const [challengeToken, setChallengeToken] = useState(null);
   const [challengeLoading, setChallengeLoading] = useState(false);
   const challengeLoadingRef = useRef(false); // ref để onClose đọc đúng giá trị mới nhất
+  const challengeRetryTimerRef = useRef(null); // timer auto-reopen challenge — phải hủy khi thành công
   const [retryCountdown, setRetryCountdown] = useState(0);
   const retryTimerRef = useRef(null);
   const _noTaskRetryCount = useRef(0);
@@ -461,8 +462,11 @@ export default function LinkGateway() {
 
   // Called when shake/curve challenge passes — fetch server-side token
   const handleChallengePass = useCallback(async (shakeLog) => {
-    // KHÔNG đóng overlay ngay — ShakeChallenge tự đóng theo timer 1200ms
-    // Việc gọi setShowChallenge(false) sớm khiến overlay xanh + spinner biến mất cùng lúc → flash trắng
+    // Hủy bất kỳ auto-retry timer cũ nào để tránh race condition
+    if (challengeRetryTimerRef.current) {
+      clearTimeout(challengeRetryTimerRef.current);
+      challengeRetryTimerRef.current = null;
+    }
     challengeLoadingRef.current = true;
     setChallengeLoading(true);
     try {
@@ -493,19 +497,21 @@ export default function LinkGateway() {
 
       if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
 
-      // SUCCESS: KHÔNG gọi setShowChallenge(false) ở đây
-      // ShakeChallenge đang hiện overlay xanh và sẽ tự đóng sau 1200ms qua onClose timer
-      // Nếu API hoàn thành trước 1200ms → overlay xanh vẫn còn → page đã sẵn sàng khi overlay đóng → không flash trắng
+      // SUCCESS: đóng challenge và cập nhật state
+      // Gọi setShowChallenge(false) ngay để đảm bảo overlay đóng (không phụ thuộc vào timer trong ShakeChallenge)
       setChallengeToken(data.challengeToken);
       setHumanPassed(true);
+      setShowChallenge(false); // Đóng challenge overlay
     } catch (err) {
-      // Lỗi → đóng overlay ngay và hiện lại nút lắc để user thử lại
+      // Lỗi → đóng overlay và hiện thông báo lỗi
+      // KHÔNG auto-reopen (gây vòng lặp vô tận khi API liên tục thất bại)
+      // User sẽ thấy nút lắc lại và tự click để thử lại
       setShowChallenge(false);
       setShowError(true);
       setError('Xác minh thất bại, vui lòng thử lại: ' + (err.message || ''));
-      setTimeout(() => {
+      challengeRetryTimerRef.current = setTimeout(() => {
         setShowError(false);
-        setShowChallenge(true); // Tự mở lại challenge để user thử lại
+        challengeRetryTimerRef.current = null;
       }, 3000);
     } finally {
       challengeLoadingRef.current = false;
@@ -990,23 +996,9 @@ export default function LinkGateway() {
 
       {showChallenge && (
         isMobileDevice
-          ? <ShakeChallenge onPass={handleChallengePass} onClose={() => {
-              // Chỉ đóng khi API đã xong — dùng ref để đọc giá trị mới nhất (tránh stale closure)
-              // Điều này ngăn flash trắng: ShakeChallenge giữ màn overlay cho đến khi mọi thứ sẵn sàng
-              if (challengeLoadingRef.current) {
-                // Polling mỗi 50ms, tối đa 6s để tránh bị treo nếu API hang
-                const startedAt = Date.now();
-                const interval = setInterval(() => {
-                  if (!challengeLoadingRef.current || Date.now() - startedAt > 6000) {
-                    clearInterval(interval);
-                    setShowChallenge(false);
-                  }
-                }, 50);
-              } else {
-                setShowChallenge(false);
-              }
-            }} />
+          ? <ShakeChallenge onPass={handleChallengePass} onClose={() => setShowChallenge(false)} />
           : <CurveChallenge onPass={handleChallengePass} onClose={() => setShowChallenge(false)} />
+
       )}
 
       {challengeLoading && (
