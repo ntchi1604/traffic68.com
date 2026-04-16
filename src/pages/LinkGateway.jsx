@@ -994,8 +994,10 @@ export default function LinkGateway() {
               // Chỉ đóng khi API đã xong — dùng ref để đọc giá trị mới nhất (tránh stale closure)
               // Điều này ngăn flash trắng: ShakeChallenge giữ màn overlay cho đến khi mọi thứ sẵn sàng
               if (challengeLoadingRef.current) {
+                // Polling mỗi 50ms, tối đa 6s để tránh bị treo nếu API hang
+                const startedAt = Date.now();
                 const interval = setInterval(() => {
-                  if (!challengeLoadingRef.current) {
+                  if (!challengeLoadingRef.current || Date.now() - startedAt > 6000) {
                     clearInterval(interval);
                     setShowChallenge(false);
                   }
@@ -1092,6 +1094,11 @@ function ShakeChallenge({ onPass, onClose }) {
   const lastShakeRef = useRef(0);
   const rawLogRef = useRef([]);
   const passedRef = useRef(false); // guard: ngăn onPass gọi nhiều lần
+  // Dùng ref để stabilize callbacks — tránh re-fire effects khi parent re-render
+  const onPassRef = useRef(onPass);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onPassRef.current = onPass; }, [onPass]);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   const TARGET = 3;
 
   useEffect(() => {
@@ -1138,7 +1145,7 @@ function ShakeChallenge({ onPass, onClose }) {
               setPassed(true);
               // setTimeout nằm NGOÀI updater (dùng setTimeout với 0ms để thoát khỏi render phase)
               // Điều này gọi onPass đúng 1 lần, sau khi render hoàn tất
-              setTimeout(() => onPass(log), 800);
+              setTimeout(() => onPassRef.current(log), 800);
             }
             return next;
           });
@@ -1149,14 +1156,15 @@ function ShakeChallenge({ onPass, onClose }) {
     };
     const cleanup = requestAndListen();
     return () => { cleanup.then && cleanup.then(fn => fn && fn()); };
-  }, [onPass]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps — dùng ref để tránh re-register devicemotion
 
-  // Khi passed=true: tự động đóng overlay sau 1.2s (sau khi user thấy màn xanh xác nhận)
+  // Khi passed=true: tự động đóng overlay sau 1.5s (sau khi user thấy màn xanh xác nhận)
+  // Dùng onCloseRef để timer không bị reset khi parent re-render
   useEffect(() => {
     if (!passed) return;
-    const t = setTimeout(() => onClose(), 1200);
+    const t = setTimeout(() => onCloseRef.current(), 1500);
     return () => clearTimeout(t);
-  }, [passed, onClose]);
+  }, [passed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
