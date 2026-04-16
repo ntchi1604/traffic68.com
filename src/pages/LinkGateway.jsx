@@ -189,6 +189,7 @@ export default function LinkGateway() {
   const [showChallenge, setShowChallenge] = useState(false);
   const [challengeToken, setChallengeToken] = useState(null);
   const [challengeLoading, setChallengeLoading] = useState(false);
+  const challengeLoadingRef = useRef(false); // ref để onClose đọc đúng giá trị mới nhất
   const [retryCountdown, setRetryCountdown] = useState(0);
   const retryTimerRef = useRef(null);
   const _noTaskRetryCount = useRef(0);
@@ -462,6 +463,7 @@ export default function LinkGateway() {
   const handleChallengePass = useCallback(async (shakeLog) => {
     // KHÔNG đóng overlay ngay — ShakeChallenge tự đóng theo timer 1200ms
     // Việc gọi setShowChallenge(false) sớm khiến overlay xanh + spinner biến mất cùng lúc → flash trắng
+    challengeLoadingRef.current = true;
     setChallengeLoading(true);
     try {
       const headers = { 'Content-Type': 'application/json' };
@@ -506,6 +508,7 @@ export default function LinkGateway() {
         setShowChallenge(true); // Tự mở lại challenge để user thử lại
       }, 3000);
     } finally {
+      challengeLoadingRef.current = false;
       setChallengeLoading(false);
     }
   }, [task, slug, fetchTask]);
@@ -985,9 +988,24 @@ export default function LinkGateway() {
         </div>
       </div>
 
-      {showChallenge && !humanPassed && (
+      {(showChallenge && !humanPassed) && (
         isMobileDevice
-          ? <ShakeChallenge onPass={handleChallengePass} onClose={() => setShowChallenge(false)} />
+          ? <ShakeChallenge onPass={handleChallengePass} onClose={() => {
+              // Nếu API đang chạy (challengeLoading), delay cho đến khi xong
+              // tránh flash trắng khi ShakeChallenge unmount trước challengeLoading render
+              if (challengeLoadingRef.current) {
+                // API đang chạy → đợi cho đến khi xong rồi mới đóng overlay
+                // dùng ref để tránh stale closure
+                const interval = setInterval(() => {
+                  if (!challengeLoadingRef.current) {
+                    clearInterval(interval);
+                    setShowChallenge(false);
+                  }
+                }, 50);
+              } else {
+                setShowChallenge(false);
+              }
+            }} />
           : <CurveChallenge onPass={handleChallengePass} onClose={() => setShowChallenge(false)} />
       )}
 
