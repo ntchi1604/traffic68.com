@@ -167,6 +167,21 @@
   var _v1Phase2Wait = 0;
   var _isDirect = false;
 
+  // ── Init-ready guard: chờ autoInit XHR xong mới cho phép checkSession ──
+  var _initReady = false;
+  var _initCallbacks = [];
+  function _onInitReady(cb) {
+    if (_initReady) { cb(); return; }
+    _initCallbacks.push(cb);
+  }
+  function _markInitReady() {
+    if (_initReady) return;
+    _initReady = true;
+    var cbs = _initCallbacks.slice();
+    _initCallbacks = [];
+    for (var i = 0; i < cbs.length; i++) { try { cbs[i](); } catch (e) { } }
+  }
+
   var _fpLoaded = false;
   function _loadDetectionLibs(callback) {
     if (_fpLoaded) { callback(); return; }
@@ -1102,40 +1117,44 @@
   var _requireGoogle = false;
   function checkSession(callback, _retried) {
     if (_sessionVerified) { callback(true); return; }
-    if (!_widgetToken) { callback(false); return; }
 
-    // Bắt buộc chờ CreepJS xong
-    _waitForDetection(function () {
-      var base = _scriptBase;
-      var url = base + '/api/widgets/public/' + _widgetToken + '/check-session';
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', url, true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
-      xhr.onload = function () {
-        if (xhr.status === 200) {
-          try {
-            var resp = JSON.parse(xhr.responseText);
-            if (resp.trusted) _captchaEnabled = false;
-          } catch (e) { }
-          _sessionVerified = true;
-          _requireGoogle = false;
-          callback(true);
-        } else {
-          try {
-            var resp = JSON.parse(xhr.responseText);
-            if (resp.requireGoogle) _requireGoogle = true;
-          } catch (e) { }
-          // Auto-retry 1 lần sau 1.5s nếu 404 (race condition visitorId chưa sẵn sàng)
-          if (!_retried && xhr.status === 404) {
-            setTimeout(function () { checkSession(callback, true); }, 1500);
+    // Chờ autoInit XHR xong (tránh race condition khi user click trước khi _widgetToken sẵn sàng)
+    _onInitReady(function () {
+      if (!_widgetToken) { callback(false); return; }
+
+      // Bắt buộc chờ CreepJS xong
+      _waitForDetection(function () {
+        var base = _scriptBase;
+        var url = base + '/api/widgets/public/' + _widgetToken + '/check-session';
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
+        xhr.onload = function () {
+          if (xhr.status === 200) {
+            try {
+              var resp = JSON.parse(xhr.responseText);
+              if (resp.trusted) _captchaEnabled = false;
+            } catch (e) { }
+            _sessionVerified = true;
+            _requireGoogle = false;
+            callback(true);
           } else {
-            callback(false);
+            try {
+              var resp = JSON.parse(xhr.responseText);
+              if (resp.requireGoogle) _requireGoogle = true;
+            } catch (e) { }
+            // Auto-retry 1 lần sau 1.5s nếu 404 (race condition visitorId chưa sẵn sàng)
+            if (!_retried && xhr.status === 404) {
+              setTimeout(function () { checkSession(callback, true); }, 1500);
+            } else {
+              callback(false);
+            }
           }
-        }
-      };
-      xhr.onerror = function () { callback(false); };
-      xhr.send(JSON.stringify({ visitorId: _visitorId || '', pageReferrer: document.referrer || '' }));
+        };
+        xhr.onerror = function () { callback(false); };
+        xhr.send(JSON.stringify({ visitorId: _visitorId || '', pageReferrer: document.referrer || '' }));
+      });
     });
   }
 
@@ -1854,8 +1873,12 @@
                 }
               } catch (e) { }
             }
+            // Dù thành công hay lỗi, đánh dấu init đã xong để bỏ chặn checkSession
+            _markInitReady();
           };
-          xhr.onerror = function () { };
+          xhr.onerror = function () {
+            _markInitReady(); // unblock ngay cả khi network lỗi
+          };
           xhr.send();
         })(apiUrl);
         break; // only init once
