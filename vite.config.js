@@ -2,7 +2,6 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-// Timestamp để bust cache browser sau mỗi lần build
 const buildTime = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
 
 export default defineConfig({
@@ -19,7 +18,6 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        // Thêm timestamp vào tên file để bust browser cache sau mỗi lần build
         entryFileNames: `assets/[name].${buildTime}.js`,
         chunkFileNames: `assets/[name].${buildTime}.js`,
         assetFileNames: `assets/[name].${buildTime}.[ext]`,
