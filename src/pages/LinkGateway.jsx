@@ -284,7 +284,7 @@ export default function LinkGateway() {
       rawLog.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
       if (rawLog.length > 60) rawLog.shift();
 
-      if (total > 26 && now - lastShake > 500) {
+      if (total > 18 && now - lastShake > 400) {
         lastShake = now;
         shakeCount++;
 
@@ -300,9 +300,12 @@ export default function LinkGateway() {
 
         if (shakeCount >= TARGET) {
           const log = [...rawLog];
-          const allAzZero = log.every(s => s.az === 0);
+          // Chỉ từ chối nếu CẢ ax lẫn az đều bằng 0 trong toàn bộ log → dấu hiệu emulator rõ ràng
+          // Điện thoại thật trong tư thế bình thường luôn có ít nhất 1 trục != 0
           const allAxZero = log.every(s => s.ax === 0);
-          if (allAzZero || allAxZero) {
+          const allAzZero = log.every(s => s.az === 0);
+          const isEmulator = allAxZero && allAzZero; // Cả 2 trục = 0 mới là emulator
+          if (isEmulator) {
             ov.innerHTML = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff">
               <div style="font-size:72px;margin-bottom:16px">🚫</div>
               <h2 style="font-size:24px;font-weight:900;margin:0 0 12px;color:#fca5a5">Phát hiện giả lập!</h2>
