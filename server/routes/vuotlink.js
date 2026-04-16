@@ -981,6 +981,19 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     }
     const points = curveLog.slice(0, 50);
 
+    // ── [SERVER] Timestamp validation cho curveLog ──
+    const serverNow = Date.now();
+    const cLogStart = Number(points[0]?.t || 0);
+    const cLogEnd   = Number(points[points.length - 1]?.t || 0);
+    const cLogSpan  = cLogEnd - cLogStart;
+    // curveLog dùng performance.now() (ms từ khi tab mở) → giá trị thường < vài trăm nghìn ms
+    // Không check absolute time vì performance.now() != Date.now()
+    // Nhưng vẫn check span: kéo chuột thật phải span >= 500ms
+    if (cLogSpan < 500) {
+      console.log(`[VuotLink] CurveLog span too short: ${cLogSpan}ms (task #${req.params.id})`);
+      return res.status(403).json({ error: 'Dữ liệu chuột không hợp lệ.' });
+    }
+
     const speeds = [];
     for (let i = 1; i < points.length; i++) {
       const p1 = points[i - 1], p2 = points[i];

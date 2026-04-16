@@ -1084,12 +1084,9 @@ function ShakeChallenge({ onPass, onClose }) {
       }
       const handler = (e) => {
         if (!(e instanceof DeviceMotionEvent)) return;
-        // isTrusted = false khi dispatch bằng console (tấn công giả lắc)
-        // Ngoại lệ: in-app browser (FB/TikTok/Zalo/Instagram) cũng báo false dù lắc thật
-        // → Chỉ bỏ qua isTrusted khi UA là in-app browser đã biết
         const _ua = navigator.userAgent || '';
         const _isInApp = /FBAN|FBAV|Instagram|TikTok|Line\/|ZaloApp|Twitter\/|Snapchat|Viber/i.test(_ua);
-        if (!e.isTrusted && !_isInApp) return; // block fake dispatch từ console
+        if (!e.isTrusted && !_isInApp) return;
 
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
@@ -1128,7 +1125,6 @@ function ShakeChallenge({ onPass, onClose }) {
     return () => { cleanup.then && cleanup.then(fn => fn && fn()); };
   }, [onPass]);
 
-  // Khi passed=true: tự động đóng overlay sau 1.2s (sau khi user thấy màn xanh xác nhận)
   useEffect(() => {
     if (!passed) return;
     const t = setTimeout(() => onClose(), 1200);
@@ -1138,7 +1134,6 @@ function ShakeChallenge({ onPass, onClose }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 999,
-      // Dùng màu solid thay vì rgba+backdropFilter — Chrome 118+ có bug white flash khi backdrop-filter unmount
       background: passed ? '#15803D' : '#0d0d20',
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', padding: 24,
