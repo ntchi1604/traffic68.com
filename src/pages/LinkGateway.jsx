@@ -190,9 +190,8 @@ export default function LinkGateway() {
   const [challengeToken, setChallengeToken] = useState(null);
   const [challengeLoading, setChallengeLoading] = useState(false);
   const challengeRetryTimerRef = useRef(null); // timer auto-reopen challenge — phải hủy khi thành công
-  // shakeApiStatus: trạng thái của ShakeChallenge ('idle'|'verifying'|'success'|'error')
-  // Màn xanh chỉ hiện khi 'success' — không hiện trước khi API confirm
   const [shakeApiStatus, setShakeApiStatus] = useState('idle');
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [retryCountdown, setRetryCountdown] = useState(0);
   const retryTimerRef = useRef(null);
   const _noTaskRetryCount = useRef(0);
@@ -203,16 +202,12 @@ export default function LinkGateway() {
     document.title = 'Vượt link để truy cập — traffic68.com';
   }, []);
 
-  // ═══ SAFETY NET ═══
-  // Khi humanPassed=true mà showChallenge vẫn còn → tự động đóng sau 1.5s
-  // Đây là fallback cuối cùng, hoàn toàn độc lập với mọi timer/ref/child-component
+  // ═══ SAFETY NET ═══ (giữ lại cho CurveChallenge và các edge case khác)
+  // Khi humanPassed=true mà showChallenge vẫn còn → tự động đóng ngay
   useEffect(() => {
     if (!humanPassed || !showChallenge) return;
-    const t = setTimeout(() => {
-      setShowChallenge(false);
-      setShakeApiStatus('idle');
-    }, 1500);
-    return () => clearTimeout(t);
+    setShowChallenge(false);
+    setShakeApiStatus('idle');
   }, [humanPassed, showChallenge]);
 
   // Ad blocker detection
@@ -517,17 +512,14 @@ export default function LinkGateway() {
 
       if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
 
-      // SUCCESS: lưu token + đánh dấu đã xác minh
+      // SUCCESS: đóng overlay NGAY LẬP TỨC, hiện toast nhỏ trên trang chính
+      // Không dùng timer — không có race condition
       setChallengeToken(data.challengeToken);
       setHumanPassed(true);
-      setShakeApiStatus('success'); // ShakeChallenge hiện màn xanh ✅
-
-      // PARENT tự đóng overlay sau 1.2s — không phụ thuộc vào bất kỳ ref/timer bên trong ShakeChallenge
-      challengeRetryTimerRef.current = setTimeout(() => {
-        setShowChallenge(false);    // đóng overlay
-        setShakeApiStatus('idle');  // reset trạng thái
-        challengeRetryTimerRef.current = null;
-      }, 1200);
+      setShowChallenge(false);   // đóng overlay ngay
+      setShakeApiStatus('idle'); // reset về idle
+      setShowSuccessToast(true); // hiện toast nhỏ
+      setTimeout(() => setShowSuccessToast(false), 2500);
 
     } catch (err) {
       // Lỗi → hiện màn ❌ bên trong ShakeChallenge, cho user lắc lại sau 2.5s
@@ -1019,13 +1011,13 @@ export default function LinkGateway() {
       {showChallenge && (
         isMobileDevice
           ? <ShakeChallenge
-              onPass={handleChallengePass}
-              apiStatus={shakeApiStatus}
-              onClose={() => {
-                setShakeApiStatus('idle'); // reset để lần sau mở lại bắt đầu từ đầu
-                setShowChallenge(false);
-              }}
-            />
+            onPass={handleChallengePass}
+            apiStatus={shakeApiStatus}
+            onClose={() => {
+              setShakeApiStatus('idle'); // reset để lần sau mở lại bắt đầu từ đầu
+              setShowChallenge(false);
+            }}
+          />
           : <CurveChallenge onPass={handleChallengePass} onClose={() => setShowChallenge(false)} />
 
       )}
@@ -1041,11 +1033,30 @@ export default function LinkGateway() {
         </div>
       )}
 
+      {/* Success toast — hiện sau khi overlay đóng */}
+      {showSuccessToast && (
+        <div style={{
+          position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 2000,
+          background: 'linear-gradient(135deg,#16A34A,#15803D)',
+          color: '#fff', borderRadius: 16,
+          padding: '14px 28px',
+          display: 'flex', alignItems: 'center', gap: 10,
+          boxShadow: '0 8px 32px rgba(22,163,74,0.4)',
+          animation: 'toast-in 0.35s cubic-bezier(0.34,1.56,0.64,1)',
+          whiteSpace: 'nowrap',
+        }}>
+          <span style={{ fontSize: 22 }}>✅</span>
+          <span style={{ fontWeight: 800, fontSize: 15 }}>Xác minh thành công! Hãy nhập mã bên dưới.</span>
+        </div>
+      )}
+
       <style>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes progress { from{width:0} to{width:100%} }
         @keyframes glow { 0%,100%{box-shadow:0 6px 24px rgba(249,115,22,0.4)} 50%{box-shadow:0 8px 36px rgba(249,115,22,0.6)} }
         @keyframes glow-purple { 0%,100%{box-shadow:0 6px 24px rgba(124,58,237,0.35)} 50%{box-shadow:0 8px 40px rgba(124,58,237,0.6)} }
+        @keyframes toast-in { from{opacity:0;transform:translateX(-50%) translateY(20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
       `}</style>
 
     </Wrapper>
@@ -1180,7 +1191,6 @@ function ShakeChallenge({ onPass, onClose, apiStatus }) {
   }, [apiStatus]);
 
   const isVerifying = passedRef.current && apiStatus === 'verifying';
-  const isSuccess = apiStatus === 'success';
 
   return (
     <>
@@ -1189,17 +1199,6 @@ function ShakeChallenge({ onPass, onClose, apiStatus }) {
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
         zIndex: 998, background: '#0a0a1a',
         overscrollBehavior: 'none', touchAction: 'none', userSelect: 'none',
-      }} />
-
-      {/* Layer 2: màu xanh chỉ khi API confirm thành công */}
-      <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-        zIndex: 999,
-        background: isSuccess ? '#22C55E' : 'transparent',
-        opacity: isSuccess ? 0.93 : 0,
-        transition: 'opacity 0.35s ease',
-        pointerEvents: 'none',
-        overscrollBehavior: 'none', touchAction: 'none',
       }} />
 
       {/* Layer 3: content */}
@@ -1214,25 +1213,7 @@ function ShakeChallenge({ onPass, onClose, apiStatus }) {
       }}>
         <button onClick={onClose} style={{ position: 'absolute', top: 'max(20px, env(safe-area-inset-top))', right: 'max(20px, env(safe-area-inset-right))', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
 
-        {isSuccess ? (
-          <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.3s ease' }}>
-            <div style={{ fontSize: 72, marginBottom: 16 }}>✅</div>
-            <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 8px' }}>Xác minh thành công!</h2>
-            <p style={{ fontSize: 16, opacity: 0.9, margin: '0 0 24px' }}>Đang mở ô nhập mã...</p>
-            <button
-              onClick={onClose}
-              style={{
-                padding: '12px 32px', borderRadius: 14, border: 'none',
-                background: 'rgba(255,255,255,0.25)', color: '#fff',
-                fontSize: 16, fontWeight: 800, cursor: 'pointer',
-                backdropFilter: 'blur(8px)',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-              }}
-            >
-              Tiếp tục →
-            </button>
-          </div>
-        ) : isVerifying ? (
+        {isVerifying ? (
           <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.3s ease' }}>
             <div style={{ width: 64, height: 64, borderRadius: '50%', border: '5px solid rgba(255,255,255,0.2)', borderTopColor: '#22C55E', animation: 'spin 0.8s linear infinite', margin: '0 auto 20px' }} />
             <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 8px' }}>Đang xác minh...</h2>
