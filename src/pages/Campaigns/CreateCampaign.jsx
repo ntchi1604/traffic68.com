@@ -605,33 +605,6 @@ export default function CreateCampaign() {
 
 
 
-              {/* Phân phối theo giờ: luôn hiện, disable khi chưa có daily views */}
-              {(() => {
-                const hasDaily = isDirect ? form.directDailyViews > 0 : allocatedDailyViews > 0;
-                // Tự tắt nếu daily views bị xóa
-                if (!hasDaily && form.viewByHour) set('viewByHour', false);
-                return (
-                  <div className={`flex items-center gap-4 border rounded-xl px-4 py-3 transition-colors ${
-                    hasDaily
-                      ? 'bg-slate-50 border-slate-200'
-                      : 'bg-slate-50/50 border-slate-100 opacity-50 cursor-not-allowed'
-                  }`}>
-                    <Toggle
-                      checked={form.viewByHour}
-                      onChange={() => hasDaily && set('viewByHour', !form.viewByHour)}
-                    />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-700">Phân phối theo giờ</p>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {hasDaily
-                          ? 'Chia đều view trong 24h mỗi ngày — áp dụng cho từng từ khóa'
-                          : 'Cần cài giới hạn view/ngày trước khi bật'}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
-
             </SectionCard>
 
             {/* ── 2. URL đích (Direct) hoặc Từ khóa & URL ── */}
@@ -858,6 +831,33 @@ export default function CreateCampaign() {
                 </div>
               </SectionCard>
             )}
+
+            {/* ── Phân phối theo giờ: hiện sau khi đã set daily views ── */}
+            {(() => {
+              const hasDaily = isDirect ? form.directDailyViews > 0 : allocatedDailyViews > 0;
+              // Tự tắt nếu daily views bị xóa
+              if (!hasDaily && form.viewByHour) set('viewByHour', false);
+              return (
+                <div className={`flex items-center gap-4 border rounded-xl px-4 py-3.5 bg-white shadow-sm transition-colors ${
+                  hasDaily
+                    ? 'border-slate-200'
+                    : 'border-slate-100 opacity-50 cursor-not-allowed'
+                }`}>
+                  <Toggle
+                    checked={form.viewByHour}
+                    onChange={() => hasDaily && set('viewByHour', !form.viewByHour)}
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">Phân phối theo giờ</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {hasDaily
+                        ? 'Chia đều view trong 24h mỗi ngày — áp dụng cho từng từ khóa'
+                        : 'Cần cài giới hạn view/ngày trước khi bật'}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ── 4. Thiết bị & Quốc gia ── */}
             <SectionCard icon={MousePointerClick} iconBg="bg-teal-50" iconColor="text-teal-600" title="Thiết bị & Quốc gia">
