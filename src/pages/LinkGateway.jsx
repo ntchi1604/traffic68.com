@@ -458,7 +458,8 @@ export default function LinkGateway() {
   // Called when shake/curve challenge passes — fetch server-side token
   const handleChallengePass = useCallback(async (shakeLog) => {
     // KHÔNG đóng overlay ngay — ShakeChallenge tự đóng theo timer 1200ms
-    setChallengeLoading(true);
+    // Trên mobile: KHÔNG set challengeLoading để tránh dark overlay đè lên green screen của ShakeChallenge
+    if (!isMobileDevice) setChallengeLoading(true);
     try {
       const headers = { 'Content-Type': 'application/json' };
       const token = localStorage.getItem('token');
@@ -487,9 +488,11 @@ export default function LinkGateway() {
 
       if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
 
-      // SUCCESS: ShakeChallenge đang hiện overlay xanh và sẽ tự đóng sau 1200ms qua onClose timer
+      // SUCCESS → đóng ShakeChallenge ngay (không chờ 1.2s timer)
+      // setHumanPassed + setShowChallenge cùng batch → không có frame trắng
       setChallengeToken(data.challengeToken);
       setHumanPassed(true);
+      setShowChallenge(false); // đóng ngay để tránh white flash
     } catch (err) {
       // Lỗi → đóng overlay ngay và hiện lại nút lắc để user thử lại
       setShowChallenge(false);
@@ -500,9 +503,9 @@ export default function LinkGateway() {
         setShowChallenge(true);
       }, 3000);
     } finally {
-      setChallengeLoading(false);
+      if (!isMobileDevice) setChallengeLoading(false);
     }
-  }, [task, slug, fetchTask]);
+  }, [task, slug, fetchTask, isMobileDevice]);
 
   // Verify code
   const handleVerify = useCallback(async () => {
@@ -1129,10 +1132,11 @@ function ShakeChallenge({ onPass, onClose }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 999,
-      background: passed ? 'rgba(34,197,94,0.92)' : 'rgba(15,15,35,0.92)',
-      backdropFilter: 'blur(12px)', display: 'flex', flexDirection: 'column',
+      // Dùng màu solid thay vì rgba+backdropFilter — Chrome 118+ có bug white flash khi backdrop-filter unmount
+      background: passed ? '#15803D' : '#0d0d20',
+      display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', padding: 24,
-      transition: 'background 0.4s',
+      transition: 'background 0.35s ease',
     }}>
       {/* Close */}
       <button onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
