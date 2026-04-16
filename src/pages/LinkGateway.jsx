@@ -203,6 +203,18 @@ export default function LinkGateway() {
     document.title = 'Vượt link để truy cập — traffic68.com';
   }, []);
 
+  // ═══ SAFETY NET ═══
+  // Khi humanPassed=true mà showChallenge vẫn còn → tự động đóng sau 1.5s
+  // Đây là fallback cuối cùng, hoàn toàn độc lập với mọi timer/ref/child-component
+  useEffect(() => {
+    if (!humanPassed || !showChallenge) return;
+    const t = setTimeout(() => {
+      setShowChallenge(false);
+      setShakeApiStatus('idle');
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [humanPassed, showChallenge]);
+
   // Ad blocker detection
   useEffect(() => {
     const detectAdBlock = async () => {
