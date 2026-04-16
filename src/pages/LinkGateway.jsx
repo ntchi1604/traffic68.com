@@ -189,6 +189,9 @@ export default function LinkGateway() {
   const [retryCountdown, setRetryCountdown] = useState(0);
   const retryTimerRef = useRef(null);
   const _noTaskRetryCount = useRef(0);
+  const challengeRetryTimerRef = useRef(null);
+  const [challengeLoading, setChallengeLoading] = useState(false);
+  const [shakeApiStatus, setShakeApiStatus] = useState('idle'); // 'idle' | 'verifying' | 'error'
   const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '');
 
   // Set tab title
@@ -452,7 +455,7 @@ export default function LinkGateway() {
       setLoading(true); setError('');
       // Chỉ reset humanPassed khi thực sự cần (forceRefresh=true)
       // KHÔNG reset khi user vừa pass challenge (tránh race condition)
-      if (forceNew) { setHumanPassed(false); setChallengeToken(null); setShakeApiStatus('idle'); }
+      if (force) { setHumanPassed(false); setChallengeToken(null); }
 
       if (navigator.storage && navigator.storage.estimate) {
         const { quota } = await navigator.storage.estimate();
@@ -602,7 +605,6 @@ export default function LinkGateway() {
           setShowError(false);
           setHumanPassed(false);
           setChallengeToken(null);
-          setShakeApiStatus('idle');
           try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
           fetchTask(true);
           return 0;
