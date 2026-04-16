@@ -1218,7 +1218,19 @@ function ShakeChallenge({ onPass, onClose, apiStatus }) {
           <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.3s ease' }}>
             <div style={{ fontSize: 72, marginBottom: 16 }}>✅</div>
             <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 8px' }}>Xác minh thành công!</h2>
-            <p style={{ fontSize: 16, opacity: 0.9 }}>Đang mở ô nhập mã...</p>
+            <p style={{ fontSize: 16, opacity: 0.9, margin: '0 0 24px' }}>Đang mở ô nhập mã...</p>
+            <button
+              onClick={onClose}
+              style={{
+                padding: '12px 32px', borderRadius: 14, border: 'none',
+                background: 'rgba(255,255,255,0.25)', color: '#fff',
+                fontSize: 16, fontWeight: 800, cursor: 'pointer',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+              }}
+            >
+              Tiếp tục →
+            </button>
           </div>
         ) : isVerifying ? (
           <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.3s ease' }}>
