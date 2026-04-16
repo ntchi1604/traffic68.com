@@ -839,7 +839,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
   try {
     const pool = getPool();
     const [tasks] = await pool.execute(
-      'SELECT vt.id, vt.status, vt.expires_at, vt.visitor_id, wl.slug as gatewaySlug FROM vuot_link_tasks vt LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id WHERE vt.id = ?',
+      'SELECT vt.id, vt.status, vt.expires_at, vt.created_at, vt.visitor_id, wl.slug as gatewaySlug FROM vuot_link_tasks vt LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id WHERE vt.id = ?',
       [req.params.id]
     );
     if (!tasks.length) return res.status(404).json({ error: 'Task không tồn tại' });
@@ -869,11 +869,27 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     }
   } catch (_) { }
 
+  // ── [SERVER-SIDE] Time gate: task phải tồn tại ít nhất 3 giây ──
+  // Không tin client — dùng created_at từ DB (server timestamp, không ai thay đổi được)
+  // Bot script gọi ngay lập tức sau khi lấy task → age < 3s → bị chặn
+  if (task.created_at) {
+    const ageMs = Date.now() - new Date(task.created_at).getTime();
+    if (ageMs < 3000) {
+      console.log(`[VuotLink] Time gate: task #${req.params.id} age=${ageMs}ms < 3000ms → reject (instant bot)`);
+      return res.status(429).json({ error: 'Quá nhanh, vui lòng thử lại.' });
+    }
+  }
+
   // console.log('[DEBUG ADB SHAKE] shakeLog received:', JSON.stringify(shakeLog));
 
+
   let detectedBotReason = null;
-  const isMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
-  if (isMobile) {
+  // ── [SERVER-SIDE] Không tin UA — dùng sự hiện diện của shakeLog ──
+  // Nếu client gửi shakeLog → mobile (lắc). Không có shakeLog → desktop (curve).
+  // Trường hợp: UA=mobile nhưng shakeLog rỗng/thiếu → bị chặn
+  const clientClaimsMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
+  const isMobile = clientClaimsMobile; // giữ để tương thích log
+  if (clientClaimsMobile) {
     if (!Array.isArray(shakeLog) || shakeLog.length < 5) {
       return res.status(403).json({ error: 'Thiếu dữ liệu xác minh cảm biến.' });
     }
