@@ -184,14 +184,10 @@ export default function LinkGateway() {
   const [humanPassed, setHumanPassed] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
   const [challengeToken, setChallengeToken] = useState(null);
-  const [showSuccessToast, setShowSuccessToast] = useState(false);
-  const taskRef = useRef(null);
+  const [challengeLoading, setChallengeLoading] = useState(false);
   const [retryCountdown, setRetryCountdown] = useState(0);
   const retryTimerRef = useRef(null);
   const _noTaskRetryCount = useRef(0);
-  const challengeRetryTimerRef = useRef(null);
-  const [challengeLoading, setChallengeLoading] = useState(false);
-  const [shakeApiStatus, setShakeApiStatus] = useState('idle'); // 'idle' | 'verifying' | 'error'
   const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '');
 
   // Set tab title
@@ -199,185 +195,6 @@ export default function LinkGateway() {
     document.title = 'Vượt link để truy cập — traffic68.com';
   }, []);
 
-  useEffect(() => { taskRef.current = task; }, [task]);
-  useEffect(() => {
-    if (!showChallenge || !isMobileDevice) return;
-
-    const TARGET = 3;
-    const SPIN_CSS = '@keyframes _sk_spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}';
-    const IDLE_CSS = '@keyframes _sk_idle{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}';
-    const SHAKE_CSS = '@keyframes _sk_shake{0%{transform:rotate(0) scale(1.1)}25%{transform:rotate(-15deg) scale(1.2)}75%{transform:rotate(15deg) scale(1.2)}100%{transform:rotate(0) scale(1)}}';
-
-    // Tạo overlay DOM
-    const ov = document.createElement('div');
-    ov.style.cssText = 'position:fixed;inset:0;background:#0a0a1a;z-index:9999;font-family:sans-serif;overflow:hidden;';
-    const styleEl = document.createElement('style');
-    styleEl.textContent = SPIN_CSS + IDLE_CSS + SHAKE_CSS;
-    ov.appendChild(styleEl);
-    document.body.appendChild(ov);
-
-    let shakeCount = 0;
-    let lastShake = 0;
-    let passed = false;
-    let flashing = false;
-    const rawLog = [];
-
-    const dots = () => Array.from({ length: TARGET }, (_, i) =>
-      `<div style="width:20px;height:20px;border-radius:50%;background:${i < shakeCount ? '#22C55E' : 'rgba(255,255,255,0.25)'};border:2px solid ${i < shakeCount ? '#22C55E' : 'rgba(255,255,255,0.4)'};
-        ${i < shakeCount ? 'transform:scale(1.2);box-shadow:0 0 12px rgba(34,197,94,0.6)' : ''}
-      "></div>`
-    ).join('');
-
-    const showIdle = () => {
-      ov.innerHTML = `<style>${SPIN_CSS}${IDLE_CSS}${SHAKE_CSS}</style>
-        <button id=_sk_x style="position:absolute;top:max(20px,env(safe-area-inset-top));right:max(20px,env(safe-area-inset-right));background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:50%;width:36px;height:36px;cursor:pointer;font-size:18px">✕</button>
-        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;padding:24px">
-          <div id=_sk_icon style="font-size:72px;margin-bottom:24px;animation:_sk_idle 2s ease-in-out infinite;display:inline-block">📱</div>
-          <h2 style="font-size:22px;font-weight:900;margin:0 0 8px;letter-spacing:.5px">LẮC ĐIỆN THOẠI ĐỂ XÁC MINH</h2>
-          <p style="font-size:14px;opacity:.75;margin:0 0 32px">Lắc mạnh <strong>${TARGET} lần</strong> để chứng minh bạn là người thật</p>
-          <div id=_sk_dots style="display:flex;gap:14px;justify-content:center;margin-bottom:28px">${dots()}</div>
-          <p id=_sk_txt style="font-size:13px;opacity:.6">Chưa phát hiện lắc...</p>
-        </div>`;
-      document.getElementById('_sk_x')?.addEventListener('click', closeOverlay);
-    };
-
-    const showVerifying = () => {
-      ov.innerHTML = `<style>${SPIN_CSS}</style>
-        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff">
-          <div style="width:64px;height:64px;border-radius:50%;border:5px solid rgba(255,255,255,0.2);border-top-color:#22C55E;animation:_sk_spin .8s linear infinite;margin-bottom:20px"></div>
-          <h2 style="font-size:22px;font-weight:900;margin:0 0 8px">Đang xác minh...</h2>
-          <p style="font-size:14px;opacity:.75;margin:0">Vui lòng chờ trong giây lát</p>
-        </div>`;
-    };
-
-    const showError = () => {
-      ov.innerHTML = `<style>${SPIN_CSS}${IDLE_CSS}${SHAKE_CSS}</style>
-        <button id=_sk_x style="position:absolute;top:max(20px,env(safe-area-inset-top));right:max(20px,env(safe-area-inset-right));background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:50%;width:36px;height:36px;cursor:pointer;font-size:18px">✕</button>
-        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff">
-          <div style="font-size:72px;margin-bottom:16px">❌</div>
-          <h2 style="font-size:22px;font-weight:900;margin:0 0 8px;color:#fca5a5">Xác minh thất bại</h2>
-          <p style="font-size:14px;opacity:.8;margin:0 0 24px">Lắc mạnh hơn và thử lại nhé!</p>
-          <div style="display:flex;gap:14px;justify-content:center">${Array.from({ length: TARGET }, () =>
-        '<div style="width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,0.25);border:2px solid rgba(255,255,255,0.4)"></div>').join('')}</div>
-        </div>`;
-      document.getElementById('_sk_x')?.addEventListener('click', closeOverlay);
-      setTimeout(() => {
-        if (ov.parentNode && !passed) { passed = false; shakeCount = 0; showIdle(); }
-      }, 2000);
-    };
-
-    showIdle();
-
-    const closeOverlay = () => {
-      window.removeEventListener('devicemotion', handleMotion);
-      if (ov.parentNode) document.body.removeChild(ov);
-      setShowChallenge(false);
-    };
-
-    const handleMotion = (e) => {
-      if (!(e instanceof DeviceMotionEvent)) return;
-      const acc = e.accelerationIncludingGravity;
-      if (!acc) return;
-      const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
-      const total = Math.abs(ax) + Math.abs(ay) + Math.abs(az);
-      if (ax === ay && ay === az) return;
-      if (passed) return;
-
-      const now = Date.now();
-      rawLog.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
-      if (rawLog.length > 60) rawLog.shift();
-
-      if (total > 18 && now - lastShake > 400) {
-        lastShake = now;
-        shakeCount++;
-
-        const icon = document.getElementById('_sk_icon');
-        if (icon) {
-          icon.style.animation = '_sk_shake .3s ease';
-          setTimeout(() => { if (icon) icon.style.animation = '_sk_idle 2s ease-in-out infinite'; }, 300);
-        }
-        const dotsEl = document.getElementById('_sk_dots');
-        const txtEl = document.getElementById('_sk_txt');
-        if (dotsEl) dotsEl.innerHTML = dots();
-        if (txtEl) txtEl.textContent = `Đã lắc ${shakeCount}/${TARGET} lần 💪`;
-
-        if (shakeCount >= TARGET) {
-          const log = [...rawLog];
-          // Chỉ từ chối nếu CẢ ax lẫn az đều bằng 0 trong toàn bộ log → dấu hiệu emulator rõ ràng
-          // Điện thoại thật trong tư thế bình thường luôn có ít nhất 1 trục != 0
-          const allAxZero = log.every(s => s.ax === 0);
-          const allAzZero = log.every(s => s.az === 0);
-          const isEmulator = allAxZero && allAzZero; // Cả 2 trục = 0 mới là emulator
-          if (isEmulator) {
-            ov.innerHTML = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff">
-              <div style="font-size:72px;margin-bottom:16px">🚫</div>
-              <h2 style="font-size:24px;font-weight:900;margin:0 0 12px;color:#fca5a5">Phát hiện giả lập!</h2>
-              <p style="font-size:14px;opacity:.8;margin:0 0 24px">Vui lòng dùng thiết bị thật.</p>
-              <button onclick="this.closest('div').dispatchEvent(new Event('_close',{bubbles:true}))" style="padding:10px 24px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:12px;cursor:pointer;font-size:14px;font-weight:700">Đóng</button>
-            </div>`;
-            ov.addEventListener('_close', closeOverlay, { once: true });
-            return;
-          }
-
-          passed = true;
-          showVerifying();
-
-          const t = taskRef.current;
-          const headers = { 'Content-Type': 'application/json' };
-          const authToken = localStorage.getItem('token');
-          if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-
-          fetch(`${API}/task/${t.id}/challenge-passed`, {
-            method: 'POST', headers,
-            body: JSON.stringify({ _tk: t._tk, shakeLog: log }),
-          })
-            .then(res => res.json().then(data => ({ res, data })))
-            .then(({ res, data }) => {
-              if (res.status === 410) {
-                // Task hết hạn
-                if (ov.parentNode) document.body.removeChild(ov);
-                window.removeEventListener('devicemotion', handleMotion);
-                setShowChallenge(false);
-                setTask(null); setInputCode(''); setHumanPassed(false);
-                setChallengeToken(null); setShowError(false);
-                try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
-                fetchTask(true);
-                return;
-              }
-              if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
-
-              window.removeEventListener('devicemotion', handleMotion);
-              if (ov.parentNode) document.body.removeChild(ov);
-              setChallengeToken(data.challengeToken);
-              setHumanPassed(true);
-              setShowChallenge(false);
-              setShowSuccessToast(true);
-              setTimeout(() => setShowSuccessToast(false), 2500);
-            })
-            .catch(() => {
-              passed = false;
-              shakeCount = 0;
-              showError();
-            });
-        }
-      }
-    };
-
-    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-      DeviceMotionEvent.requestPermission()
-        .then(p => { if (p === 'granted') window.addEventListener('devicemotion', handleMotion, { passive: true }); })
-        .catch(() => { });
-    } else {
-      window.addEventListener('devicemotion', handleMotion, { passive: true });
-    }
-
-    return () => {
-      window.removeEventListener('devicemotion', handleMotion);
-      if (ov.parentNode) document.body.removeChild(ov);
-    };
-  }, [showChallenge, isMobileDevice]);
-
-  // Ad blocker detection
   useEffect(() => {
     const detectAdBlock = async () => {
       const bait = document.createElement('div');
@@ -640,12 +457,7 @@ export default function LinkGateway() {
 
   // Called when shake/curve challenge passes — fetch server-side token
   const handleChallengePass = useCallback(async (shakeLog) => {
-    // Hủy bất kỳ pending timer cũ
-    if (challengeRetryTimerRef.current) {
-      clearTimeout(challengeRetryTimerRef.current);
-      challengeRetryTimerRef.current = null;
-    }
-    setShakeApiStatus('verifying');
+    // KHÔNG đóng overlay ngay — ShakeChallenge tự đóng theo timer 1200ms
     setChallengeLoading(true);
     try {
       const headers = { 'Content-Type': 'application/json' };
@@ -662,7 +474,6 @@ export default function LinkGateway() {
 
       // Task hết hạn → tự động lấy task mới
       if (res.status === 410) {
-        setShakeApiStatus('idle');
         setShowChallenge(false);
         setTask(null);
         setInputCode('');
@@ -676,22 +487,18 @@ export default function LinkGateway() {
 
       if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
 
-      // SUCCESS: đóng overlay NGAY LẬP TỨC, hiện toast nhỏ trên trang chính
-      // Không dùng timer — không có race condition
+      // SUCCESS: ShakeChallenge đang hiện overlay xanh và sẽ tự đóng sau 1200ms qua onClose timer
       setChallengeToken(data.challengeToken);
       setHumanPassed(true);
-      setShowChallenge(false);   // đóng overlay ngay
-      setShakeApiStatus('idle'); // reset về idle
-      setShowSuccessToast(true); // hiện toast nhỏ
-      setTimeout(() => setShowSuccessToast(false), 2500);
-
     } catch (err) {
-      // Lỗi → hiện màn ❌ bên trong ShakeChallenge, cho user lắc lại sau 2.5s
-      setShakeApiStatus('error');
-      challengeRetryTimerRef.current = setTimeout(() => {
-        setShakeApiStatus('idle');
-        challengeRetryTimerRef.current = null;
-      }, 2500);
+      // Lỗi → đóng overlay ngay và hiện lại nút lắc để user thử lại
+      setShowChallenge(false);
+      setShowError(true);
+      setError('Xác minh thất bại, vui lòng thử lại: ' + (err.message || ''));
+      setTimeout(() => {
+        setShowError(false);
+        setShowChallenge(true);
+      }, 3000);
     } finally {
       setChallengeLoading(false);
     }
@@ -1172,26 +979,20 @@ export default function LinkGateway() {
         </div>
       </div>
 
-      {/* Mobile: vanilla JS overlay tự quản lý qua useEffect — không render React component */}
-      {showChallenge && !isMobileDevice && (
-        <CurveChallenge onPass={handleChallengePass} onClose={() => setShowChallenge(false)} />
+      {showChallenge && !humanPassed && (
+        isMobileDevice
+          ? <ShakeChallenge onPass={handleChallengePass} onClose={() => setShowChallenge(false)} />
+          : <CurveChallenge onPass={handleChallengePass} onClose={() => setShowChallenge(false)} />
       )}
 
-      {/* Success toast — hiện sau khi overlay đóng */}
-      {showSuccessToast && (
+      {challengeLoading && (
         <div style={{
-          position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 2000,
-          background: 'linear-gradient(135deg,#16A34A,#15803D)',
-          color: '#fff', borderRadius: 16,
-          padding: '14px 28px',
-          display: 'flex', alignItems: 'center', gap: 10,
-          boxShadow: '0 8px 32px rgba(22,163,74,0.4)',
-          animation: 'toast-in 0.35s cubic-bezier(0.34,1.56,0.64,1)',
-          whiteSpace: 'nowrap',
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(15,15,35,0.7)', backdropFilter: 'blur(8px)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
         }}>
-          <span style={{ fontSize: 22 }}>✅</span>
-          <span style={{ fontWeight: 800, fontSize: 15 }}>Xác minh thành công! Hãy nhập mã bên dưới.</span>
+          <div style={{ width: 52, height: 52, borderRadius: '50%', border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#22C55E', animation: 'spin 0.8s linear infinite' }} />
+          <p style={{ color: '#fff', fontWeight: 700, fontSize: 15, margin: 0 }}>Đang xác minh với máy chủ...</p>
         </div>
       )}
 
@@ -1200,7 +1001,6 @@ export default function LinkGateway() {
         @keyframes progress { from{width:0} to{width:100%} }
         @keyframes glow { 0%,100%{box-shadow:0 6px 24px rgba(249,115,22,0.4)} 50%{box-shadow:0 8px 36px rgba(249,115,22,0.6)} }
         @keyframes glow-purple { 0%,100%{box-shadow:0 6px 24px rgba(124,58,237,0.35)} 50%{box-shadow:0 8px 40px rgba(124,58,237,0.6)} }
-        @keyframes toast-in { from{opacity:0;transform:translateX(-50%) translateY(20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
       `}</style>
 
     </Wrapper>
@@ -1262,18 +1062,13 @@ function CopyBtn({ text }) {
   );
 }
 
-function ShakeChallenge({ onPass, onClose, apiStatus }) {
-  // apiStatus: 'idle' | 'verifying' | 'success' | 'error'
+function ShakeChallenge({ onPass, onClose }) {
   const [shakeCount, setShakeCount] = useState(0);
   const [flashing, setFlashing] = useState(false);
+  const [passed, setPassed] = useState(false);
   const [fakeDetected, setFakeDetected] = useState(false);
   const lastShakeRef = useRef(0);
   const rawLogRef = useRef([]);
-  const passedRef = useRef(false);
-  const onPassRef = useRef(onPass);
-  const onCloseRef = useRef(onClose);
-  useEffect(() => { onPassRef.current = onPass; }, [onPass]);
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   const TARGET = 3;
 
   useEffect(() => {
@@ -1286,34 +1081,32 @@ function ShakeChallenge({ onPass, onClose, apiStatus }) {
       }
       const handler = (e) => {
         if (!(e instanceof DeviceMotionEvent)) return;
+        if (!e.isTrusted) return;
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
         const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
         const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
         if (ax === ay && ay === az) return;
-        if (passedRef.current) return;
         const now = Date.now();
         rawLogRef.current.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
-        if (rawLogRef.current.length > 60) rawLogRef.current.shift();
+        if (rawLogRef.current.length > 50) rawLogRef.current.shift();
 
-        if (total > 26 && now - lastShakeRef.current > 500) {
+        if (total > 18 && now - lastShakeRef.current > 400) {
           lastShakeRef.current = now;
           setFlashing(true);
           setTimeout(() => setFlashing(false), 300);
-
           setShakeCount(prev => {
             const next = prev + 1;
-            if (next >= TARGET && !passedRef.current) {
+            if (next >= TARGET) {
               const log = [...rawLogRef.current];
-              const allAzZero = log.every(s => s.az === 0);
               const allAxZero = log.every(s => s.ax === 0);
-              if (allAzZero || allAxZero) {
+              const allAzZero = log.every(s => s.az === 0);
+              if (allAxZero && allAzZero) {
                 setFakeDetected(true);
                 return next;
               }
-              passedRef.current = true;
-              // Gọi onPass ngay (không delay) — API sẽ chạy trong khi hiện spinner
-              setTimeout(() => onPassRef.current(log), 0);
+              setPassed(true);
+              setTimeout(() => onPass(log), 800);
             }
             return next;
           });
@@ -1324,111 +1117,89 @@ function ShakeChallenge({ onPass, onClose, apiStatus }) {
     };
     const cleanup = requestAndListen();
     return () => { cleanup.then && cleanup.then(fn => fn && fn()); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [onPass]);
 
-  // Khi API lỗi → reset passedRef để user có thể lắc lại
+  // Khi passed=true: tự động đóng overlay sau 1.2s (sau khi user thấy màn xanh xác nhận)
   useEffect(() => {
-    if (apiStatus !== 'error') return;
-    passedRef.current = false;
-    setShakeCount(0);
-    setFlashing(false);
-  }, [apiStatus]);
-
-  const isVerifying = passedRef.current && apiStatus === 'verifying';
+    if (!passed) return;
+    const t = setTimeout(() => onClose(), 1200);
+    return () => clearTimeout(t);
+  }, [passed, onClose]);
 
   return (
-    <>
-      {/* Layer 1: nền đen solid */}
-      <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-        zIndex: 998, background: '#0a0a1a',
-        overscrollBehavior: 'none', touchAction: 'none', userSelect: 'none',
-      }} />
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 999,
+      background: passed ? 'rgba(34,197,94,0.92)' : 'rgba(15,15,35,0.92)',
+      backdropFilter: 'blur(12px)', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', padding: 24,
+      transition: 'background 0.4s',
+    }}>
+      {/* Close */}
+      <button onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
 
-      {/* Layer 3: content */}
-      <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-        zIndex: 1000,
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        padding: 'max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left))',
-        color: '#fff',
-        overscrollBehavior: 'none', touchAction: 'none', userSelect: 'none',
-      }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: 'max(20px, env(safe-area-inset-top))', right: 'max(20px, env(safe-area-inset-right))', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+      {passed ? (
+        <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
+          <div style={{ fontSize: 72, marginBottom: 16 }}>✅</div>
+          <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 8px' }}>Xác minh thành công!</h2>
+          <p style={{ fontSize: 16, opacity: 0.9 }}>Đang mở ô nhập mã...</p>
+        </div>
+      ) : fakeDetected ? (
+        <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
+          <div style={{ fontSize: 72, marginBottom: 16 }}>🚫</div>
+          <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 12px', color: '#fca5a5' }}>Phát hiện giả lập!</h2>
+          <p style={{ fontSize: 14, opacity: 0.8, margin: '0 0 24px' }}>Cảm biến điện thoại cho thấy thiết bị không hợp lệ.<br />Vui lòng dùng thiết bị thật.</p>
+          <button onClick={onClose} style={{ padding: '10px 24px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>Đóng</button>
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', color: '#fff' }}>
+          {/* Phone animation */}
+          <div style={{
+            fontSize: 72, marginBottom: 24,
+            animation: flashing ? 'shake-anim 0.3s ease' : 'phone-idle 2s ease-in-out infinite',
+            display: 'inline-block',
+          }}>📱</div>
 
-        {isVerifying ? (
-          <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.3s ease' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', border: '5px solid rgba(255,255,255,0.2)', borderTopColor: '#22C55E', animation: 'spin 0.8s linear infinite', margin: '0 auto 20px' }} />
-            <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 8px' }}>Đang xác minh...</h2>
-            <p style={{ fontSize: 14, opacity: 0.75, margin: 0 }}>Vui lòng chờ trong giây lát</p>
-          </div>
-        ) : fakeDetected ? (
-          <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.3s ease' }}>
-            <div style={{ fontSize: 72, marginBottom: 16 }}>🚫</div>
-            <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 12px', color: '#fca5a5' }}>Phát hiện giả lập!</h2>
-            <p style={{ fontSize: 14, opacity: 0.8, margin: '0 0 24px' }}>Cảm biến điện thoại cho thấy thiết bị không hợp lệ.<br />Vui lòng dùng thiết bị thật.</p>
-            <button onClick={onClose} style={{ padding: '10px 24px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>Đóng</button>
-          </div>
-        ) : apiStatus === 'error' ? (
-          <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.3s ease' }}>
-            <div style={{ fontSize: 72, marginBottom: 16 }}>❌</div>
-            <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 8px', color: '#fca5a5' }}>Xác minh thất bại</h2>
-            <p style={{ fontSize: 14, opacity: 0.8, margin: '0 0 24px' }}>Lắc mạnh hơn và thử lại nhé!</p>
-            <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginBottom: 16 }}>
-              {Array.from({ length: TARGET }).map((_, i) => (
-                <div key={i} style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', border: '2px solid rgba(255,255,255,0.4)' }} />
-              ))}
-            </div>
-            <p style={{ fontSize: 13, opacity: 0.6 }}>Chưa phát hiện lắc...</p>
-          </div>
-        ) : (
-          <div style={{ textAlign: 'center', color: '#fff' }}>
-            <div style={{
-              fontSize: 72, marginBottom: 24,
-              animation: flashing ? 'shake-anim 0.3s ease' : 'phone-idle 2s ease-in-out infinite',
-              display: 'inline-block',
-            }}>📱</div>
-            <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 8px', letterSpacing: 0.5 }}>
-              LẮC ĐIỆN THOẠI ĐỂ XÁC MINH
-            </h2>
-            <p style={{ fontSize: 14, opacity: 0.75, margin: '0 0 32px' }}>
-              Lắc mạnh điện thoại <strong>{TARGET} lần</strong> để chứng minh bạn là người thật
-            </p>
-            <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginBottom: 28 }}>
-              {Array.from({ length: TARGET }).map((_, i) => (
-                <div key={i} style={{
-                  width: 20, height: 20, borderRadius: '50%',
-                  background: i < shakeCount ? '#22C55E' : 'rgba(255,255,255,0.25)',
-                  border: '2px solid ' + (i < shakeCount ? '#22C55E' : 'rgba(255,255,255,0.4)'),
-                  transition: 'all 0.3s',
-                  transform: i < shakeCount ? 'scale(1.2)' : 'scale(1)',
-                  boxShadow: i < shakeCount ? '0 0 12px rgba(34,197,94,0.6)' : 'none',
-                }} />
-              ))}
-            </div>
-            <p style={{ fontSize: 13, opacity: 0.6 }}>
-              {shakeCount === 0 ? 'Chưa phát hiện lắc...' : `Đã lắc ${shakeCount}/${TARGET} lần 💪`}
-            </p>
-          </div>
-        )}
+          <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 8px', letterSpacing: 0.5 }}>
+            LẮC ĐIỆN THOẠI ĐỂ XÁC MINH
+          </h2>
+          <p style={{ fontSize: 14, opacity: 0.75, margin: '0 0 32px' }}>
+            Lắc mạnh điện thoại <strong>{TARGET} lần</strong> để chứng minh bạn là người thật
+          </p>
 
-        <style>{`
-          @keyframes phone-idle {
-            0%,100% { transform: rotate(-5deg); }
-            50% { transform: rotate(5deg); }
-          }
-          @keyframes shake-anim {
-            0% { transform: rotate(0deg) scale(1.1); }
-            25% { transform: rotate(-15deg) scale(1.2); }
-            75% { transform: rotate(15deg) scale(1.2); }
-            100% { transform: rotate(0deg) scale(1); }
-          }
-          @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-          @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-        `}</style>
-      </div>
-    </>
+          {/* Progress dots */}
+          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginBottom: 28 }}>
+            {Array.from({ length: TARGET }).map((_, i) => (
+              <div key={i} style={{
+                width: 20, height: 20, borderRadius: '50%',
+                background: i < shakeCount ? '#22C55E' : 'rgba(255,255,255,0.25)',
+                border: '2px solid ' + (i < shakeCount ? '#22C55E' : 'rgba(255,255,255,0.4)'),
+                transition: 'all 0.3s',
+                transform: i < shakeCount ? 'scale(1.2)' : 'scale(1)',
+                boxShadow: i < shakeCount ? '0 0 12px rgba(34,197,94,0.6)' : 'none',
+              }} />
+            ))}
+          </div>
+
+          <p style={{ fontSize: 13, opacity: 0.6 }}>
+            {shakeCount === 0 ? 'Chưa phát hiện lắc...' : `Đã lắc ${shakeCount}/${TARGET} lần 💪`}
+          </p>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes phone-idle {
+          0%,100% { transform: rotate(-5deg); }
+          50% { transform: rotate(5deg); }
+        }
+        @keyframes shake-anim {
+          0% { transform: rotate(0deg) scale(1.1); }
+          25% { transform: rotate(-15deg) scale(1.2); }
+          75% { transform: rotate(15deg) scale(1.2); }
+          100% { transform: rotate(0deg) scale(1); }
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+      `}</style>
+    </div>
   );
 }
 
