@@ -464,7 +464,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Invalid session' });
   }
 
-  const { challengeId, _ck, visitorId, deviceData, botDetection, hcaptchaToken, pageReferrer } = req.body || {};
+  const { challengeId, _ck, visitorId, deviceData, botDetection, hcaptchaToken, pageReferrer, navProof } = req.body || {};
 
   if (BOT_UA.test(ua)) {
     logSecurityEvent('Bot UA (widget)', ip, ua, visitorId || null, {});
