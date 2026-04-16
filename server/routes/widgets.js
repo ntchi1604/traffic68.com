@@ -340,7 +340,8 @@ router.post('/public/:token/check-session', async (req, res) => {
 
   const cleanVisitorId = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const [tasks] = await pool.execute(
-    `SELECT vt.id, vt.ref_worker_id, vt.worker_id, vt.status as task_status, c.traffic_type FROM vuot_link_tasks vt
+    `SELECT vt.id, vt.ref_worker_id, vt.worker_id, vt.status as task_status,
+            c.traffic_type, c.url as campaign_url FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
      WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id != 'unknown'))
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
@@ -361,12 +362,30 @@ router.post('/public/:token/check-session', async (req, res) => {
     const CF_CHALLENGE = /[?&](__cf_chl_tk|__cf_chl_f_tk|cf_chl_prog|cf_chl_opt|cf_chl_seq)[=_]/i;
     const CF_PATH = /\/cdn-cgi\/challenge-platform\//i;
     const isCfChallenge = CF_CHALLENGE.test(clientRef) || CF_PATH.test(clientRef);
-    if (!isCfChallenge && (!clientRef || !GOOGLE_DOMAINS.test(clientRef))) {
+
+    // Cho phép điều hướng nội bộ: user vào từ Google → click link trong cùng trang web
+    // Referrer lúc này là trang trước trên cùng domain → hợp lệ
+    let isSelfReferrer = false;
+    if (clientRef && task.campaign_url) {
+      try {
+        const refHost = new URL(clientRef).hostname.replace(/^www\./, '').toLowerCase();
+        const campHost = new URL(task.campaign_url).hostname.replace(/^www\./, '').toLowerCase();
+        isSelfReferrer = refHost === campHost;
+      } catch (_) { }
+    }
+
+    // Cho phép referrer trống: browser ẩn referrer (HTTPS→HTTP, privacy mode, refresh)
+    // Chỉ block khi có referrer RÕ RÀNG từ domain KHÔNG phải Google và không phải self
+    const isGoogleRef = clientRef && GOOGLE_DOMAINS.test(clientRef);
+    if (!isCfChallenge && !isSelfReferrer && !isGoogleRef && clientRef !== '') {
       console.log(`[Widget] check-session BLOCKED: Non-Google referrer — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
       return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.', requireGoogle: true });
     }
     if (isCfChallenge) {
       console.log(`[Widget] check-session: Cloudflare challenge allowed — IP: ${ip}, task: #${task.id}, ref: "${clientRef.substring(0, 80)}"`);
+    }
+    if (isSelfReferrer) {
+      console.log(`[Widget] check-session: Self-referrer allowed (internal nav) — IP: ${ip}, task: #${task.id}, ref: "${clientRef.substring(0, 80)}"`);
     }
   }
 
@@ -571,7 +590,10 @@ router.post('/public/:token/get-code', async (req, res) => {
         isSelfReferrer = refHost === campHost;
       } catch (_) { }
     }
-    if (!isCfChallenge && !isSelfReferrer && (!clientRef || !GOOGLE_DOMAINS.test(clientRef))) {
+    // Chỉ block khi referrer RÕ RÀNG từ domain ngoài (không phải Google, không phải self, không trống)
+    // Referrer trống = hợp lệ: refresh, privacy mode, Referrer-Policy header, direct type
+    const isGoogleRef = clientRef && GOOGLE_DOMAINS.test(clientRef);
+    if (!isCfChallenge && !isSelfReferrer && !isGoogleRef && clientRef !== '') {
       console.log(`[Widget] BLOCKED: Non-Google referrer for search campaign — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, referrer: "${clientRef.substring(0, 120)}"`);
       await pool.execute(
         `UPDATE vuot_link_tasks SET security_detail = JSON_SET(COALESCE(security_detail,'{}'), '$.non_google_referrer', true, '$.bad_referrer', ?) WHERE id = ?`,
