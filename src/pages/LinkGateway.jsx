@@ -464,12 +464,11 @@ export default function LinkGateway() {
 
   // Called when shake/curve challenge passes — fetch server-side token
   const handleChallengePass = useCallback(async (shakeLog) => {
-    // Hủy bất kỳ auto-retry timer cũ nào để tránh race condition
+    // Hủy bất kỳ pending timer cũ
     if (challengeRetryTimerRef.current) {
       clearTimeout(challengeRetryTimerRef.current);
       challengeRetryTimerRef.current = null;
     }
-    // Hiện spinner "Đang xác minh" bên trong ShakeChallenge (không hiện màn xanh)
     setShakeApiStatus('verifying');
     setChallengeLoading(true);
     try {
@@ -501,14 +500,21 @@ export default function LinkGateway() {
 
       if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
 
-      // SUCCESS: hiện màn xanh "Xác minh thành công" rồi ShakeChallenge tự đóng sau 1.2s
+      // SUCCESS: lưu token + đánh dấu đã xác minh
       setChallengeToken(data.challengeToken);
       setHumanPassed(true);
-      setShakeApiStatus('success'); // → ShakeChallenge hiện xanh, tự đóng sau 1.2s
+      setShakeApiStatus('success'); // ShakeChallenge hiện màn xanh ✅
+
+      // PARENT tự đóng overlay sau 1.2s — không phụ thuộc vào bất kỳ ref/timer bên trong ShakeChallenge
+      challengeRetryTimerRef.current = setTimeout(() => {
+        setShowChallenge(false);    // đóng overlay
+        setShakeApiStatus('idle');  // reset trạng thái
+        challengeRetryTimerRef.current = null;
+      }, 1200);
+
     } catch (err) {
-      // Lỗi → ShakeChallenge ở lại và hiện màn "❌ Xác minh thất bại" để user lắc lại
+      // Lỗi → hiện màn ❌ bên trong ShakeChallenge, cho user lắc lại sau 2.5s
       setShakeApiStatus('error');
-      // Reset về idle sau 2.5s để user lắc lại
       challengeRetryTimerRef.current = setTimeout(() => {
         setShakeApiStatus('idle');
         challengeRetryTimerRef.current = null;
@@ -1148,14 +1154,7 @@ function ShakeChallenge({ onPass, onClose, apiStatus }) {
     return () => { cleanup.then && cleanup.then(fn => fn && fn()); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Khi API thành công → đóng overlay sau 1.2s (để user thấy màn xanh)
-  useEffect(() => {
-    if (apiStatus !== 'success') return;
-    const t = setTimeout(() => onCloseRef.current(), 1200);
-    return () => clearTimeout(t);
-  }, [apiStatus]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Khi API lỗi → reset để user lắc lại
+  // Khi API lỗi → reset passedRef để user có thể lắc lại
   useEffect(() => {
     if (apiStatus !== 'error') return;
     passedRef.current = false;
