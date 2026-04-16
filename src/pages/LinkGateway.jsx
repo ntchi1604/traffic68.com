@@ -277,6 +277,8 @@ export default function LinkGateway() {
 
     const handleMotion = (e) => {
       if (!(e instanceof DeviceMotionEvent)) return;
+      // Chặn event giả từ console (window.dispatchEvent luôn có isTrusted=false)
+      if (!e.isTrusted) return;
       const acc = e.accelerationIncludingGravity;
       if (!acc) return;
       const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
