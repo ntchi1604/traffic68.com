@@ -77,14 +77,12 @@ async function getViewsPerIp(pool) {
   return _viewsPerIpCache;
 }
 
-// ── Campaign pool cache: tránh JOIN nặng mỗi request ──
-// TTL = 5s — today_done stale tối đa 5s là chấp nhận được
 let _campPoolCache = null;
 let _campPoolExpiry = 0;
 let _campPoolHourKey = '';
 async function _getCampaignPool(pool, todaySubquery, campaignWhere) {
   const now = Date.now();
-  const hourKey = new Date().toISOString().substring(0, 13); // đổi mỗi giờ (view_by_hour)
+  const hourKey = new Date().toISOString().substring(0, 13);
   if (_campPoolCache !== null && _campPoolHourKey === hourKey && now < _campPoolExpiry) {
     return _campPoolCache;
   }
@@ -161,7 +159,65 @@ function verifyChallenge(token) {
 }
 
 
+
+// ── DEBUG ENDPOINT: xem raw campaign pool (xóa sau khi debug xong) ──
+router.get('/debug-pool', async (req, res) => {
+  try {
+    const pool = getPool();
+    const now = new Date();
+    const vnOffset = 7 * 60;
+    const vnNow = new Date(now.getTime() + vnOffset * 60000);
+    const vnDayStart = vnNow.toISOString().slice(0, 10) + ' 00:00:00';
+    const vnDayEnd   = vnNow.toISOString().slice(0, 10) + ' 23:59:59';
+    const todaySubquery = `LEFT JOIN (
+      SELECT campaign_id, COUNT(*) as today_done
+      FROM vuot_link_tasks WHERE status = 'completed'
+        AND completed_at >= '${vnDayStart}' AND completed_at <= '${vnDayEnd}'
+      GROUP BY campaign_id
+    ) td ON td.campaign_id = c.id`;
+
+    // Query 1: Tất cả camp running
+    const [allRunning] = await pool.execute(
+      `SELECT id, traffic_type, status, keyword, keyword_config, url, views_done, total_views, daily_views, priority
+       FROM campaigns WHERE status = 'running' ORDER BY id DESC LIMIT 20`
+    );
+
+    // Query 2: Camp pool sau WHERE (giống hệt campaignWhere)
+    const [poolResult] = await pool.execute(
+      `SELECT c.id, c.traffic_type, c.keyword, c.keyword_config IS NOT NULL as has_kw_config,
+              c.views_done, c.total_views, c.priority,
+              COALESCE(td.today_done, 0) as today_done
+       FROM campaigns c ${todaySubquery}
+       WHERE c.status = 'running'
+         AND (
+           (c.traffic_type = 'google_search' AND c.keyword != '')
+           OR c.traffic_type = 'direct'
+           OR (c.traffic_type = 'social' AND c.keyword != '')
+         )
+         AND c.views_done < c.total_views
+         AND (
+           c.traffic_type = 'direct'
+           OR c.traffic_type = 'social'
+           OR (c.keyword_config IS NOT NULL AND c.keyword_config != '' AND c.keyword_config != '[]')
+           OR c.daily_views <= 0
+           OR COALESCE(td.today_done, 0) < c.daily_views
+         )
+       ORDER BY id DESC LIMIT 20`
+    );
+
+    res.json({
+      all_running: allRunning,
+      in_pool: poolResult,
+      social_in_running: allRunning.filter(c => c.traffic_type === 'social'),
+      social_in_pool: poolResult.filter(c => c.traffic_type === 'social'),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.get('/challenge', async (req, res) => {
+
   const ua = req.headers['user-agent'] || '';
   if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
