@@ -469,7 +469,7 @@ async function _handleTaskPost(req, res) {
   let campaigns;
   if (topCampaigns.length === 0 && clientExcludes.length > 0) {
     // Fallback: drop client skips, keep server-enforced excludes (in memory)
-    campaigns = serverExcludecIds.length > 0
+    campaigns = serverExcludeIds.length > 0
       ? allCandidates.filter(c => !serverExcludeIds.includes(c.id))
       : allCandidates;
   } else {
