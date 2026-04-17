@@ -406,7 +406,8 @@ router.post('/public/:token/check-session', async (req, res) => {
     }
   }
 
-  // ── Social traffic: referer phải đến từ domain social URL (keyword của task) ──
+  // ── Social traffic: referer phải đến từ domain social URL ──
+  // Logic giống search: chỉ block khi referrer RÕ RÀNG sai domain; cho phép rỗng trừ khi direct-paste
   if (task.traffic_type === 'social' && !['step2', 'step3'].includes(task.task_status)) {
     const clientRef = pageReferrer || '';
     const socialKeyword = task.task_keyword || '';
@@ -414,20 +415,45 @@ router.post('/public/:token/check-session', async (req, res) => {
     try { socialDomain = new URL(socialKeyword).hostname.replace(/^www\./, '').toLowerCase(); } catch (_) { }
 
     if (socialDomain) {
+      // Self-referrer: user đã vào trang đích rồi navigate nội bộ → cho phép (giống search)
+      let isSelfReferrer = false;
+      if (clientRef && task.campaign_url) {
+        try {
+          const refHost = new URL(clientRef).hostname.replace(/^www\./, '').toLowerCase();
+          const campHost = new URL(task.campaign_url).hostname.replace(/^www\./, '').toLowerCase();
+          isSelfReferrer = refHost === campHost;
+        } catch (_) { }
+      }
+
       let isSocialRef = false;
       if (clientRef) {
         try {
           const refDomain = new URL(clientRef).hostname.replace(/^www\./, '').toLowerCase();
-          // Cho phép subdomain: m.facebook.com, l.facebook.com, lm.facebook.com…
           isSocialRef = refDomain === socialDomain || refDomain.endsWith('.' + socialDomain);
         } catch (_) { }
       }
-      if (!isSocialRef) {
+
+      // navProof: detect direct-paste — giống search
+      const np = navProof || {};
+      const navType = np.navType || null;
+      const hasCfClearance = !!np.hasCfClearance;
+      const CF_CHALLENGE = /[?&](__cf_chl_tk|__cf_chl_f_tk|cf_chl_prog|cf_chl_opt|cf_chl_seq)[=_]/i;
+      const isCfChallenge = CF_CHALLENGE.test(clientRef);
+      const isDirectPaste = !clientRef && navType === 'navigate' && !isCfChallenge && !hasCfClearance;
+
+      if (isDirectPaste) {
+        console.log(`[Widget] check-session BLOCKED: Direct paste for social — IP: ${ip}, task: #${task.id}, navType: ${navType}`);
+        return res.status(403).json({ error: 'Vui lòng truy cập trang từ bài đăng social đã chỉ định.', requireSocial: true, socialDomain });
+      }
+
+      // Chỉ block khi referrer RÕ RÀNG sai domain (non-empty, không phải social, không phải self)
+      if (!isCfChallenge && !isSelfReferrer && !isSocialRef && clientRef !== '') {
         console.log(`[Widget] check-session BLOCKED: Non-social referrer — IP: ${ip}, task: #${task.id}, expected: ${socialDomain}, got: "${clientRef.substring(0, 120)}"`);
         return res.status(403).json({ error: 'Vui lòng truy cập trang từ bài đăng social đã chỉ định.', requireSocial: true, socialDomain });
       }
     }
   }
+
 
 
 
@@ -633,12 +659,10 @@ router.post('/public/:token/get-code', async (req, res) => {
 
     const isGoogleRef = clientRef && GOOGLE_DOMAINS.test(clientRef);
 
-    // ── navProof từ Performance Navigation API + Google URL params ──
     const np2 = navProof || {};
     const navType2 = np2.navType || null;
     const hasGoogleParams2 = !!np2.hasGoogleParams;
 
-    // Dán link trực tiếp: navType='navigate' + referrer rỗng + không có Google params + không qua CF → block
     const hasCfClearance2 = !!np2.hasCfClearance;
     let isDirectPaste2 = false;
     if (!clientRef && navType2 === 'navigate' && !hasGoogleParams2 && !isCfChallenge && !hasCfClearance2) {
@@ -665,21 +689,54 @@ router.post('/public/:token/get-code', async (req, res) => {
     }
   }
 
-  if (task.traffic_type === 'social') {
+  // ── Social traffic: referer phải đến từ domain social URL ──
+  // Logic giống search: chỉ block khi referrer RÕ RÀNG sai domain; cho phép rỗng trừ khi direct-paste
+  // Bỏ qua khi task đã qua step2/step3 (referer check đã thực hiện ở bước trước)
+  if (task.traffic_type === 'social' && !['step2', 'step3'].includes(task.status)) {
     const clientRef = pageReferrer || '';
     const socialKeyword = task.keyword || '';
     let socialDomain = '';
     try { socialDomain = new URL(socialKeyword).hostname.replace(/^www\./, '').toLowerCase(); } catch (_) { }
 
     if (socialDomain) {
+      // Self-referrer: user đã vào trang đích rồi navigate nội bộ → cho phép (giống search)
+      let isSelfReferrer = false;
+      if (clientRef && task.campaign_url) {
+        try {
+          const refHost = new URL(clientRef).hostname.replace(/^www\./, '').toLowerCase();
+          const campHost = new URL(task.campaign_url).hostname.replace(/^www\./, '').toLowerCase();
+          isSelfReferrer = refHost === campHost;
+        } catch (_) { }
+      }
+
       let isSocialRef = false;
       if (clientRef) {
         try {
           const refDomain = new URL(clientRef).hostname.replace(/^www\./, '').toLowerCase();
+          // Cho phép subdomain: m.facebook.com, l.facebook.com, lm.facebook.com...
           isSocialRef = refDomain === socialDomain || refDomain.endsWith('.' + socialDomain);
         } catch (_) { }
       }
-      if (!isSocialRef) {
+
+      // navProof: detect direct-paste (referrer rỗng + navigate + không qua CF) — giống search
+      const np2 = navProof || {};
+      const navType2 = np2.navType || null;
+      const hasCfClearance2 = !!np2.hasCfClearance;
+      const CF_CHALLENGE = /[?&](__cf_chl_tk|__cf_chl_f_tk|cf_chl_prog|cf_chl_opt|cf_chl_seq)[=_]/i;
+      const isCfChallenge = CF_CHALLENGE.test(clientRef);
+      const isDirectPaste = !clientRef && navType2 === 'navigate' && !isCfChallenge && !hasCfClearance2;
+
+      if (isDirectPaste) {
+        console.log(`[Widget] BLOCKED: Direct paste for social campaign — IP: ${ip}, task: #${task.id}, navType: ${navType2}`);
+        await pool.execute(
+          `UPDATE vuot_link_tasks SET security_detail = JSON_SET(COALESCE(security_detail,'{}'), '$.social_direct_paste', true, '$.nav_type', ?) WHERE id = ?`,
+          [navType2 || 'unknown', task.id]
+        ).catch(() => { });
+        return res.status(403).json({ error: 'Vui lòng truy cập trang từ bài đăng social đã chỉ định.', requireSocial: true, socialDomain });
+      }
+
+      // Chỉ block khi referrer RÕ RÀNG sai domain (non-empty, không phải social, không phải self)
+      if (!isCfChallenge && !isSelfReferrer && !isSocialRef && clientRef !== '') {
         console.log(`[Widget] BLOCKED: Non-social referrer — IP: ${ip}, task: #${task.id}, expected: ${socialDomain}, got: "${clientRef.substring(0, 120)}"`);
         await pool.execute(
           `UPDATE vuot_link_tasks SET security_detail = JSON_SET(COALESCE(security_detail,'{}'), '$.non_social_referrer', true, '$.bad_referrer', ?) WHERE id = ?`,
