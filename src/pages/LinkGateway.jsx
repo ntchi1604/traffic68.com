@@ -563,6 +563,7 @@ export default function LinkGateway() {
   const isDirect = trafficType === 'direct';
   const isSocial = trafficType === 'social';
 
+  // ── Link not found ──
   if (linkError) return (
     <Wrapper>
       <Center>
@@ -791,21 +792,18 @@ export default function LinkGateway() {
           {/* ── Social traffic cards ── */}
           {isSocial && (
             <StepCard n={1} color="#1877F2" title="MỞ BÀI ĐĂNG SOCIAL" verified={verified}>
-              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                {/* Social URL box */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: '#fff', border: '1.5px dashed #1877F2', borderRadius: 10, padding: '12px 14px', width: '100%', boxSizing: 'border-box' }}>
+              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: '#fff', border: '1.5px dashed #1877F2', borderRadius: 10, padding: '12px 16px', width: '100%', boxSizing: 'border-box' }}>
                   <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>📱</span>
-                  <span style={{ flex: 1, color: '#1D4ED8', fontSize: 'clamp(11px,2.5vw,13px)', fontWeight: 600, wordBreak: 'break-all', overflowWrap: 'anywhere', minWidth: 0, lineHeight: 1.5 }}>{keyword}</span>
+                  <span style={{ flex: 1, color: '#1D4ED8', fontSize: 'clamp(11px,2.5vw,13px)', fontWeight: 700, wordBreak: 'break-all', overflowWrap: 'anywhere', minWidth: 0, lineHeight: 1.5 }}>{keyword}</span>
                   <CopyBtn text={keyword} />
                 </div>
-                {/* Open button */}
                 <a href={keyword} target="_blank" rel="noopener noreferrer"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg,#1877F2,#1565C0)', color: '#fff', textDecoration: 'none', padding: '11px 28px', borderRadius: 10, fontSize: 14, fontWeight: 700, boxShadow: '0 4px 16px rgba(24,119,242,0.35)' }}>
-                  <ExternalLink size={15} /> MỞ bài đăng
+                  <ExternalLink size={15} /> Mở bài đăng
                 </a>
-                {/* Instructions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
-                  {['Copy hoặc nhấn nút MỞ bài đăng', 'Xem nội dung bài đăng tự nhiên', 'Tìm link URL trong mô tả / bình luận bài'].map((t, i) => (
+                  {['Copy hoặc nhấn nút Mở bài đăng', 'Xem bài đăng tự nhiên', 'Tìm link URL trong mô tả / bình luận'].map((t, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(24,119,242,0.06)', borderRadius: 8, padding: '8px 12px' }}>
                       <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#1877F2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <span style={{ color: '#fff', fontSize: 11, fontWeight: 800 }}>{i + 1}</span>
@@ -821,12 +819,12 @@ export default function LinkGateway() {
           {isSocial && (
             <StepCard n={2} color="#7C3AED" title="TÌM & CLICK LINK TRONG BÀI" verified={verified}>
               <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 14, padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {/* Campaign image preview */}
+                {/* Campaign image = social post preview */}
                 {campaignImage && (
                   <div>
-                    <p style={{ color: '#6D28D9', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>🎯 Trang đích cần truy cập:</p>
+                    <p style={{ color: '#6D28D9', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>🔍 Bài viết cần tìm:</p>
                     <div style={{ borderRadius: 10, overflow: 'hidden', border: '2px solid #DDD6FE', boxShadow: '0 4px 16px rgba(99,102,241,0.12)' }}>
-                      <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
+                      <img src={campaignImage} alt="Bài viết" style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
                     </div>
                   </div>
                 )}
@@ -838,7 +836,7 @@ export default function LinkGateway() {
                   </div>
                 )}
                 {/* Steps */}
-                {['Tìm link trong mô tả bài đăng hoặc bình luận', 'Click vào link đó để truy cập trang đích', 'Ừ lại trang, tìm nút lấy mã → nhập mã vào bước 3'].map((t, i) => (
+                {['Tìm link trong mô tả bài đăng hoặc bình luận', 'Click vào link đó để truy cập trang đích', 'Ở lại trang, tìm nút lấy mã → nhập mã vào bước 3'].map((t, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(139,92,246,0.06)', borderRadius: 8, padding: '8px 12px' }}>
                     <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <span style={{ color: '#fff', fontSize: 11, fontWeight: 800 }}>{i + 1}</span>
@@ -849,6 +847,7 @@ export default function LinkGateway() {
               </div>
             </StepCard>
           )}
+
 
           {/* ── Direct traffic card ── */}
           {isDirect && (
