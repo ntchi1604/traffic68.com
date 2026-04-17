@@ -517,10 +517,18 @@ async function _handleTaskPost(req, res) {
   const serverExcludeIds = ipDoneResult[0].map(r => Number(r.campaign_id));
   const allExcludeIds = [...new Set([...serverExcludeIds, ...clientExcludes])];
 
+  // ── DEBUG LOG: trace exclude & pool ──
+  console.log(`[DEBUG-POOL] allCandidates=${allCandidates.length} camps: ${allCandidates.map(c=>`#${c.id}(${c.traffic_type})`).join(',')}`);
+  console.log(`[DEBUG-POOL] serverExcludeIds: [${serverExcludeIds.join(',')}]`);
+  console.log(`[DEBUG-POOL] clientExcludes: [${clientExcludes.join(',')}]`);
+  console.log(`[DEBUG-POOL] allExcludeIds: [${allExcludeIds.join(',')}]`);
+
   // Apply excludes in memory — không cần query DB lần 2
   let topCampaigns = allExcludeIds.length > 0
     ? allCandidates.filter(c => !allExcludeIds.includes(c.id))
     : allCandidates;
+
+  console.log(`[DEBUG-POOL] topCampaigns after exclude: ${topCampaigns.length} camps: ${topCampaigns.map(c=>`#${c.id}(${c.traffic_type})`).join(',')}`);
 
   let campaigns;
   if (topCampaigns.length === 0 && clientExcludes.length > 0) {
