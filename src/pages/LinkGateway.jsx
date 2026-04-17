@@ -830,13 +830,6 @@ export default function LinkGateway() {
                     </div>
                   </div>
                 )}
-                {/* Target URL hint */}
-                {targetUrl && (
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#fff', border: '1px solid #EDE9FE', borderRadius: 8, padding: '10px 12px' }}>
-                    <Link size={14} style={{ color: '#7C3AED', flexShrink: 0, marginTop: 2 }} />
-                    <span style={{ flex: 1, color: '#7C3AED', fontSize: 'clamp(11px,2.5vw,12px)', fontWeight: 600, wordBreak: 'break-all', overflowWrap: 'anywhere', minWidth: 0, lineHeight: 1.5 }}>{targetUrl}</span>
-                  </div>
-                )}
                 {/* Steps */}
                 {['Tìm link trong mô tả bài đăng hoặc bình luận', 'Click vào link đó để truy cập trang đích', 'Ở lại trang, tìm nút lấy mã → nhập mã vào bước 3'].map((t, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(139,92,246,0.06)', borderRadius: 8, padding: '8px 12px' }}>
