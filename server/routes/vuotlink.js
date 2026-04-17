@@ -795,7 +795,7 @@ async function _handleTaskPost(req, res) {
   await pool.execute(
     `UPDATE vuot_link_tasks SET status = 'cancelled', expires_at = NOW()
      WHERE (ip_address = ? OR (? != '' AND visitor_id = ?))
-       AND status IN ('pending', 'step1')
+       AND status IN ('pending', 'step1', 'step2', 'step3')
        AND expires_at > NOW()`,
     [ip, cleanVidCancel, cleanVidCancel]
   ).catch(() => { });
