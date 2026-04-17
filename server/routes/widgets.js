@@ -471,7 +471,6 @@ router.post('/public/:token/check-session', async (req, res) => {
       const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
       if (tRows.length > 0 && tRows[0].trusted === 1) {
         isTrustedWorker = true;
-        // Populate trusted cache so subsequent autoInit calls also bypass captcha
         const csVid = (cleanVisitorId && cleanVisitorId !== 'unknown') ? cleanVisitorId : '';
         if (csVid) _trustedCache.set(csVid, true);
         _trustedCache.set(ip, true);
