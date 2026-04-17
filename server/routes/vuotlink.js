@@ -409,7 +409,11 @@ async function _handleTaskPost(req, res) {
   }
 
   const campaignWhere = `c.status = 'running'
-    AND ((c.traffic_type = 'google_search' AND c.keyword != '') OR c.traffic_type = 'direct')
+    AND (
+      (c.traffic_type = 'google_search' AND c.keyword != '')
+      OR c.traffic_type = 'direct'
+      OR (c.traffic_type = 'social' AND c.keyword != '')
+    )
     AND c.views_done < c.total_views
     AND (
       c.traffic_type = 'direct'
@@ -464,7 +468,7 @@ async function _handleTaskPost(req, res) {
   let campaigns;
   if (topCampaigns.length === 0 && clientExcludes.length > 0) {
     // Fallback: drop client skips, keep server-enforced excludes (in memory)
-    campaigns = serverExcludeIds.length > 0
+    campaigns = serverExcludecIds.length > 0
       ? allCandidates.filter(c => !serverExcludeIds.includes(c.id))
       : allCandidates;
   } else {
@@ -868,6 +872,7 @@ async function _handleTaskPost(req, res) {
   const _tk = signTask(result.insertId, ip);
 
   const isDirect = (campaign.traffic_type || 'google_search') === 'direct';
+  const isSocial = campaign.traffic_type === 'social';
   res.json({
     id: result.insertId,
     keyword: selectedKeyword,
@@ -875,7 +880,7 @@ async function _handleTaskPost(req, res) {
     image2_url: selectedImage2,
     widgetConfig,
     traffic_type: campaign.traffic_type || 'google_search',
-    ...(isDirect ? { target_url: selectedUrl } : {}),
+    ...((isDirect || isSocial) ? { target_url: selectedUrl } : {}),
     _tk,
     trusted: isTrustedWorker,
   });

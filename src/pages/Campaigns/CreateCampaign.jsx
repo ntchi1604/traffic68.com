@@ -349,6 +349,7 @@ export default function CreateCampaign() {
   };
 
   const isDirect = form.trafficType === 'direct';
+  const isSocial = form.trafficType === 'social';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -685,7 +686,7 @@ export default function CreateCampaign() {
                 <div>
                   {/* Header with only 1 toggle: Cài view/ngày */}
                   <div className="flex items-center justify-between mb-2">
-                    <Label required>Từ khóa tìm kiếm</Label>
+                    <Label required>{isSocial ? 'URL Social' : 'Từ khóa tìm kiếm'}</Label>
                     <div className="flex items-center gap-2">
                       <span className={`text-xs font-semibold transition-colors ${form.useKeywordViews ? 'text-sky-600' : 'text-slate-400'}`}>
                         Cài view/ngày riêng
@@ -712,7 +713,7 @@ export default function CreateCampaign() {
                           <div className="relative flex-1">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">{i + 1}</span>
                             <TextInput
-                              placeholder={`Từ khóa ${i + 1}`}
+                              placeholder={isSocial ? `URL Social ${i + 1} (Facebook, TikTok...)` : `Từ khóa ${i + 1}`}
                               value={kw.keyword}
                               onChange={e => updateKeywordText(i, e.target.value)}
                               className="pl-10"
@@ -754,10 +755,10 @@ export default function CreateCampaign() {
                             </button>
                           )}
                         </div>
-                        {/* URL + Image — luôn hiện */}
+                        {/* URL Đích + Link Image — luôn hiện */}
                         <div className="flex gap-2 items-center mt-1">
                           <TextInput
-                            placeholder="URL đích riêng (Tuỳ chọn)"
+                            placeholder={isSocial ? 'URL Đích (trang sẽ đến)' : 'URL Đích riêng (Tuỳ chọn)'}
                             value={kw.url}
                             onChange={e => updateKeywordUrl(i, e.target.value)}
                             className="flex-1 text-xs"
@@ -821,12 +822,14 @@ export default function CreateCampaign() {
 
                   <button type="button" onClick={addKeyword}
                     className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
-                    <Plus size={13} /> Thêm từ khóa
+                    <Plus size={13} /> {isSocial ? 'Thêm URL Social' : 'Thêm từ khóa'}
                   </button>
                   <Hint>
-                    {form.useKeywordViews
-                      ? 'Từ khóa để 0 sẽ tự nhận phần còn lại chia đều. Tổng view mua không thay đổi.'
-                      : 'Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt truy cập'}
+                    {isSocial
+                      ? 'Nhập URL bài đăng Social (Facebook, TikTok…). URL Đích là trang visitor sẽ truy cập. Link Image là ảnh đính kèm.'
+                      : form.useKeywordViews
+                        ? 'Từ khóa để 0 sẽ tự nhận phần còn lại chia đều. Tổng view mua không thay đổi.'
+                        : 'Hệ thống sẽ ngẫu nhiên chọn 1 từ khóa cho mỗi lượt truy cập'}
                   </Hint>
                 </div>
               </SectionCard>

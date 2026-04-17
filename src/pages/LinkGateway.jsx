@@ -494,14 +494,19 @@ export default function LinkGateway() {
       setHumanPassed(true);
       setShowChallenge(false); // đóng ngay để tránh white flash
     } catch (err) {
-      // Lỗi → đóng overlay ngay và hiện lại nút lắc để user thử lại
+      // Lỗi mạng hoặc server → đóng overlay, hiện lỗi
+      // KHÔNG hiện lại nút lắc ngay vì onClose sẽ tự chạy sau 3s (tránh double-show)
       setShowChallenge(false);
       setShowError(true);
       setError('Xác minh thất bại, vui lòng thử lại: ' + (err.message || ''));
       setTimeout(() => {
         setShowError(false);
-        setShowChallenge(true);
-      }, 3000);
+        // Chỉ hiện lại nút lắc nếu chưa pass (tránh override khi đã thành công)
+        setHumanPassed(prev => {
+          if (!prev) setShowChallenge(true);
+          return prev;
+        });
+      }, 4000);
     } finally {
       if (!isMobileDevice) setChallengeLoading(false);
     }
@@ -1127,7 +1132,9 @@ function ShakeChallenge({ onPass, onClose }) {
 
   useEffect(() => {
     if (!passed) return;
-    const t = setTimeout(() => onClose(), 1200);
+    // Tăng delay lên 3000ms để handleChallengePass (async fetch server) hoàn thành trước
+    // Tránh race condition: onClose chạy trước khi server phản hồi → bị bắn vào catch → hiện lại nút lắc
+    const t = setTimeout(() => onClose(), 3000);
     return () => clearTimeout(t);
   }, [passed, onClose]);
 
