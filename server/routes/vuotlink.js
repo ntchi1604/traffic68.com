@@ -417,6 +417,7 @@ async function _handleTaskPost(req, res) {
     AND c.views_done < c.total_views
     AND (
       c.traffic_type = 'direct'
+      OR c.traffic_type = 'social'
       OR (c.keyword_config IS NOT NULL AND c.keyword_config != '' AND c.keyword_config != '[]')
       OR c.daily_views <= 0
       OR COALESCE(td.today_done, 0) < c.daily_views
