@@ -338,7 +338,7 @@ export default function LinkGateway() {
         retryTimerRef.current = setTimeout(() => {
           retryTimerRef.current = null;
           fetchTask(true, excludeList);
-        }, 3000);
+        }, 1000);
         setError('no_task');
         return;
       }
@@ -377,7 +377,7 @@ export default function LinkGateway() {
           }),
         });
         if (retryRes.status === 429) { const e2 = await retryRes.json(); setError(e2.error || 'Bạn đã đạt giới hạn hôm nay.'); return; }
-        if (retryRes.status === 404) { _silentRetrying = true; retryTimerRef.current = setTimeout(() => { retryTimerRef.current = null; fetchTask(true, excludeList); }, 5000); return; }
+        if (retryRes.status === 404) { _silentRetrying = true; retryTimerRef.current = setTimeout(() => { retryTimerRef.current = null; fetchTask(true, excludeList); }, 1000); return; }
         if (!retryRes.ok) {
           const errBody = await retryRes.json().catch(() => ({}));
           throw new Error(errBody.error || `Lỗi server (${retryRes.status})`);
@@ -405,7 +405,7 @@ export default function LinkGateway() {
       retryTimerRef.current = setTimeout(() => {
         retryTimerRef.current = null;
         fetchTask(true, excludeList);
-      }, 3000);
+      }, 1000);
     } finally {
       if (!_silentRetrying) setLoading(false);
     }
@@ -642,30 +642,17 @@ export default function LinkGateway() {
       <Center>
         {error === 'no_task' ? (
           <>
-            <Icon bg="#FFF7ED" border="#FED7AA"><RefreshCw size={32} color="#F97316" style={retryCountdown > 0 ? { animation: 'spin 1s linear infinite' } : {}} /></Icon>
+            <Icon bg="#FFF7ED" border="#FED7AA"><RefreshCw size={32} color="#F97316" style={{ animation: 'spin 1s linear infinite' }} /></Icon>
             <h2 style={{ color: '#1E3A6E', fontWeight: 800, margin: '0 0 8px' }}>Chưa có nhiệm vụ</h2>
             <p style={{ color: '#64748B', margin: '0 0 4px' }}>Hệ thống đang tìm chiến dịch phù hợp...</p>
-            {retryCountdown > 0 ? (
-              <p style={{ color: '#F97316', fontWeight: 700, fontSize: 13, margin: '0 0 16px' }}>
-                Tự động thử lại sau <strong>{retryCountdown}s</strong>
-              </p>
-            ) : (
-              <p style={{ color: '#94A3B8', fontSize: 13, margin: '0 0 16px' }}>Đang thử lại...</p>
-            )}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={() => { if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; } setRetryCountdown(0); fetchTask(true); }}
-                style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: '#F97316', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
-              >Thử ngay</button>
-              <button onClick={() => window.location.reload()} style={{ padding: '10px 24px', borderRadius: 10, border: '1.5px solid #E2E8F0', background: '#fff', color: '#64748B', fontWeight: 700, cursor: 'pointer' }}>Tải lại trang</button>
-            </div>
+            <p style={{ color: '#F97316', fontWeight: 700, fontSize: 13, margin: 0 }}>Đang thử lại tự động...</p>
           </>
         ) : (
           <>
             <Icon bg="#FEF2F2" border="#FECACA"><WifiOff size={32} color="#EF4444" /></Icon>
             <h2 style={{ color: '#1E3A6E', fontWeight: 800, margin: '0 0 8px' }}>Không thể tải nhiệm vụ</h2>
-            <p style={{ color: '#64748B', margin: '0 0 16px' }}>{error}</p>
-            <button onClick={() => fetchTask(true)} style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: '#3B82F6', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Thử lại</button>
+            <p style={{ color: '#64748B', margin: '0 0 4px' }}>{error}</p>
+            <p style={{ color: '#94A3B8', fontSize: 13, margin: 0 }}>Đang thử lại tự động...</p>
           </>
         )}
       </Center>
