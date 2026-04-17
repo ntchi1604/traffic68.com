@@ -62,9 +62,9 @@ setInterval(() => {
   });
 }, 60000);
 
-// Rate limit counters (in-memory, reset hourly)
+// Rate limit counters (in-memory, reset every 10 minutes)
 const ipTaskCount = {};
-setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 3600000);
+setInterval(() => { Object.keys(ipTaskCount).forEach(k => delete ipTaskCount[k]); }, 600000);
 
 // ── Cache site_settings 'views_per_ip' ─ tránh query DB mỗi task request ──
 let _viewsPerIpCache = null;
@@ -253,10 +253,6 @@ async function _handleTaskPost(req, res) {
   if (!ua || BOT_UA.test(ua)) return res.status(403).json(ERR);
 
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
-  ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
-  if (ipTaskCount[ip] > 30) {
-    return res.status(429).json({ error: 'Quá nhiều yêu cầu. Thử lại sau.' });
-  }
 
   const { challengeId, powNonce, visitorId, deviceData, botDetection, excludeCampaigns } = req.body || {};
 
@@ -278,6 +274,12 @@ async function _handleTaskPost(req, res) {
   const hash = crypto.createHash('sha256').update(ch.prefix + String(powNonce)).digest('hex');
   const target = '0'.repeat(ch.difficulty || 4);
   if (!hash.startsWith(target)) return res.status(403).json(ERR);
+
+  // ── Rate limit: chỉ đếm sau khi PoW pass (không đếm retry do 404 tự động) ──
+  ipTaskCount[ip] = (ipTaskCount[ip] || 0) + 1;
+  if (ipTaskCount[ip] > 30) {
+    return res.status(429).json({ error: 'Quá nhiều yêu cầu. Thử lại sau.' });
+  }
 
   // Extract workerLinkId / refWorkerId from signed token
   const workerLinkIdFromCh = ch.wlid || null;
@@ -499,12 +501,9 @@ async function _handleTaskPost(req, res) {
     try {
       const [dbTime] = await pool.execute("SELECT NOW() as now_vn, CURDATE() as today_vn, @@session.time_zone as tz");
       const [allCamps] = await pool.execute("SELECT COUNT(*) as total FROM campaigns WHERE status = 'running'");
-      const [todayDone] = await pool.execute(
-        `SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks WHERE status = 'completed' AND DATE(completed_at) = CURDATE() GROUP BY campaign_id`
-      );
-      console.log(`[VuotLink] NO CAMPAIGNS - DB time: ${JSON.stringify(dbTime[0])}, running: ${allCamps[0].total}, todayDone: ${JSON.stringify(todayDone)}`);
+      console.log(`[VuotLink] NO CAMPAIGNS - DB time: ${JSON.stringify(dbTime[0])}, running: ${allCamps[0].total}, pool: ${allCandidates.length}, serverExclude: ${serverExcludeIds.length}, clientExclude: ${clientExcludes.length}, IP: ${ip}`);
     } catch (e) { console.log('[VuotLink] Debug error:', e.message); }
-    return res.status(404).json(ERR);
+    return res.status(404).json({ error: 'Không có nhiệm vụ phù hợp. Vui lòng thử lại sau.' });
   }
 
   // ── Weighted random: camp không set priority = weight 1 (đều nhau, baseline)
