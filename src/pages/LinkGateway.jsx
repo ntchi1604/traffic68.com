@@ -8,6 +8,7 @@ import { useParams } from 'react-router-dom';
 import {
   Search, Globe, ShieldCheck, ShieldOff, ExternalLink, ArrowRight,
   AlertCircle, Loader2, WifiOff, Copy, Check, Lock, Unlock, RefreshCw, Clock,
+  Smartphone, MousePointer2, Link, Target, Ban,
 } from 'lucide-react';
 
 let _creepResult = null;
@@ -766,8 +767,8 @@ export default function LinkGateway() {
                     </>
                   ) : campaignImage ? (
                     <>
-                      <p style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>
-                        🎯 Trang đích cần tìm:
+                      <p style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px' }}>
+                        <Target size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />Trang đích cần tìm:
                       </p>
                       <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid #DDD6FE', boxShadow: '0 4px 20px rgba(99,102,241,0.12)' }}>
                         <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
@@ -794,7 +795,7 @@ export default function LinkGateway() {
             <StepCard n={1} color="#1877F2" title="MỞ BÀI ĐĂNG SOCIAL" verified={verified}>
               <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: '#fff', border: '1.5px dashed #1877F2', borderRadius: 10, padding: '12px 16px', width: '100%', boxSizing: 'border-box' }}>
-                  <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>📱</span>
+                  <Smartphone size={18} style={{ color: '#1877F2', flexShrink: 0, marginTop: 1 }} />
                   <span style={{ flex: 1, color: '#1D4ED8', fontSize: 'clamp(11px,2.5vw,13px)', fontWeight: 700, wordBreak: 'break-all', overflowWrap: 'anywhere', minWidth: 0, lineHeight: 1.5 }}>{keyword}</span>
                   <CopyBtn text={keyword} />
                 </div>
@@ -822,7 +823,8 @@ export default function LinkGateway() {
                 {/* Campaign image = social post preview */}
                 {campaignImage && (
                   <div>
-                    <p style={{ color: '#6D28D9', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>🔍 Bài viết cần tìm:</p>
+                    <p style={{ color: '#6D28D9', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>
+                      <Search size={13} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />Bài viết cần tìm:</p>
                     <div style={{ borderRadius: 10, overflow: 'hidden', border: '2px solid #DDD6FE', boxShadow: '0 4px 16px rgba(99,102,241,0.12)' }}>
                       <img src={campaignImage} alt="Bài viết" style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
                     </div>
@@ -831,7 +833,7 @@ export default function LinkGateway() {
                 {/* Target URL hint */}
                 {targetUrl && (
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#fff', border: '1px solid #EDE9FE', borderRadius: 8, padding: '10px 12px' }}>
-                    <span style={{ fontSize: 14, flexShrink: 0 }}>🔗</span>
+                    <Link size={14} style={{ color: '#7C3AED', flexShrink: 0, marginTop: 2 }} />
                     <span style={{ flex: 1, color: '#7C3AED', fontSize: 'clamp(11px,2.5vw,12px)', fontWeight: 600, wordBreak: 'break-all', overflowWrap: 'anywhere', minWidth: 0, lineHeight: 1.5 }}>{targetUrl}</span>
                   </div>
                 )}
@@ -898,7 +900,7 @@ export default function LinkGateway() {
                 </div>
                 <h3 style={{ color: '#16A34A', fontWeight: 800, margin: '0 0 8px' }}>Xác nhận thành công!</h3>
                 <p style={{ color: '#64748B', margin: '0 0 20px' }}>
-                  {redirecting ? '🔄 Đang chuyển hướng đến trang đích...' : 'Bạn đã hoàn thành nhiệm vụ!'}
+                  {redirecting ? <><RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> Đang chuyển hướng đến trang đích...</> : 'Bạn đã hoàn thành nhiệm vụ!'}
                 </p>
                 {redirecting && (
                   <div style={{ marginBottom: 20 }}>
@@ -978,10 +980,10 @@ export default function LinkGateway() {
 
                 {!humanPassed ? (
                   <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
-                    <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 12px' }}>
+                    <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                       {isMobileDevice
-                        ? '📱 Cần xác minh bạn là người thật trước khi nhập mã'
-                        : '🖱️ Cần xác minh bạn là người thật trước khi nhập mã'}
+                        ? <><Smartphone size={13} /> Cần xác minh bạn là người thật trước khi nhập mã</>
+                        : <><MousePointer2 size={13} /> Cần xác minh bạn là người thật trước khi nhập mã</>}
                     </p>
                     <button
                       onClick={() => setShowChallenge(true)}
@@ -994,7 +996,7 @@ export default function LinkGateway() {
                         animation: 'glow-purple 2.5s ease-in-out infinite',
                       }}
                     >
-                      <span style={{ fontSize: 20 }}>{isMobileDevice ? '📳' : '🖱️'}</span>
+                      {isMobileDevice ? <Smartphone size={20} /> : <MousePointer2 size={20} />}
                       {isMobileDevice ? 'LẮC ĐIỆN THOẠI ĐỂ XÁC MINH' : 'RÊ CHUỘT ĐỂ XÁC MINH'}
                     </button>
                   </div>
@@ -1207,13 +1209,21 @@ function ShakeChallenge({ onPass, onClose }) {
 
       {passed ? (
         <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
-          <div style={{ fontSize: 72, marginBottom: 16 }}>✅</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Check size={40} color="#fff" strokeWidth={3} />
+            </div>
+          </div>
           <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 8px' }}>Xác minh thành công!</h2>
           <p style={{ fontSize: 16, opacity: 0.9 }}>Đang mở ô nhập mã...</p>
         </div>
       ) : fakeDetected ? (
         <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
-          <div style={{ fontSize: 72, marginBottom: 16 }}>🚫</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(239,68,68,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Ban size={40} color="#fca5a5" strokeWidth={2.5} />
+            </div>
+          </div>
           <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 12px', color: '#fca5a5' }}>Phát hiện giả lập!</h2>
           <p style={{ fontSize: 14, opacity: 0.8, margin: '0 0 24px' }}>Cảm biến điện thoại cho thấy thiết bị không hợp lệ.<br />Vui lòng dùng thiết bị thật.</p>
           <button onClick={onClose} style={{ padding: '10px 24px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>Đóng</button>
@@ -1222,10 +1232,11 @@ function ShakeChallenge({ onPass, onClose }) {
         <div style={{ textAlign: 'center', color: '#fff' }}>
           {/* Phone animation */}
           <div style={{
-            fontSize: 72, marginBottom: 24,
+            marginBottom: 24,
             animation: flashing ? 'shake-anim 0.3s ease' : 'phone-idle 2s ease-in-out infinite',
-            display: 'inline-block',
-          }}>📱</div>
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.15)',
+          }}><Smartphone size={44} color="#fff" /></div>
 
           <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 8px', letterSpacing: 0.5 }}>
             LẮC ĐIỆN THOẠI ĐỂ XÁC MINH
@@ -1249,7 +1260,7 @@ function ShakeChallenge({ onPass, onClose }) {
           </div>
 
           <p style={{ fontSize: 13, opacity: 0.6 }}>
-            {shakeCount === 0 ? 'Chưa phát hiện lắc...' : `Đã lắc ${shakeCount}/${TARGET} lần 💪`}
+            {shakeCount === 0 ? 'Chưa phát hiện lắc...' : `Đã lắc ${shakeCount}/${TARGET} lần`}
           </p>
         </div>
       )}
@@ -1500,8 +1511,8 @@ function CurveChallenge({ onPass, onClose }) {
       ) : (
         <div style={{ width: '100%', maxWidth: 600, padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ textAlign: 'center', color: '#fff' }}>
-            <h2 style={{ fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>
-              🖱️ RÊ CHUỘT THEO ĐƯỜNG
+            <h2 style={{ fontSize: 20, fontWeight: 900, margin: '0 0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <MousePointer2 size={20} /> RÊ CHUỘT THEO ĐƯỜNG
             </h2>
             <p style={{ fontSize: 13, opacity: 0.7, margin: 0 }}>
               {started ? `Hoàn thành: ${progress}%` : 'Nhấn giữ chuột tại điểm BẮT ĐẦU và kéo theo đường tím'}
