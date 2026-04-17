@@ -341,6 +341,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   const cleanVisitorId = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const [tasks] = await pool.execute(
     `SELECT vt.id, vt.ref_worker_id, vt.worker_id, vt.status as task_status,
+            vt.keyword as task_keyword,
             c.traffic_type, c.url as campaign_url FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
      WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id != 'unknown'))
@@ -402,6 +403,29 @@ router.post('/public/:token/check-session', async (req, res) => {
     }
     if (!clientRef && hasGoogleParams) {
       console.log(`[Widget] check-session: Empty referrer but Google params present — IP: ${ip}, task: #${task.id}, params: ${JSON.stringify(np.googleParams || {})}`);
+    }
+  }
+
+  // ── Social traffic: referer phải đến từ domain social URL (keyword của task) ──
+  if (task.traffic_type === 'social' && !['step2', 'step3'].includes(task.task_status)) {
+    const clientRef = pageReferrer || '';
+    const socialKeyword = task.task_keyword || '';
+    let socialDomain = '';
+    try { socialDomain = new URL(socialKeyword).hostname.replace(/^www\./, '').toLowerCase(); } catch (_) { }
+
+    if (socialDomain) {
+      let isSocialRef = false;
+      if (clientRef) {
+        try {
+          const refDomain = new URL(clientRef).hostname.replace(/^www\./, '').toLowerCase();
+          // Cho phép subdomain: m.facebook.com, l.facebook.com, lm.facebook.com…
+          isSocialRef = refDomain === socialDomain || refDomain.endsWith('.' + socialDomain);
+        } catch (_) { }
+      }
+      if (!isSocialRef) {
+        console.log(`[Widget] check-session BLOCKED: Non-social referrer — IP: ${ip}, task: #${task.id}, expected: ${socialDomain}, got: "${clientRef.substring(0, 120)}"`);
+        return res.status(403).json({ error: 'Vui lòng truy cập trang từ bài đăng social đã chỉ định.', requireSocial: true, socialDomain });
+      }
     }
   }
 
@@ -638,6 +662,34 @@ router.post('/public/:token/get-code', async (req, res) => {
         [clientRef.substring(0, 500), task.id]
       ).catch(() => { });
       return res.status(403).json({ error: 'Vui lòng truy cập trang từ kết quả tìm kiếm Google.' });
+    }
+  }
+
+  // ── Social traffic: referer phải đến từ domain social URL (keyword của task) ──
+  if (task.traffic_type === 'social') {
+    const clientRef = pageReferrer || '';
+    // keyword lưu URL bài đăng social (VD: https://www.facebook.com/share/...)
+    const socialKeyword = task.keyword || '';
+    let socialDomain = '';
+    try { socialDomain = new URL(socialKeyword).hostname.replace(/^www\./, '').toLowerCase(); } catch (_) { }
+
+    if (socialDomain) {
+      let isSocialRef = false;
+      if (clientRef) {
+        try {
+          const refDomain = new URL(clientRef).hostname.replace(/^www\./, '').toLowerCase();
+          // Cho phép subdomain: m.facebook.com, l.facebook.com, lm.facebook.com, out.facebook.com...
+          isSocialRef = refDomain === socialDomain || refDomain.endsWith('.' + socialDomain);
+        } catch (_) { }
+      }
+      if (!isSocialRef) {
+        console.log(`[Widget] BLOCKED: Non-social referrer — IP: ${ip}, task: #${task.id}, expected: ${socialDomain}, got: "${clientRef.substring(0, 120)}"`);
+        await pool.execute(
+          `UPDATE vuot_link_tasks SET security_detail = JSON_SET(COALESCE(security_detail,'{}'), '$.non_social_referrer', true, '$.bad_referrer', ?) WHERE id = ?`,
+          [clientRef.substring(0, 500), task.id]
+        ).catch(() => { });
+        return res.status(403).json({ error: 'Vui lòng truy cập trang từ bài đăng social đã chỉ định.', requireSocial: true, socialDomain });
+      }
     }
   }
 
