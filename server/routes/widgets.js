@@ -536,6 +536,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(404).json({ error: 'Không tìm thấy session.' });
   }
   const task = tasks[0];
+  console.log(`[Widget] get-code task found — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, status: ${task.status}, ref: "${(pageReferrer || '').substring(0, 80)}"`);
 
   let isTrustedWorker = false;
   const targetCheckId = task.ref_worker_id || task.worker_id || req.userId;
@@ -642,7 +643,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
 
 
-  if (task.traffic_type === 'google_search' && v1Phase !== 2) {
+  if (task.traffic_type === 'google_search' && v1Phase !== 2 && !['step2', 'step3'].includes(task.status)) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
     const clientRef = pageReferrer || '';
     const CF_CHALLENGE = /[?&](__cf_chl_tk|__cf_chl_f_tk|cf_chl_prog|cf_chl_opt|cf_chl_seq)[=_]/i;
