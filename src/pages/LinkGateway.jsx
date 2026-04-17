@@ -561,8 +561,8 @@ export default function LinkGateway() {
   const trafficType = task?.traffic_type || 'google_search';
   const targetUrl = task?.target_url || '';
   const isDirect = trafficType === 'direct';
+  const isSocial = trafficType === 'social';
 
-  // ── Link not found ──
   if (linkError) return (
     <Wrapper>
       <Center>
@@ -666,7 +666,7 @@ export default function LinkGateway() {
           <h1 style={{ fontSize: 'clamp(20px,4vw,30px)', fontWeight: 900, color: '#1E3A6E', margin: '0 0 6px' }}>
             HOÀN THÀNH NHIỆM VỤ ĐỂ TRUY CẬP
           </h1>
-          <p style={{ color: '#64748B', fontSize: 14, margin: 0 }}>Thực hiện {isDirect ? 2 : 4} bước bên dưới theo thứ tự để mở khóa liên kết</p>
+          <p style={{ color: '#64748B', fontSize: 14, margin: 0 }}>Thực hiện {isDirect || isSocial ? 2 : 4} bước bên dưới theo thứ tự để mở khóa liên kết</p>
           {/* Countdown timer */}
           {!verified && countdown > 0 && (
             <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -688,8 +688,8 @@ export default function LinkGateway() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* ── Google Search cards (only when NOT direct) ── */}
-          {!isDirect && (
+          {/* ── Google Search cards (only when NOT direct AND NOT social) ── */}
+          {!isDirect && !isSocial && (
             <StepCard n={1} color="#3B82F6" title="MỞ GOOGLE" verified={verified}>
               <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
                 <div style={{ width: '100%', maxWidth: 360, background: '#fff', borderRadius: 10, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #E2E8F0' }}>
@@ -719,7 +719,7 @@ export default function LinkGateway() {
             </StepCard>
           )}
 
-          {!isDirect && (
+          {!isDirect && !isSocial && (
             <StepCard n={2} color="#F97316" title="NHẬP TỪ KHÓA" verified={verified}>
               <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 14, padding: 16 }}>
                 <p style={{ fontSize: 11, color: '#92400E', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Từ khóa tìm kiếm</p>
@@ -740,7 +740,7 @@ export default function LinkGateway() {
             </StepCard>
           )}
 
-          {!isDirect && (
+          {!isDirect && !isSocial && (
             <StepCard n={3} color="#7C3AED" title="TÌM TRANG ĐÍCH" verified={verified}>
               {(campaignImage || campaignImage2) && (
                 <div style={{ marginBottom: 16 }}>
@@ -778,6 +778,68 @@ export default function LinkGateway() {
               <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 14, padding: 14 }}>
                 {['Cuộn tìm trong kết quả Google', hasMultiSite ? 'Tìm trang có giao diện giống 1 trong 2 hình trên' : 'Tìm trang có giao diện giống hình trên', 'Click vào kết quả để truy cập trang'].map((t, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(139,92,246,0.06)', borderRadius: 8, padding: '8px 12px', marginBottom: i < 2 ? 8 : 0 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ color: '#fff', fontSize: 11, fontWeight: 800 }}>{i + 1}</span>
+                    </div>
+                    <span style={{ color: '#374151', fontSize: 13 }}>{t}</span>
+                  </div>
+                ))}
+              </div>
+            </StepCard>
+          )}
+
+          {/* ── Social traffic cards ── */}
+          {isSocial && (
+            <StepCard n={1} color="#1877F2" title="MỞ BÀI ĐĂNG SOCIAL" verified={verified}>
+              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                {/* Social URL box */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: '#fff', border: '1.5px dashed #1877F2', borderRadius: 10, padding: '12px 14px', width: '100%', boxSizing: 'border-box' }}>
+                  <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>📱</span>
+                  <span style={{ flex: 1, color: '#1D4ED8', fontSize: 'clamp(11px,2.5vw,13px)', fontWeight: 600, wordBreak: 'break-all', overflowWrap: 'anywhere', minWidth: 0, lineHeight: 1.5 }}>{keyword}</span>
+                  <CopyBtn text={keyword} />
+                </div>
+                {/* Open button */}
+                <a href={keyword} target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg,#1877F2,#1565C0)', color: '#fff', textDecoration: 'none', padding: '11px 28px', borderRadius: 10, fontSize: 14, fontWeight: 700, boxShadow: '0 4px 16px rgba(24,119,242,0.35)' }}>
+                  <ExternalLink size={15} /> MỞ bài đăng
+                </a>
+                {/* Instructions */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                  {['Copy hoặc nhấn nút MỞ bài đăng', 'Xem nội dung bài đăng tự nhiên', 'Tìm link URL trong mô tả / bình luận bài'].map((t, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(24,119,242,0.06)', borderRadius: 8, padding: '8px 12px' }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#1877F2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ color: '#fff', fontSize: 11, fontWeight: 800 }}>{i + 1}</span>
+                      </div>
+                      <span style={{ color: '#374151', fontSize: 13 }}>{t}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </StepCard>
+          )}
+
+          {isSocial && (
+            <StepCard n={2} color="#7C3AED" title="TÌM & CLICK LINK TRONG BÀI" verified={verified}>
+              <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 14, padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Campaign image preview */}
+                {campaignImage && (
+                  <div>
+                    <p style={{ color: '#6D28D9', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>🎯 Trang đích cần truy cập:</p>
+                    <div style={{ borderRadius: 10, overflow: 'hidden', border: '2px solid #DDD6FE', boxShadow: '0 4px 16px rgba(99,102,241,0.12)' }}>
+                      <img src={campaignImage} alt="Trang đích" style={{ width: '100%', display: 'block' }} onError={e => e.target.style.display = 'none'} />
+                    </div>
+                  </div>
+                )}
+                {/* Target URL hint */}
+                {targetUrl && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#fff', border: '1px solid #EDE9FE', borderRadius: 8, padding: '10px 12px' }}>
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>🔗</span>
+                    <span style={{ flex: 1, color: '#7C3AED', fontSize: 'clamp(11px,2.5vw,12px)', fontWeight: 600, wordBreak: 'break-all', overflowWrap: 'anywhere', minWidth: 0, lineHeight: 1.5 }}>{targetUrl}</span>
+                  </div>
+                )}
+                {/* Steps */}
+                {['Tìm link trong mô tả bài đăng hoặc bình luận', 'Click vào link đó để truy cập trang đích', 'Ừ lại trang, tìm nút lấy mã → nhập mã vào bước 3'].map((t, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(139,92,246,0.06)', borderRadius: 8, padding: '8px 12px' }}>
                     <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <span style={{ color: '#fff', fontSize: 11, fontWeight: 800 }}>{i + 1}</span>
                     </div>
@@ -829,7 +891,7 @@ export default function LinkGateway() {
           )}
 
           {/* Step — Code entry */}
-          <StepCard n={isDirect ? 2 : 4} color="#16A34A" title="NHẬP MÃ XÁC NHẬN" verified={verified}>
+          <StepCard n={isDirect || isSocial ? 2 : 4} color="#16A34A" title="NHẬP MÃ XÁC NHẬN" verified={verified}>
             {verified ? (
               <div style={{ textAlign: 'center', padding: '32px 16px' }}>
                 <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#F0FEF4', border: '3px solid #86EFAC', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

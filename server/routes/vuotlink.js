@@ -158,8 +158,6 @@ function verifyChallenge(token) {
   return payload;
 }
 
-
-
 router.get('/challenge', async (req, res) => {
 
   const ua = req.headers['user-agent'] || '';
