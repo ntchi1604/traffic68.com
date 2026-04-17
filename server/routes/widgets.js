@@ -665,10 +665,8 @@ router.post('/public/:token/get-code', async (req, res) => {
     }
   }
 
-  // ── Social traffic: referer phải đến từ domain social URL (keyword của task) ──
   if (task.traffic_type === 'social') {
     const clientRef = pageReferrer || '';
-    // keyword lưu URL bài đăng social (VD: https://www.facebook.com/share/...)
     const socialKeyword = task.keyword || '';
     let socialDomain = '';
     try { socialDomain = new URL(socialKeyword).hostname.replace(/^www\./, '').toLowerCase(); } catch (_) { }
@@ -678,7 +676,6 @@ router.post('/public/:token/get-code', async (req, res) => {
       if (clientRef) {
         try {
           const refDomain = new URL(clientRef).hostname.replace(/^www\./, '').toLowerCase();
-          // Cho phép subdomain: m.facebook.com, l.facebook.com, lm.facebook.com, out.facebook.com...
           isSocialRef = refDomain === socialDomain || refDomain.endsWith('.' + socialDomain);
         } catch (_) { }
       }
