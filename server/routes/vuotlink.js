@@ -385,13 +385,10 @@ async function _handleTaskPost(req, res) {
     console.log(`[VuotLink] ✅ VN_DATE=${todayVn} | PASS: IP=${ip}, visitor=${visitorId?.substring(0, 8) || '?'}, views=${viewsUsed}/${maxViewsPerIp}`);
   }
 
-  // Auto-recover campaigns bị stuck — chạy nền, không chặn response
   pool.execute(
     `UPDATE campaigns SET status = 'running' WHERE status = 'completed' AND views_done < total_views AND user_id IS NOT NULL`
   ).catch(e => console.warn('[VuotLink] Auto-recover error:', e.message));
 
-  // Khi IP hết lượt: kiểm tra chủ link (refWorkerId từ challenge) có bonus_mode không
-  // refWorkerId = worker sở hữu link rút gọn mà IP đang dùng để vào task
   let workerBonusMode = false;
   const bonusCheckWorkerId = refWorkerIdFromCh || null;
   if (ipLimitReached) {
@@ -439,12 +436,12 @@ async function _handleTaskPost(req, res) {
       GROUP BY campaign_id
     ) th ON th.campaign_id = c.id`;
 
-  // ── Chạy song song: exclude-list + campaign pool (cached) — tiết kiệm 1 DB round-trip ──
   const cleanVidExcl = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const clientExcludes = Array.isArray(excludeCampaigns)
     ? excludeCampaigns.filter(id => Number.isInteger(Number(id))).map(Number)
     : [];
 
+  // ── Chạy song song: exclude-list + campaign pool (cached) — tiết kiệm 1 DB round-trip ──
   const [ipDoneResult, allCandidates] = await Promise.all([
     pool.execute(
       `SELECT DISTINCT campaign_id FROM vuot_link_tasks
@@ -468,7 +465,6 @@ async function _handleTaskPost(req, res) {
 
   let campaigns;
   if (topCampaigns.length === 0 && clientExcludes.length > 0) {
-    // Fallback: drop client skips, keep server-enforced excludes (in memory)
     campaigns = serverExcludeIds.length > 0
       ? allCandidates.filter(c => !serverExcludeIds.includes(c.id))
       : allCandidates;
@@ -476,6 +472,7 @@ async function _handleTaskPost(req, res) {
     campaigns = topCampaigns;
   }
 
+  // Fallback: drop client skips, keep server-enforced excludes (in memory)
   const deviceFilteredCampaigns = campaigns.filter(c => {
     const dev = (c.device || '').toLowerCase();
     if (!dev) return true;
@@ -495,9 +492,9 @@ async function _handleTaskPost(req, res) {
 
   if (campaigns.length === 0) {
     if (ipLimitReached) {
-      // Không có campaign nào khả dụng (worker bonus_mode nhưng hết camp) → thông báo cụ thể
       return res.status(429).json({ error: `Bạn đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Vui lòng quay lại ngày mai.`, remaining: 0, maxViews: maxViewsPerIp });
     }
+    // Không có campaign nào khả dụng (worker bonus_mode nhưng hết camp) → thông báo cụ thể
     try {
       const [dbTime] = await pool.execute("SELECT NOW() as now_vn, CURDATE() as today_vn, @@session.time_zone as tz");
       const [allCamps] = await pool.execute("SELECT COUNT(*) as total FROM campaigns WHERE status = 'running'");
@@ -506,35 +503,7 @@ async function _handleTaskPost(req, res) {
     return res.status(404).json({ error: 'Không có nhiệm vụ phù hợp. Vui lòng thử lại sau.' });
   }
 
-  // ── Weighted random: camp không set priority = weight 1 (đều nhau, baseline)
-  //   Admin set priority 1–5 sẽ boost xác suất lên cao hơn baseline:
-  //   NULL / chưa set: weight 1  (bằng nhau, random đều)
-  //   Mức 1 (Ưu tiên nhẹ):  weight 2   (~2× so với camp chưa set)
-  //   Mức 2 (Ưu tiên vừa):  weight 4   (~4×)
-  //   Mức 3 (Ưu tiên cao):  weight 8   (~8×)
-  //   Mức 4 (Rất cao):      weight 16  (~16×)
-  //   Mức 5 (Khẩn cấp):    weight 32  (~32×)
   const PRIORITY_WEIGHTS = { 1: 2, 2: 4, 3: 8, 4: 16, 5: 32 };
-  let totalWeight = 0;
-  const weightedCamps = campaigns.map(c => {
-    // null/0/undefined = chưa set → weight 1 (baseline, đều nhau)
-    const w = (c.priority != null && c.priority > 0) ? (PRIORITY_WEIGHTS[c.priority] || 1) : 1;
-    totalWeight += w;
-    return { ...c, _weight: w };
-  });
-
-  const rand = Math.random() * totalWeight;
-  let campaign = null;
-  let cumulative = 0;
-  for (const c of weightedCamps) {
-    cumulative += c._weight;
-    if (rand <= cumulative) { campaign = c; break; }
-  }
-
-  if (!campaign) campaign = weightedCamps[weightedCamps.length - 1];
-  const pLabel = campaign.priority ? `priority=${campaign.priority}(×${campaign._weight})` : 'no-priority(×1)';
-  console.log(`[VuotLink] Selected campaign id=${campaign.id} ${pLabel} today=${campaign._today_done} daily=${campaign.daily_views} (pool: ${campaigns.length} camps, weighted-random totalW=${totalWeight})`);
-
 
   const pickRandom = (val) => {
     if (!val) return val;
@@ -550,186 +519,209 @@ async function _handleTaskPost(req, res) {
   let selectedKeyword;
   let selectedKwUrl = null;
   let selectedKwImage = null;
+  let campaign = null;
 
-  try {
-    const kwConfig = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
-    if (Array.isArray(kwConfig) && kwConfig.length > 0) {
-      // ── Merge 3 metrics thành 1 query: total + today_done + hour_done (giảm round-trip DB) ──
-      const [kwCombined] = await pool.execute(
-        `SELECT keyword,
-                COUNT(*) as done,
-                SUM(CASE WHEN completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_done,
-                SUM(CASE WHEN completed_at >= ? THEN 1 ELSE 0 END) as hour_done
-         FROM vuot_link_tasks
-         WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0
-         GROUP BY keyword`,
-        [vnDayStart, vnDayEnd, vnHourStart, campaign.id]
-      );
-      const doneMap = {};
-      const todayMap = {};
-      const hourMap = {};
-      kwCombined.forEach(r => {
-        doneMap[r.keyword] = Number(r.done);
-        todayMap[r.keyword] = Number(r.today_done);
-        hourMap[r.keyword] = Number(r.hour_done);
-      });
+  // Pool có thể bị thu hẹp dần qua các vòng retry
+  let remainingCamps = [...campaigns];
 
-      const campaignDailyViews = Number(campaign.daily_views) || 0;
-      const hasAnyExplicitDaily = kwConfig.some(k => Number(k.daily_views) > 0);
-      const totalExplicitDaily = kwConfig.reduce((s, k) => s + (Number(k.daily_views) > 0 ? Number(k.daily_views) : 0), 0);
-      const limitedCount = kwConfig.filter(k => Number(k.daily_views) > 0).length;
-      const unsetCount = kwConfig.filter(k => !(Number(k.daily_views) > 0)).length;
-      const remainingDaily = Math.max(0, campaignDailyViews - totalExplicitDaily);
-      const autoDaily = (hasAnyExplicitDaily && campaignDailyViews > 0 && unsetCount > 0)
-        ? Math.floor(remainingDaily / unsetCount)
-        : 0; // 0 = no per-keyword daily limit (toggle OFF or all keywords explicitly set)
+  while (remainingCamps.length > 0) {
+    // ── Weighted-random pick từ pool hiện tại ──
+    let totalWeight = 0;
+    const weightedCamps = remainingCamps.map(c => {
+      const w = (c.priority != null && c.priority > 0) ? (PRIORITY_WEIGHTS[c.priority] || 1) : 1;
+      totalWeight += w;
+      return { ...c, _weight: w };
+    });
 
-      // [FIX 1] Virtual target cho keyword không có daily limit:
-      //   Thay vì dùng 1000 cứng (làm kw unlimited áp đảo kw có daily_views nhỏ),
-      //   tính virtualTargetForUnlimited = avg daily_views của các kw có giới hạn tường minh,
-      //   hoặc campaignDailyViews / tổng số kw nếu không có kw nào set daily tường minh.
-      //   Sau đó trừ todayDone để weight cũng giảm dần theo thời gian (tự cân bằng).
-      const avgExplicitDaily = hasAnyExplicitDaily && limitedCount > 0
-        ? Math.ceil(totalExplicitDaily / limitedCount)
-        : 0;
-      const virtualTargetForUnlimited =
-        campaignDailyViews > 0
-          ? (unsetCount > 0 ? Math.max(1, Math.floor(remainingDaily / unsetCount)) : campaignDailyViews)
-          : avgExplicitDaily > 0
-            ? avgExplicitDaily                     // dùng avg của kw có giới hạn tường minh
-            : 1000;                                // không có gì tham chiếu → fallback
+    const rand = Math.random() * totalWeight;
+    let picked = null;
+    let cumulative = 0;
+    for (const c of weightedCamps) {
+      cumulative += c._weight;
+      if (rand <= cumulative) { picked = c; break; }
+    }
+    if (!picked) picked = weightedCamps[weightedCamps.length - 1];
 
-      // Build weighted list — weight = dailyRemaining còn lại trong ngày (tuyệt đối)
-      //   Keywords với daily_views cao hơn có weight lớn hơn → phân bổ đúng tỷ lệ
-      //   Khi todayDone tăng, weight giảm đều → tự cân bằng suốt ngày
-      //   daily limit là hard stop (weight=0); k.views overrun → giảm 95% priority thay vì block
-      // ── Tính hourly cap per-keyword (áp dụng khi campaign bật view_by_hour) ──
-      //   Cách tính kwHourlyCap:
-      //   • Keyword có daily_views tường minh → hourly = CEIL(daily_views / 24)
-      //   • Keyword không set daily, camp có daily_views → hourly = CEIL(autoDaily / 24)
-      //   • Keyword không set daily, camp không set daily → hourly = CEIL(total_views / 24)
-      const kwViewByHour = campaign.view_by_hour > 0;
-      const campTotalViews = Number(campaign.total_views) || 0;
+    const pLabel = picked.priority ? `priority=${picked.priority}(×${picked._weight})` : 'no-priority(×1)';
+    console.log(`[VuotLink] Selected campaign id=${picked.id} ${pLabel} today=${picked._today_done} daily=${picked.daily_views} (pool: ${remainingCamps.length} camps, weighted-random totalW=${totalWeight})`);
 
-      const weighted = kwConfig
-        .filter(k => k.keyword && k.keyword.trim())
-        .map(k => {
-          const totalDone = doneMap[k.keyword] || 0;
-          const todayDone = todayMap[k.keyword] || 0;
-          const hourDone = hourMap[k.keyword] || 0;
-          const kwTotalViews = Number(k.views) || 0;
-          const hasNoTotalLimit = kwTotalViews <= 0;
-          const totalRemaining = hasNoTotalLimit ? Infinity : Math.max(0, kwTotalViews - totalDone);
-          const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
-          const dailyRemaining = effectiveDailyLimit > 0 ? Math.max(0, effectiveDailyLimit - todayDone) : 0;
-          const dailyOk = effectiveDailyLimit <= 0 || todayDone < effectiveDailyLimit;
-
-          // Daily limit: hard stop — weight = 0 nếu đã hết quota ngày
-          if (!dailyOk) return { ...k, weight: 0 };
-
-          // ── Hourly cap per-keyword khi view_by_hour bật ──
-          let kwHourlyCap = 0; // 0 = không giới hạn theo giờ
-          if (kwViewByHour) {
-            if (effectiveDailyLimit > 0) {
-              // Có daily limit tường minh (hoặc autoDaily) → hourly = daily / 24
-              kwHourlyCap = Math.max(1, Math.ceil(effectiveDailyLimit / 24));
-            } else {
-              // Không có daily limit → chia từ total_views của campaign
-              const refViews = campaignDailyViews > 0 ? campaignDailyViews : campTotalViews;
-              kwHourlyCap = refViews > 0 ? Math.max(1, Math.ceil(refViews / 24)) : 0;
-            }
-            // Hard stop: keyword đã đủ lượt trong giờ này → loại khỏi pool
-            if (kwHourlyCap > 0 && hourDone >= kwHourlyCap) {
-              return { ...k, weight: 0 };
-            }
-          }
-
-          // Base weight = số lượt còn lại (tuyệt đối) để duy trì tỷ lệ đúng
-          let baseWeight;
-          if (effectiveDailyLimit > 0) {
-            // Có daily limit tường minh (hoặc autoDaily) → weight = remaining
-            baseWeight = dailyRemaining; // = effectiveDailyLimit - todayDone > 0
-          } else if (!hasNoTotalLimit) {
-            // Không giới hạn ngày, có quota tổng → dùng total remaining
-            baseWeight = Math.max(totalRemaining, 1);
-          } else {
-            // Không giới hạn cả ngày lẫn tổng → dùng virtualTarget (đã normalize)
-            // Trừ todayDone để weight giảm dần như các kw có limit → tự cân bằng
-            baseWeight = Math.max(1, virtualTargetForUnlimited - todayDone);
-          }
-
-          // Khi view_by_hour bật: cap weight theo hourly remaining → trải đều trong giờ
-          if (kwViewByHour && kwHourlyCap > 0) {
-            const hourlyRemaining = Math.max(0, kwHourlyCap - hourDone);
-            baseWeight = Math.min(baseWeight, hourlyRemaining);
-          }
-
-          // Nếu vượt k.views quota tổng (do bug cũ) → giảm 95% priority, không block hoàn toàn
-          const totalPenalty = (!hasNoTotalLimit && totalRemaining === 0) ? 0.05 : 1;
-          return { ...k, weight: baseWeight * totalPenalty };
+    // ── Thử chọn keyword cho camp vừa pick ──
+    let kwOk = false;
+    try {
+      const kwConfig = picked.keyword_config ? JSON.parse(picked.keyword_config) : null;
+      if (Array.isArray(kwConfig) && kwConfig.length > 0) {
+        // ── Merge 3 metrics thành 1 query: total + today_done + hour_done (giảm round-trip DB) ──
+        const [kwCombined] = await pool.execute(
+          `SELECT keyword,
+                  COUNT(*) as done,
+                  SUM(CASE WHEN completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_done,
+                  SUM(CASE WHEN completed_at >= ? THEN 1 ELSE 0 END) as hour_done
+           FROM vuot_link_tasks
+           WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0
+           GROUP BY keyword`,
+          [vnDayStart, vnDayEnd, vnHourStart, picked.id]
+        );
+        const doneMap = {};
+        const todayMap = {};
+        const hourMap = {};
+        kwCombined.forEach(r => {
+          doneMap[r.keyword] = Number(r.done);
+          todayMap[r.keyword] = Number(r.today_done);
+          hourMap[r.keyword] = Number(r.hour_done);
         });
 
-      const totalWeight = weighted.reduce((s, w) => s + w.weight, 0);
+        const campaignDailyViews = Number(picked.daily_views) || 0;
+        const hasAnyExplicitDaily = kwConfig.some(k => Number(k.daily_views) > 0);
+        const totalExplicitDaily = kwConfig.reduce((s, k) => s + (Number(k.daily_views) > 0 ? Number(k.daily_views) : 0), 0);
+        const limitedCount = kwConfig.filter(k => Number(k.daily_views) > 0).length;
+        const unsetCount = kwConfig.filter(k => !(Number(k.daily_views) > 0)).length;
+        const remainingDaily = Math.max(0, campaignDailyViews - totalExplicitDaily);
+        const autoDaily = (hasAnyExplicitDaily && campaignDailyViews > 0 && unsetCount > 0)
+          ? Math.floor(remainingDaily / unsetCount)
+          : 0;
 
-      let selectedObj = null;
-      if (totalWeight > 0) {
-        // Pick random weighted keyword
-        let rand = Math.random() * totalWeight;
-        selectedObj = weighted[weighted.length - 1]; // fallback to last
-        for (const item of weighted) {
-          rand -= item.weight;
-          if (rand <= 0) { selectedObj = item; break; }
-        }
-      } else {
-        // All keywords hit their daily_views limit today
-        // Check if ANY keyword still has daily quota left (effectiveDailyLimit <= 0 = unlimited)
-        const hasUnlimitedKw = kwConfig.some(k => {
-          const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
-          return effectiveDailyLimit <= 0; // no per-keyword daily limit set
-        });
+        // [FIX 1] Virtual target cho keyword không có daily limit:
+        //   Thay vì dùng 1000 cứng (làm kw unlimited áp đảo kw có daily_views nhỏ),
+        //   tính virtualTargetForUnlimited = avg daily_views của các kw có giới hạn tường minh,
+        //   hoặc campaignDailyViews / tổng số kw nếu không có kw nào set daily tường minh.
+        //   Sau đó trừ todayDone để weight cũng giảm dần theo thời gian (tự cân bằng).
+        const avgExplicitDaily = hasAnyExplicitDaily && limitedCount > 0
+          ? Math.ceil(totalExplicitDaily / limitedCount)
+          : 0;
+        const virtualTargetForUnlimited =
+          campaignDailyViews > 0
+            ? (unsetCount > 0 ? Math.max(1, Math.floor(remainingDaily / unsetCount)) : campaignDailyViews)
+            : avgExplicitDaily > 0
+              ? avgExplicitDaily
+              : 1000;
 
-        if (hasUnlimitedKw) {
-          // Some keywords have no daily limit → pick from those with total remaining
-          const stillRemaining = kwConfig.filter(k => {
-            const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
+        // ── Tính hourly cap per-keyword (áp dụng khi campaign bật view_by_hour) ──
+        //   Cách tính kwHourlyCap:
+        //   • Keyword có daily_views tường minh → hourly = CEIL(daily_views / 24)
+        //   • Keyword không set daily, camp có daily_views → hourly = CEIL(autoDaily / 24)
+        //   • Keyword không set daily, camp không set daily → hourly = CEIL(total_views / 24)
+        const kwViewByHour = picked.view_by_hour > 0;
+        const campTotalViews = Number(picked.total_views) || 0;
+
+        const weighted = kwConfig
+          .filter(k => k.keyword && k.keyword.trim())
+          .map(k => {
             const totalDone = doneMap[k.keyword] || 0;
+            const todayDone = todayMap[k.keyword] || 0;
+            const hourDone = hourMap[k.keyword] || 0;
             const kwTotalViews = Number(k.views) || 0;
-            // kwTotalViews=0 = unlimited → luôn còn; kwTotalViews>0 → kiểm tra totalDone
-            return effectiveDailyLimit <= 0 && (kwTotalViews <= 0 || totalDone < kwTotalViews);
+            const hasNoTotalLimit = kwTotalViews <= 0;
+            const totalRemaining = hasNoTotalLimit ? Infinity : Math.max(0, kwTotalViews - totalDone);
+            const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
+            const dailyRemaining = effectiveDailyLimit > 0 ? Math.max(0, effectiveDailyLimit - todayDone) : 0;
+            const dailyOk = effectiveDailyLimit <= 0 || todayDone < effectiveDailyLimit;
+
+            // Daily limit: hard stop — weight = 0 nếu đã hết quota ngày
+            if (!dailyOk) return { ...k, weight: 0 };
+
+            // ── Hourly cap per-keyword khi view_by_hour bật ──
+            let kwHourlyCap = 0;
+            if (kwViewByHour) {
+              if (effectiveDailyLimit > 0) {
+                kwHourlyCap = Math.max(1, Math.ceil(effectiveDailyLimit / 24));
+              } else {
+                const refViews = campaignDailyViews > 0 ? campaignDailyViews : campTotalViews;
+                kwHourlyCap = refViews > 0 ? Math.max(1, Math.ceil(refViews / 24)) : 0;
+              }
+              if (kwHourlyCap > 0 && hourDone >= kwHourlyCap) {
+                return { ...k, weight: 0 };
+              }
+            }
+
+            // Base weight = số lượt còn lại (tuyệt đối) để duy trì tỷ lệ đúng
+            let baseWeight;
+            if (effectiveDailyLimit > 0) {
+              baseWeight = dailyRemaining;
+            } else if (!hasNoTotalLimit) {
+              baseWeight = Math.max(totalRemaining, 1);
+            } else {
+              baseWeight = Math.max(1, virtualTargetForUnlimited - todayDone);
+            }
+
+            if (kwViewByHour && kwHourlyCap > 0) {
+              const hourlyRemaining = Math.max(0, kwHourlyCap - hourDone);
+              baseWeight = Math.min(baseWeight, hourlyRemaining);
+            }
+
+            const totalPenalty = (!hasNoTotalLimit && totalRemaining === 0) ? 0.05 : 1;
+            return { ...k, weight: baseWeight * totalPenalty };
           });
-          const fallbackPool = stillRemaining.length > 0 ? stillRemaining : kwConfig.filter(k => {
+
+        const kwTotalWeight = weighted.reduce((s, w) => s + w.weight, 0);
+
+        let selectedObj = null;
+        if (kwTotalWeight > 0) {
+          let kwRand = Math.random() * kwTotalWeight;
+          selectedObj = weighted[weighted.length - 1];
+          for (const item of weighted) {
+            kwRand -= item.weight;
+            if (kwRand <= 0) { selectedObj = item; break; }
+          }
+        } else {
+          // All keywords hit their daily_views limit today
+          const hasUnlimitedKw = kwConfig.some(k => {
             const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
             return effectiveDailyLimit <= 0;
           });
-          if (fallbackPool.length > 0) {
-            selectedObj = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
-          }
-          // else selectedObj stays null → campaign skipped below
-        } else {
-          // ALL keywords have explicit daily limits AND all are exhausted for today
-          // → Do NOT assign this campaign. selectedObj stays null.
-          console.log(`[VuotLink] Campaign ${campaign.id}: all keywords hit daily limit today → skip campaign`);
-        }
-      }
 
-      if (selectedObj) {
-        selectedKeyword = selectedObj.keyword;
-        selectedKwUrl = selectedObj.url || selectedObj.domain; // domain for backwards compatibility if needed
-        selectedKwImage = selectedObj.image;
-        console.log(`[VuotLink] Keyword config selected: "${selectedKeyword}" (URL: ${selectedKwUrl || 'None'}, Image: ${selectedKwImage ? 'Yes' : 'No'})`);
+          if (hasUnlimitedKw) {
+            const stillRemaining = kwConfig.filter(k => {
+              const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
+              const totalDone = doneMap[k.keyword] || 0;
+              const kwTotalViews = Number(k.views) || 0;
+              return effectiveDailyLimit <= 0 && (kwTotalViews <= 0 || totalDone < kwTotalViews);
+            });
+            const fallbackPool = stillRemaining.length > 0 ? stillRemaining : kwConfig.filter(k => {
+              const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
+              return effectiveDailyLimit <= 0;
+            });
+            if (fallbackPool.length > 0) {
+              selectedObj = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+            }
+          } else {
+            // ALL keywords exhausted for today → skip this campaign, try another
+            console.log(`[VuotLink] Campaign ${picked.id}: all keywords hit daily limit today → remove from pool, retrying`);
+          }
+        }
+
+        if (selectedObj) {
+          campaign = picked;
+          selectedKeyword = selectedObj.keyword;
+          selectedKwUrl = selectedObj.url || selectedObj.domain;
+          selectedKwImage = selectedObj.image;
+          console.log(`[VuotLink] Keyword config selected: "${selectedKeyword}" (URL: ${selectedKwUrl || 'None'}, Image: ${selectedKwImage ? 'Yes' : 'No'})`);
+          kwOk = true;
+        }
+        // else: kwOk stays false → camp bị loại khỏi pool bên dưới
       } else {
-        // selectedObj is null: all keywords have hit their daily limit today
-        // → Abort this task to prevent exceeding daily view quota per keyword
-        console.log(`[VuotLink] Campaign ${campaign.id}: no available keyword within daily limit → reject task`);
-        return res.status(404).json(ERR);
+        // No keyword_config — original random behavior, always OK
+        campaign = picked;
+        selectedKeyword = pickRandom(picked.keyword) || picked.keyword;
+        kwOk = true;
       }
-    } else {
-      // No config — original random behavior
-      selectedKeyword = pickRandom(campaign.keyword) || campaign.keyword;
+    } catch (kwErr) {
+      console.error('[VuotLink] Keyword config parse error:', kwErr.message);
+      // Fallback to keyword field to avoid dropping valid campaign
+      campaign = picked;
+      selectedKeyword = pickRandom(picked.keyword) || picked.keyword;
+      kwOk = true;
     }
-  } catch (kwErr) {
-    console.error('[VuotLink] Keyword config parse error:', kwErr.message);
-    selectedKeyword = pickRandom(campaign.keyword) || campaign.keyword;
+
+    if (kwOk) break; // Chọn được camp + keyword hợp lệ → thoát loop
+
+    // Camp này không còn keyword khả dụng → loại khỏi pool và thử lại
+    remainingCamps = remainingCamps.filter(c => c.id !== picked.id);
+  }
+
+  if (!campaign) {
+    // Tất cả camps trong pool đều đã hết keyword daily limit
+    console.log(`[VuotLink] All camps exhausted keyword daily limits today → no task available`);
+    return res.status(404).json({ error: 'Không có nhiệm vụ phù hợp. Vui lòng thử lại sau.' });
   }
 
   const selectedUrl = (selectedKwUrl && selectedKwUrl.trim()) ? selectedKwUrl.trim() : campaign.url; // primary URL always used as target
