@@ -667,7 +667,7 @@ export default function LinkGateway() {
           <h1 style={{ fontSize: 'clamp(20px,4vw,30px)', fontWeight: 900, color: '#1E3A6E', margin: '0 0 6px' }}>
             HOÀN THÀNH NHIỆM VỤ ĐỂ TRUY CẬP
           </h1>
-          <p style={{ color: '#64748B', fontSize: 14, margin: 0 }}>Thực hiện {isDirect || isSocial ? 2 : 4} bước bên dưới theo thứ tự để mở khóa liên kết</p>
+          <p style={{ color: '#64748B', fontSize: 14, margin: 0 }}>Thực hiện {isDirect ? 2 : isSocial ? 3 : 4} bước bên dưới theo thứ tự để mở khóa liên kết</p>
           {/* Countdown timer */}
           {!verified && countdown > 0 && (
             <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -890,7 +890,7 @@ export default function LinkGateway() {
           )}
 
           {/* Step — Code entry */}
-          <StepCard n={isDirect || isSocial ? 2 : 4} color="#16A34A" title="NHẬP MÃ XÁC NHẬN" verified={verified}>
+          <StepCard n={isDirect ? 2 : isSocial ? 3 : 4} color="#16A34A" title="NHẬP MÃ XÁC NHẬN" verified={verified}>
             {verified ? (
               <div style={{ textAlign: 'center', padding: '32px 16px' }}>
                 <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#F0FEF4', border: '3px solid #86EFAC', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
