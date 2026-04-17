@@ -378,14 +378,20 @@ export default function LinkGateway() {
         });
         if (retryRes.status === 429) { const e2 = await retryRes.json(); setError(e2.error || 'Bạn đã đạt giới hạn hôm nay.'); return; }
         if (retryRes.status === 404) { _silentRetrying = true; retryTimerRef.current = setTimeout(() => { retryTimerRef.current = null; fetchTask(true, excludeList); }, 5000); return; }
-        if (!retryRes.ok) throw new Error('Không thể lấy nhiệm vụ');
+        if (!retryRes.ok) {
+          const errBody = await retryRes.json().catch(() => ({}));
+          throw new Error(errBody.error || `Lỗi server (${retryRes.status})`);
+        }
         const retryTask = await retryRes.json();
         setTask(retryTask);
         if (retryTask.trusted) setHumanPassed(true);
         try { sessionStorage.setItem(sessionKey, JSON.stringify({ ...retryTask, _fetched_at: Date.now() })); } catch { }
         return;
       }
-      if (!taskRes.ok) throw new Error('Không thể lấy nhiệm vụ');
+      if (!taskRes.ok) {
+        const errBody = await taskRes.json().catch(() => ({}));
+        throw new Error(errBody.error || `Lỗi server (${taskRes.status})`);
+      }
       _noTaskRetryCount.current = 0;
       const newTask = await taskRes.json();
       setTask(newTask);
