@@ -160,62 +160,6 @@ function verifyChallenge(token) {
 
 
 
-// ── DEBUG ENDPOINT: xem raw campaign pool (xóa sau khi debug xong) ──
-router.get('/debug-pool', async (req, res) => {
-  try {
-    const pool = getPool();
-    const now = new Date();
-    const vnOffset = 7 * 60;
-    const vnNow = new Date(now.getTime() + vnOffset * 60000);
-    const vnDayStart = vnNow.toISOString().slice(0, 10) + ' 00:00:00';
-    const vnDayEnd   = vnNow.toISOString().slice(0, 10) + ' 23:59:59';
-    const todaySubquery = `LEFT JOIN (
-      SELECT campaign_id, COUNT(*) as today_done
-      FROM vuot_link_tasks WHERE status = 'completed'
-        AND completed_at >= '${vnDayStart}' AND completed_at <= '${vnDayEnd}'
-      GROUP BY campaign_id
-    ) td ON td.campaign_id = c.id`;
-
-    // Query 1: Tất cả camp running
-    const [allRunning] = await pool.execute(
-      `SELECT id, traffic_type, status, keyword, keyword_config, url, views_done, total_views, daily_views, priority
-       FROM campaigns WHERE status = 'running' ORDER BY id DESC LIMIT 20`
-    );
-
-    // Query 2: Camp pool sau WHERE (giống hệt campaignWhere)
-    const [poolResult] = await pool.execute(
-      `SELECT c.id, c.traffic_type, c.keyword, c.keyword_config IS NOT NULL as has_kw_config,
-              c.views_done, c.total_views, c.priority,
-              COALESCE(td.today_done, 0) as today_done
-       FROM campaigns c ${todaySubquery}
-       WHERE c.status = 'running'
-         AND (
-           (c.traffic_type = 'google_search' AND c.keyword != '')
-           OR c.traffic_type = 'direct'
-           OR (c.traffic_type = 'social' AND c.keyword != '')
-         )
-         AND c.views_done < c.total_views
-         AND (
-           c.traffic_type = 'direct'
-           OR c.traffic_type = 'social'
-           OR (c.keyword_config IS NOT NULL AND c.keyword_config != '' AND c.keyword_config != '[]')
-           OR c.daily_views <= 0
-           OR COALESCE(td.today_done, 0) < c.daily_views
-         )
-       ORDER BY id DESC LIMIT 20`
-    );
-
-    res.json({
-      all_running: allRunning,
-      in_pool: poolResult,
-      social_in_running: allRunning.filter(c => c.traffic_type === 'social'),
-      social_in_pool: poolResult.filter(c => c.traffic_type === 'social'),
-    });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
 router.get('/challenge', async (req, res) => {
 
   const ua = req.headers['user-agent'] || '';
@@ -517,18 +461,10 @@ async function _handleTaskPost(req, res) {
   const serverExcludeIds = ipDoneResult[0].map(r => Number(r.campaign_id));
   const allExcludeIds = [...new Set([...serverExcludeIds, ...clientExcludes])];
 
-  // ── DEBUG LOG: trace exclude & pool ──
-  console.log(`[DEBUG-POOL] allCandidates=${allCandidates.length} camps: ${allCandidates.map(c=>`#${c.id}(${c.traffic_type})`).join(',')}`);
-  console.log(`[DEBUG-POOL] serverExcludeIds: [${serverExcludeIds.join(',')}]`);
-  console.log(`[DEBUG-POOL] clientExcludes: [${clientExcludes.join(',')}]`);
-  console.log(`[DEBUG-POOL] allExcludeIds: [${allExcludeIds.join(',')}]`);
-
   // Apply excludes in memory — không cần query DB lần 2
   let topCampaigns = allExcludeIds.length > 0
     ? allCandidates.filter(c => !allExcludeIds.includes(c.id))
     : allCandidates;
-
-  console.log(`[DEBUG-POOL] topCampaigns after exclude: ${topCampaigns.length} camps: ${topCampaigns.map(c=>`#${c.id}(${c.traffic_type})`).join(',')}`);
 
   let campaigns;
   if (topCampaigns.length === 0 && clientExcludes.length > 0) {
