@@ -167,7 +167,9 @@ function KeywordStats({ campaignId, trafficType }) {
       {/* Right: Daily Breakdowns */}
       <div className="flex-1 bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
         <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
-          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Chi tiết theo ngày & từ khoá</span>
+          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+            Chi tiết theo ngày {trafficType === 'social' ? '& URL Social' : '& từ khoá'}
+          </span>
           <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">{daily.length} dòng</span>
         </div>
         <div className="overflow-x-auto overflow-y-auto max-h-[300px]">
@@ -177,6 +179,8 @@ function KeywordStats({ campaignId, trafficType }) {
                 <th className="px-4 py-2 font-semibold text-slate-500">Ngày</th>
                 {trafficType === 'direct'
                   ? <th className="px-4 py-2 font-semibold text-slate-500">URL</th>
+                  : trafficType === 'social'
+                  ? <th className="px-4 py-2 font-semibold text-slate-500">URL Social</th>
                   : <th className="px-4 py-2 font-semibold text-slate-500">Từ khoá</th>
                 }
                 <th className="px-4 py-2 font-semibold text-slate-500 text-right">Hoàn thành</th>
@@ -192,7 +196,7 @@ function KeywordStats({ campaignId, trafficType }) {
                 return (
                 <tr key={i} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{d.date?.slice(0, 10)}</td>
-                  {trafficType === 'direct'
+                  {(trafficType === 'direct' || trafficType === 'social')
                     ? <td className="px-4 py-2.5 font-bold text-violet-600 truncate max-w-[180px]" title={kwDisplay || ''}>
                         {isValidUrl(kwDisplay)
                           ? <a href={kwDisplay} target="_blank" rel="noopener noreferrer" className="hover:underline">{kwDisplay}</a>

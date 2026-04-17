@@ -134,7 +134,9 @@ function KeywordStats({ campaignId, trafficType }) {
         {/* Keyword list */}
         <div className="lg:w-2/5 space-y-2">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Theo từ khóa</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              {trafficType === 'social' ? 'Theo URL Social' : 'Theo từ khóa'}
+            </p>
             <button onClick={exportExcel} disabled={exportingXlsx}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border transition ${
                 exportingXlsx
@@ -155,7 +157,7 @@ function KeywordStats({ campaignId, trafficType }) {
                 <div key={i} className="bg-white border border-slate-200 rounded-xl p-3 hover:shadow-sm transition">
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-xs font-bold text-slate-800 truncate flex-1" title={kw.keyword}>
-                      {trafficType === 'direct' && isValidUrl(kw.keyword)
+                      {(trafficType === 'direct' || trafficType === 'social') && isValidUrl(kw.keyword)
                         ? <a href={kw.keyword} target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">{displayLabel}</a>
                         : displayLabel
                       }
@@ -187,7 +189,7 @@ function KeywordStats({ campaignId, trafficType }) {
             <table className="w-full text-xs">
               <thead className="bg-slate-50/80 sticky top-0">
                 <tr>
-                  {['Ngày', trafficType === 'direct' ? 'URL' : 'Từ khoá', 'Hoàn thành', 'Chi phí'].map(h => (
+                  {['Ngày', trafficType === 'direct' ? 'URL' : trafficType === 'social' ? 'URL Social' : 'Từ khoá', 'Hoàn thành', 'Chi phí'].map(h => (
                     <th key={h} className="px-4 py-2.5 font-bold text-slate-500 text-left last:text-right">{h}</th>
                   ))}
                 </tr>
@@ -201,7 +203,7 @@ function KeywordStats({ campaignId, trafficType }) {
                   return (
                   <tr key={i} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-2.5 text-slate-600 font-medium whitespace-nowrap">{d.date?.slice(0, 10)}</td>
-                    {trafficType === 'direct'
+                    {(trafficType === 'direct' || trafficType === 'social')
                       ? <td className="px-4 py-2.5 font-semibold text-violet-600 truncate max-w-[160px]" title={kwDisplay || ''}>
                           {isValidUrl(kwDisplay)
                             ? <a href={kwDisplay} target="_blank" rel="noopener noreferrer" className="hover:underline">{kwDisplay}</a>
