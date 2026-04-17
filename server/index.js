@@ -264,6 +264,15 @@ app.use((err, req, res, next) => {
       await pool.execute(`ALTER TABLE campaigns ADD COLUMN version TINYINT NOT NULL DEFAULT 0`);
     } catch (e) { }
 
+    try {
+      await pool.execute(`ALTER TABLE campaigns ADD COLUMN device VARCHAR(50) NOT NULL DEFAULT 'desktop,mobile'`);
+      console.log('  ✅ Added campaigns.device column');
+    } catch (e) { }
+    try {
+      await pool.execute(`ALTER TABLE campaigns ADD COLUMN note TEXT DEFAULT NULL`);
+      console.log('  ✅ Added campaigns.note column');
+    } catch (e) { }
+
     
     try {
       await pool.execute(`CREATE TABLE IF NOT EXISTS api_keys (

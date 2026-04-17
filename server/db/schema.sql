@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
   image2_url   TEXT DEFAULT NULL,
   discount_applied TINYINT NOT NULL DEFAULT 0,
   priority     TINYINT DEFAULT NULL,
+  device       VARCHAR(50)  NOT NULL DEFAULT 'desktop,mobile',
+  note         TEXT DEFAULT NULL,
   status       VARCHAR(20)  NOT NULL DEFAULT 'running',
   views_done   INT NOT NULL DEFAULT 0,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -62,6 +64,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
 -- ALTER TABLE campaigns ADD COLUMN discount_applied TINYINT NOT NULL DEFAULT 0;
 -- ALTER TABLE campaigns ADD COLUMN keyword_config TEXT DEFAULT NULL AFTER keyword;
 -- ALTER TABLE campaigns ADD COLUMN priority TINYINT DEFAULT NULL AFTER discount_applied;
+-- ALTER TABLE campaigns ADD COLUMN device VARCHAR(50) NOT NULL DEFAULT 'desktop,mobile' AFTER priority;
+-- ALTER TABLE campaigns ADD COLUMN note TEXT DEFAULT NULL AFTER device;
 
 -- Migration for existing databases (run once if columns don't exist):
 -- ALTER TABLE campaigns ADD COLUMN url2 TEXT DEFAULT NULL AFTER url;

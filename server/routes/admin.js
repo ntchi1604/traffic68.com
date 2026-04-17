@@ -686,7 +686,7 @@ router.get('/campaigns', async (req, res) => {
 router.put('/campaigns/:id', async (req, res) => {
   try {
     const pool = getPool();
-    const { status, name, url, url2, keyword, keyword_config, dailyViews, viewByHour, image1_url, image2_url, totalViews, budget, cpc, trafficType, version, timeOnSite, targetPage } = req.body;
+    const { status, name, url, url2, keyword, keyword_config, dailyViews, viewByHour, image1_url, image2_url, totalViews, budget, cpc, trafficType, version, timeOnSite, targetPage, device } = req.body;
     const n = (v) => v === undefined ? null : v;
 
 
@@ -700,9 +700,9 @@ router.put('/campaigns/:id', async (req, res) => {
        daily_views=COALESCE(?,daily_views), view_by_hour=COALESCE(?,view_by_hour), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url),
        total_views=COALESCE(?,total_views), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc),
        traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), time_on_site=COALESCE(?,time_on_site),
-       target_page=COALESCE(?,target_page), status=COALESCE(?,status) WHERE id = ?`,
+       target_page=COALESCE(?,target_page), status=COALESCE(?,status), device=COALESCE(?,device) WHERE id = ?`,
       [n(name), n(url), n(url2), n(keyword), n(keyword_config), n(dailyViews), n(viewByHour), n(image1_url), n(image2_url),
-      n(totalViews), n(budget), n(cpc), n(trafficType), n(version), n(timeOnSite), n(targetPage), n(status), req.params.id]
+      n(totalViews), n(budget), n(cpc), n(trafficType), n(version), n(timeOnSite), n(targetPage), n(status), n(device), req.params.id]
     );
     const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [req.params.id]);
     res.json({ message: 'Cập nhật thành công', campaign: campaigns[0] });

@@ -302,6 +302,19 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const [uploadingIdx, setUploadingIdx] = useState(-1);
   const [viewByHour, setViewByHour] = useState(!!campaign.view_by_hour);
 
+  // Device targeting
+  const [selectedDevices, setSelectedDevices] = useState(() => {
+    const dev = (campaign.device || 'desktop,mobile').toLowerCase();
+    return {
+      desktop: dev.includes('desktop'),
+      mobile: dev.includes('mobile'),
+    };
+  });
+  const toggleDevice = (d) => setSelectedDevices(prev => ({
+    ...prev,
+    [d]: !prev[d],
+  }));
+
   const addKeyword = () => setKeywords(prev => [...prev, {
     keyword: '', url: '', image: '', daily_views: 0, views: Number(campaign.total_views) || 1000,
   }]);
@@ -394,6 +407,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         url2:           JSON.stringify([]),
         image1_url:     allImages.length ? JSON.stringify(allImages) : null,
         image2_url:     null,
+        device: [selectedDevices.desktop && 'desktop', selectedDevices.mobile && 'mobile'].filter(Boolean).join(',') || 'desktop,mobile',
       });
       toast.success('Cập nhật chiến dịch thành công');
       onSaved(); onClose();
@@ -648,6 +662,27 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
               </div>
             );
           })()}
+
+          {/* Device targeting */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+            <p className="text-xs font-bold text-slate-700 mb-2">Thiết bị mục tiêu</p>
+            <div className="flex gap-4">
+              {[{ key: 'desktop', label: '🖥️ Desktop' }, { key: 'mobile', label: '📱 Mobile' }].map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={selectedDevices[key]}
+                    onChange={() => toggleDevice(key)}
+                    className="w-4 h-4 rounded accent-indigo-600"
+                  />
+                  <span className="text-sm font-semibold text-slate-700">{label}</span>
+                </label>
+              ))}
+            </div>
+            {!selectedDevices.desktop && !selectedDevices.mobile && (
+              <p className="mt-1.5 text-xs text-red-500 font-medium">⚠️ Chọn ít nhất 1 thiết bị</p>
+            )}
+          </div>
 
         </div>
 

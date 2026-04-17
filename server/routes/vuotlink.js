@@ -300,8 +300,11 @@ async function _handleTaskPost(req, res) {
     }
   }
 
-  // ── Bot detection: tổng hợp từ CreepJS (botDetection) + client flags (deviceData) ──
-  // analyzeDevice v2 nhận cả 3: deviceData (scroll/click/sensor), ua, botDetection (CreepJS)
+  const _isWorkerTablet = /ipad|tablet|kindle|playbook|silk|(android(?!.*mobile))/i.test(ua);
+  const _isWorkerMobile = !_isWorkerTablet && /Mobi|Android|iPhone|iPod|BlackBerry|Windows Phone/i.test(ua);
+  // workerDeviceType: 'mobile' | 'desktop' (tablet coi như mobile)
+  const workerDeviceType = (_isWorkerMobile || _isWorkerTablet) ? 'mobile' : 'desktop';
+
   const devResult = analyzeDevice(deviceData || {}, ua, botDetection || {});
   if (devResult.isFake) {
     botDetected = true;
@@ -466,6 +469,23 @@ async function _handleTaskPost(req, res) {
       : allCandidates;
   } else {
     campaigns = topCampaigns;
+  }
+
+  const deviceFilteredCampaigns = campaigns.filter(c => {
+    const dev = (c.device || '').toLowerCase();
+    if (!dev) return true;
+    const allowsDesktop = dev.includes('desktop');
+    const allowsMobile = dev.includes('mobile');
+    if (allowsDesktop && allowsMobile) return true;
+    if (workerDeviceType === 'mobile') return allowsMobile;
+    return allowsDesktop;
+  });
+
+  if (deviceFilteredCampaigns.length > 0) {
+    campaigns = deviceFilteredCampaigns;
+    console.log(`[VuotLink] Device filter: workerType=${workerDeviceType} → ${campaigns.length}/${topCampaigns.length || allCandidates.length} camps pass`);
+  } else {
+    console.log(`[VuotLink] Device filter: workerType=${workerDeviceType} → no match, skipping device filter (fallback)`);
   }
 
   if (campaigns.length === 0) {

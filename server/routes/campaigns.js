@@ -116,7 +116,8 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const pool = getPool();
-    const { name, url, url2, budget, cpc, keyword, note, trafficType, traffic_type, dailyViews, daily_views, totalViews, total_views, viewByHour, view_by_hour, version, targetPage, target_page, timeOnSite, time_on_site, duration, discount_applied, discount_code, image1_url, image2_url } = req.body;
+    const { name, url, url2, budget, cpc, keyword, note, trafficType, traffic_type, dailyViews, daily_views, totalViews, total_views, viewByHour, view_by_hour, version, targetPage, target_page, timeOnSite, time_on_site, duration, discount_applied, discount_code, image1_url, image2_url, device } = req.body;
+    const _device = (device && typeof device === 'string' && device.trim()) ? device.trim() : 'desktop,mobile';
 
     const _trafficType = trafficType || traffic_type || 'google_search';
     // ⚠️ Dùng ?? thay vì || để tránh 0 bị coi là falsy (0 = không giới hạn, khác với undefined)
@@ -173,17 +174,24 @@ router.post('/', async (req, res) => {
     let result;
     try {
       [result] = await pool.execute(
-        `INSERT INTO campaigns (user_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, keyword_config, target_page, time_on_site, image1_url, image2_url, discount_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _keywordConfig, _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0]
+        `INSERT INTO campaigns (user_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, keyword_config, target_page, time_on_site, image1_url, image2_url, discount_applied, device, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _keywordConfig, _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0, _device, note || null]
       );
     } catch (colErr) {
-      if (colErr.message && colErr.message.includes('keyword_config')) {
+      // Fallback: nếu cột device/note chưa tồn tại → auto-migrate rồi retry không có 2 cột đó
+      if (colErr.message && (colErr.message.includes('device') || colErr.message.includes('note') || colErr.message.includes('keyword_config'))) {
+        // Auto-add missing columns (chạy song song, bỏ qua lỗi duplicate)
+        await Promise.allSettled([
+          pool.execute("ALTER TABLE campaigns ADD COLUMN keyword_config TEXT DEFAULT NULL AFTER keyword"),
+          pool.execute("ALTER TABLE campaigns MODIFY COLUMN keyword TEXT DEFAULT NULL"),
+          pool.execute("ALTER TABLE campaigns ADD COLUMN device VARCHAR(50) NOT NULL DEFAULT 'desktop,mobile' AFTER priority"),
+          pool.execute("ALTER TABLE campaigns ADD COLUMN note TEXT DEFAULT NULL AFTER device"),
+        ]);
+        // Retry với đầy đủ cột
         [result] = await pool.execute(
-          `INSERT INTO campaigns (user_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, target_page, time_on_site, image1_url, image2_url, discount_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0]
+          `INSERT INTO campaigns (user_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, keyword_config, target_page, time_on_site, image1_url, image2_url, discount_applied, device, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _keywordConfig, _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0, _device, note || null]
         );
-        pool.execute('ALTER TABLE campaigns ADD COLUMN keyword_config TEXT DEFAULT NULL AFTER keyword').catch(() => { });
-        pool.execute('ALTER TABLE campaigns MODIFY COLUMN keyword TEXT DEFAULT NULL').catch(() => { });
       } else {
         throw colErr;
       }
@@ -261,7 +269,7 @@ router.put('/:id', async (req, res) => {
     const [existing] = await pool.execute('SELECT * FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
     if (existing.length === 0) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
 
-    const { name, url, url2, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, keyword_config, targetPage, timeOnSite, status, image1_url, image2_url } = req.body;
+    const { name, url, url2, trafficType, version, budget, cpc, dailyViews, totalViews, viewByHour, keyword, keyword_config, targetPage, timeOnSite, status, image1_url, image2_url, device, note } = req.body;
     const n = (v) => v === undefined ? null : v;
 
     // No longer safely unlinking images here because they are JSON arrays and might be shared across campaigns/keywords.
@@ -280,21 +288,24 @@ router.put('/:id', async (req, res) => {
     }
 
     try {
-      // Try with keyword_config column
+      // Try with all columns including device, note
       await pool.execute(
-        `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), url2=COALESCE(?,url2), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), keyword_config=COALESCE(?,keyword_config), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url) WHERE id = ? AND user_id = ?`,
-        [n(name), n(url), n(url2), n(trafficType), n(version), newBudget, n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(keyword_config), n(targetPage), n(timeOnSite), n(status), n(image1_url), n(image2_url), req.params.id, req.userId]
+        `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), url2=COALESCE(?,url2), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), keyword_config=COALESCE(?,keyword_config), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url), device=COALESCE(?,device), note=COALESCE(?,note) WHERE id = ? AND user_id = ?`,
+        [n(name), n(url), n(url2), n(trafficType), n(version), newBudget, n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(keyword_config), n(targetPage), n(timeOnSite), n(status), n(image1_url), n(image2_url), n(device), n(note), req.params.id, req.userId]
       );
     } catch (colErr) {
-      if (colErr.message && colErr.message.includes('keyword_config')) {
-        // Fallback without keyword_config
+      if (colErr.message && (colErr.message.includes('device') || colErr.message.includes('note') || colErr.message.includes('keyword_config'))) {
+        // Auto-add missing columns rồi retry
+        await Promise.allSettled([
+          pool.execute("ALTER TABLE campaigns ADD COLUMN keyword_config TEXT DEFAULT NULL AFTER keyword"),
+          pool.execute("ALTER TABLE campaigns MODIFY COLUMN keyword TEXT DEFAULT NULL"),
+          pool.execute("ALTER TABLE campaigns ADD COLUMN device VARCHAR(50) NOT NULL DEFAULT 'desktop,mobile' AFTER priority"),
+          pool.execute("ALTER TABLE campaigns ADD COLUMN note TEXT DEFAULT NULL AFTER device"),
+        ]);
         await pool.execute(
-          `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), url2=COALESCE(?,url2), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url) WHERE id = ? AND user_id = ?`,
-          [n(name), n(url), n(url2), n(trafficType), n(version), newBudget, n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(targetPage), n(timeOnSite), n(status), n(image1_url), n(image2_url), req.params.id, req.userId]
+          `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), url2=COALESCE(?,url2), traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc), daily_views=COALESCE(?,daily_views), total_views=COALESCE(?,total_views), view_by_hour=COALESCE(?,view_by_hour), keyword=COALESCE(?,keyword), keyword_config=COALESCE(?,keyword_config), target_page=COALESCE(?,target_page), time_on_site=COALESCE(?,time_on_site), status=COALESCE(?,status), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url), device=COALESCE(?,device), note=COALESCE(?,note) WHERE id = ? AND user_id = ?`,
+          [n(name), n(url), n(url2), n(trafficType), n(version), newBudget, n(cpc), n(dailyViews), n(totalViews), n(viewByHour), n(keyword), n(keyword_config), n(targetPage), n(timeOnSite), n(status), n(image1_url), n(image2_url), n(device), n(note), req.params.id, req.userId]
         );
-        // Auto-migrate
-        pool.execute('ALTER TABLE campaigns ADD COLUMN keyword_config TEXT DEFAULT NULL AFTER keyword').catch(() => { });
-        pool.execute('ALTER TABLE campaigns MODIFY COLUMN keyword TEXT DEFAULT NULL').catch(() => { });
       } else {
         throw colErr;
       }
