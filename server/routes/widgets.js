@@ -469,10 +469,17 @@ router.post('/public/:token/check-session', async (req, res) => {
   if (targetCheckId) {
     try {
       const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
-      if (tRows.length > 0 && tRows[0].trusted === 1) isTrustedWorker = true;
+      if (tRows.length > 0 && tRows[0].trusted === 1) {
+        isTrustedWorker = true;
+        // Populate trusted cache so subsequent autoInit calls also bypass captcha
+        const csVid = (cleanVisitorId && cleanVisitorId !== 'unknown') ? cleanVisitorId : '';
+        if (csVid) _trustedCache.set(csVid, true);
+        _trustedCache.set(ip, true);
+      }
     } catch (e) { }
   }
 
+  console.log(`[Widget] check-session trusted — IP: ${ip}, task: #${task.id}, ref_worker_id: ${task.ref_worker_id}, worker_id: ${task.worker_id}, trusted: ${isTrustedWorker}`);
   res.json({ hasSession: true, trusted: isTrustedWorker });
 });
 
