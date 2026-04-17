@@ -399,6 +399,13 @@ export default function LinkGateway() {
       try { sessionStorage.setItem(sessionKey, JSON.stringify({ ...newTask, _fetched_at: Date.now() })); } catch { }
     } catch (err) {
       setError(err.message || 'Lỗi');
+      // Auto-retry after 3s for transient errors (server 500, network, challenge timeout)
+      // Same pattern as 404 retry — 429/link-disabled already return early before reaching here
+      _silentRetrying = true;
+      retryTimerRef.current = setTimeout(() => {
+        retryTimerRef.current = null;
+        fetchTask(true, excludeList);
+      }, 3000);
     } finally {
       if (!_silentRetrying) setLoading(false);
     }
