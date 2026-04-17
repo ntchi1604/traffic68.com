@@ -69,6 +69,19 @@ async function run() {
       sql: `DELETE FROM notifications
             WHERE is_read = 0 AND created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)`,
     },
+    // 7. Tasks của worker_links cũ > 30 ngày (xóa trước để tránh FK)
+    {
+      label: 'Xóa tasks của worker_links > 30 ngày',
+      sql: `DELETE vt FROM vuot_link_tasks vt
+            JOIN worker_links wl ON wl.id = vt.worker_link_id
+            WHERE wl.created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)`,
+    },
+    // 8. Worker links (liên kết rút gọn) tạo > 30 ngày
+    {
+      label: 'Xóa worker_links > 30 ngày',
+      sql: `DELETE FROM worker_links
+            WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)`,
+    },
   ];
 
   let totalDeleted = 0;
@@ -86,7 +99,7 @@ async function run() {
   // OPTIMIZE chỉ khi xóa được nhiều (tránh lock bảng không cần thiết)
   if (totalDeleted > 1000) {
     console.log(`  🔧 OPTIMIZE TABLE (xóa ${totalDeleted} rows)...`);
-    for (const tbl of ['vuot_link_tasks', 'security_logs', 'notifications']) {
+    for (const tbl of ['vuot_link_tasks', 'security_logs', 'notifications', 'worker_links']) {
       try {
         await pool.query(`OPTIMIZE TABLE ${tbl}`);
         console.log(`  ✅ OPTIMIZE ${tbl} done`);
