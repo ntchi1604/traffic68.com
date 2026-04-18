@@ -305,19 +305,26 @@ router.get('/v1/campaigns/:id/stats', async (req, res) => {
 
     const days = Math.min(30, Math.max(1, parseInt(req.query.days) || 7));
 
+    // Dùng VN timezone date string — nhất quán với toàn hệ thống
+    const vnNowB = new Date();
+    const vnDateB = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(vnNowB);
+    const startB = new Date(vnNowB); startB.setDate(startB.getDate() - days);
+    const startDateB = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(startB) + ' 00:00:00';
+    const endDateB = `${vnDateB} 23:59:59`;
+
     const [daily] = await pool.execute(
       `SELECT
-         DATE(created_at) as date,
+         DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) as date,
          COUNT(*) as total,
          SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed,
          SUM(CASE WHEN status='expired'   THEN 1 ELSE 0 END) as expired,
          SUM(CASE WHEN bot_detected=1     THEN 1 ELSE 0 END) as bot_blocked,
          COALESCE(SUM(earning), 0) as cost
        FROM vuot_link_tasks
-       WHERE campaign_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-       GROUP BY DATE(created_at)
+       WHERE campaign_id = ? AND created_at >= ? AND created_at <= ?
+       GROUP BY DATE(CONVERT_TZ(created_at, '+00:00', '+07:00'))
        ORDER BY date DESC`,
-      [req.params.id, days]
+      [req.params.id, startDateB, endDateB]
     );
 
     res.json({

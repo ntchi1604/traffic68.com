@@ -104,11 +104,13 @@ router.get('/stats', authMiddleware, async (req, res) => {
        FROM worker_links WHERE worker_id = ? AND hidden = 0`,
       [req.userId]
     );
+    // Dùng VN timezone — nhất quán với toàn hệ thống (tránh lệch giờ UTC server)
+    const vnDateSl = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
     const [today] = await pool.execute(
       `SELECT COALESCE(SUM(amount),0) as earn FROM transactions
        WHERE user_id = ? AND type = 'earning' AND method = 'gateway_link'
-       AND DATE(created_at) = CURDATE()`,
-      [req.userId]
+       AND created_at >= ? AND created_at <= ?`,
+      [req.userId, `${vnDateSl} 00:00:00`, `${vnDateSl} 23:59:59`]
     );
     res.json({ ...s[0], today_earning: Number(today[0].earn) });
   } catch (err) {
