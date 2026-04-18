@@ -29,15 +29,36 @@ const OPTIMIZE_MIN = 500;    // tổng rows xóa tối thiểu để chạy OPTI
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // ── Batch delete helper ──────────────────────────────────────────────────────
+// Simple DELETE: thêm LIMIT trực tiếp vào cuối
 async function batchDelete(conn, label, sql, params = []) {
   let total = 0;
   while (true) {
-    const [r] = await conn.execute(sql + ` LIMIT ${BATCH_SIZE}`, params);
+    const [r] = await conn.execute(`${sql} LIMIT ${BATCH_SIZE}`, params);
     const n = r.affectedRows || 0;
     total += n;
     if (n > 0) process.stdout.write(`\r  ⏳ ${label}: ${total} rows...`);
-    if (n < BATCH_SIZE) break;   // done
-    await sleep(BATCH_SLEEP);    // yield I/O
+    if (n < BATCH_SIZE) break;
+    await sleep(BATCH_SLEEP);
+  }
+  console.log(`\r  ✅ ${label}: ${total} rows xóa`);
+  return total;
+}
+
+// DELETE với subquery (dùng khi cần JOIN) — MySQL không cho LIMIT trong multi-table DELETE
+// Wraps vào tmp alias để tránh lỗi "can't specify target table"
+async function batchDeleteSub(conn, label, idSql, deleteSql, params = []) {
+  let total = 0;
+  while (true) {
+    // Lấy IDs cần xóa qua subquery
+    const [r] = await conn.execute(
+      `${deleteSql} IN (SELECT _id FROM (${idSql} LIMIT ${BATCH_SIZE}) AS _tmp)`,
+      [...params, ...params]  // params dùng 2 lần: 1 cho subquery, 1 cho outer
+    );
+    const n = r.affectedRows || 0;
+    total += n;
+    if (n > 0) process.stdout.write(`\r  ⏳ ${label}: ${total} rows...`);
+    if (n < BATCH_SIZE) break;
+    await sleep(BATCH_SLEEP);
   }
   console.log(`\r  ✅ ${label}: ${total} rows xóa`);
   return total;
@@ -114,17 +135,22 @@ async function run() {
   // 2. worker_links — link rút gọn của worker (tạo nhiều, hết hạn nhanh)
   // ════════════════════════════════════════════════════════════════════════════
 
-  // 2a. Tasks của worker_links > 30 ngày trước (FK constraint: xóa trước)
-  totalDeleted += await batchDelete(conn,
+  // 2a. Tasks của worker_links > 30 ngày (dùng subquery vì MySQL không cho LIMIT với JOIN DELETE)
+  totalDeleted += await batchDeleteSub(conn,
     'Tasks qua worker_links > 30 ngày',
-    `DELETE vt FROM vuot_link_tasks vt
+    // idSql: lấy id cần xóa
+    `SELECT vt.id AS _id
+     FROM vuot_link_tasks vt
      INNER JOIN worker_links wl ON wl.id = vt.worker_link_id
-     WHERE wl.created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)`
+     WHERE wl.created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)`,
+    // deleteSql: DELETE WHERE id IN (...)
+    `DELETE FROM vuot_link_tasks WHERE id`,
+    [] // params — không cần vì dùng literal date string
   );
 
   // 2b. Worker links > 30 ngày (chỉ xóa sau khi đã xóa tasks)
   totalDeleted += await batchDelete(conn,
-    'Worker links (hidden) > 30 ngày đã xóa tasks',
+    'Worker links (hidden) > 30 ngày',
     `DELETE FROM worker_links
      WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
        AND hidden = 1`
