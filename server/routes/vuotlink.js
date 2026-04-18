@@ -1635,7 +1635,7 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
           pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
           pool.execute('SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ? GROUP BY DATE(completed_at) ORDER BY day", [...wlParams, sevenAgo, todayEnd]),
           pool.execute('SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id WHERE ' + wlCondT + " AND (t.bot_detected = 0 OR t.status != 'completed') ORDER BY t.created_at DESC LIMIT 10", wlParams),
-          pool.execute("SELECT COALESCE(SUM(c.daily_views),0) as total_daily, COALESCE(SUM(LEAST(COALESCE(td.done,0),c.daily_views)),0) as today_done FROM campaigns c LEFT JOIN (SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks WHERE status = 'completed' AND completed_at >= ? AND completed_at <= ? GROUP BY campaign_id) td ON td.campaign_id = c.id WHERE c.status = 'running' AND c.daily_views > 0", [todayStart, todayEnd]),
+          pool.execute("SELECT COALESCE(SUM(c.daily_views),0) as total_daily, COALESCE(SUM(LEAST(COALESCE(td.done,0),c.daily_views)),0) as today_done FROM campaigns c LEFT JOIN (SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ? GROUP BY campaign_id) td ON td.campaign_id = c.id WHERE c.status = 'running' AND c.daily_views > 0", [todayStart, todayEnd]),
         ]);
 
         const walletMap = {};
