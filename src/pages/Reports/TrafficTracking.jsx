@@ -757,7 +757,11 @@ export default function TrafficTracking() {
                     <td className="px-5 py-4 text-right whitespace-nowrap">
                       <span className="font-bold text-slate-800 tabular-nums">{fmt(done)}</span>
                       <span className="text-slate-400 text-xs">/{fmt(total)}</span>
-                      <p className="text-[10px] text-slate-400 mt-1">Max {fmt(c.daily_views)}/ngày</p>
+                      {Number(c.daily_views) > 0 ? (
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Hôm nay: <span className="text-indigo-600 font-bold">{fmt(c.views_today || 0)}</span>/{fmt(c.daily_views)}/ngày
+                        </p>
+                      ) : null}
                     </td>
                     <td className="px-5 py-4 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">{fmt(c.budget)} đ</td>
                     <td className="px-5 py-4 text-center">
