@@ -868,7 +868,9 @@ export default function AdminCampaigns() {
                             <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded bg-indigo-100 text-indigo-700" title="Chia view theo giờ">⏱/giờ</span>
                           )}
                           {c.daily_views > 0 && (
-                            <span className="block text-[10px] text-slate-400 mt-0.5">{fmt(c.daily_views)}/ngày</span>
+                            <span className="block text-[10px] text-slate-400 mt-0.5">
+                              Hôm nay: <span className="text-indigo-600 font-bold">{fmt(c.views_today || 0)}</span>/{fmt(c.daily_views)}/ngày
+                            </span>
                           )}
 
                         </td>

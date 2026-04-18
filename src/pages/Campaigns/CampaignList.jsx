@@ -929,7 +929,15 @@ export default function CampaignList() {
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                             <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: barColor }} />
                           </div>
-                          <p className="text-[10px] text-slate-400 mt-1 font-medium">Max {fmt(c.daily_views)}/ngày</p>
+                          {Number(c.daily_views) > 0 ? (
+                            <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                              Hôm nay: <span className="text-indigo-600 font-bold">{fmt(c.views_today || 0)}</span>/{fmt(c.daily_views)}/ngày
+                            </p>
+                          ) : (c.views_today > 0 ? (
+                            <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                              Hôm nay: <span className="font-semibold">{fmt(c.views_today)}</span> view
+                            </p>
+                          ) : null)}
                         </div>
                       </td>
 

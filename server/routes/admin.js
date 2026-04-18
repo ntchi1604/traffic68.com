@@ -68,7 +68,7 @@ router.get('/overview', async (req, res) => {
         let dateCondition = '';
         const dateParams = [];
         if (fromDate) { dateCondition += ' AND created_at >= ?'; dateParams.push(fromDate + ' 00:00:00'); }
-        if (toDate)   { dateCondition += ' AND created_at <= ?'; dateParams.push(toDate   + ' 23:59:59'); }
+        if (toDate) { dateCondition += ' AND created_at <= ?'; dateParams.push(toDate + ' 23:59:59'); }
 
         // Chạy tất cả queries SONG SONG
         const [tuR, tcR, rcR, tdR, trR, pdR, tvR, ptR, nuwR] = await Promise.all([
@@ -649,7 +649,13 @@ router.get('/campaigns', async (req, res) => {
   const pool = getPool();
   const { search, status, page = 1, limit = 20, sync } = req.query;
   const offset = (page - 1) * limit;
-  let sql = `SELECT c.*, u.name as user_name, u.email as user_email FROM campaigns c LEFT JOIN users u ON c.user_id = u.id WHERE 1=1`;
+  const todayVnAdmin = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+  let sql = `SELECT c.*, u.name as user_name, u.email as user_email,
+    COALESCE(tl_today.clicks, 0) as views_today
+    FROM campaigns c
+    LEFT JOIN users u ON c.user_id = u.id
+    LEFT JOIN traffic_logs tl_today ON tl_today.campaign_id = c.id AND tl_today.date = '${todayVnAdmin}'
+    WHERE 1=1`;
   const params = [];
   if (search) { sql += ' AND (c.name LIKE ? OR c.url LIKE ? OR u.email LIKE ? OR c.keyword LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`); }
   if (status && status !== 'all') { sql += ' AND c.status = ?'; params.push(status); }
@@ -657,7 +663,6 @@ router.get('/campaigns', async (req, res) => {
   params.push(Number(limit), Number(offset));
   const [campaigns] = await pool.execute(sql, params);
 
-  // ── Auto-sync views_done: chỉ chạy khi có flag ?sync=1 (tránh nặng mỗi GET) ──
   if (sync === '1') {
     try {
       const ids = campaigns.map(c => c.id);
@@ -711,7 +716,6 @@ router.put('/campaigns/:id', async (req, res) => {
   }
 });
 
-// ── Admin only: set priority cho campaign (1–5), hoặc 0 để reset về mặc định (NULL) ──
 router.put('/campaigns/:id/priority', async (req, res) => {
   try {
     const pool = getPool();
@@ -721,7 +725,6 @@ router.put('/campaigns/:id/priority', async (req, res) => {
     }
     const [check] = await pool.execute('SELECT id, name FROM campaigns WHERE id = ?', [req.params.id]);
     if (!check.length) return res.status(404).json({ error: 'Không tìm thấy campaign' });
-    // priority=0 → lưu NULL vào DB (chưa set = random đều)
     const dbValue = priority === 0 ? null : priority;
     await pool.execute('UPDATE campaigns SET priority = ? WHERE id = ?', [dbValue, req.params.id]);
     console.log(`[Admin] Campaign ${req.params.id} priority set to ${dbValue ?? 'NULL(default)'} by admin ${req.userId}`);
@@ -731,8 +734,6 @@ router.put('/campaigns/:id/priority', async (req, res) => {
   }
 });
 
-// ── Admin only: toggle bonus_mode cho campaign ──
-// bonus_mode = 1: IP hết lượt vẫn nhận task (không trừ tiền buyer, không trả worker, nhưng TÍNH view)
 router.put('/campaigns/:id/bonus-mode', async (req, res) => {
   try {
     const pool = getPool();
@@ -982,7 +983,7 @@ router.get('/transactions', async (req, res) => {
   if (status && status !== 'all') { baseWhere += ' AND t.status = ?'; params.push(status); filterCondition += ' AND t.status = ?'; filterParams.push(status); }
   // Dùng range thay vì DATE() — cho phép MySQL dùng index trên created_at
   if (fromDate) { baseWhere += ' AND t.created_at >= ?'; params.push(fromDate + ' 00:00:00'); filterCondition += ' AND t.created_at >= ?'; filterParams.push(fromDate + ' 00:00:00'); }
-  if (toDate)   { baseWhere += ' AND t.created_at <= ?'; params.push(toDate   + ' 23:59:59'); filterCondition += ' AND t.created_at <= ?'; filterParams.push(toDate   + ' 23:59:59'); }
+  if (toDate) { baseWhere += ' AND t.created_at <= ?'; params.push(toDate + ' 23:59:59'); filterCondition += ' AND t.created_at <= ?'; filterParams.push(toDate + ' 23:59:59'); }
 
   const [countRows] = await pool.execute(
     `SELECT COUNT(*) as c FROM transactions t LEFT JOIN users u ON t.user_id = u.id ${baseWhere}`, params

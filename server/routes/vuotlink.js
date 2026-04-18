@@ -1453,16 +1453,22 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     const [limitSetting] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
     maxViews = limitSetting.length > 0 ? parseInt(limitSetting[0].setting_value) || 2 : 2;
 
+    // Dùng VN timezone (nhất quán với phần lấy task) — tránh bug UTC vs VN
+    const vnNow = new Date();
+    const vnDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(vnNow);
+    const vnStart = `${vnDateStr} 00:00:00`;
+    const vnEnd   = `${vnDateStr} 23:59:59`;
+
     // Count completed tasks today for this IP
     const [ipDone] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
-      [ip]
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
+      [ip, vnStart, vnEnd]
     );
     let vidDone = 0;
     if (task.visitor_id && task.visitor_id !== 'unknown') {
       const [vDone] = await pool.execute(
-        `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
-        [task.visitor_id]
+        `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
+        [task.visitor_id, vnStart, vnEnd]
       );
       vidDone = vDone[0].cnt;
     }
@@ -1470,8 +1476,8 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     remaining = Math.max(0, maxViews - usedToday);
   } catch (e) { console.error('[VuotLink] Remaining calc error:', e.message); }
 
-  res.json({ success: true, earning, destination_url: destinationUrl });
-  // Invalidate cache sau khi task completed
+  res.json({ success: true, earning, remaining, maxViews, destination_url: destinationUrl });
+  // Invalidate cache sau khi task completed — để request tiếp theo lấy pool mới
   try {
     const workerIdToInvalidate = task.worker_id || (task.worker_link_id ? paidWorkerId : null);
     if (workerIdToInvalidate) {
