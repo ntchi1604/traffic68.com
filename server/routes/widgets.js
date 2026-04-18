@@ -144,19 +144,14 @@ router.get('/public/:token', async (req, res) => {
       let todayDoneMap = {};
       if (campIds.length > 0) {
         const ph = campIds.map(() => '?').join(',');
-        const vnNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
-        const vnDayStart = new Date(vnNow); vnDayStart.setHours(0, 0, 0, 0);
-        const vnDayEnd = new Date(vnNow); vnDayEnd.setHours(23, 59, 59, 999);
-        const UTC_OFFSET_MS = 7 * 3600 * 1000;
-        const utcStartMs = vnDayStart.getTime() - UTC_OFFSET_MS;
-        const utcEndMs = vnDayEnd.getTime() - UTC_OFFSET_MS;
-        const fmtUTC = (ms) => { const d = new Date(ms); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}:${String(d.getUTCSeconds()).padStart(2, '0')}`; };
-        const utcStartStr = fmtUTC(utcStartMs);
-        const utcEndStr = fmtUTC(utcEndMs);
+        // Dùng VN date string trực tiếp (nhất quán với vuotlink.js)
+        const vnDateNow = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+        const vnDayStart = `${vnDateNow} 00:00:00`;
+        const vnDayEnd   = `${vnDateNow} 23:59:59`;
         const [tdRows] = await pool.execute(
           `SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks
-           WHERE campaign_id IN (${ph}) AND status = 'completed'
-             AND completed_at >= '${utcStartStr}' AND completed_at <= '${utcEndStr}'
+           WHERE campaign_id IN (${ph}) AND status = 'completed' AND bot_detected = 0
+             AND completed_at >= '${vnDayStart}' AND completed_at <= '${vnDayEnd}'
            GROUP BY campaign_id`,
           campIds
         );
@@ -627,9 +622,13 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
 
   if (visitorId && visitorId !== 'unknown') {
+    // Dùng VN timezone và completed_at (nhất quán với vuotlink.js) — tránh bug UTC
+    const vnDateWidget = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+    const vnStartW = `${vnDateWidget} 00:00:00`;
+    const vnEndW   = `${vnDateWidget} 23:59:59`;
     const [vCount] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND DATE(created_at) = CURDATE() AND status = 'completed'`,
-      [visitorId]
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
+      [visitorId, vnStartW, vnEndW]
     );
     if (vCount[0].cnt >= 5) {
       detectionLog.push('device_limit');
