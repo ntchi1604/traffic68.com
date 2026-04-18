@@ -1,9 +1,10 @@
 /**
  * db-cleanup.js — Dọn dẹp DB định kỳ, tối ưu cho data lớn (triệu rows+)
  *
- * Chạy qua PM2 mỗi Chủ nhật 3:00 sáng VN:
- *   pm2 start server/db/db-cleanup.js --name db-cleanup --cron "0 20 * * 6" --no-autorestart
- *   (UTC 20:00 Thứ 7 = 3:00 sáng VN Chủ nhật)
+ * Chạy qua PM2 hàng ngày lúc 00:00 VN (= 17:00 UTC ngày hôm trước):
+ *   pm2 start server/db/db-cleanup.js --name db-cleanup --cron "0 17 * * *" --no-autorestart
+ *
+ * Chạy hàng ngày là tốt nhất: mỗi lần xóa ít → nhanh, không lock DB lâu.
  *
  * Hoặc chạy thủ công:
  *   node server/db/db-cleanup.js
