@@ -91,6 +91,12 @@ async function initDb() {
     await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_ip_completed_status (ip_address(50), completed_at, status, bot_detected)").catch(() => { });
     await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_vid_completed_status (visitor_id(50), completed_at, status, bot_detected)").catch(() => { });
     await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_kw_camp_completed (campaign_id, keyword, completed_at, status, bot_detected)").catch(() => { });
+    // ── Index bổ sung cho queries worker_id, worker_link_id, created_at, is_over_limit ──
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_worker_completed (worker_id, completed_at, status, bot_detected, is_over_limit)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_wlink_completed (worker_link_id, completed_at, status, bot_detected, is_over_limit)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_created_at (created_at)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_status_bot_limit (status, bot_detected, is_over_limit)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_ip_created (ip_address(50), created_at)").catch(() => { });
 
     // ── Index cho campaigns (dùng trong mọi dashboard API) ──
     await p2.execute("ALTER TABLE campaigns ADD INDEX idx_user_status (user_id, status)").catch(() => { });
@@ -98,13 +104,20 @@ async function initDb() {
 
     // ── Index cho traffic_logs ──
     await p2.execute("ALTER TABLE traffic_logs ADD INDEX idx_camp_date (campaign_id, date)").catch(() => { });
+    await p2.execute("ALTER TABLE traffic_logs ADD INDEX idx_date (date)").catch(() => { });
 
     // ── Index cho transactions ──
     await p2.execute("ALTER TABLE transactions ADD INDEX idx_user_type_status (user_id, wallet_type, type, status)").catch(() => { });
     await p2.execute("ALTER TABLE transactions ADD INDEX idx_user_created (user_id, created_at)").catch(() => { });
+    await p2.execute("ALTER TABLE transactions ADD INDEX idx_created_at (created_at)").catch(() => { });
 
     // ── Index cho notifications ──
     await p2.execute("ALTER TABLE notifications ADD INDEX idx_user_read (user_id, is_read)").catch(() => { });
+    await p2.execute("ALTER TABLE notifications ADD INDEX idx_created_at (created_at)").catch(() => { });
+
+    // ── Index cho security_logs ──
+    await p2.execute("ALTER TABLE security_logs ADD INDEX idx_ip_created (ip_address, created_at)").catch(() => { });
+    await p2.execute("ALTER TABLE security_logs ADD INDEX idx_created_at (created_at)").catch(() => { });
   } catch (_) { };
 }
 
