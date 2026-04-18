@@ -426,13 +426,15 @@ async function _handleTaskPost(req, res) {
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
       FROM vuot_link_tasks
-      WHERE status = 'completed' AND completed_at >= '${vnDayStart}' AND completed_at <= '${vnDayEnd}'
+      WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
+        AND completed_at >= '${vnDayStart}' AND completed_at <= '${vnDayEnd}'
       GROUP BY campaign_id
     ) td ON td.campaign_id = c.id
     LEFT JOIN (
       SELECT campaign_id, COUNT(*) as hour_done
       FROM vuot_link_tasks
-      WHERE status = 'completed' AND completed_at >= '${vnHourStart}'
+      WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
+        AND completed_at >= '${vnHourStart}'
       GROUP BY campaign_id
     ) th ON th.campaign_id = c.id`;
 
