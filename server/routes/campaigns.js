@@ -87,6 +87,10 @@ router.get('/', async (req, res) => {
       const ids = campaigns.map(c => c.id);
       if (ids.length > 0) {
         const ph = ids.map(() => '?').join(',');
+
+        // Đảm bảo cột manually_completed tồn tại trước khi dùng
+        try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch (_) {}
+
         const [syncResult] = await pool.execute(
           `UPDATE campaigns c SET views_done = (
             SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
@@ -95,9 +99,11 @@ router.get('/', async (req, res) => {
           )`, ids
         );
         // Chỉ auto-revert nếu campaign KHÔNG được đánh dấu hoàn thành thủ công
-        await pool.execute(
-          `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views AND COALESCE(manually_completed, 0) = 0`, ids
-        );
+        try {
+          await pool.execute(
+            `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views AND COALESCE(manually_completed, 0) = 0`, ids
+          );
+        } catch (_) {}
         // Chỉ refetch khi có rows thực sự bị update
         if (syncResult.affectedRows > 0) {
           const [updated] = await pool.execute(sql, params);

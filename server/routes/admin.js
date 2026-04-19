@@ -668,6 +668,10 @@ router.get('/campaigns', async (req, res) => {
       const ids = campaigns.map(c => c.id);
       if (ids.length > 0) {
         const ph = ids.map(() => '?').join(',');
+
+        // Đảm bảo cột manually_completed tồn tại
+        try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch (_) {}
+
         await pool.execute(
           `UPDATE campaigns c SET views_done = (
             SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
@@ -675,10 +679,12 @@ router.get('/campaigns', async (req, res) => {
             SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
           )`, ids
         );
-        // Chỉ auto-revert nếu không được admin đánh dấu hoàn thành thủ công
-        await pool.execute(
-          `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views AND COALESCE(manually_completed, 0) = 0`, ids
-        );
+        // Chỉ auto-revert nếu không được đánh dấu hoàn thành thủ công
+        try {
+          await pool.execute(
+            `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views AND COALESCE(manually_completed, 0) = 0`, ids
+          );
+        } catch (_) {}
         const [updated] = await pool.execute(sql, params);
         return res.json({ campaigns: updated });
       }
@@ -698,16 +704,13 @@ router.put('/campaigns/:id', async (req, res) => {
 
     if (status && Object.keys(req.body).length === 1) {
       // Khi admin đánh dấu completed thủ công → set flag manually_completed
+      // Luôn tạo cột trước để tránh fallback không lưu flag
+      try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch (_) {}
       const manuallyCompleted = status === 'completed' ? 1 : 0;
-      try {
-        await pool.execute(
-          'UPDATE campaigns SET status = ?, manually_completed = ? WHERE id = ?',
-          [status, manuallyCompleted, req.params.id]
-        );
-      } catch (_) {
-        // Fallback nếu cột chưa tồn tại
-        await pool.execute('UPDATE campaigns SET status = ? WHERE id = ?', [status, req.params.id]);
-      }
+      await pool.execute(
+        'UPDATE campaigns SET status = ?, manually_completed = ? WHERE id = ?',
+        [status, manuallyCompleted, req.params.id]
+      );
       return res.json({ message: 'Đã cập nhật trạng thái' });
     }
 
