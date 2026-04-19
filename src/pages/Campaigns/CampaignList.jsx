@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Pause, Play, Pencil, X, Upload, Plus, Zap, Trash2, BarChart3,
   Search, RefreshCw, Target, ChevronRight, Download, Globe,
-  TrendingUp, Clock, CheckCircle2, AlertCircle,
+  TrendingUp, Clock, CheckCircle2, AlertCircle, RotateCcw,
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
@@ -701,6 +701,129 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   );
 }
 
+/* ── Renew Modal ── */
+function RenewModal({ campaign, onClose, onRenewed }) {
+  const toast = useToast();
+  const [extraViews, setExtraViews] = useState(1000);
+  const [renewing, setRenewing] = useState(false);
+  const cpc = Number(campaign.cpc) || 0;
+  const cost = Math.round(extraViews * cpc);
+
+  const handleRenew = async () => {
+    if (!extraViews || extraViews <= 0) return;
+    setRenewing(true);
+    try {
+      await api.post(`/campaigns/${campaign.id}/renew`, { extraViews });
+      toast.success(`Gia hạn thành công! Đã thêm ${extraViews.toLocaleString()} view.`);
+      onRenewed();
+      onClose();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setRenewing(false);
+    }
+  };
+
+  const presets = [500, 1000, 2000, 5000, 10000];
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center">
+              <RotateCcw size={15} className="text-indigo-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-slate-900">Gia hạn chiến dịch</h3>
+              <p className="text-xs text-slate-400 truncate max-w-[260px]">{campaign.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition">
+            <X size={16} className="text-slate-500" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-5">
+          {/* Campaign info */}
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wide mb-0.5">Đã hoàn thành</p>
+              <p className="text-sm font-black text-indigo-800">{Number(campaign.views_done || 0).toLocaleString()} / {Number(campaign.total_views || 0).toLocaleString()} view</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide mb-0.5">Đơn giá CPC</p>
+              <p className="text-sm font-black text-slate-700">{fmt(cpc)} đ/view</p>
+            </div>
+          </div>
+
+          {/* Quick presets */}
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Chọn nhanh số view gia hạn</p>
+            <div className="flex flex-wrap gap-2">
+              {presets.map(v => (
+                <button key={v} onClick={() => setExtraViews(v)}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${
+                    extraViews === v
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                  }`}>
+                  {v.toLocaleString()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom input */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Hoặc nhập số view tùy chỉnh</label>
+            <div className="relative">
+              <input
+                type="number" min="100" step="100"
+                value={extraViews}
+                onChange={e => setExtraViews(Math.max(0, parseInt(e.target.value) || 0))}
+                className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition pr-16"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view</span>
+            </div>
+          </div>
+
+          {/* Cost preview */}
+          <div className={`rounded-xl px-4 py-3.5 border transition-all ${
+            cost > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-500 font-medium">Chi phí gia hạn</p>
+                <p className={`text-xl font-black tabular-nums mt-0.5 ${
+                  cost > 0 ? 'text-emerald-700' : 'text-slate-400'
+                }`}>{cost > 0 ? `${fmt(cost)} đ` : '—'}</p>
+              </div>
+              {cost > 0 && (
+                <div className="text-right">
+                  <p className="text-[10px] text-slate-400 font-medium">Sau gia hạn: tổng view</p>
+                  <p className="text-sm font-black text-slate-700">{(Number(campaign.total_views) + extraViews).toLocaleString()}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
+          <button onClick={onClose} className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Hủy</button>
+          <button onClick={handleRenew} disabled={renewing || cost <= 0}
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 rounded-xl transition shadow-md shadow-indigo-200 disabled:opacity-50 active:scale-95">
+            <RotateCcw size={14} className={renewing ? 'animate-spin' : ''} />
+            {renewing ? 'Đang gia hạn...' : `Gia hạn – ${fmt(cost)} đ`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ══ Main component ══════════════════════════════════════════════ */
 export default function CampaignList() {
   usePageTitle('Quản lý chiến dịch');
@@ -712,6 +835,7 @@ export default function CampaignList() {
   const [loading, setLoading] = useState(true);
   const [editingCampaign, setEditingCampaign] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [renewingCampaign, setRenewingCampaign] = useState(null);
   const [page, setPage] = useState(1);
   const LIMIT = 10;
 
@@ -958,7 +1082,14 @@ export default function CampaignList() {
                             <BarChart3 size={14} />
                           </button>
 
-                          {effStatus !== 'completed' && (
+                          {effStatus === 'completed' ? (
+                            /* Gia hạn — chỉ hiện khi completed */
+                            <button onClick={() => setRenewingCampaign(c)} title="Gia hạn chiến dịch"
+                              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border transition bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300">
+                              <RotateCcw size={13} />
+                              <span className="hidden sm:inline">Gia hạn</span>
+                            </button>
+                          ) : (
                             <>
                               {/* Edit */}
                               <button onClick={() => setEditingCampaign(c)} title="Chỉnh sửa"
@@ -1030,6 +1161,11 @@ export default function CampaignList() {
       {/* Edit Modal */}
       {editingCampaign && (
         <EditCampaignModal campaign={editingCampaign} onClose={() => setEditingCampaign(null)} onSaved={fetchCampaigns} />
+      )}
+
+      {/* Renew Modal */}
+      {renewingCampaign && (
+        <RenewModal campaign={renewingCampaign} onClose={() => setRenewingCampaign(null)} onRenewed={fetchCampaigns} />
       )}
     </div>
   );

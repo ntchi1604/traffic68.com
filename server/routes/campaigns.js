@@ -339,6 +339,72 @@ router.put('/:id/status', async (req, res) => {
 });
 
 
+// ── Gia hạn chiến dịch đã hoàn thành ──────────────────────────────────────────
+router.post('/:id/renew', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { extraViews } = req.body;
+    const addViews = parseInt(extraViews, 10);
+    if (!addViews || addViews <= 0) return res.status(400).json({ error: 'Số view gia hạn phải lớn hơn 0' });
+
+    const [existing] = await pool.execute(
+      'SELECT * FROM campaigns WHERE id = ? AND user_id = ?',
+      [req.params.id, req.userId]
+    );
+    if (existing.length === 0) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+
+    const camp = existing[0];
+    const cpcValue = Number(camp.cpc) || 0;
+    if (cpcValue <= 0) return res.status(400).json({ error: 'Không xác định được đơn giá CPC của chiến dịch' });
+
+    const cost = Math.round(addViews * cpcValue);
+
+    // Kiểm tra số dư ví
+    const [wallets] = await pool.execute(
+      "SELECT balance FROM wallets WHERE user_id = ? AND type = 'main'",
+      [req.userId]
+    );
+    if (!wallets[0] || wallets[0].balance < cost) {
+      return res.status(400).json({ error: `Số dư ví không đủ. Cần ${cost.toLocaleString('vi-VN')} đ, hiện có ${(wallets[0]?.balance || 0).toLocaleString('vi-VN')} đ` });
+    }
+
+    // Trừ ví
+    await pool.execute(
+      "UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main'",
+      [cost, req.userId]
+    );
+    // Ghi lịch sử giao dịch
+    await pool.execute(
+      `INSERT INTO wallet_transactions (user_id, type, amount, description, ref_id, status)
+       VALUES (?, 'debit', ?, ?, ?, 'completed')`,
+      [req.userId, cost, `Gia hạn chiến dịch "${camp.name}" (+${addViews.toLocaleString()} view)`, camp.id]
+    );
+
+    // Cộng view và đặt lại status
+    const newTotal = Number(camp.total_views) + addViews;
+    const newBudget = Math.round(newTotal * cpcValue);
+    await pool.execute(
+      `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running' WHERE id = ?`,
+      [newTotal, newBudget, camp.id]
+    );
+
+    // Thông báo
+    await pool.execute(
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [req.userId, 'Gia hạn chiến dịch thành công',
+        `Chiến dịch "${camp.name}" đã được gia hạn thêm ${addViews.toLocaleString()} view. Đã trừ ${cost.toLocaleString('vi-VN')} đ.`,
+        'success', 'buyer']
+    );
+
+    const [updated] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [camp.id]);
+    res.json({ message: 'Gia hạn thành công', campaign: updated[0] });
+  } catch (err) {
+    console.error('Campaign renew error:', err);
+    res.status(500).json({ error: 'Lỗi gia hạn: ' + err.message });
+  }
+});
+
+
 router.delete('/:id', async (req, res) => {
   const pool = getPool();
   const [result] = await pool.execute('DELETE FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);

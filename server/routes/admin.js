@@ -749,6 +749,46 @@ router.put('/campaigns/:id/bonus-mode', async (req, res) => {
 });
 
 
+
+// ── Admin: Gia hạn chiến dịch (không trừ tiền buyer, chỉ cộng view) ──────────
+router.post('/campaigns/:id/renew', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { extraViews } = req.body;
+    const addViews = parseInt(extraViews, 10);
+    if (!addViews || addViews <= 0) return res.status(400).json({ error: 'Số view gia hạn phải lớn hơn 0' });
+
+    const [existing] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [req.params.id]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+
+    const camp = existing[0];
+    const cpcValue = Number(camp.cpc) || 0;
+    const newTotal = Number(camp.total_views) + addViews;
+    const newBudget = cpcValue > 0 ? Math.round(newTotal * cpcValue) : Number(camp.budget);
+
+    await pool.execute(
+      `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running' WHERE id = ?`,
+      [newTotal, newBudget, camp.id]
+    );
+
+    // Thông báo cho buyer
+    await pool.execute(
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [camp.user_id, 'Chiến dịch được gia hạn',
+        `Chiến dịch "${camp.name}" đã được admin gia hạn thêm ${addViews.toLocaleString()} view và tiếp tục chạy.`,
+        'success', 'buyer']
+    ).catch(() => {});
+
+    console.log(`[Admin] Campaign ${camp.id} renewed +${addViews} views by admin ${req.userId}`);
+    const [updated] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [camp.id]);
+    res.json({ message: `Đã gia hạn thêm ${addViews.toLocaleString()} view`, campaign: updated[0] });
+  } catch (err) {
+    console.error('[Admin] Campaign renew error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 router.post('/campaigns/:id/sync-views', async (req, res) => {
   try {
     const pool = getPool();
