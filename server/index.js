@@ -272,6 +272,10 @@ app.use((err, req, res, next) => {
       await pool.execute(`ALTER TABLE campaigns ADD COLUMN note TEXT DEFAULT NULL`);
       console.log('  ✅ Added campaigns.note column');
     } catch (e) { }
+    try {
+      await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`);
+      console.log('  ✅ Added campaigns.manually_completed column');
+    } catch (e) { }
 
     
     try {

@@ -675,8 +675,9 @@ router.get('/campaigns', async (req, res) => {
             SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
           )`, ids
         );
+        // Chỉ auto-revert nếu không được admin đánh dấu hoàn thành thủ công
         await pool.execute(
-          `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views`, ids
+          `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views AND COALESCE(manually_completed, 0) = 0`, ids
         );
         const [updated] = await pool.execute(sql, params);
         return res.json({ campaigns: updated });
@@ -696,7 +697,17 @@ router.put('/campaigns/:id', async (req, res) => {
 
 
     if (status && Object.keys(req.body).length === 1) {
-      await pool.execute('UPDATE campaigns SET status = ? WHERE id = ?', [status, req.params.id]);
+      // Khi admin đánh dấu completed thủ công → set flag manually_completed
+      const manuallyCompleted = status === 'completed' ? 1 : 0;
+      try {
+        await pool.execute(
+          'UPDATE campaigns SET status = ?, manually_completed = ? WHERE id = ?',
+          [status, manuallyCompleted, req.params.id]
+        );
+      } catch (_) {
+        // Fallback nếu cột chưa tồn tại
+        await pool.execute('UPDATE campaigns SET status = ? WHERE id = ?', [status, req.params.id]);
+      }
       return res.json({ message: 'Đã cập nhật trạng thái' });
     }
 
@@ -766,8 +777,9 @@ router.post('/campaigns/:id/renew', async (req, res) => {
     const newTotal = Number(camp.total_views) + addViews;
     const newBudget = cpcValue > 0 ? Math.round(newTotal * cpcValue) : Number(camp.budget);
 
+    // Cộng view, reset manually_completed = 0 để cho phép chạy lại
     await pool.execute(
-      `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running' WHERE id = ?`,
+      `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running', manually_completed = 0 WHERE id = ?`,
       [newTotal, newBudget, camp.id]
     );
 

@@ -94,8 +94,9 @@ router.get('/', async (req, res) => {
             SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
           )`, ids
         );
+        // Chỉ auto-revert nếu campaign KHÔNG được đánh dấu hoàn thành thủ công
         await pool.execute(
-          `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views`, ids
+          `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views AND COALESCE(manually_completed, 0) = 0`, ids
         );
         // Chỉ refetch khi có rows thực sự bị update
         if (syncResult.affectedRows > 0) {
@@ -250,7 +251,8 @@ router.get('/:id/keyword-stats', async (req, res) => {
         if (Number(c[0].views_done) !== realViews) {
           pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, req.params.id]).catch(() => { });
         }
-        if (c[0].status === 'completed' && realViews < Number(c[0].total_views)) {
+        // Chỉ auto-revert nếu campaign không được đánh dấu hoàn thành thủ công
+        if (c[0].status === 'completed' && realViews < Number(c[0].total_views) && !c[0].manually_completed) {
           pool.execute("UPDATE campaigns SET status = 'running' WHERE id = ?", [req.params.id]).catch(() => { });
         }
       }
@@ -325,6 +327,8 @@ router.put('/:id/status', async (req, res) => {
   const { status } = req.body;
   if (!['running', 'paused', 'completed'].includes(status)) return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
 
+  // Đánh dấu manually_completed để ngăn auto-revert
+  const manuallyCompleted = status === 'completed' ? 1 : 0;
 
   if (status === 'completed') {
     const [rows] = await pool.execute('SELECT image1_url FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
@@ -333,7 +337,15 @@ router.put('/:id/status', async (req, res) => {
     }
   }
 
-  const [result] = await pool.execute('UPDATE campaigns SET status = ? WHERE id = ? AND user_id = ?', [status, req.params.id, req.userId]);
+  // Auto-add column nếu chưa tồn tại
+  try {
+    await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`);
+  } catch (_) { }
+
+  const [result] = await pool.execute(
+    'UPDATE campaigns SET status = ?, manually_completed = ? WHERE id = ? AND user_id = ?',
+    [status, manuallyCompleted, req.params.id, req.userId]
+  );
   if (result.affectedRows === 0) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
   res.json({ message: 'Đã cập nhật trạng thái' });
 });
@@ -380,11 +392,11 @@ router.post('/:id/renew', async (req, res) => {
       [req.userId, cost, `Gia hạn chiến dịch "${camp.name}" (+${addViews.toLocaleString()} view)`, camp.id]
     );
 
-    // Cộng view và đặt lại status
+    // Cộng view và đặt lại status, xóa flag manually_completed
     const newTotal = Number(camp.total_views) + addViews;
     const newBudget = Math.round(newTotal * cpcValue);
     await pool.execute(
-      `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running' WHERE id = ?`,
+      `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running', manually_completed = 0 WHERE id = ?`,
       [newTotal, newBudget, camp.id]
     );
 
