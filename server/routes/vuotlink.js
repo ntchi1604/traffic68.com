@@ -81,9 +81,9 @@ async function getViewsPerIp(pool) {
   if (_viewsPerIpCache !== null && Date.now() < _viewsPerIpExpiry) return _viewsPerIpCache;
   const [rows] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
   const parsed = rows.length > 0 ? parseInt(rows[0].setting_value) : 0;
-  _viewsPerIpCache = parsed > 0 ? parsed : (rows.length > 0 ? 2 : 5); // fallback = 5 nếu chưa có DB row
+  _viewsPerIpCache = parsed > 0 ? parsed : (rows.length > 0 ? 2 : 5);
   console.log(`[VuotLink] views_per_ip loaded: ${_viewsPerIpCache} (DB row: ${rows.length > 0 ? rows[0].setting_value : 'NOT FOUND'})`);
-  _viewsPerIpExpiry = Date.now() + 60 * 1000; // cache 60 giây
+  _viewsPerIpExpiry = Date.now() + 60 * 1000;
   return _viewsPerIpCache;
 }
 
@@ -1472,7 +1472,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     const vnNow = new Date();
     const vnDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(vnNow);
     const vnStart = `${vnDateStr} 00:00:00`;
-    const vnEnd   = `${vnDateStr} 23:59:59`;
+    const vnEnd = `${vnDateStr} 23:59:59`;
 
     // Count completed tasks today for this IP
     const [ipDone] = await pool.execute(
