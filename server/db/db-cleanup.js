@@ -132,7 +132,33 @@ async function run() {
   );
 
   // ════════════════════════════════════════════════════════════════════════════
-  // 2. worker_links — link rút gọn của worker (tạo nhiều, hết hạn nhanh)
+  // 2. Normalize IPv4-mapped IPv6 IPs (::ffff:x.x.x.x → x.x.x.x)
+  //    Fix data cũ trước khi deploy normalizeIp() — tránh count sai limit IP
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n  🌐 Normalize ::ffff: IPs trong vuot_link_tasks...');
+  try {
+    const [normRes] = await conn.execute(`
+      UPDATE vuot_link_tasks
+      SET ip_address = SUBSTRING(ip_address, 8)
+      WHERE ip_address LIKE '::ffff:%'
+    `);
+    console.log(`  ✅ Normalize IPs: ${normRes.affectedRows} rows cập nhật`);
+  } catch (e) {
+    console.error(`  ❌ Normalize IPs vuot_link_tasks: ${e.message}`);
+  }
+
+  try {
+    const [normSec] = await conn.execute(`
+      UPDATE security_logs
+      SET ip_address = SUBSTRING(ip_address, 8)
+      WHERE ip_address LIKE '::ffff:%'
+    `);
+    if (normSec.affectedRows > 0)
+      console.log(`  ✅ Normalize IPs security_logs: ${normSec.affectedRows} rows`);
+  } catch (e) {
+    console.error(`  ❌ Normalize IPs security_logs: ${e.message}`);
+  }
+
   // ════════════════════════════════════════════════════════════════════════════
 
   // 2a. Tasks của worker_links > 30 ngày (dùng subquery vì MySQL không cho LIMIT với JOIN DELETE)
@@ -157,7 +183,7 @@ async function run() {
   );
 
   // ════════════════════════════════════════════════════════════════════════════
-  // 3. traffic_logs — giữ dữ liệu báo cáo, chỉ xóa rất cũ
+  // 4. traffic_logs — giữ dữ liệu báo cáo, chỉ xóa rất cũ
   // ════════════════════════════════════════════════════════════════════════════
 
   // traffic_logs lưu aggregated theo ngày (date, campaign_id) → giữ 12 tháng
@@ -169,7 +195,7 @@ async function run() {
   );
 
   // ════════════════════════════════════════════════════════════════════════════
-  // 4. security_logs — chỉ cần cho phân tích bot gần đây
+  // 5. security_logs — chỉ cần cho phân tích bot gần đây
   // ════════════════════════════════════════════════════════════════════════════
 
   totalDeleted += await batchDelete(conn,
@@ -179,7 +205,7 @@ async function run() {
   );
 
   // ════════════════════════════════════════════════════════════════════════════
-  // 5. notifications — dọn theo trạng thái đọc
+  // 6. notifications — dọn theo trạng thái đọc
   // ════════════════════════════════════════════════════════════════════════════
 
   totalDeleted += await batchDelete(conn,
