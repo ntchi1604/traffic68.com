@@ -2,6 +2,8 @@ const express = require('express');
 const { getPool } = require('../db');
 const { authMiddleware, invalidateUserCache } = require('../middleware/auth');
 const cache = require('../lib/cache');
+const { clearSettingsCache: clearVuotlinkCache } = require('./vuotlink');
+const { clearSettingsCache: clearWidgetCache } = require('./widgets');
 
 const localDateStr = (d = new Date()) =>
   d.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
@@ -1344,6 +1346,9 @@ router.put('/settings/site', async (req, res) => {
         [key, String(value), String(value)]
       );
     }
+    // Clear in-memory caches immediately so new settings take effect without waiting 60s
+    try { clearVuotlinkCache(); } catch (_) { }
+    try { clearWidgetCache(); } catch (_) { }
     res.json({ message: 'Cập nhật cài đặt thành công' });
   } catch (err) {
     res.status(500).json({ error: err.message });

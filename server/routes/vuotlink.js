@@ -87,6 +87,15 @@ async function getViewsPerIp(pool) {
   return _viewsPerIpCache;
 }
 
+function clearSettingsCache() {
+  _viewsPerIpCache = null;
+  _viewsPerIpExpiry = 0;
+  _campPoolCache = null;
+  _campPoolExpiry = 0;
+  console.log('[VuotLink] Settings cache cleared');
+}
+module.exports.clearSettingsCache = clearSettingsCache;
+
 let _campPoolCache = null;
 let _campPoolExpiry = 0;
 let _campPoolHourKey = '';

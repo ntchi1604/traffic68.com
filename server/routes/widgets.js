@@ -33,6 +33,16 @@ async function getViewsPerIp(pool) {
   return _viewsPerIpCacheW;
 }
 
+// ── Clear settings caches — gọi khi admin save settings ──
+function clearSettingsCache() {
+  _viewsPerIpCacheW = null;
+  _viewsPerIpExpiryW = 0;
+  _captchaEnabledCache = null;
+  _captchaEnabledExpiry = 0;
+  console.log('[Widget] Settings cache cleared');
+}
+module.exports.clearSettingsCache = clearSettingsCache;
+
 async function logSecurityEvent(reason, ip, ua, visitorId, extra) {
   try {
     const pool = getPool();
