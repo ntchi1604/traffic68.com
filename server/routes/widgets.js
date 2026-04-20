@@ -9,7 +9,7 @@ const router = express.Router();
 const HMAC_SECRET = process.env.CHALLENGE_KEY || crypto.randomBytes(32).toString('hex');
 const BOT_UA = /curl|wget|python|httpie|postman|insomnia|axios|node-fetch|got\/|bot|crawler|spider|headlesschrome|phantomjs|selenium/i;
 
-// ── Cache captcha_enabled setting (tšánh query DB mỗi visitor request) ──
+// ── Cache captcha_enabled setting (tránh query DB mỗi visitor request) ──
 let _captchaEnabledCache = null;
 let _captchaEnabledExpiry = 0;
 async function getCaptchaEnabled(pool) {
@@ -20,6 +20,17 @@ async function getCaptchaEnabled(pool) {
   } catch { _captchaEnabledCache = true; }
   _captchaEnabledExpiry = Date.now() + 60 * 1000; // cache 60 giây
   return _captchaEnabledCache;
+}
+
+// ── Cache views_per_ip setting — đồng bộ với vuotlink.js ──
+let _viewsPerIpCacheW = null;
+let _viewsPerIpExpiryW = 0;
+async function getViewsPerIp(pool) {
+  if (_viewsPerIpCacheW !== null && Date.now() < _viewsPerIpExpiryW) return _viewsPerIpCacheW;
+  const [rows] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
+  _viewsPerIpCacheW = rows.length > 0 ? (parseInt(rows[0].setting_value) || 5) : 5;
+  _viewsPerIpExpiryW = Date.now() + 60 * 1000;
+  return _viewsPerIpCacheW;
 }
 
 async function logSecurityEvent(reason, ip, ua, visitorId, extra) {
@@ -623,17 +634,21 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   if (visitorId && visitorId !== 'unknown') {
     // Dùng VN timezone và completed_at (nhất quán với vuotlink.js) — tránh bug UTC
+    const maxViewsPerIp = await getViewsPerIp(pool);
     const vnDateWidget = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
     const vnStartW = `${vnDateWidget} 00:00:00`;
     const vnEndW = `${vnDateWidget} 23:59:59`;
     const [vCount] = await pool.execute(
-      `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
+      `SELECT COUNT(*) as cnt FROM vuot_link_tasks
+       WHERE visitor_id = ? AND completed_at IS NOT NULL
+         AND completed_at >= ? AND completed_at <= ?
+         AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0`,
       [visitorId, vnStartW, vnEndW]
     );
-    if (vCount[0].cnt >= 5) {
+    if (vCount[0].cnt >= maxViewsPerIp) {
       detectionLog.push('device_limit');
-      console.log(`[Widget] Device limit: visitorId=${visitorId.substring(0, 8)}..., count=${vCount[0].cnt}`);
-      return res.status(429).json({ error: 'Thiết bị đã đạt giới hạn 5 lượt/ngày. Thử lại sau.' });
+      console.log(`[Widget] Device limit: visitorId=${visitorId.substring(0, 8)}..., count=${vCount[0].cnt}/${maxViewsPerIp}`);
+      return res.status(429).json({ error: `Thiết bị đã đạt giới hạn ${maxViewsPerIp} lượt/ngày. Thử lại sau.` });
     }
   }
 
