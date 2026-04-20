@@ -17,8 +17,8 @@ function getPool() {
       password: process.env.DB_PASS || '',
       database: process.env.DB_NAME || 'traffic68',
       waitForConnections: true,
-      connectionLimit: 20,      // tăng từ 10 → 20 cho traffic cao điểm
-      queueLimit: 50,           // tối đa 50 request chờ connection
+      connectionLimit: 30,      // tăng từ 20 → 30
+      queueLimit: 200,          // tăng từ 50 → 200 để tránh Queue limit reached
       charset: 'utf8mb4',
       multipleStatements: true,
       timezone: '+07:00',
