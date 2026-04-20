@@ -603,58 +603,30 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
 
 
-          {/* Daily views — ẩn khi đã bật view/ngày riêng cho từng từ khóa */}
+          {/* Daily views + Tổng view — luôn sửa được với mọi loại camp */}
           <div className="grid grid-cols-2 gap-3">
-            {!useKeywordDailyViews && (
-              <div>
-                <label className="text-sm font-semibold text-slate-600 mb-1 block">View / ngày</label>
-                <div className="relative">
-                  <input
-                    type="number" min="0"
-                    value={dailyViews}
-                    onChange={e => setDailyViews(Number(e.target.value) || 0)}
-                    className={inputCls + ' pr-16'}
-                    placeholder="0 = không giới hạn"
-                  />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-medium pointer-events-none">/ngày</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-400">0 = không giới hạn</p>
+            <div>
+              <label className="text-sm font-semibold text-slate-600 mb-1 block">View / ngày</label>
+              <div className="relative">
+                <input
+                  type="number" min="0"
+                  value={dailyViews}
+                  onChange={e => setDailyViews(Number(e.target.value) || 0)}
+                  className={inputCls + ' pr-16'}
+                  placeholder="0 = không giới hạn"
+                />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-medium pointer-events-none">/ngày</span>
               </div>
-            )}
-            <div className={useKeywordDailyViews ? 'col-span-2' : ''}>
+              <p className="mt-1 text-xs text-slate-400">0 = không giới hạn</p>
+            </div>
+            <div>
               <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view mua</label>
-              {useKeywordViews ? (
-                /* Computed from keywords — read-only */
-                <div className="relative">
-                  <div className={inputCls + ' pr-14 bg-amber-50 border-amber-200 font-bold text-amber-900 flex items-center'}>
-                    {keywords.reduce((s, k) => s + (Number(k.views) || 0), 0).toLocaleString()}
-                  </div>
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-500 font-bold pointer-events-none">view</span>
-                </div>
-              ) : isDirect ? (
-                /* Direct: editable total views */
-                <div className="relative">
-                  <input type="number" min="1" value={totalViews} onChange={e => setTotalViews(Number(e.target.value) || 0)} className={inputCls + ' pr-14'} />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">view</span>
-                </div>
-              ) : (
-                /* Non-direct, no per-keyword views: read-only preview */
-                <div className="relative">
-                  <div className={inputCls + ' pr-14 bg-slate-50 font-bold text-slate-700 flex items-center justify-between'}>
-                    <span>{Number(totalViews).toLocaleString()}</span>
-                  </div>
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">view</span>
-                </div>
-              )}
-              {useKeywordViews && (
-                <p className="mt-1 text-xs text-amber-500">Tự tính từ tổng view của từng từ khóa</p>
-              )}
-              {!useKeywordViews && !isDirect && (
-                <p className="mt-1 text-xs text-slate-400">Bật "Cài view riêng" để chỉnh qua từng từ khóa</p>
-              )}
+              <div className="relative">
+                <input type="number" min="1" value={totalViews} onChange={e => setTotalViews(Number(e.target.value) || 0)} className={inputCls + ' pr-14'} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none">view</span>
+              </div>
               <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view</p>
             </div>
-
           </div>
 
           {/* Phân phối theo giờ: ẩn khi không có daily_views hợp lệ */}
