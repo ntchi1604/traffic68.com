@@ -2,11 +2,52 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
+const http = require('http');
+const { URL } = require('url');
 const { getPool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(authMiddleware);
+
+// ── Auto-migrate: đảm bảo cột pause_reason tồn tại ──────────────────────────
+async function ensurePauseReasonCol(pool) {
+  try {
+    await pool.execute(`ALTER TABLE campaigns ADD COLUMN pause_reason VARCHAR(255) DEFAULT NULL AFTER note`);
+  } catch (_) { /* already exists */ }
+}
+
+// ── Kiểm tra URL có bị redirect 301 sang domain mới không ──────────────────
+// Trả về: null (ok) | string (domain mới nếu 301 đổi domain)
+function checkRedirect(urlStr) {
+  return new Promise((resolve) => {
+    try {
+      const parsed = new URL(urlStr);
+      const mod = parsed.protocol === 'https:' ? https : http;
+      const req = mod.request(
+        { method: 'HEAD', hostname: parsed.hostname, path: parsed.pathname + parsed.search, port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80), headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 },
+        (res) => {
+          if ([301, 302, 308].includes(res.statusCode) && res.headers.location) {
+            try {
+              const loc = new URL(res.headers.location, urlStr);
+              const origHost = parsed.hostname.replace(/^www\./, '');
+              const newHost = loc.hostname.replace(/^www\./, '');
+              // Chỉ coi là "đổi domain" nếu hostname thực sự thay đổi
+              if (origHost !== newHost) {
+                return resolve({ changed: true, newDomain: loc.hostname, statusCode: res.statusCode });
+              }
+            } catch (_) { }
+          }
+          resolve(null);
+        }
+      );
+      req.on('error', () => resolve(null));
+      req.on('timeout', () => { req.destroy(); resolve(null); });
+      req.end();
+    } catch (_) { resolve(null); }
+  });
+}
 
 
 const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'campaigns');
@@ -66,6 +107,9 @@ router.get('/', async (req, res) => {
     const dYes = new Date(); dYes.setDate(dYes.getDate() - 1);
     const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(dYes);
 
+    // Ensure columns exist
+    await ensurePauseReasonCol(pool);
+
     // ── Dùng LEFT JOIN thay correlated subqueries — giảm từ O(2N) xuống O(1) ──
     let sql = `SELECT c.*,
       COALESCE(tl_today.clicks, 0) as views_today,
@@ -104,13 +148,39 @@ router.get('/', async (req, res) => {
             `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views AND COALESCE(manually_completed, 0) = 0`, ids
           );
         } catch (_) {}
-        // Chỉ refetch khi có rows thực sự bị update
         if (syncResult.affectedRows > 0) {
           const [updated] = await pool.execute(sql, params);
           return res.json({ campaigns: updated });
         }
       }
     } catch (_) { }
+
+    // ── Kiểm tra redirect 301 cho campaigns đang running (background, không block response) ──
+    setImmediate(async () => {
+      try {
+        const running = campaigns.filter(c => c.status === 'running' && c.url);
+        // Chỉ check tối đa 3 campaign mỗi lần để tránh quá tải
+        const toCheck = running.slice(0, 3);
+        for (const camp of toCheck) {
+          const result = await checkRedirect(camp.url);
+          if (result && result.changed) {
+            const reason = `Đổi domain → ${result.newDomain}`;
+            await pool.execute(
+              `UPDATE campaigns SET status = 'paused', pause_reason = ? WHERE id = ? AND status = 'running'`,
+              [reason, camp.id]
+            );
+            console.log(`[Campaign] Auto-paused #${camp.id} "${camp.name}": 301 → ${result.newDomain}`);
+            // Gửi notification cho owner
+            await pool.execute(
+              `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+              [camp.user_id, 'Chiến dịch tạm dừng tự động',
+                `Chiến dịch "${camp.name}" đã bị tạm dừng do website đích đổi domain sang ${result.newDomain}.`,
+                'warning', 'buyer']
+            );
+          }
+        }
+      } catch (e) { console.error('[Campaign] Redirect check error:', e.message); }
+    });
 
     res.json({ campaigns });
   } catch (err) {
@@ -343,14 +413,20 @@ router.put('/:id/status', async (req, res) => {
     }
   }
 
-  // Auto-add column nếu chưa tồn tại
-  try {
-    await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`);
-  } catch (_) { }
+  // Auto-add columns nếu chưa tồn tại
+  try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch (_) { }
+  await ensurePauseReasonCol(pool);
+
+  // Khi user tự tay resume (running) → xóa pause_reason
+  const clearReason = status === 'running' ? null : undefined;
 
   const [result] = await pool.execute(
-    'UPDATE campaigns SET status = ?, manually_completed = ? WHERE id = ? AND user_id = ?',
-    [status, manuallyCompleted, req.params.id, req.userId]
+    clearReason === null
+      ? 'UPDATE campaigns SET status = ?, manually_completed = ?, pause_reason = NULL WHERE id = ? AND user_id = ?'
+      : 'UPDATE campaigns SET status = ?, manually_completed = ? WHERE id = ? AND user_id = ?',
+    clearReason === null
+      ? [status, manuallyCompleted, req.params.id, req.userId]
+      : [status, manuallyCompleted, req.params.id, req.userId]
   );
   if (result.affectedRows === 0) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
   res.json({ message: 'Đã cập nhật trạng thái' });

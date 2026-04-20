@@ -1259,7 +1259,10 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     if (deductResult.affectedRows === 0) {
       // Ví không còn đủ tiền (race condition hoặc hết budget) → auto-pause + ghi log thất bại
       console.warn(`[VuotLink] ⚠️ Wallet insufficient (atomic): buyer=${campaign.user_id}, campaign=#${task.campaign_id}, required=${buyerCpc} — view COUNTED but buyer NOT charged`);
-      await pool.execute("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [task.campaign_id]);
+      await pool.execute(
+        "UPDATE campaigns SET status = 'paused', pause_reason = 'Số dư không đủ' WHERE id = ? AND status = 'running'",
+        [task.campaign_id]
+      ).catch(() => pool.execute("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [task.campaign_id]));
       // Ghi transaction thất bại để admin có thể audit (view đã completed nhưng không trừ tiền được)
       try {
         const failRef = 'VW-FAIL-' + Date.now();

@@ -21,7 +21,7 @@ const parseJsonArray = (val) => {
 };
 
 /* ── Status badge ── */
-function StatusBadge({ status }) {
+function StatusBadge({ status, pauseReason }) {
   const cfg = {
     running: { label: 'Đang chạy', cls: 'text-emerald-700 bg-emerald-50 ring-emerald-200', dot: 'bg-emerald-500 animate-pulse' },
     paused: { label: 'Tạm dừng', cls: 'text-amber-700  bg-amber-50   ring-amber-200', dot: 'bg-amber-400' },
@@ -29,10 +29,18 @@ function StatusBadge({ status }) {
     draft: { label: 'Bản nháp', cls: 'text-slate-600  bg-slate-100  ring-slate-200', dot: 'bg-slate-400' },
   }[status] || { label: status, cls: 'text-slate-600 bg-slate-100 ring-slate-200', dot: 'bg-slate-400' };
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ring-1 ${cfg.cls}`}>
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
-      {cfg.label}
-    </span>
+    <div className="flex flex-col gap-1">
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ring-1 ${cfg.cls}`}>
+        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
+        {cfg.label}
+      </span>
+      {pauseReason && (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 max-w-[160px]" title={pauseReason}>
+          <AlertCircle size={9} className="flex-shrink-0" />
+          <span className="truncate">{pauseReason}</span>
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -1026,6 +1034,11 @@ export default function CampaignList() {
                             className="text-[11px] text-indigo-500 hover:text-indigo-700 hover:underline truncate block mt-0.5 font-mono">
                             {c.url}
                           </a>
+                          {c.note && (
+                            <p className="text-[11px] text-slate-500 mt-1 italic truncate max-w-[240px]" title={c.note}>
+                              📝 {c.note}
+                            </p>
+                          )}
                           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                             <TrafficBadge type={c.traffic_type} />
                             {keywords.slice(0, 2).map((kw, i) => (
@@ -1040,7 +1053,7 @@ export default function CampaignList() {
 
                       {/* Status */}
                       <td className="px-5 py-4 align-top pt-5">
-                        <StatusBadge status={effStatus} />
+                        <StatusBadge status={effStatus} pauseReason={effStatus === 'paused' ? c.pause_reason : null} />
                       </td>
 
                       {/* Progress */}
