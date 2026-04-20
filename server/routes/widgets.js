@@ -540,7 +540,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
   const ua = req.headers['user-agent'] || '';
 
-  if (!checkWidgetRateLimit(ip, 'get-code', 5)) {
+  if (!checkWidgetRateLimit(ip, 'get-code', 10)) {
     console.log(`[Widget] Rate limited — IP: ${ip}`);
     return res.status(429).json({ error: 'Quá nhiều yêu cầu' });
   }

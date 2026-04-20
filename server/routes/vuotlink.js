@@ -114,7 +114,6 @@ async function _getCampaignPool(pool, todaySubquery, campaignWhere) {
   return rows;
 }
 
-// ── Widget config helper — dùng chung, khởi động sớm (parallel) ──
 async function _fetchWidgetConfig(pool, userId, selectedUrl) {
   try {
     let wRows;
@@ -899,7 +898,7 @@ async function _handleTaskPost(req, res) {
 
 router.put('/task/:id/step', optionalAuth, (req, res) => res.json({ ok: true }));
 router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const ip = normalizeIp(req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress);
   const ua = req.headers['user-agent'] || '';
   const { _tk, shakeLog } = req.body || {};
 
@@ -1085,7 +1084,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
 router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   const pool = getPool();
   const { code, _tk, challengeToken } = req.body;
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const ip = normalizeIp(req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress);
   if (!_tk || !verifyTaskToken(_tk, req.params.id, ip)) {
     return res.status(403).json({ error: 'Invalid token' });
   }
@@ -1131,9 +1130,10 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   }
 
   const { visitorId: verifyVid } = req.body || {};
-  const ipOk = task.ip_address && task.ip_address === ip;
+  const ipOk = task.ip_address && normalizeIp(task.ip_address) === ip;
   const vidOk = task.visitor_id && verifyVid && task.visitor_id === verifyVid;
   if (!ipOk && !vidOk) {
+    console.log(`[VuotLink] verify session check: task.ip=${task.ip_address} normTask=${normalizeIp(task.ip_address || '')} req.ip=${ip} vidOk=${vidOk}`);
     return res.status(403).json({ error: 'Phien khong hop le' });
   }
 
@@ -1475,7 +1475,8 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   let maxViews = 2;
   try {
     const [limitSetting] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
-    maxViews = limitSetting.length > 0 ? parseInt(limitSetting[0].setting_value) || 2 : 2;
+    const parsedMax = limitSetting.length > 0 ? parseInt(limitSetting[0].setting_value) : 0;
+    maxViews = parsedMax > 0 ? parsedMax : 5;
 
     // Dùng VN timezone (nhất quán với phần lấy task) — tránh bug UTC vs VN
     const vnNow = new Date();
