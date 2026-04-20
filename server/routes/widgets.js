@@ -95,7 +95,7 @@ function verifySessionToken(token, ip, ua) {
   const [tsStr, hmac] = token.split('.');
   const ts = parseInt(tsStr);
   if (isNaN(ts)) return false;
-  if (Math.abs(Math.floor(Date.now() / 1000) - ts) > 600) return false;
+  if (Math.abs(Math.floor(Date.now() / 1000) - ts) > 1800) return false;
   const normIp = normalizeIp(ip);
   const expected = crypto.createHmac('sha256', HMAC_SECRET).update(`${normIp}|${ua}|${ts}`).digest('hex').substring(0, 16);
   return hmac === expected;
