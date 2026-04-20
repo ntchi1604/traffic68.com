@@ -49,6 +49,85 @@ function checkRedirect(urlStr) {
   });
 }
 
+// ── Cache kết quả embed check — mỗi campaign check tối đa mỗi 30 phút ──
+const _embedCheckCache = new Map(); // campId → { ts, result }
+const EMBED_CHECK_TTL = 30 * 60 * 1000; // 30 phút
+
+// ── Kiểm tra trang có gắn script widget không ─────────────────────────────
+// tokens: mảng các token (VD: ['T68-ABCD12', 'T68-XY5678'])
+// Trả về: 'ok' | 'not_found' | 'skip' (lỗi / CF / non-200)
+function checkEmbedScript(urlStr, tokens) {
+  return new Promise((resolve) => {
+    try {
+      const parsed = new URL(urlStr);
+      const mod = parsed.protocol === 'https:' ? https : http;
+      let body = '';
+      let settled = false;
+
+      const req = mod.request(
+        {
+          method: 'GET',
+          hostname: parsed.hostname,
+          path: parsed.pathname + parsed.search,
+          port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'text/html',
+          },
+          timeout: 12000,
+        },
+        (res) => {
+          // Chỉ phân tích khi status 200 và content là HTML
+          const ct = (res.headers['content-type'] || '').toLowerCase();
+          if (res.statusCode !== 200 || !ct.includes('html')) {
+            res.resume();
+            return resolve('skip'); // CF challenge / 403 / non-HTML → không hành động
+          }
+
+          // Đọc tối đa 200KB đầu — token thường nằm trong <head>
+          let received = 0;
+          res.on('data', (chunk) => {
+            if (settled) return;
+            body += chunk.toString('utf8', 0, Math.min(chunk.length, 200000 - received));
+            received += chunk.length;
+            if (received >= 200000) {
+              settled = true;
+              req.destroy();
+              resolve(_hasToken(body, tokens));
+            }
+          });
+          res.on('end', () => {
+            if (!settled) {
+              settled = true;
+              resolve(_hasToken(body, tokens));
+            }
+          });
+        }
+      );
+
+      req.on('error', () => { if (!settled) { settled = true; resolve('skip'); } });
+      req.on('timeout', () => { if (!settled) { settled = true; req.destroy(); resolve('skip'); } });
+      req.end();
+    } catch (_) { resolve('skip'); }
+  });
+}
+
+function _hasToken(html, tokens) {
+  // Tìm bất kỳ token nào trong HTML (data-token="T68-...", token: 'T68-...', v.v.)
+  // Cũng chấp nhận nếu trên trang có api_seo_traffic68 dùng token khác (user mới chưa xuất hiện)
+  const lowerHtml = html;
+  // Kiểm tra từng token cụ thể của user
+  for (const tok of tokens) {
+    if (lowerHtml.includes(tok)) return 'ok';
+  }
+  // Nếu không thấy token cụ thể, kiểm tra xem có script traffic68 nào không
+  // (user có thể đã gắn nhưng widget_url chưa khớp — không pause)
+  if (lowerHtml.includes('api_seo_traffic68') || lowerHtml.includes('traffic68.com')) {
+    return 'ok'; // Có script traffic68 trên trang, dù token không khớp → ok
+  }
+  return 'not_found';
+}
+
 
 const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'campaigns');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -155,31 +234,75 @@ router.get('/', async (req, res) => {
       }
     } catch (_) { }
 
-    // ── Kiểm tra redirect 301 cho campaigns đang running (background, không block response) ──
+    // ── Background checks: redirect 301 + embed script (không block response) ──
     setImmediate(async () => {
       try {
         const running = campaigns.filter(c => c.status === 'running' && c.url);
         // Chỉ check tối đa 3 campaign mỗi lần để tránh quá tải
         const toCheck = running.slice(0, 3);
+
+        // Lấy widget tokens của tất cả user_id liên quan (batch query)
+        const userIds = [...new Set(toCheck.map(c => c.user_id))];
+        let userTokenMap = {}; // userId → [token1, token2, ...]
+        if (userIds.length > 0) {
+          try {
+            const ph2 = userIds.map(() => '?').join(',');
+            const [wRows] = await pool.execute(
+              `SELECT user_id, token FROM widgets WHERE user_id IN (${ph2}) AND is_active = 1`,
+              userIds
+            );
+            wRows.forEach(r => {
+              if (!userTokenMap[r.user_id]) userTokenMap[r.user_id] = [];
+              userTokenMap[r.user_id].push(r.token);
+            });
+          } catch (_) { }
+        }
+
         for (const camp of toCheck) {
-          const result = await checkRedirect(camp.url);
-          if (result && result.changed) {
-            const reason = `Đổi domain → ${result.newDomain}`;
+          // 1️⃣  Kiểm tra 301 redirect
+          const redirectResult = await checkRedirect(camp.url);
+          if (redirectResult && redirectResult.changed) {
+            const reason = `Đổi domain → ${redirectResult.newDomain}`;
             await pool.execute(
               `UPDATE campaigns SET status = 'paused', pause_reason = ? WHERE id = ? AND status = 'running'`,
               [reason, camp.id]
             );
-            console.log(`[Campaign] Auto-paused #${camp.id} "${camp.name}": 301 → ${result.newDomain}`);
-            // Gửi notification cho owner
+            console.log(`[Campaign] Auto-paused #${camp.id} "${camp.name}": 301 → ${redirectResult.newDomain}`);
             await pool.execute(
               `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
               [camp.user_id, 'Chiến dịch tạm dừng tự động',
-                `Chiến dịch "${camp.name}" đã bị tạm dừng do website đích đổi domain sang ${result.newDomain}.`,
+                `Chiến dịch "${camp.name}" đã bị tạm dừng do website đích đổi domain sang ${redirectResult.newDomain}.`,
+                'warning', 'buyer']
+            );
+            continue; // đã xử lý redirect → bỏ qua check embed
+          }
+
+          // 2️⃣  Kiểm tra embed script — dùng cache 30 phút
+          const now = Date.now();
+          const cached = _embedCheckCache.get(camp.id);
+          if (cached && (now - cached.ts) < EMBED_CHECK_TTL) continue; // đã check gần đây
+
+          const tokens = userTokenMap[camp.user_id] || [];
+          if (tokens.length === 0) continue; // user chưa tạo widget nào → bỏ qua
+
+          const embedResult = await checkEmbedScript(camp.url, tokens);
+          _embedCheckCache.set(camp.id, { ts: now, result: embedResult });
+
+          if (embedResult === 'not_found') {
+            await pool.execute(
+              `UPDATE campaigns SET status = 'paused', pause_reason = 'Chưa gắn script widget' WHERE id = ? AND status = 'running'`,
+              [camp.id]
+            );
+            console.log(`[Campaign] Auto-paused #${camp.id} "${camp.name}": embed script not found`);
+            await pool.execute(
+              `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+              [camp.user_id, 'Chiến dịch tạm dừng tự động',
+                `Chiến dịch "${camp.name}" đã bị tạm dừng vì không tìm thấy script widget trên trang ${camp.url}. Vui lòng gắn script rồi bật lại.`,
                 'warning', 'buyer']
             );
           }
         }
-      } catch (e) { console.error('[Campaign] Redirect check error:', e.message); }
+      } catch (e) { console.error('[Campaign] Background check error:', e.message); }
     });
 
     res.json({ campaigns });

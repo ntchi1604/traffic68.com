@@ -519,6 +519,12 @@ app.use((err, req, res, next) => {
         const web3pay = require('./lib/web3pay');
         web3pay.startDepositWatcher(60000);
       } catch (e) { console.log('[DepositWatcher] Skipped:', e.message); }
+
+      // ── Campaign health check: 301 redirect + embed script ──────────────────
+      // Chạy độc lập mỗi 30 phút, quét toàn bộ campaigns 'running' của tất cả user
+      const { runCampaignHealthCheck } = require('./lib/campaignHealth');
+      setTimeout(() => runCampaignHealthCheck(), 60 * 1000);          // lần đầu sau 1 phút
+      setInterval(() => runCampaignHealthCheck(), 30 * 60 * 1000);    // sau đó mỗi 30 phút
     });
   } catch (err) {
     console.error('❌ Failed to start server:', err.message);

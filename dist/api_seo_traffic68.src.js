@@ -623,40 +623,6 @@
       ';padding:' + py + ' ' + px + ';position:relative;z-index:9999;align-items:center;';
     wrap.appendChild(btn);
 
-    // Nếu CreepJS chưa xong → hiện spinner bên cạnh nút ẩn
-    // Spinner sẽ biến mất khi _showButtonAfterDetection() được gọi
-    if (!_detectionReady) {
-      var spinner = document.createElement('div');
-      spinner.id = 'laynut-loading-spinner';
-      var spinColor = cfg.buttonColor || '#f97316';
-      spinner.style.cssText = [
-        'display:inline-flex;align-items:center;gap:6px;',
-        'padding:3px 14px;border-radius:' + (cfg.borderRadius || 20) + 'px;',
-        'background:' + spinColor + ';',
-        'color:' + (cfg.textColor || '#fff') + ';',
-        'font-size:' + (cfg.fontSize || 13) + 'px;',
-        'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;',
-        'font-weight:700;opacity:0.7;',
-        cfg.shadow ? 'box-shadow:0 4px 20px rgba(0,0,0,0.28);' : '',
-      ].join('');
-      // Dots animation
-      spinner.innerHTML = '<span style="display:inline-flex;gap:3px;align-items:center;">' +
-        '<span style="width:5px;height:5px;border-radius:50%;background:currentColor;animation:ln-dot 1.2s 0s infinite ease-in-out both;"></span>' +
-        '<span style="width:5px;height:5px;border-radius:50%;background:currentColor;animation:ln-dot 1.2s 0.2s infinite ease-in-out both;"></span>' +
-        '<span style="width:5px;height:5px;border-radius:50%;background:currentColor;animation:ln-dot 1.2s 0.4s infinite ease-in-out both;"></span>' +
-        '</span>';
-
-      // Inject animation nếu chưa có
-      if (!document.getElementById('laynut-dot-anim')) {
-        var dotStyle = document.createElement('style');
-        dotStyle.id = 'laynut-dot-anim';
-        dotStyle.textContent = '@keyframes ln-dot{0%,80%,100%{transform:scale(0);opacity:0.3}40%{transform:scale(1);opacity:1}}';
-        document.head.appendChild(dotStyle);
-      }
-
-      wrap.appendChild(spinner);
-    }
-
     container.appendChild(wrap);
 
     // Auto-check visibility — delay long enough for SPA frameworks to render
