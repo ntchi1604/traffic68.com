@@ -35,9 +35,9 @@ function StatusBadge({ status, pauseReason }) {
         {cfg.label}
       </span>
       {pauseReason && (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 max-w-[160px]" title={pauseReason}>
-          <AlertCircle size={9} className="flex-shrink-0" />
-          <span className="truncate">{pauseReason}</span>
+        <span className="inline-flex items-start gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200" title={pauseReason}>
+          <AlertCircle size={9} className="flex-shrink-0 mt-0.5" />
+          <span>{pauseReason}</span>
         </span>
       )}
     </div>

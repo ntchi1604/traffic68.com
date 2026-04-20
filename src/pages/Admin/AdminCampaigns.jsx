@@ -1007,8 +1007,8 @@ export default function AdminCampaigns() {
                         <td className="px-5 py-3">
                           <span className={`px-2 py-1 text-xs font-bold rounded-full ${st.cls}`}>{st.label}</span>
                           {c.status === 'paused' && c.pause_reason && (
-                            <p className="mt-1 text-[10px] text-amber-600 font-semibold flex items-center gap-0.5" title={c.pause_reason}>
-                              ⚠ <span className="truncate max-w-[120px] inline-block">{c.pause_reason}</span>
+                            <p className="mt-1 text-[10px] text-amber-600 font-semibold flex items-start gap-0.5">
+                              ⚠ <span>{c.pause_reason}</span>
                             </p>
                           )}
                         </td>
