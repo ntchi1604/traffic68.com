@@ -637,10 +637,17 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Tổng view mua</label>
-              <div className="relative px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 flex items-center justify-between">
-                <span>{Number(totalViews).toLocaleString()}</span>
-                <span className="text-xs text-slate-400 font-medium">view</span>
-              </div>
+              {isDirect ? (
+                <div className="relative">
+                  <input type="number" min="1" value={totalViews} onChange={e => setTotalViews(Number(e.target.value) || 0)} className={input + ' pr-14'} />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none">view</span>
+                </div>
+              ) : (
+                <div className="relative px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 flex items-center justify-between">
+                  <span>{Number(totalViews).toLocaleString()}</span>
+                  <span className="text-xs text-slate-400 font-medium">view</span>
+                </div>
+              )}
               <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> / {Number(campaign.total_views || 0).toLocaleString()} view</p>
             </div>
           </div>
