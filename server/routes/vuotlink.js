@@ -30,6 +30,14 @@ async function ensureWalletCredit(pool, userId, walletType, amount) {
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
 const HMAC_SECRET = process.env.CHALLENGE_KEY || crypto.randomBytes(32).toString('hex');
 
+// ── Normalize IPv4-mapped IPv6 to plain IPv4 ─────────────────────
+function normalizeIp(raw) {
+  if (!raw) return raw;
+  const s = String(raw).trim();
+  if (s.startsWith('::ffff:') || s.startsWith('::FFFF:')) return s.slice(7);
+  return s;
+}
+
 async function logSecurityEvent(reason, ip, ua, visitorId, extra) {
   try {
     const pool = getPool();
@@ -252,7 +260,7 @@ async function _handleTaskPost(req, res) {
   const ua = req.headers['user-agent'] || '';
   if (!ua || BOT_UA.test(ua)) return res.status(403).json(ERR);
 
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const ip = normalizeIp(req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress);
 
   const { challengeId, powNonce, visitorId, deviceData, botDetection, excludeCampaigns } = req.body || {};
 

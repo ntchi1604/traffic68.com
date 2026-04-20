@@ -63,9 +63,19 @@ setInterval(() => {
   });
 }, 30000);
 
+// ── Normalize IPv4-mapped IPv6 to plain IPv4 ─────────────────────────
+// e.g. '::ffff:1.2.3.4' → '1.2.3.4'  |  pure IPv6 stays unchanged
+function normalizeIp(raw) {
+  if (!raw) return raw;
+  const s = String(raw).trim();
+  if (s.startsWith('::ffff:') || s.startsWith('::FFFF:')) return s.slice(7);
+  return s;
+}
+
 function generateSessionToken(ip, ua) {
   const ts = Math.floor(Date.now() / 1000);
-  const data = `${ip}|${ua}|${ts}`;
+  const normIp = normalizeIp(ip);
+  const data = `${normIp}|${ua}|${ts}`;
   const hmac = crypto.createHmac('sha256', HMAC_SECRET).update(data).digest('hex').substring(0, 16);
   return `${ts}.${hmac}`;
 }
@@ -76,7 +86,8 @@ function verifySessionToken(token, ip, ua) {
   const ts = parseInt(tsStr);
   if (isNaN(ts)) return false;
   if (Math.abs(Math.floor(Date.now() / 1000) - ts) > 600) return false;
-  const expected = crypto.createHmac('sha256', HMAC_SECRET).update(`${ip}|${ua}|${ts}`).digest('hex').substring(0, 16);
+  const normIp = normalizeIp(ip);
+  const expected = crypto.createHmac('sha256', HMAC_SECRET).update(`${normIp}|${ua}|${ts}`).digest('hex').substring(0, 16);
   return hmac === expected;
 }
 
@@ -112,6 +123,7 @@ function stripDefaults(config) {
 router.get('/public/:token', async (req, res) => {
   const pool = getPool();
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const normIp = normalizeIp(ip);
   const ua = req.headers['user-agent'] || '';
 
   if (BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
@@ -315,7 +327,7 @@ router.get('/public/:token', async (req, res) => {
     } catch (e) { }
   }
 
-  resp._t = generateSessionToken(ip, ua);
+  resp._t = generateSessionToken(normIp, ua);
   res.json(resp);
 });
 
@@ -345,16 +357,18 @@ router.post('/public/:token/check-session', async (req, res) => {
   const { visitorId, pageReferrer, navProof } = req.body || {};
 
   const cleanVisitorId = (visitorId && visitorId !== 'unknown') ? visitorId : '';
+  const normIp = normalizeIp(ip);
+  const altIp = normIp.includes(':') ? normIp : `::ffff:${normIp}`; // also try other form
   const [tasks] = await pool.execute(
     `SELECT vt.id, vt.ref_worker_id, vt.worker_id, vt.status as task_status,
             vt.keyword as task_keyword,
             c.traffic_type, c.url as campaign_url FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
-     WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id != 'unknown'))
+     WHERE (vt.ip_address = ? OR vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id != 'unknown'))
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
        AND vt.expires_at > NOW()
      ORDER BY vt.created_at DESC LIMIT 1`,
-    [ip, cleanVisitorId]
+    [normIp, altIp, cleanVisitorId]
   );
 
   if (tasks.length === 0) {
@@ -534,14 +548,16 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
 
   const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
+  const normIp = normalizeIp(ip);
+  const altIp = normIp.includes(':') ? normIp : `::ffff:${normIp}`;
   const [tasks] = await pool.execute(
     `SELECT vt.*, c.url as campaign_url, c.time_on_site, c.version, c.target_page, c.traffic_type FROM vuot_link_tasks vt
      JOIN campaigns c ON c.id = vt.campaign_id
-     WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id != 'unknown'))
+     WHERE (vt.ip_address = ? OR vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id IS NOT NULL AND vt.visitor_id != '' AND vt.visitor_id != 'unknown'))
        AND vt.status IN ('pending', 'step1', 'step2', 'step3')
        AND vt.expires_at > NOW()
      ORDER BY vt.created_at DESC LIMIT 1`,
-    [ip, cleanVid]
+    [normIp, altIp, cleanVid]
   );
 
   if (tasks.length === 0) {
