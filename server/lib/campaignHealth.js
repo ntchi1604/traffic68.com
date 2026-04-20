@@ -176,11 +176,23 @@ async function runCampaignHealthCheck() {
           continue;
         }
 
-        // 2️⃣ Kiểm tra embed script (bỏ qua nếu user chưa có widget)
+        // 2️⃣ Kiểm tra embed script
         const tokens = userTokenMap[camp.user_id] || [];
         if (tokens.length === 0) {
-          console.log(`[CampaignHealth] #${camp.id} "${camp.name}": SKIP (no widget token for user ${camp.user_id})`);
-          skipCount++; continue;
+          // User chưa tạo widget nào → pause
+          await pool.execute(
+            `UPDATE campaigns SET status = 'paused', pause_reason = 'Chưa tạo widget' WHERE id = ? AND status = 'running'`,
+            [camp.id]
+          );
+          await pool.execute(
+            `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+            [camp.user_id, 'Chiến dịch tạm dừng tự động',
+              `Chiến dịch "${camp.name}" đã bị tạm dừng vì tài khoản chưa tạo widget. Vui lòng tạo widget và gắn script rồi bật lại.`,
+              'warning', 'buyer']
+          );
+          console.log(`[CampaignHealth] #${camp.id} "${camp.name}": PAUSED (no widget created for user ${camp.user_id})`);
+          pausedEmbed++;
+          continue;
         }
 
         // Dùng cache để tránh fetch quá nhiều
