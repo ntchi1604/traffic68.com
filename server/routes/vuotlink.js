@@ -80,7 +80,9 @@ let _viewsPerIpExpiry = 0;
 async function getViewsPerIp(pool) {
   if (_viewsPerIpCache !== null && Date.now() < _viewsPerIpExpiry) return _viewsPerIpCache;
   const [rows] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
-  _viewsPerIpCache = rows.length > 0 ? (parseInt(rows[0].setting_value) || 2) : 2;
+  const parsed = rows.length > 0 ? parseInt(rows[0].setting_value) : 0;
+  _viewsPerIpCache = parsed > 0 ? parsed : (rows.length > 0 ? 2 : 5); // fallback = 5 nếu chưa có DB row
+  console.log(`[VuotLink] views_per_ip loaded: ${_viewsPerIpCache} (DB row: ${rows.length > 0 ? rows[0].setting_value : 'NOT FOUND'})`);
   _viewsPerIpExpiry = Date.now() + 60 * 1000; // cache 60 giây
   return _viewsPerIpCache;
 }
