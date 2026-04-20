@@ -161,8 +161,8 @@ router.get('/public/:token', async (req, res) => {
       for (const camp of campaigns) {
         const normalUrl1 = normalize(camp.url || '');
         const normalUrl2 = normalize(camp.url2 || '');
-        const matchUrl1 = normalUrl1 && (normalPage === normalUrl1 || normalPage.startsWith(normalUrl1 + '/'));
-        const matchUrl2 = normalUrl2 && (normalPage === normalUrl2 || normalPage.startsWith(normalUrl2 + '/'));
+        const matchUrl1 = normalUrl1 && (normalPage === normalUrl1 || normalPage.startsWith(normalUrl1 + '/') || normalUrl1.startsWith(normalPage));
+        const matchUrl2 = normalUrl2 && (normalPage === normalUrl2 || normalPage.startsWith(normalUrl2 + '/') || normalUrl2.startsWith(normalPage));
 
         if (matchUrl1 || matchUrl2) {
           let waitTime = 30;
@@ -184,13 +184,11 @@ router.get('/public/:token', async (req, res) => {
         }
       }
       // Fallback: If URL match failed, use the worker's active task to find the campaign
-      // NHƯNG phải kiểm tra domain của pageUrl có khớp với campaign URL không
-      // Tránh: olddomain.com redirect sang newdomain.com → vẫn lấy được code (domain bypass)
       if (!campaignInfo) {
         try {
           const cleanVidFb = req.query.v || '';
           const [fbTasks] = await pool.execute(
-            `SELECT c.id, c.url, c.url2, c.time_on_site, c.version, c.target_page, c.traffic_type
+            `SELECT c.id, c.time_on_site, c.version, c.target_page, c.traffic_type
              FROM vuot_link_tasks vt
              JOIN campaigns c ON c.id = vt.campaign_id
              WHERE (vt.ip_address = ? OR (? != '' AND vt.visitor_id = ?))
@@ -201,33 +199,12 @@ router.get('/public/:token', async (req, res) => {
           );
           if (fbTasks.length > 0) {
             const at = fbTasks[0];
-
-            // ── Kiểm tra domain khớp giữa pageUrl và campaign URL ──
-            let domainOk = !normalPage; // không có pageUrl → không thể kiểm tra → cho qua
-            if (normalPage && !domainOk) {
-              try {
-                const getHost = (u) => {
-                  if (!u) return '';
-                  try { return new URL(/^https?:\/\//.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; }
-                };
-                const pageHost = getHost(pageUrl);
-                const campHost1 = getHost(at.url || '');
-                const campHost2 = getHost(at.url2 || '');
-                domainOk = !!(pageHost && (pageHost === campHost1 || (campHost2 && pageHost === campHost2)));
-                if (!domainOk) {
-                  console.log(`[Widget] Fallback BLOCKED: domain mismatch — page=${pageHost}, camp=${campHost1}${campHost2 ? '/' + campHost2 : ''}, IP=${ip}, camp_id=${at.id}`);
-                }
-              } catch (_) { domainOk = true; } // parse error → cho qua để không block nhầm
-            }
-
-            if (domainOk) {
-              const tos2 = at.time_on_site || '';
-              let wt2 = 30;
-              if (tos2.includes('-')) { wt2 = parseInt(tos2.split('-')[0]) || 30; }
-              else { wt2 = parseInt(tos2) || 30; }
-              campaignInfo = { campaignId: at.id, waitTime: wt2, version: at.version || 0, targetPage: at.target_page || '', trafficType: at.traffic_type || 'google_search' };
-              console.log(`[Widget] IP fallback OK — IP: ${ip}, campaign: ${at.id}, waitTime: ${wt2}s`);
-            }
+            const tos2 = at.time_on_site || '';
+            let wt2 = 30;
+            if (tos2.includes('-')) { wt2 = parseInt(tos2.split('-')[0]) || 30; }
+            else { wt2 = parseInt(tos2) || 30; }
+            campaignInfo = { campaignId: at.id, waitTime: wt2, version: at.version || 0, targetPage: at.target_page || '', trafficType: at.traffic_type || 'google_search' };
+            console.log(`[Widget] IP fallback — IP: ${ip}, campaign: ${at.id}, waitTime: ${wt2}s`);
           }
         } catch (e) { }
       }
@@ -839,8 +816,6 @@ router.post('/public/:token/get-code', async (req, res) => {
 });
 
 router.use(authMiddleware);
-
-
 
 router.get('/', async (req, res) => {
   const pool = getPool();
