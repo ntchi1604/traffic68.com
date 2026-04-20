@@ -148,7 +148,8 @@ async function runCampaignHealthCheck() {
           if (!userTokenMap[r.user_id]) userTokenMap[r.user_id] = [];
           userTokenMap[r.user_id].push(r.token);
         });
-      } catch (_) {}
+        console.log(`[CampaignHealth] Widget tokens: ${wRows.length} tokens for ${userIds.length} users`);
+      } catch (e) { console.error('[CampaignHealth] Widget query error:', e.message); }
     }
 
     // Xử lý tuần tự (không parallel) để tránh quá tải network
@@ -177,15 +178,23 @@ async function runCampaignHealthCheck() {
 
         // 2️⃣ Kiểm tra embed script (bỏ qua nếu user chưa có widget)
         const tokens = userTokenMap[camp.user_id] || [];
-        if (tokens.length === 0) { skipCount++; continue; }
+        if (tokens.length === 0) {
+          console.log(`[CampaignHealth] #${camp.id} "${camp.name}": SKIP (no widget token for user ${camp.user_id})`);
+          skipCount++; continue;
+        }
 
         // Dùng cache để tránh fetch quá nhiều
         const now = Date.now();
         const cached = _embedCache.get(camp.id);
-        if (cached && (now - cached.ts) < EMBED_TTL) { okCount++; continue; }
+        if (cached && (now - cached.ts) < EMBED_TTL) {
+          console.log(`[CampaignHealth] #${camp.id} "${camp.name}": SKIP (cache hit, checked recently)`);
+          okCount++; continue;
+        }
 
+        console.log(`[CampaignHealth] #${camp.id} "${camp.name}": fetching ${camp.url} (tokens: ${tokens.join(', ')})`);
         const embedResult = await checkEmbedScript(camp.url, tokens);
         _embedCache.set(camp.id, { ts: now });
+        console.log(`[CampaignHealth] #${camp.id} embed result: ${embedResult}`);
 
         if (embedResult === 'not_found') {
           await pool.execute(
