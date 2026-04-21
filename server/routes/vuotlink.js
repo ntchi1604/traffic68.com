@@ -350,27 +350,26 @@ async function _handleTaskPost(req, res) {
   }
 
 
-  // ── Limit check: load setting qua cache (tránh query DB mỗi request) ──
   const pool = getPool();
   const maxViewsPerIp = await getViewsPerIp(pool);
 
-  // Explicitly calculate Vietnam Day and Hour string to enforce limits flawlessly
-  // MySQL server timezone = +07:00 (VN) → completed_at lưu giờ VN
-  // Dùng trực tiếp chuỗi giờ VN để so sánh — KHÔNG convert sang UTC
-  // (Convert UTC gây bug: task 19:00 ngày 8/4 VN bị tính vào ngày 9/4 vì '19:00' >= '17:00')
   const vnOpts = { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' };
   const todayVn = new Intl.DateTimeFormat('en-CA', vnOpts).format(new Date()); // e.g. "2026-04-09"
-  // Dùng hourCycle h23 thay vì en-GB để tránh trả về "24" lúc nửa đêm
   const hourVnRaw = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', hour12: false, hourCycle: 'h23' }).format(new Date());
   const hourPad = String(parseInt(hourVnRaw) || 0).padStart(2, '0');
 
-  // Dùng chuỗi ngày/giờ VN trực tiếp (MySQL lưu VN time, so sánh VN với VN là đúng)
-  const vnDayStart = `${todayVn} 00:00:00`;   // VN 00:00 ngày hôm nay
-  const vnDayEnd = `${todayVn} 23:59:59`;   // VN 23:59 ngày hôm nay
-  const vnHourStart = `${todayVn} ${hourPad}:00:00`; // VN giờ hiện tại (e.g. "2026-04-21 11:00:00")
-  const hourStartVn = vnHourStart; // giữ tên cũ để không sửa thêm
+  const vnDayStart = `${todayVn} 00:00:00`;
+  const vnDayEnd = `${todayVn} 23:59:59`;
+  const vnHourStart = `${todayVn} ${hourPad}:00:00`;
+  const hourStartVn = vnHourStart;
+  const _nextHourInt = parseInt(hourPad) + 1;
+  const vnNextHourStart = _nextHourInt < 24
+    ? `${todayVn} ${String(_nextHourInt).padStart(2, '0')}:00:00`
+    : (() => {
+      const tomorrow = new Intl.DateTimeFormat('en-CA', vnOpts).format(new Date(Date.now() + 86400000));
+      return `${tomorrow} 00:00:00`;
+    })();
 
-  // ── Chạy song song device-count + IP-count (tiết kiệm 1 DB round-trip) ──
   const _cleanVidCount = (visitorId && visitorId !== 'unknown') ? visitorId : null;
   const [deviceResult, ipResult] = await Promise.all([
     _cleanVidCount
@@ -440,6 +439,7 @@ async function _handleTaskPost(req, res) {
     )
     AND (
       c.view_by_hour <= 0
+      OR (c.keyword_config IS NOT NULL AND c.keyword_config != '' AND c.keyword_config != '[]')
       OR COALESCE(th.hour_done, 0) < CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24)
     )`;
   const todaySubquery = `LEFT JOIN (
@@ -453,7 +453,7 @@ async function _handleTaskPost(req, res) {
       SELECT campaign_id, COUNT(*) as hour_done
       FROM vuot_link_tasks
       WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
-        AND completed_at >= '${vnHourStart}'
+        AND completed_at >= '${vnHourStart}' AND completed_at < '${vnNextHourStart}'
       GROUP BY campaign_id
     ) th ON th.campaign_id = c.id`;
 
@@ -576,11 +576,11 @@ async function _handleTaskPost(req, res) {
           `SELECT keyword,
                   COUNT(*) as done,
                   SUM(CASE WHEN completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_done,
-                  SUM(CASE WHEN completed_at >= ? THEN 1 ELSE 0 END) as hour_done
+                  SUM(CASE WHEN completed_at >= ? AND completed_at < ? THEN 1 ELSE 0 END) as hour_done
            FROM vuot_link_tasks
            WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0
            GROUP BY keyword`,
-          [vnDayStart, vnDayEnd, vnHourStart, picked.id]
+          [vnDayStart, vnDayEnd, vnHourStart, vnNextHourStart, picked.id]
         );
         const doneMap = {};
         const todayMap = {};
