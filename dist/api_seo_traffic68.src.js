@@ -907,6 +907,38 @@
     }
   }
 
+  /* ── Scroll pill (nhỏ, không block scroll) ────────────── */
+  function _showScrollPill(ch) {
+    _removeScrollPill();
+    var isUp = ch.id === 'scroll-top';
+    var pill = document.createElement('div');
+    pill.id = 'laynut-scroll-pill';
+    pill.style.cssText =
+      'position:fixed;' + (isUp ? 'top:16px' : 'bottom:16px') + ';left:50%;transform:translateX(-50%);' +
+      'z-index:2147483647;pointer-events:none;' +
+      'display:flex;align-items:center;gap:8px;' +
+      'padding:10px 18px;border-radius:999px;' +
+      'background:rgba(15,15,35,0.88);backdrop-filter:blur(8px);' +
+      'box-shadow:0 4px 20px rgba(0,0,0,0.35);' +
+      'font-family:system-ui,-apple-system,sans-serif;' +
+      'animation:ln-pill-in 0.25s ease;white-space:nowrap;';
+    var svgArrow = isUp
+      ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>'
+      : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+    pill.innerHTML = svgArrow +
+      '<span style="color:#fff;font-size:13px;font-weight:700;">' + ch.text + '</span>';
+    document.body.appendChild(pill);
+    if (!document.getElementById('ln-pill-style')) {
+      var s = document.createElement('style');
+      s.id = 'ln-pill-style';
+      s.textContent = '@keyframes ln-pill-in{from{opacity:0;transform:translateX(-50%) translateY(' + (isUp ? '-8px' : '8px') + ')}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+      document.head.appendChild(s);
+    }
+  }
+  function _removeScrollPill() {
+    var p = document.getElementById('laynut-scroll-pill');
+    if (p) p.remove();
+  }
 
   /* ── Challenge system ────────────────────────────────── */
   var tickTimer = null;
@@ -970,53 +1002,50 @@
     _lastChallengeId = ch.id;
     currentChallenge = ch.id;
 
-    closeModal();
-    openModal();
-
-    var title = document.getElementById('laynut-title');
-    var msg = document.getElementById('laynut-msg');
-    var cont = document.getElementById('laynut-content');
-    if (title) title.textContent = 'Xác minh tương tác';
-    if (msg) msg.textContent = 'Hoàn thành hành động bên dưới để tiếp tục';
-    if (cont) {
-      cont.innerHTML =
-        '<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px 0;">' +
-        '<div style="width:64px;height:64px;border-radius:50%;background:#eff6ff;border:2px solid #bfdbfe;' +
-        'display:flex;align-items:center;justify-content:center;color:#3b82f6;">' + ch.svgIcon + '</div>' +
-        '<p style="font-size:14px;font-weight:800;color:' + t.modalText + ';margin:0;">' + ch.text + '</p>' +
-        '</div>';
-    }
-
     if (ch.id === 'scroll-top' || ch.id === 'scroll-bottom') {
-      // Cả overlay lẫn modal đều pointer-events:none → touch xuyên qua trang bên dưới
-      var ov = document.getElementById('laynut-overlay');
-      var md = document.getElementById('laynut-modal');
-      if (ov) ov.style.pointerEvents = 'none';
-      if (md) md.style.pointerEvents = 'none';
-    }
+      // Scroll challenge: đóng modal hoàn toàn để không block scroll trên iOS
+      // Hiện pill nhỏ ở mép màn hình thay thế
+      closeModal();
+      _showScrollPill(ch);
 
-    if (ch.id === 'scroll-top') {
-      challengeListener = function () {
-        var threshold = Math.max(200, (window.innerHeight || 600) * 0.15);
-        if ((window.pageYOffset || document.documentElement.scrollTop) <= threshold) completeChallenge();
-      };
-      window.addEventListener('scroll', challengeListener, { passive: true });
-      // Tự complete nếu đã ở đầu trang
-      var _curTop = window.pageYOffset || document.documentElement.scrollTop;
-      if (_curTop <= Math.max(200, (window.innerHeight || 600) * 0.15)) completeChallenge();
-    } else if (ch.id === 'scroll-bottom') {
-      challengeListener = function () {
-        var st = window.pageYOffset || document.documentElement.scrollTop;
-        var dH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-        // +150px dự phòng mobile browser toolbar (Safari/Chrome address bar)
-        if (dH - st - window.innerHeight <= 150) completeChallenge();
-      };
-      window.addEventListener('scroll', challengeListener, { passive: true });
-      // Tự complete nếu trang quá ngắn
-      var _botDocH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-      var _botSt = window.pageYOffset || document.documentElement.scrollTop;
-      if (_botDocH - _botSt - window.innerHeight <= 150) completeChallenge();
-    } else if (ch.id === 'click') {
+      if (ch.id === 'scroll-top') {
+        challengeListener = function () {
+          var threshold = Math.max(200, (window.innerHeight || 600) * 0.15);
+          if ((window.pageYOffset || document.documentElement.scrollTop) <= threshold) completeChallenge();
+        };
+        window.addEventListener('scroll', challengeListener, { passive: true });
+        // Tự complete nếu đã ở đầu trang
+        var _curTop = window.pageYOffset || document.documentElement.scrollTop;
+        if (_curTop <= Math.max(200, (window.innerHeight || 600) * 0.15)) completeChallenge();
+      } else {
+        challengeListener = function () {
+          var _st = window.pageYOffset || document.documentElement.scrollTop;
+          var _dH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+          if (_dH - _st - window.innerHeight <= 150) completeChallenge();
+        };
+        window.addEventListener('scroll', challengeListener, { passive: true });
+        // Tự complete nếu trang quá ngắn
+        var _botDocH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+        var _botSt = window.pageYOffset || document.documentElement.scrollTop;
+        if (_botDocH - _botSt - window.innerHeight <= 150) completeChallenge();
+      }
+    } else {
+      // Click challenge: dùng modal bình thường
+      closeModal();
+      openModal();
+      var title = document.getElementById('laynut-title');
+      var msg = document.getElementById('laynut-msg');
+      var cont = document.getElementById('laynut-content');
+      if (title) title.textContent = 'Xác minh tương tác';
+      if (msg) msg.textContent = 'Hoàn thành hành động bên dưới để tiếp tục';
+      if (cont) {
+        cont.innerHTML =
+          '<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px 0;">' +
+          '<div style="width:64px;height:64px;border-radius:50%;background:#eff6ff;border:2px solid #bfdbfe;' +
+          'display:flex;align-items:center;justify-content:center;color:#3b82f6;">' + ch.svgIcon + '</div>' +
+          '<p style="font-size:14px;font-weight:800;color:' + t.modalText + ';margin:0;">' + ch.text + '</p>' +
+          '</div>';
+      }
       challengeListener = function (e) {
         var modal = document.getElementById('laynut-modal');
         if (modal && modal.contains(e.target)) return;
@@ -1027,6 +1056,7 @@
   }
 
   function completeChallenge() {
+    _removeScrollPill();
     if (challengeListener) {
       if (currentChallenge === 'scroll-top' || currentChallenge === 'scroll-bottom') {
         window.removeEventListener('scroll', challengeListener);
@@ -1040,6 +1070,7 @@
     closeModal();
     doTick();
   }
+
 
   /* ── Visibility handling ─────────────────────────────── */
   var _isPageVisible = true;
