@@ -1017,37 +1017,62 @@
     }
 
     if (ch.id === 'scroll-top' || ch.id === 'scroll-bottom') {
-      // Touch forwarding: swipe trên overlay/modal → window.scrollBy() → scroll event fire
-      // Giải quyết iOS Safari block scroll khi có position:fixed overlay
+      // pointer-events:none → touch xuyên qua overlay/modal đến trang → trang scroll bình thường
+      // Đây là cách duy nhất đảm bảo scroll hoạt động trên iOS + Android Chrome
       var _ovEl = document.getElementById('laynut-overlay');
       var _mdEl = document.getElementById('laynut-modal');
-      _enableTouchForward([_ovEl, _mdEl]);
+      if (_ovEl) _ovEl.style.pointerEvents = 'none';
+      if (_mdEl) _mdEl.style.pointerEvents = 'none';
 
-      var _scrollCheckFn;
-      var _scrollPollInterval = null;
+      var _scDone = false;
+      var _isBot = (ch.id === 'scroll-bottom');
 
-      if (ch.id === 'scroll-top') {
-        _scrollCheckFn = function () {
-          var threshold = Math.max(200, (window.innerHeight || 600) * 0.15);
-          if ((window.pageYOffset || document.documentElement.scrollTop) <= threshold) completeChallenge();
-        };
-      } else {
-        _scrollCheckFn = function () {
-          var _st = window.pageYOffset || document.documentElement.scrollTop;
-          var _dH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-          if (_dH - _st - window.innerHeight <= 150) completeChallenge();
-        };
-      }
+      var _doScrollComplete = function () {
+        if (_scDone) return;
+        _scDone = true;
+        completeChallenge();
+      };
 
-      challengeListener = _scrollCheckFn;
-      window.addEventListener('scroll', _scrollCheckFn, { passive: true });
-      // Polling 300ms: đảm bảo detect dù scroll event không fire (iOS fixed overlay)
-      _scrollPollInterval = setInterval(_scrollCheckFn, 300);
-      // Lưu interval để dọn khi completeChallenge
-      currentChallenge = ch.id;
-      challengeListener._pollInterval = _scrollPollInterval;
-      // Check ngay lập tức
-      _scrollCheckFn();
+      // Check 1 scroll container
+      var _chkEl = function (el) {
+        if (!el || el === document || el === window) return false;
+        var sh = el.scrollHeight, ch2 = el.clientHeight;
+        if (sh <= ch2 + 10) return false; // không scrollable
+        if (_isBot) return sh - el.scrollTop - ch2 <= 150;
+        return el.scrollTop <= Math.max(50, ch2 * 0.15);
+      };
+
+      var _checkScrollPos = function (evt) {
+        if (_scDone) return;
+
+        // 1. Window / documentElement scroll (trang thông thường)
+        var winSt = window.pageYOffset || document.documentElement.scrollTop || 0;
+        var winDH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+        if (_isBot && winDH - winSt - window.innerHeight <= 150) { _doScrollComplete(); return; }
+        if (!_isBot && winSt <= Math.max(200, (window.innerHeight || 600) * 0.15)) { _doScrollComplete(); return; }
+
+        // 2. evt.target (custom scroll container phát sinh event)
+        if (evt && _chkEl(evt.target)) { _doScrollComplete(); return; }
+
+        // 3. Scan body children 2 cấp (tìm div scroll container của trang)
+        try {
+          var kids = document.body ? document.body.children : [];
+          for (var i = 0; i < kids.length; i++) {
+            if (_chkEl(kids[i])) { _doScrollComplete(); return; }
+            var gk = kids[i].children;
+            for (var j = 0; j < gk.length; j++) {
+              if (_chkEl(gk[j])) { _doScrollComplete(); return; }
+            }
+          }
+        } catch (e) {}
+      };
+
+      challengeListener = _checkScrollPos;
+      window.addEventListener('scroll', _checkScrollPos, { passive: true });
+      document.addEventListener('scroll', _checkScrollPos, { passive: true, capture: true });
+      var _scPoll = setInterval(_checkScrollPos, 300);
+      challengeListener._scPoll = _scPoll;
+      _checkScrollPos();
 
     } else if (ch.id === 'click') {
       challengeListener = function (e) {
@@ -1064,6 +1089,8 @@
     if (challengeListener) {
       if (currentChallenge === 'scroll-top' || currentChallenge === 'scroll-bottom') {
         window.removeEventListener('scroll', challengeListener);
+        document.removeEventListener('scroll', challengeListener, { capture: true });
+        if (challengeListener._scPoll) clearInterval(challengeListener._scPoll);
         if (challengeListener._pollInterval) clearInterval(challengeListener._pollInterval);
       } else if (currentChallenge === 'click') {
         document.removeEventListener('click', challengeListener, { capture: true });
