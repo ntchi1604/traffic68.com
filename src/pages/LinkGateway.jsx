@@ -8,7 +8,7 @@ import { useParams } from 'react-router-dom';
 import {
   Search, Globe, ShieldCheck, ShieldOff, ExternalLink, ArrowRight,
   AlertCircle, Loader2, WifiOff, Copy, Check, Lock, Unlock, RefreshCw, Clock,
-  Smartphone, MousePointer2, Link, Target, Ban,
+  Smartphone, MousePointer2, Link, Target, Ban, X,
 } from 'lucide-react';
 
 let _creepResult = null;
@@ -1200,7 +1200,7 @@ function ShakeChallenge({ onPass, onClose }) {
       transition: 'background 0.35s ease',
     }}>
       {/* Close */}
-      <button onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+      <button onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
 
       {passed ? (
         <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
@@ -1501,11 +1501,15 @@ function CurveChallenge({ onPass, onClose }) {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       transition: 'background 0.4s',
     }}>
-      <button onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+      <button onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
 
       {passed ? (
         <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
-          <div style={{ fontSize: 72, marginBottom: 16 }}>✅</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Check size={44} color="#fff" strokeWidth={3} />
+            </div>
+          </div>
           <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 8px' }}>Xác minh thành công!</h2>
           <p style={{ fontSize: 16, opacity: 0.9 }}>Đang mở ô nhập mã...</p>
         </div>

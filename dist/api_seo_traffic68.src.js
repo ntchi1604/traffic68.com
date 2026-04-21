@@ -758,7 +758,7 @@
     }
 
     ov.innerHTML = '<div id="laynut-modal">' +
-      '<button class="ln-close" id="laynut-close">✕</button>' +
+      '<button class="ln-close" id="laynut-close" style="display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
       iconHtml +
       '<div class="ln-ring-wrap">' +
       '<svg class="ln-ring-svg" width="88" height="88" viewBox="0 0 88 88">' +
@@ -1355,7 +1355,7 @@
       : 'Vui lòng bắt đầu từ trang vượt link trước hoặc cùng trình duyệt để nhận mã.';
 
     ov.innerHTML = '<div id="laynut-modal">' +
-      '<button class="ln-close" onclick="document.getElementById(\'laynut-overlay\').remove()">✕</button>' +
+      '<button class="ln-close" onclick="document.getElementById(\'laynut-overlay\').remove()" style="display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
       '<img src="' + escHtml(effectiveIcon) + '" height="' + cfg.iconSize + '" alt="" style="margin:0 auto 14px;display:block;width:auto;max-width:120px;object-fit:contain;' + iconBgStyle + '">' +
       '<h2 class="ln-title" style="color:' + t.modalText + '">' + escHtml(popupTitle) + '</h2>' +
       '<p class="ln-msg" style="color:' + t.subText + '">' + escHtml(popupMsg) + '</p>' +
@@ -1435,7 +1435,7 @@
           callback: function (token) {
             _hcaptchaToken = token;
             if (status) {
-              status.textContent = '✓ Đã xác minh! Đang lấy mã...';
+              status.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><polyline points="20 6 9 17 4 12"/></svg> Đã xác minh! Đang lấy mã...';
               status.style.color = '#16a34a';
             }
             // Got captcha token → fetch code
@@ -1822,7 +1822,7 @@
           theme: (cfg.theme === 'dark' || cfg.theme === 'glass') ? 'dark' : 'light',
           callback: function (token) {
             _hcaptchaToken = token;
-            if (status) { status.textContent = '✓ Đã xác minh! Đang lấy mã...'; status.style.color = '#16a34a'; }
+            if (status) { status.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><polyline points="20 6 9 17 4 12"/></svg> Đã xác minh! Đang lấy mã...'; status.style.color = '#16a34a'; }
             setTimeout(function () {
               revealed = true;
               fetchSessionCodeV1Phase2(function () { closeModal(); openModal(); if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode); });
@@ -1889,10 +1889,10 @@
     var iconBgStyle = cfg.iconBg !== 'transparent' ? 'background:' + cfg.iconBg + ';border-radius:6px;padding:2px;' : '';
 
     ov.innerHTML = '<div id="laynut-modal">' +
-      '<button class="ln-close" onclick="document.getElementById(\'laynut-overlay\').remove()">✕</button>' +
+      '<button class="ln-close" onclick="document.getElementById(\'laynut-overlay\').remove()" style="display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
       '<img src="' + escHtml(effectiveIcon) + '" height="' + cfg.iconSize + '" alt="" style="margin:0 auto 14px;display:block;width:auto;max-width:120px;object-fit:contain;' + iconBgStyle + '">' +
       '<div style="text-align:center;padding:8px 16px">' +
-      '<div style="width:56px;height:56px;border-radius:50%;background:#fef2f2;border:2px solid #fecaca;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;font-size:24px">⚠️</div>' +
+      '<div style="width:56px;height:56px;border-radius:50%;background:#fef2f2;border:2px solid #fecaca;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>' +
       '<h3 style="color:' + t.modalText + ';font-weight:800;margin:0 0 8px;font-size:16px">Click vào liên kết bất kỳ trong nội bộ!</h3>' +
       '<p style="color:' + t.subText + ';font-size:13px;margin:0 0 16px;line-height:1.5">' +
       'Vui lòng truy cập vào <strong>một link nội bộ khác</strong> trên trang web này trước, sau đó nhấn nút lấy mã trên trang đó.' +
