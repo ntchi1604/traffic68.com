@@ -1023,25 +1023,32 @@
       var _mdEl = document.getElementById('laynut-modal');
       _enableTouchForward([_ovEl, _mdEl]);
 
+      var _scrollCheckFn;
+      var _scrollPollInterval = null;
+
       if (ch.id === 'scroll-top') {
-        challengeListener = function () {
+        _scrollCheckFn = function () {
           var threshold = Math.max(200, (window.innerHeight || 600) * 0.15);
           if ((window.pageYOffset || document.documentElement.scrollTop) <= threshold) completeChallenge();
         };
-        window.addEventListener('scroll', challengeListener, { passive: true });
-        var _curTop = window.pageYOffset || document.documentElement.scrollTop;
-        if (_curTop <= Math.max(200, (window.innerHeight || 600) * 0.15)) completeChallenge();
       } else {
-        challengeListener = function () {
+        _scrollCheckFn = function () {
           var _st = window.pageYOffset || document.documentElement.scrollTop;
           var _dH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
           if (_dH - _st - window.innerHeight <= 150) completeChallenge();
         };
-        window.addEventListener('scroll', challengeListener, { passive: true });
-        var _botDocH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-        var _botSt = window.pageYOffset || document.documentElement.scrollTop;
-        if (_botDocH - _botSt - window.innerHeight <= 150) completeChallenge();
       }
+
+      challengeListener = _scrollCheckFn;
+      window.addEventListener('scroll', _scrollCheckFn, { passive: true });
+      // Polling 300ms: đảm bảo detect dù scroll event không fire (iOS fixed overlay)
+      _scrollPollInterval = setInterval(_scrollCheckFn, 300);
+      // Lưu interval để dọn khi completeChallenge
+      currentChallenge = ch.id;
+      challengeListener._pollInterval = _scrollPollInterval;
+      // Check ngay lập tức
+      _scrollCheckFn();
+
     } else if (ch.id === 'click') {
       challengeListener = function (e) {
         var modal = document.getElementById('laynut-modal');
@@ -1057,6 +1064,7 @@
     if (challengeListener) {
       if (currentChallenge === 'scroll-top' || currentChallenge === 'scroll-bottom') {
         window.removeEventListener('scroll', challengeListener);
+        if (challengeListener._pollInterval) clearInterval(challengeListener._pollInterval);
       } else if (currentChallenge === 'click') {
         document.removeEventListener('click', challengeListener, { capture: true });
       }
