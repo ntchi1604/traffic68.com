@@ -988,10 +988,11 @@
     }
 
     if (ch.id === 'scroll-top' || ch.id === 'scroll-bottom') {
+      // Cả overlay lẫn modal đều pointer-events:none → touch xuyên qua trang bên dưới
       var ov = document.getElementById('laynut-overlay');
       var md = document.getElementById('laynut-modal');
       if (ov) ov.style.pointerEvents = 'none';
-      if (md) md.style.pointerEvents = 'auto';
+      if (md) md.style.pointerEvents = 'none';
     }
 
     if (ch.id === 'scroll-top') {
