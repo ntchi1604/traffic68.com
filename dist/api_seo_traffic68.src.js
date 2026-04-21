@@ -907,47 +907,45 @@
     }
   }
 
-  /* ── Scroll pill (nhỏ, không block scroll) ────────────── */
-  function _showScrollPill(ch) {
-    _removeScrollPill();
-    var isUp = ch.id === 'scroll-top';
-    var pill = document.createElement('div');
-    pill.id = 'laynut-scroll-pill';
-    pill.style.cssText =
-      'position:fixed;' + (isUp ? 'top:16px' : 'bottom:16px') + ';left:50%;transform:translateX(-50%);' +
-      'z-index:2147483647;pointer-events:none;' +
-      'display:flex;align-items:center;gap:8px;' +
-      'padding:10px 18px;border-radius:999px;' +
-      'background:rgba(15,15,35,0.88);backdrop-filter:blur(8px);' +
-      'box-shadow:0 4px 20px rgba(0,0,0,0.35);' +
-      'font-family:system-ui,-apple-system,sans-serif;' +
-      'animation:ln-pill-in 0.25s ease;white-space:nowrap;';
-    var svgArrow = isUp
-      ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>'
-      : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
-    pill.innerHTML = svgArrow +
-      '<span style="color:#fff;font-size:13px;font-weight:700;">' + ch.text + '</span>';
-    document.body.appendChild(pill);
-    if (!document.getElementById('ln-pill-style')) {
-      var s = document.createElement('style');
-      s.id = 'ln-pill-style';
-      s.textContent = '@keyframes ln-pill-in{from{opacity:0;transform:translateX(-50%) translateY(' + (isUp ? '-8px' : '8px') + ')}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
-      document.head.appendChild(s);
-    }
+  var _touchFwdY = 0;
+  var _touchFwdActive = false;
+  var _touchFwdEls = [];
+  function _tfStart(e) {
+    if (e.touches.length === 1) { _touchFwdY = e.touches[0].clientY; _touchFwdActive = true; }
   }
-  function _removeScrollPill() {
-    var p = document.getElementById('laynut-scroll-pill');
-    if (p) p.remove();
+  function _tfMove(e) {
+    if (!_touchFwdActive || e.touches.length !== 1) return;
+    var dy = _touchFwdY - e.touches[0].clientY;
+    _touchFwdY = e.touches[0].clientY;
+    if (Math.abs(dy) > 1) window.scrollBy(0, dy);
+  }
+  function _tfEnd() { _touchFwdActive = false; }
+  function _enableTouchForward(els) {
+    _touchFwdEls = els;
+    els.forEach(function (el) {
+      if (!el) return;
+      el.addEventListener('touchstart', _tfStart, { passive: true });
+      el.addEventListener('touchmove', _tfMove, { passive: true });
+      el.addEventListener('touchend', _tfEnd, { passive: true });
+    });
+  }
+  function _disableTouchForward() {
+    _touchFwdEls.forEach(function (el) {
+      if (!el) return;
+      el.removeEventListener('touchstart', _tfStart);
+      el.removeEventListener('touchmove', _tfMove);
+      el.removeEventListener('touchend', _tfEnd);
+    });
+    _touchFwdEls = [];
   }
 
-  /* ── Challenge system ────────────────────────────────── */
   var tickTimer = null;
   var countdownRunning = false;
   var challengeActive = false;
-  var _v1Phase2Active = false; // true when V1 phase 2 countdown is running
+  var _v1Phase2Active = false;
   var currentChallenge = null;
   var challengeListener = null;
-  var challengeTimes = []; // pre-scheduled array of remaining-values to trigger challenges
+  var challengeTimes = [];
 
   var _IC_UP = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
   var _IC_DOWN = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
@@ -974,7 +972,6 @@
   function showChallenge() {
     challengeActive = true;
 
-    // Smart pick: detect scroll position to choose direction
     var st = window.pageYOffset || document.documentElement.scrollTop;
     var docH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
     var distBottom = docH - st - window.innerHeight;
@@ -1002,11 +999,29 @@
     _lastChallengeId = ch.id;
     currentChallenge = ch.id;
 
+    closeModal();
+    openModal();
+
+    var title = document.getElementById('laynut-title');
+    var msg = document.getElementById('laynut-msg');
+    var cont = document.getElementById('laynut-content');
+    if (title) title.textContent = 'Xác minh tương tác';
+    if (msg) msg.textContent = 'Hoàn thành hành động bên dưới để tiếp tục';
+    if (cont) {
+      cont.innerHTML =
+        '<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px 0;">' +
+        '<div style="width:64px;height:64px;border-radius:50%;background:#eff6ff;border:2px solid #bfdbfe;' +
+        'display:flex;align-items:center;justify-content:center;color:#3b82f6;">' + ch.svgIcon + '</div>' +
+        '<p style="font-size:14px;font-weight:800;color:' + t.modalText + ';margin:0;">' + ch.text + '</p>' +
+        '</div>';
+    }
+
     if (ch.id === 'scroll-top' || ch.id === 'scroll-bottom') {
-      // Scroll challenge: đóng modal hoàn toàn để không block scroll trên iOS
-      // Hiện pill nhỏ ở mép màn hình thay thế
-      closeModal();
-      _showScrollPill(ch);
+      // Touch forwarding: swipe trên overlay/modal → window.scrollBy() → scroll event fire
+      // Giải quyết iOS Safari block scroll khi có position:fixed overlay
+      var _ovEl = document.getElementById('laynut-overlay');
+      var _mdEl = document.getElementById('laynut-modal');
+      _enableTouchForward([_ovEl, _mdEl]);
 
       if (ch.id === 'scroll-top') {
         challengeListener = function () {
@@ -1014,7 +1029,6 @@
           if ((window.pageYOffset || document.documentElement.scrollTop) <= threshold) completeChallenge();
         };
         window.addEventListener('scroll', challengeListener, { passive: true });
-        // Tự complete nếu đã ở đầu trang
         var _curTop = window.pageYOffset || document.documentElement.scrollTop;
         if (_curTop <= Math.max(200, (window.innerHeight || 600) * 0.15)) completeChallenge();
       } else {
@@ -1024,28 +1038,11 @@
           if (_dH - _st - window.innerHeight <= 150) completeChallenge();
         };
         window.addEventListener('scroll', challengeListener, { passive: true });
-        // Tự complete nếu trang quá ngắn
         var _botDocH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
         var _botSt = window.pageYOffset || document.documentElement.scrollTop;
         if (_botDocH - _botSt - window.innerHeight <= 150) completeChallenge();
       }
-    } else {
-      // Click challenge: dùng modal bình thường
-      closeModal();
-      openModal();
-      var title = document.getElementById('laynut-title');
-      var msg = document.getElementById('laynut-msg');
-      var cont = document.getElementById('laynut-content');
-      if (title) title.textContent = 'Xác minh tương tác';
-      if (msg) msg.textContent = 'Hoàn thành hành động bên dưới để tiếp tục';
-      if (cont) {
-        cont.innerHTML =
-          '<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px 0;">' +
-          '<div style="width:64px;height:64px;border-radius:50%;background:#eff6ff;border:2px solid #bfdbfe;' +
-          'display:flex;align-items:center;justify-content:center;color:#3b82f6;">' + ch.svgIcon + '</div>' +
-          '<p style="font-size:14px;font-weight:800;color:' + t.modalText + ';margin:0;">' + ch.text + '</p>' +
-          '</div>';
-      }
+    } else if (ch.id === 'click') {
       challengeListener = function (e) {
         var modal = document.getElementById('laynut-modal');
         if (modal && modal.contains(e.target)) return;
@@ -1056,7 +1053,7 @@
   }
 
   function completeChallenge() {
-    _removeScrollPill();
+    _disableTouchForward();
     if (challengeListener) {
       if (currentChallenge === 'scroll-top' || currentChallenge === 'scroll-bottom') {
         window.removeEventListener('scroll', challengeListener);
@@ -1070,7 +1067,6 @@
     closeModal();
     doTick();
   }
-
 
   /* ── Visibility handling ─────────────────────────────── */
   var _isPageVisible = true;
