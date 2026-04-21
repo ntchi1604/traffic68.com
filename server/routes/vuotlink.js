@@ -597,8 +597,14 @@ async function _handleTaskPost(req, res) {
         const limitedCount = kwConfig.filter(k => Number(k.daily_views) > 0).length;
         const unsetCount = kwConfig.filter(k => !(Number(k.daily_views) > 0)).length;
         const remainingDaily = Math.max(0, campaignDailyViews - totalExplicitDaily);
-        const autoDaily = (hasAnyExplicitDaily && campaignDailyViews > 0 && unsetCount > 0)
-          ? Math.floor(remainingDaily / unsetCount)
+        // autoDaily: lượng ngày còn lại cho các kw không đặt daily_views tường minh
+        // Nếu không có unsetCount hoặc remainingDaily = 0 thì fallback sang campaign daily / total kw
+        const autoDaily = unsetCount > 0
+          ? (hasAnyExplicitDaily && campaignDailyViews > 0
+              ? Math.floor(remainingDaily / unsetCount)
+              : campaignDailyViews > 0
+                ? Math.floor(campaignDailyViews / kwConfig.length)
+                : 0)
           : 0;
 
         // [FIX 1] Virtual target cho keyword không có daily limit:
@@ -647,10 +653,16 @@ async function _handleTaskPost(req, res) {
             let kwHourlyCap = 0;
             if (kwViewByHour) {
               if (Number(k.daily_views) > 0) {
+                // Keyword có daily tường minh → cap = daily/24
                 kwHourlyCap = Math.max(1, Math.ceil(Number(k.daily_views) / 24));
+              } else if (autoDaily > 0) {
+                // Keyword không set daily, camp có quota còn lại → cap = autoDaily/24
+                kwHourlyCap = Math.max(1, Math.ceil(autoDaily / 24));
               } else if (campaignDailyViews > 0) {
-                kwHourlyCap = Math.max(1, Math.ceil(campaignDailyViews / 24));
+                // Fallback: campaign daily / số kw / 24
+                kwHourlyCap = Math.max(1, Math.ceil(campaignDailyViews / Math.max(1, kwConfig.length) / 24));
               } else if (campTotalViews > 0) {
+                // Fallback cuối: total_views / 24
                 kwHourlyCap = Math.max(1, Math.ceil(campTotalViews / 24));
               }
               if (kwHourlyCap > 0 && hourDone >= kwHourlyCap) {
@@ -694,16 +706,24 @@ async function _handleTaskPost(req, res) {
             // Kiểm tra xem có keyword nào còn quota ngày nhưng bị chặn bởi hourly cap không
             // Dùng cùng rule tính kwHourlyCap: kw.daily_views/24 → camp.daily_views/24 → total_views/24
             const anyBlockedByHour = kwConfig.some(k => {
-              const kwDailyLimit = Number(k.daily_views) || 0;
-              const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
+              const kwDailyLimitEx = Number(k.daily_views) || 0;
+              // effectiveDailyLimit cho keyword này
+              const effDaily = kwDailyLimitEx > 0 ? kwDailyLimitEx
+                : autoDaily > 0 ? autoDaily
+                : campaignDailyViews > 0 ? Math.floor(campaignDailyViews / Math.max(1, kwConfig.length))
+                : 0;
               const todayDoneKw = todayMap[k.keyword] || 0;
               const hourDoneKw = hourMap[k.keyword] || 0;
-              const dailyOkKw = effectiveDailyLimit <= 0 || todayDoneKw < effectiveDailyLimit;
+              // Keyword còn quota ngày (hoặc không giới hạn ngày)
+              const dailyOkKw = effDaily <= 0 || todayDoneKw < effDaily;
+              // Tính hourly cap cùng rule với trên
               let kwHourlyCapCheck = 0;
-              if (kwDailyLimit > 0) {
-                kwHourlyCapCheck = Math.max(1, Math.ceil(kwDailyLimit / 24));
+              if (kwDailyLimitEx > 0) {
+                kwHourlyCapCheck = Math.max(1, Math.ceil(kwDailyLimitEx / 24));
+              } else if (autoDaily > 0) {
+                kwHourlyCapCheck = Math.max(1, Math.ceil(autoDaily / 24));
               } else if (campaignDailyViews > 0) {
-                kwHourlyCapCheck = Math.max(1, Math.ceil(campaignDailyViews / 24));
+                kwHourlyCapCheck = Math.max(1, Math.ceil(campaignDailyViews / Math.max(1, kwConfig.length) / 24));
               } else if (campTotalViews > 0) {
                 kwHourlyCapCheck = Math.max(1, Math.ceil(campTotalViews / 24));
               }
