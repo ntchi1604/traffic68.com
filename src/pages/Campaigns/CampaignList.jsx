@@ -551,18 +551,20 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Từ khóa tìm kiếm</label>
-                <button
-                  type="button"
-                  onClick={toggleKeywordDailyViews}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-lg border transition ${
-                    useKeywordDailyViews
-                      ? 'bg-sky-50 border-sky-300 text-sky-700'
-                      : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
-                  }`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${useKeywordDailyViews ? 'bg-sky-500' : 'bg-slate-300'}`} />
-                  Cài view/ngày riêng
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] font-semibold transition-colors ${useKeywordDailyViews ? 'text-sky-600' : 'text-slate-400'}`}>
+                    View/ngày riêng
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={useKeywordDailyViews}
+                    onClick={toggleKeywordDailyViews}
+                    className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none ${useKeywordDailyViews ? 'bg-sky-500' : 'bg-slate-200'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordDailyViews ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
               </div>
 
               {/* Info box */}
