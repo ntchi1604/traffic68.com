@@ -360,13 +360,14 @@ async function _handleTaskPost(req, res) {
   // (Convert UTC gây bug: task 19:00 ngày 8/4 VN bị tính vào ngày 9/4 vì '19:00' >= '17:00')
   const vnOpts = { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' };
   const todayVn = new Intl.DateTimeFormat('en-CA', vnOpts).format(new Date()); // e.g. "2026-04-09"
-  const hourVnRaw = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', hour12: false }).format(new Date());
-  const hourPad = hourVnRaw.padStart(2, '0');
+  // Dùng hourCycle h23 thay vì en-GB để tránh trả về "24" lúc nửa đêm
+  const hourVnRaw = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', hour12: false, hourCycle: 'h23' }).format(new Date());
+  const hourPad = String(parseInt(hourVnRaw) || 0).padStart(2, '0');
 
   // Dùng chuỗi ngày/giờ VN trực tiếp (MySQL lưu VN time, so sánh VN với VN là đúng)
   const vnDayStart = `${todayVn} 00:00:00`;   // VN 00:00 ngày hôm nay
   const vnDayEnd = `${todayVn} 23:59:59`;   // VN 23:59 ngày hôm nay
-  const vnHourStart = `${todayVn} ${hourPad}:00:00`; // VN giờ hiện tại
+  const vnHourStart = `${todayVn} ${hourPad}:00:00`; // VN giờ hiện tại (e.g. "2026-04-21 11:00:00")
   const hourStartVn = vnHourStart; // giữ tên cũ để không sửa thêm
 
   // ── Chạy song song device-count + IP-count (tiết kiệm 1 DB round-trip) ──
@@ -640,13 +641,17 @@ async function _handleTaskPost(req, res) {
             if (!dailyOk) return { ...k, weight: 0 };
 
             // ── Hourly cap per-keyword khi view_by_hour bật ──
+            // Quy tắc: keyword có daily_views → daily_views/24
+            //          không có daily_views, camp có daily_views → camp.daily_views/24
+            //          không có gì → total_views/24
             let kwHourlyCap = 0;
             if (kwViewByHour) {
-              if (effectiveDailyLimit > 0) {
-                kwHourlyCap = Math.max(1, Math.ceil(effectiveDailyLimit / 24));
-              } else {
-                const refViews = campaignDailyViews > 0 ? campaignDailyViews : campTotalViews;
-                kwHourlyCap = refViews > 0 ? Math.max(1, Math.ceil(refViews / 24)) : 0;
+              if (Number(k.daily_views) > 0) {
+                kwHourlyCap = Math.max(1, Math.ceil(Number(k.daily_views) / 24));
+              } else if (campaignDailyViews > 0) {
+                kwHourlyCap = Math.max(1, Math.ceil(campaignDailyViews / 24));
+              } else if (campTotalViews > 0) {
+                kwHourlyCap = Math.max(1, Math.ceil(campTotalViews / 24));
               }
               if (kwHourlyCap > 0 && hourDone >= kwHourlyCap) {
                 return { ...k, weight: 0 };
@@ -683,29 +688,59 @@ async function _handleTaskPost(req, res) {
             if (kwRand <= 0) { selectedObj = item; break; }
           }
         } else {
-          // All keywords hit their daily_views limit today
-          const hasUnlimitedKw = kwConfig.some(k => {
-            const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
-            return effectiveDailyLimit <= 0;
-          });
-
-          if (hasUnlimitedKw) {
-            const stillRemaining = kwConfig.filter(k => {
+          // All keywords hit their weight=0 (daily OR hourly cap)
+          // Check if it's hourly cap (not daily) — if so, skip this camp entirely (view_by_hour)
+          if (kwViewByHour) {
+            // Kiểm tra xem có keyword nào còn quota ngày nhưng bị chặn bởi hourly cap không
+            // Dùng cùng rule tính kwHourlyCap: kw.daily_views/24 → camp.daily_views/24 → total_views/24
+            const anyBlockedByHour = kwConfig.some(k => {
+              const kwDailyLimit = Number(k.daily_views) || 0;
               const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
-              const totalDone = doneMap[k.keyword] || 0;
-              const kwTotalViews = Number(k.views) || 0;
-              return effectiveDailyLimit <= 0 && (kwTotalViews <= 0 || totalDone < kwTotalViews);
+              const todayDoneKw = todayMap[k.keyword] || 0;
+              const hourDoneKw = hourMap[k.keyword] || 0;
+              const dailyOkKw = effectiveDailyLimit <= 0 || todayDoneKw < effectiveDailyLimit;
+              let kwHourlyCapCheck = 0;
+              if (kwDailyLimit > 0) {
+                kwHourlyCapCheck = Math.max(1, Math.ceil(kwDailyLimit / 24));
+              } else if (campaignDailyViews > 0) {
+                kwHourlyCapCheck = Math.max(1, Math.ceil(campaignDailyViews / 24));
+              } else if (campTotalViews > 0) {
+                kwHourlyCapCheck = Math.max(1, Math.ceil(campTotalViews / 24));
+              }
+              return dailyOkKw && kwHourlyCapCheck > 0 && hourDoneKw >= kwHourlyCapCheck;
             });
-            const fallbackPool = stillRemaining.length > 0 ? stillRemaining : kwConfig.filter(k => {
+            if (anyBlockedByHour) {
+              console.log(`[VuotLink] Campaign ${picked.id}: all keywords hit hourly cap (view_by_hour) → remove from pool, retrying`);
+              // kwOk stays false → camp bị loại khỏi pool
+            } else {
+              // All blocked by daily limit
+              console.log(`[VuotLink] Campaign ${picked.id}: all keywords hit daily limit today (view_by_hour on) → remove from pool, retrying`);
+            }
+          } else {
+            // view_by_hour OFF: fallback cho keyword unlimited nếu tất cả bị daily
+            const hasUnlimitedKw = kwConfig.some(k => {
               const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
               return effectiveDailyLimit <= 0;
             });
-            if (fallbackPool.length > 0) {
-              selectedObj = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+
+            if (hasUnlimitedKw) {
+              const stillRemaining = kwConfig.filter(k => {
+                const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
+                const totalDone = doneMap[k.keyword] || 0;
+                const kwTotalViews = Number(k.views) || 0;
+                return effectiveDailyLimit <= 0 && (kwTotalViews <= 0 || totalDone < kwTotalViews);
+              });
+              const fallbackPool = stillRemaining.length > 0 ? stillRemaining : kwConfig.filter(k => {
+                const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
+                return effectiveDailyLimit <= 0;
+              });
+              if (fallbackPool.length > 0) {
+                selectedObj = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+              }
+            } else {
+              // ALL keywords exhausted for today → skip this campaign, try another
+              console.log(`[VuotLink] Campaign ${picked.id}: all keywords hit daily limit today → remove from pool, retrying`);
             }
-          } else {
-            // ALL keywords exhausted for today → skip this campaign, try another
-            console.log(`[VuotLink] Campaign ${picked.id}: all keywords hit daily limit today → remove from pool, retrying`);
           }
         }
 

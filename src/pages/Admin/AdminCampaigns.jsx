@@ -244,20 +244,15 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
   const isDirect = campaign.traffic_type === 'direct';
   const [name, setName] = useState(campaign.name || '');
-  const [totalViews, setTotalViews] = useState(Number(campaign.total_views) || 1000);
   const [dailyViews, setDailyViews] = useState(Number(campaign.daily_views) || 0);
+  const [note, setNote] = useState(campaign.note || '');
+  const [timeOnSite, setTimeOnSite] = useState(campaign.time_on_site || '');
+  const [targetPage, setTargetPage] = useState(campaign.target_page || '');
 
   const [useKeywordUrls, setUseKeywordUrls] = useState(() => {
     try {
       const cfg = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
       return Array.isArray(cfg) && cfg.some(k => (k.url && k.url.trim()) || (k.image && k.image.trim()));
-    } catch { return false; }
-  });
-
-  const [useKeywordViews, setUseKeywordViews] = useState(() => {
-    try {
-      const cfg = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
-      return Array.isArray(cfg) && cfg.some(k => k.views && k.views > 0);
     } catch { return false; }
   });
 
@@ -386,18 +381,18 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       const globalUrl = urls[0]?.trim();
       const globalImg = imageUrls[0]?.trim();
       const allImages = globalImg ? [globalImg, ...imgs] : imgs;
-      // Tính dailyViews cuối: direct dùng global, còn lại ưu tiên keyword-level
+
+      // totalViews luôn tính từ tổng views của từng keyword
+      const finalTotalViews = isDirect
+        ? (Number(keywords[0]?.views) || Number(campaign.total_views))
+        : (kws.reduce((s, k) => s + (Number(k.views) || 0), 0) || Number(campaign.total_views));
+
       const finalDailyViews = isDirect
         ? Number(dailyViews) || 0
         : useKeywordDailyViews
           ? keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)
           : Number(dailyViews) || 0;
 
-      const finalTotalViews = useKeywordViews
-        ? kws.reduce((s, k) => s + (Number(k.views) || 0), 0)
-        : Number(totalViews);
-
-      // Direct: lưu URL đích vào keyword & keyword_config để thống kê hiển thị đúng
       const finalKeyword = isDirect
         ? JSON.stringify([globalUrl || ''])
         : JSON.stringify(kws.length ? kws.map(k => k.keyword) : [campaign.keyword || '']);
@@ -405,7 +400,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         ? JSON.stringify([{ keyword: globalUrl || '', views: finalTotalViews, daily_views: finalDailyViews, url: globalUrl || '', image: '' }])
         : JSON.stringify(kws.length ? kws.map(k => ({
             keyword: k.keyword,
-            views: useKeywordViews ? (Number(k.views) || 0) : Math.max(1, Math.floor((Number(totalViews) || 1000) / kws.length)),
+            views: Number(k.views) || Math.max(1, Math.floor(finalTotalViews / kws.length)),
             daily_views: useKeywordDailyViews ? (Number(k.daily_views) || 0) : 0,
             url: useKeywordUrls ? (k.url || '') : '',
             image: useKeywordUrls ? (k.image || '') : ''
@@ -424,6 +419,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         image2_url: null,
         version: Number(version),
         device: [selectedDevices.desktop && 'desktop', selectedDevices.mobile && 'mobile'].filter(Boolean).join(',') || 'desktop,mobile',
+        note: note || null,
+        timeOnSite,
+        targetPage,
       });
       toast.success('Cập nhật chiến dịch thành công');
       onSaved();
@@ -476,10 +474,10 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-sm font-semibold text-slate-600">Từ khóa tìm kiếm</label>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 border-r border-slate-200 pr-4">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 border-r border-slate-200 pr-3">
                   <span className={`text-[11px] font-semibold transition-colors ${useKeywordUrls ? 'text-indigo-600' : 'text-slate-400'}`}>
-                    Cài Link/Ảnh riêng
+                    Link/Ảnh riêng
                   </span>
                   <button
                     type="button"
@@ -491,23 +489,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                     <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordUrls ? 'translate-x-4' : 'translate-x-0'}`} />
                   </button>
                 </div>
-                <div className="flex items-center gap-2 border-r border-slate-200 pr-3">
-                  <span className={`text-[11px] font-semibold transition-colors ${useKeywordViews ? 'text-amber-600' : 'text-slate-400'}`}>
-                    Cài view riêng
-                  </span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={useKeywordViews}
-                    onClick={toggleKeywordViews}
-                    className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none ${useKeywordViews ? 'bg-amber-500' : 'bg-slate-200'}`}
-                  >
-                    <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordViews ? 'translate-x-4' : 'translate-x-0'}`} />
-                  </button>
-                </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-[11px] font-semibold transition-colors ${useKeywordDailyViews ? 'text-sky-600' : 'text-slate-400'}`}>
-                    Cài view/ngày
+                    View/ngày riêng
                   </span>
                   <button
                     type="button"
@@ -537,18 +521,16 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
                   <div className="flex gap-2 items-center">
                     <input type="text" value={kw.keyword} onChange={e => updateKeywordText(i, e.target.value)} placeholder={`Từ khóa ${i + 1}`} className={inputCls + ' flex-1'} />
-                    {useKeywordViews && (
-                      <div className="relative w-28 flex-shrink-0">
-                        <input
-                          type="number" min="1" value={kw.views}
-                          onChange={e => updateKeywordViews(i, e.target.value)}
-                          className={inputCls + ' pr-10 text-right font-bold text-amber-900 bg-amber-50'}
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
-                      </div>
-                    )}
+                    <div className="relative w-24 flex-shrink-0">
+                      <input
+                        type="number" min="1" value={kw.views || 0}
+                        onChange={e => updateKeywordViews(i, e.target.value)}
+                        className={inputCls + ' pr-10 text-right font-bold text-amber-900 bg-amber-50 border-amber-200'}
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                    </div>
                     {useKeywordDailyViews && (
-                      <div className="relative w-28 flex-shrink-0">
+                      <div className="relative w-24 flex-shrink-0">
                         <input
                           type="number" min="0" value={kw.daily_views || 0}
                           onChange={e => updateKeywordDailyViews(i, e.target.value)}
@@ -620,11 +602,18 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
               <p className="mt-1 text-xs text-slate-400">0 = không giới hạn</p>
             </div>
             <div>
-              <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view mua</label>
-              <div className="relative">
-                <input type="number" min="1" value={totalViews} onChange={e => setTotalViews(Number(e.target.value) || 0)} className={inputCls + ' pr-14'} />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none">view</span>
-              </div>
+              <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view (không sửa)</label>
+              {(() => {
+                const preview = isDirect
+                  ? (Number(keywords[0]?.views) || Number(campaign.total_views))
+                  : keywords.filter(k => k.keyword.trim()).reduce((s, k) => s + (Number(k.views) || 0), 0) || Number(campaign.total_views);
+                return (
+                  <div className="px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+                    <span className="text-lg font-black text-amber-700 tabular-nums">{preview.toLocaleString()}</span>
+                    <span className="text-xs text-amber-500 font-bold">view</span>
+                  </div>
+                );
+              })()}
               <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view</p>
             </div>
           </div>
@@ -679,6 +668,41 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             {!selectedDevices.desktop && !selectedDevices.mobile && (
               <p className="mt-1.5 text-xs text-red-500 font-medium">⚠️ Chọn ít nhất 1 thiết bị</p>
             )}
+          </div>
+
+          {/* Thời gian + Target + Ghi chú */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-semibold text-slate-600 mb-1 block">Thời gian trên trang (giây)</label>
+              <input
+                type="number" min="0"
+                value={timeOnSite}
+                onChange={e => setTimeOnSite(e.target.value)}
+                placeholder="VD: 60"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-slate-600 mb-1 block">Trang đích (targetPage)</label>
+              <input
+                type="text"
+                value={targetPage}
+                onChange={e => setTargetPage(e.target.value)}
+                placeholder="/trang-dich"
+                className={inputCls}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1 block">Ghi chú (tùy chọn)</label>
+            <textarea
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              rows={2}
+              placeholder="Ghi chú nội bộ..."
+              className={inputCls + ' resize-none'}
+            />
           </div>
         </div>
 
