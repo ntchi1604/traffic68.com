@@ -907,55 +907,6 @@
     }
   }
 
-  /* ── Scroll banner (thay thế overlay khi challenge scroll để không block scroll) ── */
-  var _SVG_ARROW_UP =
-    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">' +
-    '<polyline points="18 15 12 9 6 15"/></svg>';
-  var _SVG_ARROW_DOWN =
-    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">' +
-    '<polyline points="6 9 12 15 18 9"/></svg>';
-
-  function _showScrollBanner(ch) {
-    _removeScrollBanner();
-    var banner = document.createElement('div');
-    banner.id = 'laynut-scroll-banner';
-    var isUp = ch.id === 'scroll-top';
-    var svgIcon = isUp ? _SVG_ARROW_UP : _SVG_ARROW_DOWN;
-    banner.style.cssText = [
-      'position:fixed', isUp ? 'top:0' : 'bottom:0', 'left:0', 'right:0',
-      'z-index:2147483647', 'pointer-events:none',
-      'display:flex', 'align-items:center', 'justify-content:center', 'gap:10px',
-      'padding:12px 24px',
-      'background:' + (isUp
-        ? 'linear-gradient(180deg,rgba(10,10,40,0.95) 0%,rgba(10,10,40,0.6) 70%,transparent 100%)'
-        : 'linear-gradient(0deg,rgba(10,10,40,0.95) 0%,rgba(10,10,40,0.6) 70%,transparent 100%)'),
-      'font-family:system-ui,-apple-system,sans-serif',
-      'animation:ln-banner-fade 0.3s ease',
-    ].join(';');
-    banner.innerHTML =
-      '<div style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.18);border:1.5px solid rgba(255,255,255,0.35);' +
-      'display:flex;align-items:center;justify-content:center;flex-shrink:0;' +
-      'animation:ln-bounce-' + (isUp ? 'up' : 'down') + ' 0.7s ease-in-out infinite">' +
-      svgIcon + '</div>' +
-      '<span style="color:#fff;font-size:14px;font-weight:800;letter-spacing:0.2px;text-shadow:0 1px 6px rgba(0,0,0,0.6);">' +
-      ch.text + '</span>';
-    document.body.appendChild(banner);
-
-    if (!document.getElementById('ln-scroll-banner-style')) {
-      var s = document.createElement('style');
-      s.id = 'ln-scroll-banner-style';
-      s.textContent =
-        '@keyframes ln-banner-fade{from{opacity:0}to{opacity:1}}' +
-        '@keyframes ln-bounce-up{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}' +
-        '@keyframes ln-bounce-down{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}';
-      document.head.appendChild(s);
-    }
-  }
-
-  function _removeScrollBanner() {
-    var b = document.getElementById('laynut-scroll-banner');
-    if (b) b.remove();
-  }
 
   /* ── Challenge system ────────────────────────────────── */
   var tickTimer = null;
@@ -966,10 +917,13 @@
   var challengeListener = null;
   var challengeTimes = []; // pre-scheduled array of remaining-values to trigger challenges
 
+  var _IC_UP = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
+  var _IC_DOWN = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+  var _IC_CLICK = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
   var CHALLENGES = [
-    { id: 'scroll-top', icon: '⬆️', text: 'Scroll lên đầu trang' },
-    { id: 'scroll-bottom', icon: '⬇️', text: 'Scroll xuống cuối trang' },
-    { id: 'click', icon: '👆', text: 'Click vào bất kỳ đâu trên trang' },
+    { id: 'scroll-top', svgIcon: _IC_UP, text: 'Scroll lên đầu trang' },
+    { id: 'scroll-bottom', svgIcon: _IC_DOWN, text: 'Scroll xuống cuối trang' },
+    { id: 'click', svgIcon: _IC_CLICK, text: 'Click vào bất kỳ đâu trên trang' },
   ];
   var _lastChallengeId = null; // Track last challenge to prevent consecutive duplicates
 
@@ -1026,53 +980,36 @@
     if (msg) msg.textContent = 'Hoàn thành hành động bên dưới để tiếp tục';
     if (cont) {
       cont.innerHTML =
-        '<div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 0;">' +
-        '<div style="font-size:36px;line-height:1;">' + ch.icon + '</div>' +
-        '<p style="font-size:14px;font-weight:800;color:' + t.modalText + ';">' + ch.text + '</p>' +
+        '<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px 0;">' +
+        '<div style="width:64px;height:64px;border-radius:50%;background:#eff6ff;border:2px solid #bfdbfe;' +
+        'display:flex;align-items:center;justify-content:center;color:#3b82f6;">' + ch.svgIcon + '</div>' +
+        '<p style="font-size:14px;font-weight:800;color:' + t.modalText + ';margin:0;">' + ch.text + '</p>' +
         '</div>';
     }
 
     if (ch.id === 'scroll-top') {
-      // Fix: Ẩn overlay hoàn toàn trong khi chờ scroll — overlay block scroll của trang
-      closeModal();
-      _showScrollBanner(ch);
-      var _scrollTopDone = false;
       challengeListener = function () {
-        if (_scrollTopDone) return;
         var threshold = Math.max(200, (window.innerHeight || 600) * 0.1);
-        if ((window.pageYOffset || document.documentElement.scrollTop) <= threshold) {
-          _scrollTopDone = true;
-          _removeScrollBanner();
-          completeChallenge();
-        }
+        if ((window.pageYOffset || document.documentElement.scrollTop) <= threshold) completeChallenge();
       };
       window.addEventListener('scroll', challengeListener, { passive: true });
-      // Tự complete nếu trang quá ngắn không scroll được hoặc đã ở đầu
+      // Tự complete nếu đã ở đầu trang
       var _curTop = window.pageYOffset || document.documentElement.scrollTop;
       var _topThre = Math.max(200, (window.innerHeight || 600) * 0.1);
-      if (_curTop <= _topThre) { _scrollTopDone = true; _removeScrollBanner(); completeChallenge(); }
+      if (_curTop <= _topThre) completeChallenge();
     } else if (ch.id === 'scroll-bottom') {
-      // Fix: Ẩn overlay hoàn toàn trong khi chờ scroll
-      closeModal();
-      _showScrollBanner(ch);
-      var _scrollBotDone = false;
       challengeListener = function () {
-        if (_scrollBotDone) return;
         var st = window.pageYOffset || document.documentElement.scrollTop;
         var dH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
         var threshold = Math.max(200, (window.innerHeight || 600) * 0.1);
-        if (dH - st - window.innerHeight <= threshold) {
-          _scrollBotDone = true;
-          _removeScrollBanner();
-          completeChallenge();
-        }
+        if (dH - st - window.innerHeight <= threshold) completeChallenge();
       };
       window.addEventListener('scroll', challengeListener, { passive: true });
-      // Tự complete nếu trang quá ngắn không scroll được
+      // Tự complete nếu trang quá ngắn
       var _botDocH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
       var _botSt = window.pageYOffset || document.documentElement.scrollTop;
       var _botThre = Math.max(200, (window.innerHeight || 600) * 0.1);
-      if (_botDocH - _botSt - window.innerHeight <= _botThre) { _scrollBotDone = true; _removeScrollBanner(); completeChallenge(); }
+      if (_botDocH - _botSt - window.innerHeight <= _botThre) completeChallenge();
     } else if (ch.id === 'click') {
       challengeListener = function (e) {
         var modal = document.getElementById('laynut-modal');
