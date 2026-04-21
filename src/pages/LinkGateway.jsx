@@ -56,14 +56,12 @@ if (typeof window !== 'undefined') {
     };
     document.body.appendChild(iframe);
 
-    // Timeout 5s → resolve ngay với bot:false (không chặn user chờ lâu)
+    // Timeout 10s → resolve với visitorId tốt nhất có được
     setTimeout(() => {
       if (!_creepDone && (!_creepVisitorId || _creepVisitorId === 'unknown')) {
-        // Giảm từ 30s → 5s: nếu iframe chưa xong sau 5s thì coi như không phải bot
-        // (bot thực sự sẽ bị bắt qua các layer khác: PoW, IP check, server-side)
         _resolveCreep({ bot: false, creepTimeout: true });
       }
-    }, 5000);
+    }, 10000);
   };
 
   if (document.body) _loadCreepIframe();
@@ -71,9 +69,41 @@ if (typeof window !== 'undefined') {
 }
 
 function getCreepData() {
-  if (_creepDone) return Promise.resolve({ botDetection: _creepResult, visitorId: _creepVisitorId });
+  if (_creepDone && _creepVisitorId && _creepVisitorId !== 'unknown') {
+    return Promise.resolve({ botDetection: _creepResult, visitorId: _creepVisitorId });
+  }
   return new Promise(resolve => {
-    _creepResolvers.push(r => resolve({ botDetection: r, visitorId: _creepVisitorId }));
+    const finish = (result) => resolve({ botDetection: result, visitorId: _creepVisitorId });
+    if (_creepDone) {
+      // creepJS đã xong nhưng visitorId vẫn 'unknown' — chờ thêm tối đa 5s
+      // cho iframe gửi message visitorId (có thể bị delay do postMessage timing)
+      if (!_creepVisitorId || _creepVisitorId === 'unknown') {
+        const deadline = Date.now() + 5000;
+        const poll = setInterval(() => {
+          if ((_creepVisitorId && _creepVisitorId !== 'unknown') || Date.now() >= deadline) {
+            clearInterval(poll);
+            finish(_creepResult);
+          }
+        }, 150);
+      } else {
+        finish(_creepResult);
+      }
+    } else {
+      _creepResolvers.push(r => {
+        // Sau khi resolve, thêm micro-wait để visitorId được set từ message handler
+        if (_creepVisitorId && _creepVisitorId !== 'unknown') {
+          finish(r);
+        } else {
+          const deadline = Date.now() + 3000;
+          const poll = setInterval(() => {
+            if ((_creepVisitorId && _creepVisitorId !== 'unknown') || Date.now() >= deadline) {
+              clearInterval(poll);
+              finish(r);
+            }
+          }, 100);
+        }
+      });
+    }
   });
 }
 

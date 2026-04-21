@@ -1189,7 +1189,7 @@
           }
         };
         xhr.onerror = function () { callback(false); };
-        xhr.send(JSON.stringify({ visitorId: _visitorId || '', pageReferrer: document.referrer || '', navProof: _buildNavigationProof() }));
+        xhr.send(JSON.stringify({ visitorId: _visitorId || '', pageReferrer: document.referrer || '', navProof: _buildNavigationProof(), pageUrl: window.location.href }));
       });
     });
   }

@@ -364,7 +364,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   );
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
-  const { visitorId, pageReferrer, navProof } = req.body || {};
+  const { visitorId, pageReferrer, navProof, pageUrl } = req.body || {};
 
   const cleanVisitorId = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const normIp = normalizeIp(ip);
@@ -382,7 +382,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   );
 
   if (tasks.length === 0) {
-    console.log(`[Widget] check-session NO TASK — IP: ${ip}, visitorId: ${(cleanVisitorId).substring(0, 20)}, referrer: ${(pageReferrer || '').substring(0, 60)}`);
+    console.log(`[Widget] check-session NO TASK — IP: ${normIp} (alt: ${altIp}), visitorId: ${(cleanVisitorId).substring(0, 20)}, referrer: ${(pageReferrer || '').substring(0, 60)}`);
     return res.status(404).json({ hasSession: false });
   }
 
@@ -493,6 +493,28 @@ router.post('/public/:token/check-session', async (req, res) => {
       [task.id]
     );
   } catch (e) { }
+
+  // Ghi visitor_id vào task nếu chưa có (widget gửi lên, task tìm được qua IP)
+  // Giúp get-code vẫn tìm được task khi IP thay đổi (4G/5G), dùng visitor_id làm fallback
+  if (cleanVisitorId && (!task.visitor_id || task.visitor_id === 'unknown')) {
+    try {
+      await pool.execute(
+        `UPDATE vuot_link_tasks SET visitor_id = ? WHERE id = ? AND (visitor_id IS NULL OR visitor_id = '' OR visitor_id = 'unknown')`,
+        [cleanVisitorId, task.id]
+      );
+      console.log(`[Widget] check-session: saved visitor_id to task #${task.id} — IP: ${ip}`);
+    } catch (e) { }
+  }
+  // Cập nhật ip_address nếu IP thay đổi (4G/5G đổi IP giữa trang gateway và trang embed)
+  if (normIp && task.ip_address && normalizeIp(task.ip_address) !== normIp) {
+    try {
+      await pool.execute(
+        `UPDATE vuot_link_tasks SET ip_address = ? WHERE id = ?`,
+        [normIp, task.id]
+      );
+      console.log(`[Widget] check-session: IP changed — old: ${task.ip_address}, new: ${normIp}, task: #${task.id}`);
+    } catch (e) { }
+  }
 
   let isTrustedWorker = false;
   const targetCheckId = task.ref_worker_id || task.worker_id;
