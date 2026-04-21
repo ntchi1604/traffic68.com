@@ -369,7 +369,7 @@
           p.eventTampered = false;
         }
       } catch (ex) { p.eventTampered = false; }
-      
+
       var isMobileUA = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
       var hasFinePointer = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
       p.fakeMobileWithMouse = isMobileUA && hasFinePointer;
@@ -987,29 +987,34 @@
         '</div>';
     }
 
+    if (ch.id === 'scroll-top' || ch.id === 'scroll-bottom') {
+      var ov = document.getElementById('laynut-overlay');
+      var md = document.getElementById('laynut-modal');
+      if (ov) ov.style.pointerEvents = 'none';
+      if (md) md.style.pointerEvents = 'auto';
+    }
+
     if (ch.id === 'scroll-top') {
       challengeListener = function () {
-        var threshold = Math.max(200, (window.innerHeight || 600) * 0.1);
+        var threshold = Math.max(200, (window.innerHeight || 600) * 0.15);
         if ((window.pageYOffset || document.documentElement.scrollTop) <= threshold) completeChallenge();
       };
       window.addEventListener('scroll', challengeListener, { passive: true });
       // Tự complete nếu đã ở đầu trang
       var _curTop = window.pageYOffset || document.documentElement.scrollTop;
-      var _topThre = Math.max(200, (window.innerHeight || 600) * 0.1);
-      if (_curTop <= _topThre) completeChallenge();
+      if (_curTop <= Math.max(200, (window.innerHeight || 600) * 0.15)) completeChallenge();
     } else if (ch.id === 'scroll-bottom') {
       challengeListener = function () {
         var st = window.pageYOffset || document.documentElement.scrollTop;
         var dH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-        var threshold = Math.max(200, (window.innerHeight || 600) * 0.1);
-        if (dH - st - window.innerHeight <= threshold) completeChallenge();
+        // +150px dự phòng mobile browser toolbar (Safari/Chrome address bar)
+        if (dH - st - window.innerHeight <= 150) completeChallenge();
       };
       window.addEventListener('scroll', challengeListener, { passive: true });
       // Tự complete nếu trang quá ngắn
       var _botDocH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
       var _botSt = window.pageYOffset || document.documentElement.scrollTop;
-      var _botThre = Math.max(200, (window.innerHeight || 600) * 0.1);
-      if (_botDocH - _botSt - window.innerHeight <= _botThre) completeChallenge();
+      if (_botDocH - _botSt - window.innerHeight <= 150) completeChallenge();
     } else if (ch.id === 'click') {
       challengeListener = function (e) {
         var modal = document.getElementById('laynut-modal');
