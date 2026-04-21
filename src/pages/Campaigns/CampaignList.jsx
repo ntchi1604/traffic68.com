@@ -105,7 +105,7 @@ function KeywordStats({ campaignId, trafficType }) {
         filename: `buyer_tasks_${campaignId}_${new Date().toISOString().slice(0, 10)}`,
         sheetName: 'Dữ liệu task',
         headers: ['STT', 'ID', 'Keyword', 'IP', 'Quốc gia', 'Thành phố', 'Thiết bị', 'User Agent', 'Chi tiêu', 'Thời gian tạo', 'Hoàn thành lúc'],
-        colTypes:  ['n',   'n',  's',       's',  's',        's',         's',        's',          'n',        's',             's'],
+        colTypes: ['n', 'n', 's', 's', 's', 's', 's', 's', 'n', 's', 's'],
         rows: rows.map(r => [
           r.stt, r.id, r.keyword, r.ip, r.country, r.city, r.device,
           r.userAgent || '',
@@ -146,11 +146,10 @@ function KeywordStats({ campaignId, trafficType }) {
               {trafficType === 'social' ? 'Theo URL Social' : 'Theo từ khóa'}
             </p>
             <button onClick={exportExcel} disabled={exportingXlsx}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border transition ${
-                exportingXlsx
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border transition ${exportingXlsx
                   ? 'text-emerald-400 bg-emerald-50 border-emerald-100 cursor-not-allowed'
                   : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 cursor-pointer'
-              }`}>
+                }`}>
               <Download size={11} />{exportingXlsx ? ' Đang xuất...' : ' Xuất Excel'}
             </button>
           </div>
@@ -209,21 +208,21 @@ function KeywordStats({ campaignId, trafficType }) {
                   const isValidUrl = (v) => { try { return v && v !== '[]' && new URL(v) && true; } catch { return false; } };
                   const kwDisplay = (d.keyword && d.keyword !== '[]') ? d.keyword : null;
                   return (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-2.5 text-slate-600 font-medium whitespace-nowrap">{d.date?.slice(0, 10)}</td>
-                    {(trafficType === 'direct' || trafficType === 'social')
-                      ? <td className="px-4 py-2.5 font-semibold text-violet-600 truncate max-w-[160px]" title={kwDisplay || ''}>
+                    <tr key={i} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-2.5 text-slate-600 font-medium whitespace-nowrap">{d.date?.slice(0, 10)}</td>
+                      {(trafficType === 'direct' || trafficType === 'social')
+                        ? <td className="px-4 py-2.5 font-semibold text-violet-600 truncate max-w-[160px]" title={kwDisplay || ''}>
                           {isValidUrl(kwDisplay)
                             ? <a href={kwDisplay} target="_blank" rel="noopener noreferrer" className="hover:underline">{kwDisplay}</a>
                             : '—'}
                         </td>
-                      : <td className="px-4 py-2.5 font-semibold text-indigo-600 truncate max-w-[130px]">{kwDisplay || '(Trống)'}</td>
-                    }
-                    <td className="px-4 py-2.5 font-bold text-emerald-600 tabular-nums">
-                      {d.completed}<span className="text-slate-400 font-medium text-[10px] ml-0.5">/ {Number(d.daily_views) > 0 ? d.daily_views : '∞'}</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-semibold text-slate-700 tabular-nums">{fmt(d.cost)} đ</td>
-                  </tr>
+                        : <td className="px-4 py-2.5 font-semibold text-indigo-600 truncate max-w-[130px]">{kwDisplay || '(Trống)'}</td>
+                      }
+                      <td className="px-4 py-2.5 font-bold text-emerald-600 tabular-nums">
+                        {d.completed}<span className="text-slate-400 font-medium text-[10px] ml-0.5">/ {Number(d.daily_views) > 0 ? d.daily_views : '∞'}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-slate-700 tabular-nums">{fmt(d.cost)} đ</td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -269,7 +268,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const [dailyViews, setDailyViews] = useState(campaign.daily_views != null ? Number(campaign.daily_views) : 0);
   const [note, setNote] = useState(campaign.note || '');
 
-  const [useKeywordViews, setUseKeywordViews] = useState(() => {
+  const [useKeywordDailyViews, setUseKeywordDailyViews] = useState(() => {
     try {
       const cfg = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
       return Array.isArray(cfg) && cfg.some(k => Number(k.daily_views) > 0);
@@ -334,12 +333,16 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const updateKeywordImage = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, image: val } : k));
   const updateKeywordDailyViews = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, daily_views: Number(val) || 0 } : k));
   const updateKeywordViews = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, views: Number(val) || 0 } : k));
+  const toggleKeywordDailyViews = () => {
+    if (useKeywordDailyViews) setKeywords(prev => prev.map(k => ({ ...k, daily_views: 0 })));
+    setUseKeywordDailyViews(v => !v);
+  };
 
-  const addUrlItem    = () => setUrls(prev => [...prev, '']);
+  const addUrlItem = () => setUrls(prev => [...prev, '']);
   const removeUrlItem = (idx) => setUrls(prev => prev.filter((_, i) => i !== idx));
   const updateUrlItem = (idx, val) => setUrls(prev => prev.map((v, i) => i === idx ? val : v));
 
-  const addImgItem    = () => setImageUrls(prev => [...prev, '']);
+  const addImgItem = () => setImageUrls(prev => [...prev, '']);
   const removeImgItem = (idx) => setImageUrls(prev => prev.filter((_, i) => i !== idx));
   const updateImgItem = (idx, val) => setImageUrls(prev => prev.map((v, i) => i === idx ? val : v));
 
@@ -380,7 +383,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     setSaving(true);
     try {
       const validKws = keywords.filter(k => k.keyword.trim());
-      const u   = validKws.map(k => k.url).filter(x => x && x.trim());
+      const u = validKws.map(k => k.url).filter(x => x && x.trim());
       const imgs = validKws.map(k => k.image).filter(x => x && x.trim());
       const globalImg = imageUrls[0]?.trim();
       const allImages = globalImg ? [globalImg, ...imgs] : imgs;
@@ -399,7 +402,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       }));
 
       const kwDailySum = keywordConfig.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
-      const finalDailyViews = kwDailySum > 0 ? kwDailySum : Number(dailyViews) || 0;
+      const finalDailyViews = isDirect
+        ? Number(dailyViews) || 0
+        : useKeywordDailyViews ? kwDailySum : (Number(dailyViews) || 0);
 
       const finalUrl = urls[0]?.trim() || '';
       const finalKeyword = isDirect
@@ -410,17 +415,17 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         : JSON.stringify(keywordConfig);
 
       await api.put(`/campaigns/${campaign.id}`, {
-        dailyViews:     finalDailyViews,
-        viewByHour:     viewByHour ? 1 : 0,
-        keyword:        finalKeyword,
+        dailyViews: finalDailyViews,
+        viewByHour: viewByHour ? 1 : 0,
+        keyword: finalKeyword,
         keyword_config: finalKeywordConfig,
-        totalViews:     computedTotal,
-        total_views:    computedTotal,
-        url:            finalUrl || u[0] || '',
-        url2:           JSON.stringify([]),
-        image1_url:     allImages.length ? JSON.stringify(allImages) : null,
-        image2_url:     null,
-        note:           note || null,
+        totalViews: computedTotal,
+        total_views: computedTotal,
+        url: finalUrl || u[0] || '',
+        url2: JSON.stringify([]),
+        image1_url: allImages.length ? JSON.stringify(allImages) : null,
+        image2_url: null,
+        note: note || null,
         device: [selectedDevices.desktop && 'desktop', selectedDevices.mobile && 'mobile'].filter(Boolean).join(',') || 'desktop,mobile',
       });
       toast.success('Cập nhật chiến dịch thành công');
@@ -543,131 +548,164 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
           {/* Keywords — chỉ hiện với non-direct */}
           {!isDirect && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Từ khóa tìm kiếm</label>
-              <span className="text-[11px] text-slate-400 font-medium">0/ngày = không giới hạn</span>
-            </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Từ khóa tìm kiếm</label>
+                <button
+                  type="button"
+                  onClick={toggleKeywordDailyViews}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-lg border transition ${
+                    useKeywordDailyViews
+                      ? 'bg-sky-50 border-sky-300 text-sky-700'
+                      : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${useKeywordDailyViews ? 'bg-sky-500' : 'bg-slate-300'}`} />
+                  Cài view/ngày riêng
+                </button>
+              </div>
 
-            {/* Info box */}
-            {(() => {
-              const allocDV = keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
-              const totalViewsPreview = keywords.filter(k => k.keyword.trim()).reduce((s, k) => s + (Number(k.views) || 0), 0);
-              const hasAny = allocDV > 0;
-              const unsetCount = keywords.filter(k => !(Number(k.daily_views) > 0)).length;
-              const effectiveGlobal = Number(dailyViews) || 0;
-              const autoPerKw = (hasAny && unsetCount > 0 && effectiveGlobal > 0)
-                ? Math.floor(Math.max(0, effectiveGlobal - allocDV) / unsetCount)
-                : 0;
-              return (
-                <div className="mb-3 flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
-                  <BarChart3 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-sky-700">
-                    <strong>Tổng view:</strong> <b className="text-amber-600">{totalViewsPreview.toLocaleString()}</b> view
-                    {' · '}<strong>View/ngày:</strong> Để <b>0</b> = không giới hạn
-                    {unsetCount > 0 && autoPerKw > 0 && (
-                      <> ({autoPerKw.toLocaleString()}/ngày ÷ {unsetCount} từ khóa)</>
-                    )}.
-                  </p>
-                </div>
-              );
-            })()}
+              {/* Info box */}
+              {(() => {
+                const allocDV = keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
+                const totalViewsPreview = keywords.filter(k => k.keyword.trim()).reduce((s, k) => s + (Number(k.views) || 0), 0);
+                const hasAny = allocDV > 0;
+                const unsetCount = keywords.filter(k => !(Number(k.daily_views) > 0)).length;
+                const effectiveGlobal = Number(dailyViews) || 0;
+                const autoPerKw = (hasAny && unsetCount > 0 && effectiveGlobal > 0)
+                  ? Math.floor(Math.max(0, effectiveGlobal - allocDV) / unsetCount)
+                  : 0;
+                return (
+                  <div className="mb-3 flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
+                    <BarChart3 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-sky-700">
+                      <strong>Tổng view:</strong> <b className="text-amber-600">{totalViewsPreview.toLocaleString()}</b> view
+                      {' · '}<strong>View/ngày:</strong> Để <b>0</b> = không giới hạn
+                      {unsetCount > 0 && autoPerKw > 0 && (
+                        <> ({autoPerKw.toLocaleString()}/ngày ÷ {unsetCount} từ khóa)</>
+                      )}.
+                    </p>
+                  </div>
+                );
+              })()}
 
-            <div className="space-y-3">
-              {keywords.map((kw, i) => (
-                <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
-                  {/* Row 1: keyword + views + daily_views + delete */}
-                  <div className="flex gap-2 items-center">
-                    <input
-                      type="text" value={kw.keyword}
-                      onChange={e => updateKeywordText(i, e.target.value)}
-                      placeholder={`Từ khóa ${i + 1}`}
-                      className={input + ' flex-1'}
-                    />
-                    <div className="relative w-24 flex-shrink-0">
+              <div className="space-y-3">
+                {keywords.map((kw, i) => (
+                  <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
+                    {/* Row 1: keyword + views + daily_views + delete */}
+                    <div className="flex gap-2 items-center">
                       <input
-                        type="number" min="1"
-                        value={kw.views || 0}
-                        onChange={e => updateKeywordViews(i, e.target.value)}
-                        className="w-full px-2 py-2.5 text-sm border border-amber-200 rounded-xl bg-amber-50
+                        type="text" value={kw.keyword}
+                        onChange={e => updateKeywordText(i, e.target.value)}
+                        placeholder={`Từ khóa ${i + 1}`}
+                        className={input + ' flex-1'}
+                      />
+                      <div className="relative w-24 flex-shrink-0">
+                        <input
+                          type="number" min="1"
+                          value={kw.views || 0}
+                          onChange={e => updateKeywordViews(i, e.target.value)}
+                          className="w-full px-2 py-2.5 text-sm border border-amber-200 rounded-xl bg-amber-50
                                    focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400
                                    transition pr-10 text-right text-amber-900 font-bold"
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                      </div>
+                      {useKeywordDailyViews && (
+                        <div className="relative w-24 flex-shrink-0">
+                          <input
+                            type="number" min="0"
+                            value={kw.daily_views || 0}
+                            onChange={e => updateKeywordDailyViews(i, e.target.value)}
+                            className="w-full px-2 py-2.5 text-sm border border-sky-200 rounded-xl bg-sky-50
+                                     focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400
+                                     transition pr-12 text-right text-sky-900 font-bold"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
+                        </div>
+                      )}
+                      {keywords.length > 1 && (
+                        <button onClick={() => removeKeyword(i)} className="p-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 bg-white border border-red-200 hover:bg-red-50 rounded-xl transition flex-shrink-0 absolute -top-2 -right-2 shadow-sm z-10">
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
-                    <div className="relative w-24 flex-shrink-0">
+                    {/* Row 2: URL + Image (always shown) */}
+                    <div className="flex gap-2 items-center">
                       <input
-                        type="number" min="0"
-                        value={kw.daily_views || 0}
-                        onChange={e => updateKeywordDailyViews(i, e.target.value)}
-                        className="w-full px-2 py-2.5 text-sm border border-slate-200 rounded-xl bg-white
-                                   focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400
-                                   transition pr-12 text-right text-slate-800"
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold pointer-events-none">/ngày</span>
-                    </div>
-                    {keywords.length > 1 && (
-                      <button onClick={() => removeKeyword(i)} className="p-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 bg-white border border-red-200 hover:bg-red-50 rounded-xl transition flex-shrink-0 absolute -top-2 -right-2 shadow-sm z-10">
-                        <Trash2 size={13} />
-                      </button>
-                    )}
-                  </div>
-                  {/* Row 2: URL + Image (always shown) */}
-                  <div className="flex gap-2 items-center">
-                    <input
-                      type="text" value={kw.url}
-                      onChange={e => updateKeywordUrl(i, e.target.value)}
-                      placeholder="URL đích riêng (Tuỳ chọn)"
-                      className={input + ' flex-1 text-xs'}
-                    />
-                    <div className="flex-1 flex gap-2">
-                      <input
-                        type="text" value={kw.image}
-                        onChange={e => updateKeywordImage(i, e.target.value)}
-                        onPaste={async e => {
-                          const items = e.clipboardData?.items;
-                          if (!items) return;
-                          for (let j = 0; j < items.length; j++) {
-                            const item = items[j];
-                            if (item.type.startsWith('image/')) {
-                              e.preventDefault();
-                              const file = item.getAsFile();
-                              if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
-                              break;
-                            }
-                          }
-                        }}
-                        placeholder="Link Image - Ctrl+V dán ảnh"
+                        type="text" value={kw.url}
+                        onChange={e => updateKeywordUrl(i, e.target.value)}
+                        placeholder="URL đích riêng (Tuỳ chọn)"
                         className={input + ' flex-1 text-xs'}
                       />
-                      <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0">
-                        {uploadingKwIdx === i ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
-                        <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
-                      </label>
+                      <div className="flex-1 flex gap-2">
+                        <input
+                          type="text" value={kw.image}
+                          onChange={e => updateKeywordImage(i, e.target.value)}
+                          onPaste={async e => {
+                            const items = e.clipboardData?.items;
+                            if (!items) return;
+                            for (let j = 0; j < items.length; j++) {
+                              const item = items[j];
+                              if (item.type.startsWith('image/')) {
+                                e.preventDefault();
+                                const file = item.getAsFile();
+                                if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
+                                break;
+                              }
+                            }
+                          }}
+                          placeholder="Link Image - Ctrl+V dán ảnh"
+                          className={input + ' flex-1 text-xs'}
+                        />
+                        <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0">
+                          {uploadingKwIdx === i ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
+                          <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
+                        </label>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
 
-            <button onClick={addKeyword} className="mt-2 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition">
-              <Plus size={13} /> Thêm từ khóa
-            </button>
-          </div>
+              <button onClick={addKeyword} className="mt-2 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition">
+                <Plus size={13} /> Thêm từ khóa
+              </button>
+            </div>
           )}{/* end !isDirect keywords */}
 
           {/* Daily views + Tổng view preview */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">View / ngày (tổng)</label>
-              <div className="relative">
-                <input type="number" min="0" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={input + ' pr-24'} />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view/ngày</span>
-              </div>
-              <p className="mt-1 text-xs text-slate-400">0 = không giới hạn</p>
+              {useKeywordDailyViews ? (
+                <>
+                  {(() => {
+                    const kwSum = keywords.filter(k => k.keyword.trim()).reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
+                    return (
+                      <div className="px-3.5 py-2.5 bg-sky-50 border border-sky-200 rounded-xl flex items-center justify-between">
+                        {kwSum > 0
+                          ? <span className="text-base font-black text-sky-700 tabular-nums">{kwSum.toLocaleString()}</span>
+                          : <span className="text-base font-black text-slate-400">∞</span>
+                        }
+                        <span className="text-xs text-sky-500 font-bold">{kwSum > 0 ? 'view/ngày' : 'không giới hạn'}</span>
+                      </div>
+                    );
+                  })()}
+                  <p className="mt-1 text-xs text-slate-400">Tính từ từng từ khóa</p>
+                </>
+              ) : (
+                <>
+                  <div className="relative">
+                    <input type="number" min="0" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={input + ' pr-24'} />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view/ngày</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400">0 = không giới hạn (chung toàn camp)</p>
+                </>
+              )}
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Tổng view (không sửa)</label>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Tổng view</label>
               {(() => {
                 const preview = isDirect
                   ? (Number(keywords[0]?.views) || Number(campaign.total_views))
@@ -699,13 +737,11 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 <button
                   type="button"
                   onClick={() => setViewByHour(v => !v)}
-                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
-                    viewByHour ? 'bg-indigo-500' : 'bg-slate-300'
-                  }`}
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${viewByHour ? 'bg-indigo-500' : 'bg-slate-300'
+                    }`}
                 >
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
-                    viewByHour ? 'translate-x-5' : 'translate-x-0'
-                  }`} />
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${viewByHour ? 'translate-x-5' : 'translate-x-0'
+                    }`} />
                 </button>
               </div>
             );
@@ -822,11 +858,10 @@ function RenewModal({ campaign, onClose, onRenewed }) {
             <div className="flex flex-wrap gap-2">
               {presets.map(v => (
                 <button key={v} onClick={() => setExtraViews(v)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${
-                    extraViews === v
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${extraViews === v
                       ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200'
                       : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-                  }`}>
+                    }`}>
                   {v.toLocaleString()}
                 </button>
               ))}
@@ -848,15 +883,13 @@ function RenewModal({ campaign, onClose, onRenewed }) {
           </div>
 
           {/* Cost preview */}
-          <div className={`rounded-xl px-4 py-3.5 border transition-all ${
-            cost > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
-          }`}>
+          <div className={`rounded-xl px-4 py-3.5 border transition-all ${cost > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
+            }`}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-slate-500 font-medium">Chi phí gia hạn</p>
-                <p className={`text-xl font-black tabular-nums mt-0.5 ${
-                  cost > 0 ? 'text-emerald-700' : 'text-slate-400'
-                }`}>{cost > 0 ? `${fmt(cost)} đ` : '—'}</p>
+                <p className={`text-xl font-black tabular-nums mt-0.5 ${cost > 0 ? 'text-emerald-700' : 'text-slate-400'
+                  }`}>{cost > 0 ? `${fmt(cost)} đ` : '—'}</p>
               </div>
               {cost > 0 && (
                 <div className="text-right">

@@ -246,15 +246,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const [name, setName] = useState(campaign.name || '');
   const [dailyViews, setDailyViews] = useState(Number(campaign.daily_views) || 0);
   const [note, setNote] = useState(campaign.note || '');
-  const [timeOnSite, setTimeOnSite] = useState(campaign.time_on_site || '');
-  const [targetPage, setTargetPage] = useState(campaign.target_page || '');
 
-  const [useKeywordUrls, setUseKeywordUrls] = useState(() => {
-    try {
-      const cfg = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
-      return Array.isArray(cfg) && cfg.some(k => (k.url && k.url.trim()) || (k.image && k.image.trim()));
-    } catch { return false; }
-  });
 
   const [useKeywordDailyViews, setUseKeywordDailyViews] = useState(() => {
     try {
@@ -402,8 +394,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             keyword: k.keyword,
             views: Number(k.views) || Math.max(1, Math.floor(finalTotalViews / kws.length)),
             daily_views: useKeywordDailyViews ? (Number(k.daily_views) || 0) : 0,
-            url: useKeywordUrls ? (k.url || '') : '',
-            image: useKeywordUrls ? (k.image || '') : ''
+            url: k.url || '',
+            image: k.image || ''
           })) : []);
 
       await api.put(`/admin/campaigns/${campaign.id}`, {
@@ -420,8 +412,6 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         version: Number(version),
         device: [selectedDevices.desktop && 'desktop', selectedDevices.mobile && 'mobile'].filter(Boolean).join(',') || 'desktop,mobile',
         note: note || null,
-        timeOnSite,
-        targetPage,
       });
       toast.success('Cập nhật chiến dịch thành công');
       onSaved();
@@ -475,21 +465,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             <div className="flex items-center justify-between mb-1">
               <label className="text-sm font-semibold text-slate-600">Từ khóa tìm kiếm</label>
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 border-r border-slate-200 pr-3">
-                  <span className={`text-[11px] font-semibold transition-colors ${useKeywordUrls ? 'text-indigo-600' : 'text-slate-400'}`}>
-                    Link/Ảnh riêng
-                  </span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={useKeywordUrls}
-                    onClick={() => setUseKeywordUrls(!useKeywordUrls)}
-                    className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none ${useKeywordUrls ? 'bg-indigo-600' : 'bg-slate-200'}`}
-                  >
-                    <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordUrls ? 'translate-x-4' : 'translate-x-0'}`} />
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
                   <span className={`text-[11px] font-semibold transition-colors ${useKeywordDailyViews ? 'text-sky-600' : 'text-slate-400'}`}>
                     View/ngày riêng
                   </span>
@@ -541,8 +517,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                     )}
                     {keywords.length > 1 && <button onClick={() => removeKeyword(i)} className="p-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 bg-white border border-red-200 hover:bg-red-50 rounded-xl cursor-pointer transition flex-shrink-0 absolute -top-2 -right-2 shadow-sm z-10"><Trash2 size={13} /></button>}
                   </div>
-                  {useKeywordUrls && (
-                    <div className="flex gap-2 items-center mt-1">
+                  <div className="flex gap-2 items-center mt-1">
                       <input
                         type="text" value={kw.url}
                         onChange={e => updateKeywordUrl(i, e.target.value)}
@@ -575,7 +550,6 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                         </label>
                       </div>
                     </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -588,18 +562,38 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           {/* Daily views + Tổng view — luôn sửa được với mọi loại camp */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-semibold text-slate-600 mb-1 block">View / ngày</label>
-              <div className="relative">
-                <input
-                  type="number" min="0"
-                  value={dailyViews}
-                  onChange={e => setDailyViews(Number(e.target.value) || 0)}
-                  className={inputCls + ' pr-16'}
-                  placeholder="0 = không giới hạn"
-                />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-medium pointer-events-none">/ngày</span>
-              </div>
-              <p className="mt-1 text-xs text-slate-400">0 = không giới hạn</p>
+              <label className="text-sm font-semibold text-slate-600 mb-1 block">View / ngày (tổng)</label>
+              {useKeywordDailyViews ? (
+                <>
+                  {(() => {
+                    const kwSum = keywords.filter(k => k.keyword.trim()).reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
+                    return (
+                      <div className="px-3 py-2.5 bg-sky-50 border border-sky-200 rounded-xl flex items-center justify-between">
+                        {kwSum > 0
+                          ? <span className="text-lg font-black text-sky-700 tabular-nums">{kwSum.toLocaleString()}</span>
+                          : <span className="text-lg font-black text-slate-400">∞</span>
+                        }
+                        <span className="text-xs text-sky-500 font-bold">{kwSum > 0 ? 'view/ngày' : 'không giới hạn'}</span>
+                      </div>
+                    );
+                  })()}
+                  <p className="mt-1 text-xs text-slate-400">Tính từ từng từ khóa</p>
+                </>
+              ) : (
+                <>
+                  <div className="relative">
+                    <input
+                      type="number" min="0"
+                      value={dailyViews}
+                      onChange={e => setDailyViews(Number(e.target.value) || 0)}
+                      className={inputCls + ' pr-16'}
+                      placeholder="0 = không giới hạn"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-medium pointer-events-none">/ngày</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400">0 = không giới hạn (chung toàn camp)</p>
+                </>
+              )}
             </div>
             <div>
               <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view (không sửa)</label>
@@ -668,30 +662,6 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             {!selectedDevices.desktop && !selectedDevices.mobile && (
               <p className="mt-1.5 text-xs text-red-500 font-medium">⚠️ Chọn ít nhất 1 thiết bị</p>
             )}
-          </div>
-
-          {/* Thời gian + Target + Ghi chú */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-semibold text-slate-600 mb-1 block">Thời gian trên trang (giây)</label>
-              <input
-                type="number" min="0"
-                value={timeOnSite}
-                onChange={e => setTimeOnSite(e.target.value)}
-                placeholder="VD: 60"
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-slate-600 mb-1 block">Trang đích (targetPage)</label>
-              <input
-                type="text"
-                value={targetPage}
-                onChange={e => setTargetPage(e.target.value)}
-                placeholder="/trang-dich"
-                className={inputCls}
-              />
-            </div>
           </div>
 
           <div>
