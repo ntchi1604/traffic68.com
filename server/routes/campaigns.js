@@ -212,7 +212,7 @@ router.get('/', async (req, res) => {
         const ph = ids.map(() => '?').join(',');
 
         // Đảm bảo cột manually_completed tồn tại trước khi dùng
-        try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch (_) {}
+        try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch (_) { }
 
         const [syncResult] = await pool.execute(
           `UPDATE campaigns c SET views_done = (
@@ -226,7 +226,7 @@ router.get('/', async (req, res) => {
           await pool.execute(
             `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views AND COALESCE(manually_completed, 0) = 0`, ids
           );
-        } catch (_) {}
+        } catch (_) { }
         if (syncResult.affectedRows > 0) {
           const [updated] = await pool.execute(sql, params);
           return res.json({ campaigns: updated });
@@ -271,7 +271,7 @@ router.get('/', async (req, res) => {
             await pool.execute(
               `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
               [camp.user_id, 'Chiến dịch tạm dừng tự động',
-                `Chiến dịch "${camp.name}" đã bị tạm dừng do website đích đổi domain sang ${redirectResult.newDomain}.`,
+              `Chiến dịch "${camp.name}" đã bị tạm dừng do website đích đổi domain sang ${redirectResult.newDomain}.`,
                 'warning', 'buyer']
             );
             continue; // đã xử lý redirect → bỏ qua check embed
@@ -297,7 +297,7 @@ router.get('/', async (req, res) => {
             await pool.execute(
               `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
               [camp.user_id, 'Chiến dịch tạm dừng tự động',
-                `Chiến dịch "${camp.name}" đã bị tạm dừng vì không tìm thấy script widget trên trang ${camp.url}. Vui lòng gắn script rồi bật lại.`,
+              `Chiến dịch "${camp.name}" đã bị tạm dừng vì không tìm thấy script widget trên trang ${camp.url}. Vui lòng gắn script rồi bật lại.`,
                 'warning', 'buyer']
             );
           }
@@ -323,11 +323,11 @@ router.post('/', async (req, res) => {
     // ⚠️ Dùng ?? thay vì || để tránh 0 bị coi là falsy (0 = không giới hạn, khác với undefined)
     const _dailyViews = (dailyViews !== undefined && dailyViews !== null) ? Number(dailyViews)
       : (daily_views !== undefined && daily_views !== null) ? Number(daily_views)
-      : 0; // 0 = không giới hạn (mặc định)
+        : 0; // 0 = không giới hạn (mặc định)
     const _totalViews = totalViews || total_views || 1000;
     const _viewByHour = (viewByHour !== undefined && viewByHour !== null) ? (viewByHour ? 1 : 0)
       : (view_by_hour !== undefined && view_by_hour !== null) ? (view_by_hour ? 1 : 0)
-      : 0;
+        : 0;
     const _targetPage = targetPage || target_page || '';
     const _timeOnSite = timeOnSite || time_on_site || (duration ? String(duration) : '60');
     const _version = version || 'v1';
@@ -576,42 +576,55 @@ router.post('/:id/renew', async (req, res) => {
 
     const cost = Math.round(addViews * cpcValue);
 
-    // Kiểm tra số dư ví
-    const [wallets] = await pool.execute(
-      "SELECT balance FROM wallets WHERE user_id = ? AND type = 'main'",
-      [req.userId]
-    );
-    if (!wallets[0] || wallets[0].balance < cost) {
-      return res.status(400).json({ error: `Số dư ví không đủ. Cần ${cost.toLocaleString('vi-VN')} đ, hiện có ${(wallets[0]?.balance || 0).toLocaleString('vi-VN')} đ` });
+    try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch (_) { }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [deductResult] = await conn.execute(
+        "UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main' AND balance >= ?",
+        [cost, req.userId, cost]
+      );
+      if (deductResult.affectedRows === 0) {
+        await conn.rollback();
+        conn.release();
+        const [wCheck] = await pool.execute("SELECT balance FROM wallets WHERE user_id = ? AND type = 'main'", [req.userId]);
+        const currentBal = Number(wCheck[0]?.balance || 0);
+        return res.status(400).json({
+          error: `Số dư ví không đủ. Cần ${cost.toLocaleString('vi-VN')} đ, hiện có ${currentBal.toLocaleString('vi-VN')} đ`
+        });
+      }
+
+      const renewRef = 'RNW-' + Date.now();
+      await conn.execute(
+        `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+         VALUES (?, 'main', 'campaign', 'system', ?, 'completed', ?, ?)`,
+        [req.userId, cost, renewRef, `Gia hạn chiến dịch "${camp.name}" (+${addViews.toLocaleString()} view)`]
+      );
+
+      const newTotal = Number(camp.total_views) + addViews;
+      const newBudget = Math.round(newTotal * cpcValue);
+      await conn.execute(
+        `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running', manually_completed = 0 WHERE id = ?`,
+        [newTotal, newBudget, camp.id]
+      );
+
+      await conn.commit();
+    } catch (txErr) {
+      await conn.rollback();
+      conn.release();
+      console.error('[Campaign] Renew transaction ROLLED BACK (ví chưa bị trừ):', txErr.message);
+      return res.status(500).json({ error: 'Lỗi gia hạn (tiền chưa bị trừ): ' + txErr.message });
     }
+    conn.release();
 
-    // Trừ ví
-    await pool.execute(
-      "UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main'",
-      [cost, req.userId]
-    );
-    // Ghi lịch sử giao dịch
-    await pool.execute(
-      `INSERT INTO wallet_transactions (user_id, type, amount, description, ref_id, status)
-       VALUES (?, 'debit', ?, ?, ?, 'completed')`,
-      [req.userId, cost, `Gia hạn chiến dịch "${camp.name}" (+${addViews.toLocaleString()} view)`, camp.id]
-    );
-
-    // Cộng view và đặt lại status, xóa flag manually_completed
-    const newTotal = Number(camp.total_views) + addViews;
-    const newBudget = Math.round(newTotal * cpcValue);
-    await pool.execute(
-      `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running', manually_completed = 0 WHERE id = ?`,
-      [newTotal, newBudget, camp.id]
-    );
-
-    // Thông báo
-    await pool.execute(
+    pool.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
       [req.userId, 'Gia hạn chiến dịch thành công',
-        `Chiến dịch "${camp.name}" đã được gia hạn thêm ${addViews.toLocaleString()} view. Đã trừ ${cost.toLocaleString('vi-VN')} đ.`,
+      `Chiến dịch "${camp.name}" đã được gia hạn thêm ${addViews.toLocaleString()} view. Đã trừ ${cost.toLocaleString('vi-VN')} đ.`,
         'success', 'buyer']
-    );
+    ).catch(() => { });
 
     const [updated] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [camp.id]);
     res.json({ message: 'Gia hạn thành công', campaign: updated[0] });

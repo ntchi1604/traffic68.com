@@ -508,16 +508,12 @@ export default function LinkGateway() {
     } catch (err) {
       setShowChallenge(false);
       setShowError(true);
-      setError('Xác minh thất bại, vui lòng thử lại: ' + (err.message || ''));
-      setTimeout(() => {
-        setShowError(false);
-        setHumanPassed(prev => {
-          if (!prev) setShowChallenge(true);
-          return prev;
-        });
-      }, 4000);
+      // Không tự re-show challenge popup sau khi user đã hoàn thành motion
+      // (lắc / kéo chuột xong) — nếu server lỗi, user bấm nút thủ công để thử lại
+      setError('Xác minh thất bại, nhấn nút để thử lại: ' + (err.message || ''));
+      setTimeout(() => setShowError(false), 5000);
     } finally {
-      if (!isMobileDevice) setChallengeLoading(false);
+      setChallengeLoading(false);
     }
   }, [task, slug, fetchTask, isMobileDevice]);
 
@@ -1129,6 +1125,10 @@ function ShakeChallenge({ onPass, onClose }) {
   const lastShakeRef = useRef(0);
   const rawLogRef = useRef([]);
   const TARGET = 3;
+  // Ngưỡng lắc: giảm từ 18 → 12 để dễ detect hơn trên các điện thoại nhạy thấp
+  const SHAKE_THRESHOLD = 12;
+  // Debounce giữa các lắc: giảm 400ms → 300ms
+  const SHAKE_DEBOUNCE = 300;
 
   useEffect(() => {
     const requestAndListen = async () => {
@@ -1148,12 +1148,13 @@ function ShakeChallenge({ onPass, onClose }) {
         if (!acc) return;
         const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
         const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
+        // Bỏ qua nếu tất cả bằng nhau (sensor cố định / lỗi)
         if (ax === ay && ay === az) return;
         const now = Date.now();
         rawLogRef.current.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
         if (rawLogRef.current.length > 50) rawLogRef.current.shift();
 
-        if (total > 18 && now - lastShakeRef.current > 400) {
+        if (total > SHAKE_THRESHOLD && now - lastShakeRef.current > SHAKE_DEBOUNCE) {
           lastShakeRef.current = now;
           setFlashing(true);
           setTimeout(() => setFlashing(false), 300);
@@ -1161,9 +1162,12 @@ function ShakeChallenge({ onPass, onClose }) {
             const next = prev + 1;
             if (next >= TARGET) {
               const log = [...rawLogRef.current];
-              const allAxZero = log.every(s => s.ax === 0);
-              const allAzZero = log.every(s => s.az === 0);
-              if (allAxZero && allAzZero) {
+              // Chỉ phát hiện giả lập khi CẢ 3 trục đều = 0 (emulator hoàn toàn giả)
+              // KHÔNG dùng allAxZero && allAzZero vì điện thoại thật lắc dọc ax≈0 là bình thường
+              const allXZero = log.every(s => s.ax === 0);
+              const allYZero = log.every(s => s.ay === 0);
+              const allZZero = log.every(s => s.az === 0);
+              if (allXZero && allYZero && allZZero) {
                 setFakeDetected(true);
                 return next;
               }
@@ -1183,8 +1187,6 @@ function ShakeChallenge({ onPass, onClose }) {
 
   useEffect(() => {
     if (!passed) return;
-    // Tăng delay lên 3000ms để handleChallengePass (async fetch server) hoàn thành trước
-    // Tránh race condition: onClose chạy trước khi server phản hồi → bị bắn vào catch → hiện lại nút lắc
     const t = setTimeout(() => onClose(), 3000);
     return () => clearTimeout(t);
   }, [passed, onClose]);
@@ -1311,7 +1313,8 @@ function CurveChallenge({ onPass, onClose }) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    const W = canvas.width = canvas.offsetWidth || canvas.parentElement?.offsetWidth || 560;
+    // Fix: canvas trong fixed overlay thường trả offsetWidth=0 → dùng parentElement hoặc window
+    const W = canvas.width = Math.max(canvas.offsetWidth, canvas.parentElement?.offsetWidth || 0, window.innerWidth > 640 ? 560 : window.innerWidth - 64) || 500;
     const H = canvas.height = 220;
 
     const state = stateRef.current;
@@ -1406,7 +1409,10 @@ function CurveChallenge({ onPass, onClose }) {
 
     const onMove = (e) => {
       if (!state.isDragging) return;
-      if (!e.isTrusted) { state.isDragging = false; return; }
+      // Fix: Bỏ check e.isTrusted trên touchmove — iOS Safari và một số WebView
+      // trả isTrusted=false trên touchmove ngay cả khi người dùng thật chạm
+      // Chỉ check trên mousedown (desktop), không check trên touch
+      if (e.type === 'mousemove' && !e.isTrusted) { state.isDragging = false; return; }
       e.preventDefault();
 
       const { x, y } = getPos(e);
@@ -1438,12 +1444,14 @@ function CurveChallenge({ onPass, onClose }) {
       const current = state.progress;
       const sample = state.samples[current] || state.samples[state.samples.length - 1];
       const dx = x - sample.x, dy = y - sample.y;
-      if (Math.sqrt(dx * dx + dy * dy) < 52) {
+      // Fix: tăng hit radius từ 52 → 80px để dễ kéo hơn, đặc biệt trên màn hình nhỏ
+      if (Math.sqrt(dx * dx + dy * dy) < 80) {
         state.progress = Math.min(current + 1, state.samples.length);
         setProgress(Math.round((state.progress / state.samples.length) * 100));
         if (state.progress >= Math.floor(state.samples.length * 0.75) && !state.passed) {
           const elapsed = now - (state.dragStartTime || now);
-          if (elapsed < 800) { state.progress = 0; setProgress(0); state.speedBuf = []; state.curveLog = []; return; }
+          // Fix: giảm thời gian tối thiểu từ 800ms → 500ms (người dùng thật kéo khá nhanh)
+          if (elapsed < 500) { state.progress = 0; setProgress(0); state.speedBuf = []; state.curveLog = []; return; }
           state.passed = true;
           setPassed(true);
           setTimeout(() => onPassRef.current(state.curveLog), 900);
