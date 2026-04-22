@@ -653,10 +653,16 @@ router.get('/campaigns', async (req, res) => {
   const offset = (page - 1) * limit;
   const todayVnAdmin = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
   let sql = `SELECT c.*, u.name as user_name, u.email as user_email,
-    COALESCE(tl_today.clicks, 0) as views_today
+    COALESCE((
+      SELECT COUNT(*) FROM vuot_link_tasks vlt_today
+      WHERE vlt_today.campaign_id = c.id
+        AND vlt_today.status = 'completed'
+        AND vlt_today.bot_detected = 0
+        AND vlt_today.is_over_limit = 0
+        AND DATE(CONVERT_TZ(vlt_today.completed_at, '+00:00', '+07:00')) = '${todayVnAdmin}'
+    ), 0) as views_today
     FROM campaigns c
     LEFT JOIN users u ON c.user_id = u.id
-    LEFT JOIN traffic_logs tl_today ON tl_today.campaign_id = c.id AND tl_today.date = '${todayVnAdmin}'
     WHERE 1=1`;
   const params = [];
   if (search) { sql += ' AND (c.name LIKE ? OR c.url LIKE ? OR u.email LIKE ? OR c.keyword LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`); }
