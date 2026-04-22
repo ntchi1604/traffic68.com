@@ -652,13 +652,15 @@ router.get('/campaigns', async (req, res) => {
   const { search, status, page = 1, limit = 20, sync } = req.query;
   const offset = (page - 1) * limit;
   const todayVnAdmin = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+  const todayStartUtc = new Date(`${todayVnAdmin}T00:00:00+07:00`).toISOString().slice(0, 19).replace('T', ' ');
+  const todayEndUtc = new Date(`${todayVnAdmin}T23:59:59+07:00`).toISOString().slice(0, 19).replace('T', ' ');
   let sql = `SELECT c.*, u.name as user_name, u.email as user_email,
     COALESCE((
       SELECT COUNT(*) FROM vuot_link_tasks vlt_today
       WHERE vlt_today.campaign_id = c.id
         AND vlt_today.status = 'completed'
         AND vlt_today.bot_detected = 0
-        AND DATE(CONVERT_TZ(vlt_today.created_at, '+00:00', '+07:00')) = '${todayVnAdmin}'
+        AND vlt_today.created_at BETWEEN '${todayStartUtc}' AND '${todayEndUtc}'
     ), 0) as views_today
     FROM campaigns c
     LEFT JOIN users u ON c.user_id = u.id
@@ -677,7 +679,7 @@ router.get('/campaigns', async (req, res) => {
         const ph = ids.map(() => '?').join(',');
 
         // Đảm bảo cột manually_completed tồn tại
-        try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch (_) {}
+        try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch (_) { }
 
         await pool.execute(
           `UPDATE campaigns c SET views_done = (
@@ -691,7 +693,7 @@ router.get('/campaigns', async (req, res) => {
           await pool.execute(
             `UPDATE campaigns SET status = 'running' WHERE id IN (${ph}) AND status = 'completed' AND views_done < total_views AND COALESCE(manually_completed, 0) = 0`, ids
           );
-        } catch (_) {}
+        } catch (_) { }
         const [updated] = await pool.execute(sql, params);
         return res.json({ campaigns: updated });
       }
@@ -712,7 +714,7 @@ router.put('/campaigns/:id', async (req, res) => {
     if (status && Object.keys(req.body).length === 1) {
       // Khi admin đánh dấu completed thủ công → set flag manually_completed
       // Luôn tạo cột trước để tránh fallback không lưu flag
-      try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch (_) {}
+      try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch (_) { }
       const manuallyCompleted = status === 'completed' ? 1 : 0;
       await pool.execute(
         'UPDATE campaigns SET status = ?, manually_completed = ? WHERE id = ?',
@@ -797,9 +799,9 @@ router.post('/campaigns/:id/renew', async (req, res) => {
     await pool.execute(
       `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
       [camp.user_id, 'Chiến dịch được gia hạn',
-        `Chiến dịch "${camp.name}" đã được admin gia hạn thêm ${addViews.toLocaleString()} view và tiếp tục chạy.`,
+      `Chiến dịch "${camp.name}" đã được admin gia hạn thêm ${addViews.toLocaleString()} view và tiếp tục chạy.`,
         'success', 'buyer']
-    ).catch(() => {});
+    ).catch(() => { });
 
     console.log(`[Admin] Campaign ${camp.id} renewed +${addViews} views by admin ${req.userId}`);
     const [updated] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [camp.id]);
