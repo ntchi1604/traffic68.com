@@ -12,7 +12,7 @@ import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import Breadcrumb from '../../components/Breadcrumb';
 
-/* ─── Static data ───────────────────────────────────────────── */
+/* ─── Static data ───────────────Tổng view (không sửa)────────────────────────────── */
 const TRAFFIC_TYPES = [
   { value: 'google_search', label: 'Google Search', icon: Search, desc: 'Traffic từ kết quả tìm kiếm Google', iconBg: 'bg-blue-50', iconColor: 'text-indigo-600', activeBg: 'bg-blue-50/80', activeBorder: 'border-indigo-500', activeText: 'text-indigo-700' },
   { value: 'direct', label: 'Direct / Redirect', icon: Link2, desc: 'Traffic trực tiếp hoặc redirect URL', iconBg: 'bg-violet-50', iconColor: 'text-violet-600', activeBg: 'bg-violet-50/80', activeBorder: 'border-violet-500', activeText: 'text-violet-700' },

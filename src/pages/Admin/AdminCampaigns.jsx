@@ -7,12 +7,12 @@ import api from '../../lib/api';
 import { exportToExcel } from '../../lib/exportExcel';
 
 const PRIORITY_MAP = {
-  0: { label: 'Mặc định', cls: 'bg-slate-100 text-slate-400',   dot: 'bg-slate-300' }, // NULL / chưa set
-  1: { label: '× 2 Tăng nhẹ',  cls: 'bg-sky-100 text-sky-700',       dot: 'bg-sky-400' },
-  2: { label: '× 4 Tăng vừa',  cls: 'bg-teal-100 text-teal-700',     dot: 'bg-teal-500' },
-  3: { label: '× 8 Ưu tiên',   cls: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-500' },
-  4: { label: '×16 Rất cao',   cls: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500' },
-  5: { label: '×32 Khẩn cấp', cls: 'bg-red-100 text-red-700',       dot: 'bg-red-500' },
+  0: { label: 'Mặc định', cls: 'bg-slate-100 text-slate-400', dot: 'bg-slate-300' }, // NULL / chưa set
+  1: { label: '× 2 Tăng nhẹ', cls: 'bg-sky-100 text-sky-700', dot: 'bg-sky-400' },
+  2: { label: '× 4 Tăng vừa', cls: 'bg-teal-100 text-teal-700', dot: 'bg-teal-500' },
+  3: { label: '× 8 Ưu tiên', cls: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
+  4: { label: '×16 Rất cao', cls: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500' },
+  5: { label: '×32 Khẩn cấp', cls: 'bg-red-100 text-red-700', dot: 'bg-red-500' },
 };
 
 const STATUS_MAP = {
@@ -180,8 +180,8 @@ function KeywordStats({ campaignId, trafficType }) {
                 {trafficType === 'direct'
                   ? <th className="px-4 py-2 font-semibold text-slate-500">URL</th>
                   : trafficType === 'social'
-                  ? <th className="px-4 py-2 font-semibold text-slate-500">URL Social</th>
-                  : <th className="px-4 py-2 font-semibold text-slate-500">Từ khoá</th>
+                    ? <th className="px-4 py-2 font-semibold text-slate-500">URL Social</th>
+                    : <th className="px-4 py-2 font-semibold text-slate-500">Từ khoá</th>
                 }
                 <th className="px-4 py-2 font-semibold text-slate-500 text-right">Hoàn thành</th>
                 <th className="px-4 py-2 font-semibold text-slate-500 text-right">Chi phí</th>
@@ -194,22 +194,22 @@ function KeywordStats({ campaignId, trafficType }) {
                 const isValidUrl = (v) => { try { return v && v !== '[]' && new URL(v) && true; } catch { return false; } };
                 const kwDisplay = (d.keyword && d.keyword !== '[]') ? d.keyword : null;
                 return (
-                <tr key={i} className="hover:bg-slate-50">
-                  <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{d.date?.slice(0, 10)}</td>
-                  {(trafficType === 'direct' || trafficType === 'social')
-                    ? <td className="px-4 py-2.5 font-bold text-violet-600 truncate max-w-[180px]" title={kwDisplay || ''}>
+                  <tr key={i} className="hover:bg-slate-50">
+                    <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{d.date?.slice(0, 10)}</td>
+                    {(trafficType === 'direct' || trafficType === 'social')
+                      ? <td className="px-4 py-2.5 font-bold text-violet-600 truncate max-w-[180px]" title={kwDisplay || ''}>
                         {isValidUrl(kwDisplay)
                           ? <a href={kwDisplay} target="_blank" rel="noopener noreferrer" className="hover:underline">{kwDisplay}</a>
                           : '—'}
                       </td>
-                    : <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]" title={kwDisplay || ''}>{kwDisplay || '(Trống)'}</td>
-                  }
-                  <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
-                    {d.completed} <span className="text-slate-500 font-medium text-[10px] ml-0.5">/ {Number(d.daily_views) > 0 ? d.daily_views : '∞'}</span>
-                    <span className="block text-[10px] text-slate-400 font-normal mt-0.5">{d.total} lượt nhận</span>
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-semibold text-slate-600">{fmt(d.cost)} đ</td>
-                </tr>
+                      : <td className="px-4 py-2.5 font-bold text-indigo-600 truncate max-w-[150px]" title={kwDisplay || ''}>{kwDisplay || '(Trống)'}</td>
+                    }
+                    <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
+                      {d.completed} <span className="text-slate-500 font-medium text-[10px] ml-0.5">/ {Number(d.daily_views) > 0 ? d.daily_views : '∞'}</span>
+                      <span className="block text-[10px] text-slate-400 font-normal mt-0.5">{d.total} lượt nhận</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-slate-600">{fmt(d.cost)} đ</td>
+                  </tr>
                 );
               })}
             </tbody>
@@ -391,12 +391,12 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       const finalKeywordConfig = isDirect
         ? JSON.stringify([{ keyword: globalUrl || '', views: finalTotalViews, daily_views: finalDailyViews, url: globalUrl || '', image: '' }])
         : JSON.stringify(kws.length ? kws.map(k => ({
-            keyword: k.keyword,
-            views: Number(k.views) || Math.max(1, Math.floor(finalTotalViews / kws.length)),
-            daily_views: useKeywordDailyViews ? (Number(k.daily_views) || 0) : 0,
-            url: k.url || '',
-            image: k.image || ''
-          })) : []);
+          keyword: k.keyword,
+          views: Number(k.views) || Math.max(1, Math.floor(finalTotalViews / kws.length)),
+          daily_views: useKeywordDailyViews ? (Number(k.daily_views) || 0) : 0,
+          url: k.url || '',
+          image: k.image || ''
+        })) : []);
 
       await api.put(`/admin/campaigns/${campaign.id}`, {
         name,
@@ -461,63 +461,63 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
           {/* Keywords — chỉ hiện với non-direct */}
           {!isDirect && (
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-sm font-semibold text-slate-600">Từ khóa tìm kiếm</label>
-              <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                  <span className={`text-[11px] font-semibold transition-colors ${useKeywordDailyViews ? 'text-sky-600' : 'text-slate-400'}`}>
-                    View/ngày riêng
-                  </span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={useKeywordDailyViews}
-                    onClick={toggleKeywordDailyViews}
-                    className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none ${useKeywordDailyViews ? 'bg-sky-500' : 'bg-slate-200'}`}
-                  >
-                    <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordDailyViews ? 'translate-x-4' : 'translate-x-0'}`} />
-                  </button>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-semibold text-slate-600">Từ khóa tìm kiếm</label>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[11px] font-semibold transition-colors ${useKeywordDailyViews ? 'text-sky-600' : 'text-slate-400'}`}>
+                      View/ngày riêng
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={useKeywordDailyViews}
+                      onClick={toggleKeywordDailyViews}
+                      className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none ${useKeywordDailyViews ? 'bg-sky-500' : 'bg-slate-200'}`}
+                    >
+                      <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useKeywordDailyViews ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-            {useKeywordDailyViews && (
-              <div className="mb-2 flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
-                <span className="text-sky-500 mt-0.5 flex-shrink-0">📊</span>
-                <div>
-                  <p className="text-xs font-bold text-sky-700 mb-0.5">Giới hạn view/ngày cho từng từ khóa</p>
-                  <p className="text-xs text-sky-600">
-                    Tổng view/ngày: <b>{allocatedDailyViews.toLocaleString()}</b> view (tính từ tất cả từ khóa)
-                  </p>
+              {useKeywordDailyViews && (
+                <div className="mb-2 flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
+                  <span className="text-sky-500 mt-0.5 flex-shrink-0">📊</span>
+                  <div>
+                    <p className="text-xs font-bold text-sky-700 mb-0.5">Giới hạn view/ngày cho từng từ khóa</p>
+                    <p className="text-xs text-sky-600">
+                      Tổng view/ngày: <b>{allocatedDailyViews.toLocaleString()}</b> view (tính từ tất cả từ khóa)
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
-            <div className="space-y-4">
-              {keywords.map((kw, i) => (
-                <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
-                  <div className="flex gap-2 items-center">
-                    <input type="text" value={kw.keyword} onChange={e => updateKeywordText(i, e.target.value)} placeholder={`Từ khóa ${i + 1}`} className={inputCls + ' flex-1'} />
-                    <div className="relative w-24 flex-shrink-0">
-                      <input
-                        type="number" min="1" value={kw.views || 0}
-                        onChange={e => updateKeywordViews(i, e.target.value)}
-                        className={inputCls + ' pr-10 text-right font-bold text-amber-900 bg-amber-50 border-amber-200'}
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
-                    </div>
-                    {useKeywordDailyViews && (
+              )}
+              <div className="space-y-4">
+                {keywords.map((kw, i) => (
+                  <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
+                    <div className="flex gap-2 items-center">
+                      <input type="text" value={kw.keyword} onChange={e => updateKeywordText(i, e.target.value)} placeholder={`Từ khóa ${i + 1}`} className={inputCls + ' flex-1'} />
                       <div className="relative w-24 flex-shrink-0">
                         <input
-                          type="number" min="0" value={kw.daily_views || 0}
-                          onChange={e => updateKeywordDailyViews(i, e.target.value)}
-                          className={inputCls + ' pr-12 text-right font-bold text-sky-900 bg-sky-50 border-sky-300'}
+                          type="number" min="1" value={kw.views || 0}
+                          onChange={e => updateKeywordViews(i, e.target.value)}
+                          className={inputCls + ' pr-10 text-right font-bold text-amber-900 bg-amber-50 border-amber-200'}
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
                       </div>
-                    )}
-                    {keywords.length > 1 && <button onClick={() => removeKeyword(i)} className="p-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 bg-white border border-red-200 hover:bg-red-50 rounded-xl cursor-pointer transition flex-shrink-0 absolute -top-2 -right-2 shadow-sm z-10"><Trash2 size={13} /></button>}
-                  </div>
-                  <div className="flex gap-2 items-center mt-1">
+                      {useKeywordDailyViews && (
+                        <div className="relative w-24 flex-shrink-0">
+                          <input
+                            type="number" min="0" value={kw.daily_views || 0}
+                            onChange={e => updateKeywordDailyViews(i, e.target.value)}
+                            className={inputCls + ' pr-12 text-right font-bold text-sky-900 bg-sky-50 border-sky-300'}
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
+                        </div>
+                      )}
+                      {keywords.length > 1 && <button onClick={() => removeKeyword(i)} className="p-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 bg-white border border-red-200 hover:bg-red-50 rounded-xl cursor-pointer transition flex-shrink-0 absolute -top-2 -right-2 shadow-sm z-10"><Trash2 size={13} /></button>}
+                    </div>
+                    <div className="flex gap-2 items-center mt-1">
                       <input
                         type="text" value={kw.url}
                         onChange={e => updateKeywordUrl(i, e.target.value)}
@@ -550,11 +550,11 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                         </label>
                       </div>
                     </div>
-                </div>
-              ))}
+                  </div>
+                ))}
+              </div>
+              <button onClick={addKeyword} className="mt-2.5 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm</button>
             </div>
-            <button onClick={addKeyword} className="mt-2.5 flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"><Plus size={14} /> Thêm</button>
-          </div>
           )}{/* end !isDirect keywords */}
 
 
@@ -596,7 +596,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
               )}
             </div>
             <div>
-              <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view (không sửa)</label>
+              <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view</label>
               {(() => {
                 const preview = isDirect
                   ? (Number(keywords[0]?.views) || Number(campaign.total_views))
@@ -756,11 +756,10 @@ function AdminRenewModal({ campaign, onClose, onRenewed }) {
             <div className="flex flex-wrap gap-2">
               {presets.map(v => (
                 <button key={v} onClick={() => setExtraViews(v)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${
-                    extraViews === v
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${extraViews === v
                       ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200'
                       : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-                  }`}>
+                    }`}>
                   {v.toLocaleString()}
                 </button>
               ))}
@@ -1042,9 +1041,8 @@ export default function AdminCampaigns() {
                                     <button
                                       onClick={() => updatePriority(c.id, 0)}
                                       disabled={settingPriorityId === c.id}
-                                      className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold transition text-left ${
-                                        !c.priority ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
-                                      } disabled:opacity-50`}
+                                      className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold transition text-left ${!c.priority ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+                                        } disabled:opacity-50`}
                                     >
                                       <span className="w-2 h-2 rounded-full bg-slate-300" />
                                       Mặc định (random đều)
@@ -1057,9 +1055,8 @@ export default function AdminCampaigns() {
                                         <button key={lvl}
                                           onClick={() => updatePriority(c.id, lvl)}
                                           disabled={settingPriorityId === c.id}
-                                          className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold transition text-left ${
-                                            isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
-                                          } disabled:opacity-50`}
+                                          className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold transition text-left ${isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                                            } disabled:opacity-50`}
                                         >
                                           <span className={`w-2 h-2 rounded-full ${pr.dot}`} />
                                           {pr.label}
@@ -1182,9 +1179,8 @@ export default function AdminCampaigns() {
                                       <button key={lvl}
                                         onClick={() => updatePriority(c.id, lvl)}
                                         disabled={settingPriorityId === c.id}
-                                        className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold transition text-left ${
-                                          isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
-                                        } disabled:opacity-50`}
+                                        className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold transition text-left ${isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                                          } disabled:opacity-50`}
                                       >
                                         <span className={`w-2 h-2 rounded-full ${pr.dot}`} />
                                         {pr.label}

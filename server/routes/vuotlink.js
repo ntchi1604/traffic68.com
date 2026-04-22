@@ -858,13 +858,27 @@ async function _handleTaskPost(req, res) {
   };
   const securityDetail = JSON.stringify(secObj).substring(0, 10000);
   const cleanVidCancel = (visitorId && visitorId !== 'unknown') ? visitorId : '';
-  await pool.execute(
-    `UPDATE vuot_link_tasks SET status = 'cancelled', expires_at = NOW()
-     WHERE (ip_address = ? OR (? != '' AND visitor_id = ?))
-       AND status IN ('pending', 'step1', 'step2', 'step3')
-       AND expires_at > NOW()`,
-    [ip, cleanVidCancel, cleanVidCancel]
-  ).catch(() => { });
+  // Cancel tất cả pending tasks của session này:
+  // 1) Theo visitorId trước (bắt cả trường hợp IP thay đổi trên mobile)
+  // 2) Theo IP (xử lý trường hợp visitorId không ổn định / unknown trên iOS Safari)
+  const cancelPromises = [];
+  if (cleanVidCancel) {
+    cancelPromises.push(
+      pool.execute(
+        `UPDATE vuot_link_tasks SET status = 'cancelled', expires_at = NOW()
+         WHERE visitor_id = ? AND status IN ('pending', 'step1', 'step2', 'step3') AND expires_at > NOW()`,
+        [cleanVidCancel]
+      ).catch(() => {})
+    );
+  }
+  cancelPromises.push(
+    pool.execute(
+      `UPDATE vuot_link_tasks SET status = 'cancelled', expires_at = NOW()
+       WHERE ip_address = ? AND status IN ('pending', 'step1', 'step2', 'step3') AND expires_at > NOW()`,
+      [ip]
+    ).catch(() => {})
+  );
+  await Promise.all(cancelPromises);
 
   // is_over_limit: view vượt giới hạn IP nhưng được phép qua bonus_mode
   const isOverLimit = (workerBonusMode && ipLimitReached) ? 1 : 0;
@@ -874,7 +888,10 @@ async function _handleTaskPost(req, res) {
   );
 
   // ── Race-condition guard: recount sau INSERT để bắt concurrent requests ──
-  // Chỉ đếm: (1) completed hôm nay, (2) pending/active CHƯA hết hạn (đang chiếm slot)
+  // Chỉ đếm:
+  //   (1) completed hôm nay
+  //   (2) pending/active được tạo trong 5 PHÚT GẦN ĐÂY (đang thực sự làm)
+  //       → KHÔNG đếm pending cũ bị bỏ dở/fail (tránh false-positive trên iOS khi IP rotate)
   // Bỏ qua check nếu worker có bonus_mode (IP hết lượt vẫn được phép làm)
   if (!workerBonusMode) {
     try {
@@ -891,6 +908,7 @@ async function _handleTaskPost(req, res) {
           WHERE ip_address = ? AND bot_detected = 0
             AND status IN ('pending', 'step1', 'step2', 'step3')
             AND expires_at > NOW()
+            AND created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
             AND id != ?
         ) as cnt`,
         [ip, vnDayStart, vnDayEnd, result.insertId, ip, result.insertId]
