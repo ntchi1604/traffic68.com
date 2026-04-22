@@ -652,15 +652,13 @@ router.get('/campaigns', async (req, res) => {
   const { search, status, page = 1, limit = 20, sync } = req.query;
   const offset = (page - 1) * limit;
   const todayVnAdmin = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-  const todayStartUtc = new Date(`${todayVnAdmin}T00:00:00+07:00`).toISOString().slice(0, 19).replace('T', ' ');
-  const todayEndUtc = new Date(`${todayVnAdmin}T23:59:59+07:00`).toISOString().slice(0, 19).replace('T', ' ');
   let sql = `SELECT c.*, u.name as user_name, u.email as user_email,
     COALESCE((
       SELECT COUNT(*) FROM vuot_link_tasks vlt_today
       WHERE vlt_today.campaign_id = c.id
         AND vlt_today.status = 'completed'
         AND vlt_today.bot_detected = 0
-        AND vlt_today.created_at BETWEEN '${todayStartUtc}' AND '${todayEndUtc}'
+        AND DATE(vlt_today.created_at) = '${todayVnAdmin}'
     ), 0) as views_today
     FROM campaigns c
     LEFT JOIN users u ON c.user_id = u.id
