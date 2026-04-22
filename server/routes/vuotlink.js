@@ -578,7 +578,7 @@ async function _handleTaskPost(req, res) {
                   SUM(CASE WHEN completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_done,
                   SUM(CASE WHEN completed_at >= ? AND completed_at < ? THEN 1 ELSE 0 END) as hour_done
            FROM vuot_link_tasks
-           WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0
+           WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
            GROUP BY keyword`,
           [vnDayStart, vnDayEnd, vnHourStart, vnNextHourStart, picked.id]
         );

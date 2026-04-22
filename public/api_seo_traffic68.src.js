@@ -1017,8 +1017,6 @@
     }
 
     if (ch.id === 'scroll-top' || ch.id === 'scroll-bottom') {
-      // pointer-events:none → touch xuyên qua overlay/modal đến trang → trang scroll bình thường
-      // Đây là cách duy nhất đảm bảo scroll hoạt động trên iOS + Android Chrome
       var _ovEl = document.getElementById('laynut-overlay');
       var _mdEl = document.getElementById('laynut-modal');
       if (_ovEl) _ovEl.style.pointerEvents = 'none';
@@ -1033,11 +1031,10 @@
         completeChallenge();
       };
 
-      // Check 1 scroll container
       var _chkEl = function (el) {
         if (!el || el === document || el === window) return false;
         var sh = el.scrollHeight, ch2 = el.clientHeight;
-        if (sh <= ch2 + 10) return false; // không scrollable
+        if (sh <= ch2 + 10) return false;
         if (_isBot) return sh - el.scrollTop - ch2 <= 150;
         return el.scrollTop <= Math.max(50, ch2 * 0.15);
       };
@@ -1045,16 +1042,13 @@
       var _checkScrollPos = function (evt) {
         if (_scDone) return;
 
-        // 1. Window / documentElement scroll (trang thông thường)
         var winSt = window.pageYOffset || document.documentElement.scrollTop || 0;
         var winDH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
         if (_isBot && winDH - winSt - window.innerHeight <= 150) { _doScrollComplete(); return; }
         if (!_isBot && winSt <= Math.max(200, (window.innerHeight || 600) * 0.15)) { _doScrollComplete(); return; }
 
-        // 2. evt.target (custom scroll container phát sinh event)
         if (evt && _chkEl(evt.target)) { _doScrollComplete(); return; }
 
-        // 3. Scan body children 2 cấp (tìm div scroll container của trang)
         try {
           var kids = document.body ? document.body.children : [];
           for (var i = 0; i < kids.length; i++) {
@@ -1064,7 +1058,7 @@
               if (_chkEl(gk[j])) { _doScrollComplete(); return; }
             }
           }
-        } catch (e) {}
+        } catch (e) { }
       };
 
       challengeListener = _checkScrollPos;

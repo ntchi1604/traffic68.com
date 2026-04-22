@@ -183,7 +183,7 @@ router.get('/public/:token', async (req, res) => {
         const vnDayEnd = `${vnDateNow} 23:59:59`;
         const [tdRows] = await pool.execute(
           `SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks
-           WHERE campaign_id IN (${ph}) AND status = 'completed' AND bot_detected = 0
+           WHERE campaign_id IN (${ph}) AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
              AND completed_at >= '${vnDayStart}' AND completed_at <= '${vnDayEnd}'
            GROUP BY campaign_id`,
           campIds
