@@ -658,8 +658,7 @@ router.get('/campaigns', async (req, res) => {
       WHERE vlt_today.campaign_id = c.id
         AND vlt_today.status = 'completed'
         AND vlt_today.bot_detected = 0
-        AND vlt_today.is_over_limit = 0
-        AND DATE(CONVERT_TZ(vlt_today.completed_at, '+00:00', '+07:00')) = '${todayVnAdmin}'
+        AND DATE(CONVERT_TZ(vlt_today.created_at, '+00:00', '+07:00')) = '${todayVnAdmin}'
     ), 0) as views_today
     FROM campaigns c
     LEFT JOIN users u ON c.user_id = u.id
