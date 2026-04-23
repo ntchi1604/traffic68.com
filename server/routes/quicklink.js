@@ -200,10 +200,16 @@ router.get('/v1/links', apiKeyAuth, async (req, res) => {
 router.get('/v1/links/:id', apiKeyAuth, async (req, res) => {
   try {
     const pool = getPool();
+    const param = req.params.id;
+    // Nếu param là số nguyên → query bằng id, ngược lại query bằng slug
+    const isNumericId = /^\d+$/.test(param);
     const [rows] = await pool.execute(
-      `SELECT id, slug, title, destination_url, click_count, completed_count, earning, created_at
-       FROM worker_links WHERE id = ? AND worker_id = ?`,
-      [req.params.id, req.userId]
+      isNumericId
+        ? `SELECT id, slug, title, destination_url, click_count, completed_count, earning, created_at
+           FROM worker_links WHERE id = ? AND worker_id = ? AND hidden = 0`
+        : `SELECT id, slug, title, destination_url, click_count, completed_count, earning, created_at
+           FROM worker_links WHERE slug = ? AND worker_id = ? AND hidden = 0`,
+      [param, req.userId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Link not found' });
 
