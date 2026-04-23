@@ -17,9 +17,12 @@ const TYPE_MAP = {
 };
 
 const STATUS_MAP = {
-  completed: { label: 'Đã duyệt', cls: 'bg-green-100 text-green-700' },
-  pending: { label: 'Chờ duyệt', cls: 'bg-amber-100 text-amber-700' },
-  failed: { label: 'Từ chối', cls: 'bg-red-100 text-red-700' },
+  completed:  { label: 'Đã duyệt',   cls: 'bg-green-100 text-green-700' },
+  pending:    { label: 'Chờ duyệt',  cls: 'bg-amber-100 text-amber-700' },
+  failed:     { label: 'Từ chối',    cls: 'bg-red-100 text-red-700' },
+  rejected:   { label: 'Từ chối',    cls: 'bg-red-100 text-red-700' },
+  processing: { label: 'Đang xử lý', cls: 'bg-blue-100 text-blue-700' },
+  cancelled:  { label: 'Đã hủy',    cls: 'bg-slate-100 text-slate-500' },
 };
 
 /* Date helpers — dùng locale máy, tính động */
@@ -216,11 +219,11 @@ export default function AdminTransactions() {
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-semibold text-slate-500">Trạng thái:</span>
-            {['all', 'pending', 'completed', 'failed'].map(s => (
+            {['all', 'pending', 'completed', 'rejected', 'processing', 'cancelled'].map(s => (
               <button key={s} onClick={() => setStatusFilter(s)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${statusFilter === s
                   ? 'bg-purple-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
-                {s === 'all' ? 'Tất cả' : STATUS_MAP[s]?.label}
+                {s === 'all' ? 'Tất cả' : (STATUS_MAP[s]?.label ?? s)}
               </button>
             ))}
           </div>
@@ -255,7 +258,7 @@ export default function AdminTransactions() {
             <tbody className="divide-y divide-slate-100">
               {transactions.map(t => {
                 const tp = TYPE_MAP[t.type] || { label: t.type, cls: 'bg-gray-100 text-gray-700' };
-                const st = STATUS_MAP[t.status] || STATUS_MAP.completed;
+                const st = STATUS_MAP[t.status] || { label: t.status, cls: 'bg-gray-100 text-gray-600' };
                 const isPending = t.status === 'pending';
                 return (
                   <tr key={t.id} className={`hover:bg-slate-50/70 ${isPending ? 'bg-amber-50/40' : ''}`}>
