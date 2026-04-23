@@ -882,9 +882,12 @@ async function _handleTaskPost(req, res) {
 
   // is_over_limit: view vượt giới hạn IP nhưng được phép qua bonus_mode
   const isOverLimit = (workerBonusMode && ipLimitReached) ? 1 : 0;
+  // Khi vượt link của người khác (gateway link), worker_id = null để tránh nhầm lẫn người nhận tiền.
+  // Chủ link được xác định qua worker_link_id → wl.worker_id (xem phần Pay gateway link creator bên dưới).
+  const taskWorkerId = workerLinkId ? null : (req.userId || null);
   const [result] = await pool.execute(
     `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id, ref_worker_id, security_detail, is_over_limit) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?, ?, ?)`,
-    [campaign.id, req.userId || null, selectedKeyword, selectedUrl, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId, refWorkerId, securityDetail, isOverLimit]
+    [campaign.id, taskWorkerId, selectedKeyword, selectedUrl, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId, refWorkerId, securityDetail, isOverLimit]
   );
 
   // ── Race-condition guard: recount sau INSERT để bắt concurrent requests ──
@@ -1273,7 +1276,16 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   let earning = 0;
   try {
     const duration = (campaign.time_on_site || '60').split('-')[0] + 's';
-    const workerIdToCheck = task.ref_worker_id || task.worker_id || req.userId;
+    // Ưu tiên: chủ gateway link (worker_link_id) → ref_worker_id → worker_id trực tiếp
+    // KHÔNG dùng req.userId vì user đang đăng nhập có thể vượt link của người khác
+    let workerIdToCheck = task.ref_worker_id || task.worker_id || null;
+    // Nếu là gateway link, phải lấy worker_id từ bảng worker_links (chủ link)
+    if (task.worker_link_id && !workerIdToCheck) {
+      try {
+        const [wlPriceRows] = await pool.execute('SELECT worker_id FROM worker_links WHERE id = ?', [task.worker_link_id]);
+        if (wlPriceRows.length > 0) workerIdToCheck = wlPriceRows[0].worker_id;
+      } catch (_) { }
+    }
     if (workerIdToCheck) {
       const [pgRows] = await pool.execute(
         `SELECT r.v1_price, r.v2_price FROM users u
