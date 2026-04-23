@@ -488,11 +488,28 @@ router.post('/public/:token/check-session', async (req, res) => {
 
 
   try {
+    // Gia hạn expires_at thêm 1200 giây
     await pool.execute(
       `UPDATE vuot_link_tasks SET expires_at = DATE_ADD(NOW(), INTERVAL 1200 SECOND) WHERE id = ?`,
       [task.id]
     );
   } catch (e) { }
+
+  // Ghi widget_started_at lần đầu tiên (để get-code tính elapsed chính xác
+  // kể từ khi user thực sự bắt đầu ở trang đích, không phải từ created_at của task)
+  try {
+    const _wStartedAt = new Date().toISOString();
+    await pool.execute(
+      `UPDATE vuot_link_tasks
+       SET security_detail = JSON_SET(
+         COALESCE(security_detail, '{}'),
+         '$.widget_started_at',
+         COALESCE(JSON_UNQUOTE(JSON_EXTRACT(security_detail, '$.widget_started_at')), ?)
+       )
+       WHERE id = ? AND (security_detail IS NULL OR JSON_EXTRACT(security_detail, '$.widget_started_at') IS NULL)`,
+      [_wStartedAt, task.id]
+    );
+  } catch (e) { /* ignore — fallback to created_at */ }
 
   // Ghi visitor_id vào task nếu chưa có (widget gửi lên, task tìm được qua IP)
   // Giúp get-code vẫn tìm được task khi IP thay đổi (4G/5G), dùng visitor_id làm fallback
@@ -824,12 +841,28 @@ router.post('/public/:token/get-code', async (req, res) => {
     requiredSeconds = parseInt(tos) || 30;
   }
 
-  const elapsedMs = Date.now() - new Date(task.created_at).getTime();
+  // Dùng widget_started_at (thời điểm check-session đầu tiên) nếu có,
+  // fallback về created_at. Điều này tránh false-positive khi task tự động
+  // renew (auto-fetch sau 20 phút) — lúc đó created_at reset về NOW() nhưng
+  // user đã đợi đủ waitTime từ trước rồi.
+  let refTime;
+  try {
+    let secDetail = {};
+    try { secDetail = JSON.parse(task.security_detail || '{}'); } catch { }
+    if (secDetail.widget_started_at) {
+      refTime = new Date(secDetail.widget_started_at).getTime();
+      if (isNaN(refTime)) refTime = new Date(task.created_at).getTime();
+    } else {
+      refTime = new Date(task.created_at).getTime();
+    }
+  } catch { refTime = new Date(task.created_at).getTime(); }
+
+  const elapsedMs = Date.now() - refTime;
   const elapsedSeconds = Math.floor(elapsedMs / 1000);
 
   if (elapsedSeconds < requiredSeconds) {
     const remaining = requiredSeconds - elapsedSeconds;
-    console.log(`[Widget] Code request TOO EARLY — IP: ${ip}, task: #${task.id}, elapsed: ${elapsedSeconds}s < required: ${requiredSeconds}s`);
+    console.log(`[Widget] Code request TOO EARLY — IP: ${ip}, task: #${task.id}, elapsed: ${elapsedSeconds}s < required: ${requiredSeconds}s (ref: widget_started_at=${!!refTime})`);
     return res.status(403).json({ error: 'Phát hiện gian lận!', remaining });
   }
 
