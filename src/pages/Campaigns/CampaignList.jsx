@@ -466,7 +466,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
           {/* Direct: chỉ URL đích — Non-direct: URL mặc định + Ảnh + Keywords */}
           {isDirect ? (
-            /* ── Direct: URL đích + view tổng + view/ngày + preview ── */
+            /* ── Direct: URL đích + view tổng + view/ngày (inline toggle giống Search) ── */
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">URL đích</label>
@@ -479,93 +479,79 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 />
                 <p className="mt-1 text-xs text-slate-400">Visitor sẽ truy cập trực tiếp vào URL này</p>
               </div>
-              {/* View tổng */}
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Số view mục tiêu</label>
-                <div className="relative">
-                  <input
-                    type="number" min="1"
-                    value={keywords[0]?.views || 0}
-                    onChange={e => updateKeywordViews(0, e.target.value)}
-                    className={input + ' pr-14'}
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-500 font-bold pointer-events-none">view</span>
-                </div>
-              </div>
-              {/* Toggle View/ngày — bật/tắt daily limit */}
-              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+
+              {/* Tổng view + View/ngày — 2 cột, toggle inline giống Search */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs font-bold text-slate-700">Giới hạn view / ngày</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {useDirectDailyLimit
-                      ? 'Giới hạn số view tối đa mỗi ngày'
-                      : 'Không giới hạn — chạy hết tốc lực'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleDirectDailyLimit}
-                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
-                    useDirectDailyLimit ? 'bg-sky-500' : 'bg-slate-300'
-                  }`}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${useDirectDailyLimit ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
-              </div>
-              {/* Input View/ngày — chỉ hiện khi toggle ON */}
-              {useDirectDailyLimit && (
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Số view tối đa / ngày</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Tổng view</label>
                   <div className="relative">
                     <input
                       type="number" min="1"
-                      value={dailyViews || ''}
-                      onChange={e => setDailyViews(Number(e.target.value) || 0)}
-                      placeholder="Nhập số view/ngày..."
-                      className={input + ' pr-24'}
-                      autoFocus
+                      value={keywords[0]?.views || 0}
+                      onChange={e => updateKeywordViews(0, e.target.value)}
+                      className={input + ' pr-14'}
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-sky-600 font-bold bg-sky-50 px-2 py-0.5 rounded-md pointer-events-none">view/ngày</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-500 font-bold pointer-events-none">view</span>
                   </div>
+                  <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view</p>
+                </div>
+                <div>
+                  {/* Label + toggle nhỏ inline — giống Search "View/ngày riêng" */}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">View / ngày</label>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[11px] font-semibold transition-colors ${useDirectDailyLimit ? 'text-sky-600' : 'text-slate-400'}`}>
+                        {useDirectDailyLimit ? 'Bật' : 'Tắt'}
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={useDirectDailyLimit}
+                        onClick={toggleDirectDailyLimit}
+                        className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none ${useDirectDailyLimit ? 'bg-sky-500' : 'bg-slate-200'}`}
+                      >
+                        <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useDirectDailyLimit ? 'translate-x-4' : 'translate-x-0'}`} />
+                      </button>
+                    </div>
+                  </div>
+                  {useDirectDailyLimit ? (
+                    <div className="relative">
+                      <input
+                        type="number" min="1"
+                        value={dailyViews || ''}
+                        onChange={e => setDailyViews(Number(e.target.value) || 0)}
+                        placeholder="Số view/ngày..."
+                        className={input + ' pr-20'}
+                        autoFocus
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-sky-600 font-bold bg-sky-50 px-1.5 py-0.5 rounded pointer-events-none">view/ngày</span>
+                    </div>
+                  ) : (
+                    <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-400 font-medium">
+                      Không giới hạn
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Chia view theo giờ — chỉ hiện khi daily ON và có giá trị */}
+              {useDirectDailyLimit && Number(dailyViews) > 0 && (
+                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                  <div>
+                    <p className="text-xs font-bold text-slate-700">Chia view theo giờ</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Phân bổ đều trong 24h (~{Math.ceil(Number(dailyViews) / 24).toLocaleString()} view/giờ)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setViewByHour(v => !v)}
+                    className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${viewByHour ? 'bg-indigo-500' : 'bg-slate-300'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${viewByHour ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
                 </div>
               )}
-              {/* Preview info box */}
-              <div className="flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
-                <BarChart3 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-sky-700 leading-relaxed">
-                  <strong>Tổng view:</strong>{' '}
-                  <b className="text-amber-600">{(Number(keywords[0]?.views) || 0).toLocaleString()}</b> view
-                  {' · '}
-                  <strong>View/ngày:</strong>{' '}
-                  {useDirectDailyLimit && Number(dailyViews) > 0
-                    ? <><b className="text-sky-700">{Number(dailyViews).toLocaleString()}</b> view/ngày</>
-                    : <b className="text-slate-500">Không giới hạn</b>}
-                  {' · '}
-                  <strong>Đã chạy:</strong>{' '}
-                  <b className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</b> view
-                </p>
-              </div>
-              {/* Toggle “Chia view theo giờ” — luôn hiện cho direct */}
-              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-                <div>
-                  <p className="text-xs font-bold text-slate-700">Chia view theo giờ</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {useDirectDailyLimit && Number(dailyViews) > 0
-                      ? `Phân bổ đều trong 24h (~${Math.ceil(Number(dailyViews) / 24).toLocaleString()} view/giờ)`
-                      : 'Chỉ áp dụng khi bật giới hạn view/ngày'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setViewByHour(v => !v)}
-                  disabled={!useDirectDailyLimit || Number(dailyViews) <= 0}
-                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
-                    !useDirectDailyLimit || Number(dailyViews) <= 0 ? 'bg-slate-200 opacity-40 cursor-not-allowed' : viewByHour ? 'bg-indigo-500' : 'bg-slate-300'
-                  }`}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${viewByHour && useDirectDailyLimit && Number(dailyViews) > 0 ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
-              </div>
             </div>
           ) : (
             /* ── Non-direct: URL mặc định + Ảnh ── */

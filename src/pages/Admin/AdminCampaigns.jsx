@@ -245,6 +245,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const isDirect = campaign.traffic_type === 'direct';
   const [name, setName] = useState(campaign.name || '');
   const [dailyViews, setDailyViews] = useState(Number(campaign.daily_views) || 0);
+  const [useDirectDailyLimit, setUseDirectDailyLimit] = useState(() => isDirect && Number(campaign.daily_views) > 0);
+  const toggleDirectDailyLimit = () => {
+    setUseDirectDailyLimit(v => {
+      if (v) { setDailyViews(0); setViewByHour(false); }
+      return !v;
+    });
+  };
   const [note, setNote] = useState(campaign.note || '');
 
 
@@ -380,7 +387,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         : (kws.reduce((s, k) => s + (Number(k.views) || 0), 0) || Number(campaign.total_views));
 
       const finalDailyViews = isDirect
-        ? Number(dailyViews) || 0
+        ? (useDirectDailyLimit ? Number(dailyViews) || 0 : 0)
         : useKeywordDailyViews
           ? keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0)
           : Number(dailyViews) || 0;
@@ -559,7 +566,59 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
 
 
-          {/* Daily views + Tổng view — luôn sửa được với mọi loại camp */}
+          {/* Daily views + Tổng view */}
+          {isDirect ? (
+            /* ── Direct: 2 cột với toggle inline giống Search ── */
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view</label>
+                {(() => {
+                  const preview = Number(keywords[0]?.views) || Number(campaign.total_views);
+                  return (
+                    <div className="px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+                      <span className="text-lg font-black text-amber-700 tabular-nums">{preview.toLocaleString()}</span>
+                      <span className="text-xs text-amber-500 font-bold">view</span>
+                    </div>
+                  );
+                })()}
+                <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view</p>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-sm font-semibold text-slate-600">View / ngày</label>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[11px] font-semibold transition-colors ${useDirectDailyLimit ? 'text-sky-600' : 'text-slate-400'}`}>
+                      {useDirectDailyLimit ? 'Bật' : 'Tắt'}
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={useDirectDailyLimit}
+                      onClick={toggleDirectDailyLimit}
+                      className={`relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent cursor-pointer transition-colors duration-200 ease-in-out focus:outline-none ${useDirectDailyLimit ? 'bg-sky-500' : 'bg-slate-200'}`}
+                    >
+                      <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${useDirectDailyLimit ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                </div>
+                {useDirectDailyLimit ? (
+                  <div className="relative">
+                    <input
+                      type="number" min="1"
+                      value={dailyViews || ''}
+                      onChange={e => setDailyViews(Number(e.target.value) || 0)}
+                      placeholder="Số view/ngày..."
+                      className={inputCls + ' pr-16'}
+                      autoFocus
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-500 font-bold pointer-events-none">/ngày</span>
+                  </div>
+                ) : (
+                  <div className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-400">Không giới hạn</div>
+                )}
+              </div>
+            </div>
+          ) : (
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-semibold text-slate-600 mb-1 block">View / ngày (tổng)</label>
@@ -611,10 +670,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
               <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view</p>
             </div>
           </div>
+          )}{/* end isDirect daily ternary */}
 
           {/* Phân phối theo giờ: ẩn khi không có daily_views hợp lệ */}
           {(() => {
-            const effectiveDaily = useKeywordDailyViews ? allocatedDailyViews : Number(dailyViews);
+            const effectiveDaily = isDirect
+              ? (useDirectDailyLimit ? Number(dailyViews) : 0)
+              : useKeywordDailyViews ? allocatedDailyViews : Number(dailyViews);
             if (effectiveDaily <= 0) return null;
             return (
               <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
