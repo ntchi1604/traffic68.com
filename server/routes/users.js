@@ -1,10 +1,11 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { getPool } = require('../db');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, JWT_SECRET, invalidateUserCache } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -136,14 +137,29 @@ router.put('/password', async (req, res) => {
     return res.status(400).json({ error: 'Mật khẩu mới phải ít nhất 6 ký tự' });
   }
 
-  const [users] = await pool.execute('SELECT password_hash FROM users WHERE id = ?', [req.userId]);
+  const [users] = await pool.execute('SELECT password_hash, role FROM users WHERE id = ?', [req.userId]);
   if (!bcrypt.compareSync(currentPassword, users[0].password_hash)) {
     return res.status(400).json({ error: 'Mật khẩu hiện tại không đúng' });
   }
 
   const hash = bcrypt.hashSync(newPassword, 10);
-  await pool.execute('UPDATE users SET password_hash = ? WHERE id = ?', [hash, req.userId]);
-  res.json({ message: 'Đổi mật khẩu thành công' });
+  // Cập nhật password và ghi timestamp — các token cũ hơn timestamp này sẽ bị reject
+  await pool.execute(
+    'UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?',
+    [hash, req.userId]
+  );
+
+  // Xóa cache để authMiddleware đọc lại password_changed_at mới từ DB
+  invalidateUserCache(req.userId);
+
+  // Cấp token mới cho session hiện tại (thiết bị đang đổi mật khẩu không bị logout)
+  const newToken = jwt.sign(
+    { userId: req.userId, role: users[0].role },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  res.json({ message: 'Đổi mật khẩu thành công', token: newToken });
 });
 
 router.get('/referrals', async (req, res) => {

@@ -4,7 +4,7 @@ import usePageTitle from '../../hooks/usePageTitle';
 import { User, Lock, Mail, Phone, Save, Camera, Check, Eye, EyeOff, Shield } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb';
 import { useToast } from '../../components/Toast';
-import api from '../../lib/api';
+import api, { setAuth, getUser } from '../../lib/api';
 
 export default function UserProfileAndAccountSettings() {
   usePageTitle('Hồ sơ & Tài khoản');
@@ -70,8 +70,12 @@ export default function UserProfileAndAccountSettings() {
     setIsSubmitting(true);
     setError('');
     try {
-      await api.put('/users/password', { currentPassword: passwordForm.current, newPassword: passwordForm.new });
-      toast.success('Đổi mật khẩu thành công!');
+      const data = await api.put('/users/password', { currentPassword: passwordForm.current, newPassword: passwordForm.new });
+      // Lưu token mới — giữ session hiện tại, các thiết bị khác sẽ bị đăng xuất tự động
+      if (data.token) {
+        setAuth(data.token, getUser());
+      }
+      toast.success('Đổi mật khẩu thành công! Các thiết bị khác đã được đăng xuất.');
       setPasswordForm({ current: '', new: '', confirm: '' });
     } catch (err) {
       setError(err.message);
