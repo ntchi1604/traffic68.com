@@ -1195,7 +1195,20 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
   res.json({ challengeToken });
 });
 
-router.post('/task/:id/verify', optionalAuth, async (req, res) => {
+router.post('/task/:id/verify', optionalAuth, (req, res) => {
+  const timeoutId = setTimeout(() => {
+    if (!res.headersSent) {
+      console.error('[VuotLink] ⏱ POST /task/:id/verify TIMED OUT after 25s');
+      res.status(503).json({ error: 'Server bận, vui lòng thử lại.' });
+    }
+  }, 25000);
+  _handleVerifyPost(req, res).finally(() => clearTimeout(timeoutId)).catch(err => {
+    if (!res.headersSent) res.status(500).json({ error: 'Lỗi server.' });
+    console.error('[VuotLink] Unhandled verify error:', err);
+  });
+});
+
+async function _handleVerifyPost(req, res) {
   const pool = getPool();
   const { code, _tk, challengeToken } = req.body;
   const ip = normalizeIp(req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress);
@@ -1222,19 +1235,11 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   }
 
   if (!isTrustedWorker) {
-    const cpEntry = challengePassedStore[taskIdStr];
-    if (!cpEntry) {
-      // Fallback DB: nếu challengePassedStore đã bị xóa (PM2 restart) nhưng task đã qúa bước challenge
-      if (!['step1', 'step2', 'step3'].includes(task.status)) {
-        return res.status(403).json({ error: 'Bạn chưa hoàn thành bước xác minh người thật.' });
-      }
-      // DB fallback: đã step1 → dùng challengeToken để verify hướng khác (bỏ qua store check)
-      console.log(`[VuotLink] challengePassedStore miss — using DB fallback for task #${taskIdStr} (status=${task.status})`);
-    } else if (cpEntry.token !== challengeToken || cpEntry.ip !== ip) {
-      return res.status(403).json({ error: 'Token xác minh không hợp lệ.' });
-    } else {
-      delete challengePassedStore[taskIdStr];
+    if (!['step1', 'step2', 'step3'].includes(task.status)) {
+      console.log(`[VuotLink] verify rejected: task #${taskIdStr} status=${task.status} (challenge not passed)`);
+      return res.status(403).json({ error: 'Bạn chưa hoàn thành bước xác minh người thật.' });
     }
+    if (challengePassedStore[taskIdStr]) delete challengePassedStore[taskIdStr];
   }
 
   if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
@@ -1677,7 +1682,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     if (campaign && campaign.user_id) cache.invalidate('reports:overview:' + campaign.user_id);
     cache.invalidatePrefix('admin:overview:');
   } catch (e) { }
-});
+}
 
 router.post('/task/:id/complete', optionalAuth, async (req, res) => {
   req.body.code = req.body.code || '';
