@@ -253,8 +253,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     });
   };
   const [note, setNote] = useState(campaign.note || '');
-
-
+  const [useKeywordViews, setUseKeywordViews] = useState(false);
   const [useKeywordDailyViews, setUseKeywordDailyViews] = useState(() => {
     try {
       const cfg = campaign.keyword_config ? JSON.parse(campaign.keyword_config) : null;
@@ -568,19 +567,19 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
           {/* Daily views + Tổng view */}
           {isDirect ? (
-            /* ── Direct: 2 cột với toggle inline giống Search ── */
+            /* ── Direct: 2 cột — input tổng view + toggle view/ngày giống Search ── */
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-semibold text-slate-600 mb-1 block">Tổng view</label>
-                {(() => {
-                  const preview = Number(keywords[0]?.views) || Number(campaign.total_views);
-                  return (
-                    <div className="px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
-                      <span className="text-lg font-black text-amber-700 tabular-nums">{preview.toLocaleString()}</span>
-                      <span className="text-xs text-amber-500 font-bold">view</span>
-                    </div>
-                  );
-                })()}
+                <div className="relative">
+                  <input
+                    type="number" min="1"
+                    value={keywords[0]?.views || 0}
+                    onChange={e => updateKeywordViews(0, e.target.value)}
+                    className={inputCls + ' pr-12'}
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500 font-bold pointer-events-none">view</span>
+                </div>
                 <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view</p>
               </div>
               <div>

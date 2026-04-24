@@ -110,7 +110,7 @@ async function _getCampaignPool(pool, todaySubquery, campaignWhere) {
   );
   _campPoolCache = rows;
   _campPoolHourKey = hourKey;
-  _campPoolExpiry = now + 1000; // 1 giây — giảm stale để hourly cap chính xác hơn
+  _campPoolExpiry = now + 1000;
   return rows;
 }
 
@@ -599,10 +599,10 @@ async function _handleTaskPost(req, res) {
         // Nếu không có unsetCount hoặc remainingDaily = 0 thì fallback sang campaign daily / total kw
         const autoDaily = unsetCount > 0
           ? (hasAnyExplicitDaily && campaignDailyViews > 0
-              ? Math.floor(remainingDaily / unsetCount)
-              : campaignDailyViews > 0
-                ? Math.floor(campaignDailyViews / kwConfig.length)
-                : 0)
+            ? Math.floor(remainingDaily / unsetCount)
+            : campaignDailyViews > 0
+              ? Math.floor(campaignDailyViews / kwConfig.length)
+              : 0)
           : 0;
 
         // [FIX 1] Virtual target cho keyword không có daily limit:
@@ -710,8 +710,8 @@ async function _handleTaskPost(req, res) {
               // effectiveDailyLimit cho keyword này
               const effDaily = kwDailyLimitEx > 0 ? kwDailyLimitEx
                 : autoDaily > 0 ? autoDaily
-                : campaignDailyViews > 0 ? Math.floor(campaignDailyViews / Math.max(1, kwConfig.length))
-                : 0;
+                  : campaignDailyViews > 0 ? Math.floor(campaignDailyViews / Math.max(1, kwConfig.length))
+                    : 0;
               const todayDoneKw = todayMap[k.keyword] || 0;
               const hourDoneKw = hourMap[k.keyword] || 0;
               // Keyword còn quota ngày (hoặc không giới hạn ngày)
@@ -900,7 +900,7 @@ async function _handleTaskPost(req, res) {
         `UPDATE vuot_link_tasks SET status = 'cancelled', expires_at = NOW()
          WHERE visitor_id = ? AND status IN ('pending', 'step1', 'step2', 'step3') AND expires_at > NOW()`,
         [cleanVidCancel]
-      ).catch(() => {})
+      ).catch(() => { })
     );
   }
   cancelPromises.push(
@@ -908,7 +908,7 @@ async function _handleTaskPost(req, res) {
       `UPDATE vuot_link_tasks SET status = 'cancelled', expires_at = NOW()
        WHERE ip_address = ? AND status IN ('pending', 'step1', 'step2', 'step3') AND expires_at > NOW()`,
       [ip]
-    ).catch(() => {})
+    ).catch(() => { })
   );
   await Promise.all(cancelPromises);
 
@@ -1375,7 +1375,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
   let taskMarkedCompleted = false;
   if (needsDailyGuard) {
     const vnDayStartVerify = `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())} 00:00:00`;
-    const vnDayEndVerify   = `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())} 23:59:59`;
+    const vnDayEndVerify = `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())} 23:59:59`;
     const [markResult] = await pool.execute(
       `UPDATE vuot_link_tasks
        SET status = 'completed', completed_at = NOW(), time_on_site = ?, earning = ?, ip_country = ?
