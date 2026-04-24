@@ -33,9 +33,8 @@ if (typeof window !== 'undefined') {
       if (d.botDetection) _creepResult = d.botDetection;
     }
     window.removeEventListener('message', handler);
-    if (_creepVisitorId && _creepVisitorId !== 'unknown') {
-      _resolveCreep(d?.botDetection || { bot: false });
-    }
+    // Luôn resolve để không bị treo — getCreepData sẽ tự chờ visitorId thật sau đó
+    _resolveCreep(d?.botDetection || _creepResult || { bot: false });
   });
 
   let _retryCount = 0;
@@ -56,12 +55,10 @@ if (typeof window !== 'undefined') {
     };
     document.body.appendChild(iframe);
 
-    // Timeout 10s → resolve với visitorId tốt nhất có được
+    // Timeout 12s → resolve nếu iframe không phản hồi gì cả
     setTimeout(() => {
-      if (!_creepDone && (!_creepVisitorId || _creepVisitorId === 'unknown')) {
-        _resolveCreep({ bot: false, creepTimeout: true });
-      }
-    }, 10000);
+      if (!_creepDone) _resolveCreep({ bot: false, creepTimeout: true });
+    }, 12000);
   };
 
   if (document.body) _loadCreepIframe();
@@ -69,40 +66,25 @@ if (typeof window !== 'undefined') {
 }
 
 function getCreepData() {
-  if (_creepDone && _creepVisitorId && _creepVisitorId !== 'unknown') {
-    return Promise.resolve({ botDetection: _creepResult, visitorId: _creepVisitorId });
-  }
   return new Promise(resolve => {
-    const finish = (result) => resolve({ botDetection: result, visitorId: _creepVisitorId });
-    if (_creepDone) {
-      // creepJS đã xong nhưng visitorId vẫn 'unknown' — chờ thêm tối đa 5s
-      // cho iframe gửi message visitorId (có thể bị delay do postMessage timing)
-      if (!_creepVisitorId || _creepVisitorId === 'unknown') {
-        const deadline = Date.now() + 5000;
-        const poll = setInterval(() => {
-          if ((_creepVisitorId && _creepVisitorId !== 'unknown') || Date.now() >= deadline) {
-            clearInterval(poll);
-            finish(_creepResult);
-          }
-        }, 150);
-      } else {
-        finish(_creepResult);
-      }
-    } else {
-      _creepResolvers.push(r => {
-        // Sau khi resolve, thêm micro-wait để visitorId được set từ message handler
-        if (_creepVisitorId && _creepVisitorId !== 'unknown') {
-          finish(r);
-        } else {
-          const deadline = Date.now() + 3000;
-          const poll = setInterval(() => {
-            if ((_creepVisitorId && _creepVisitorId !== 'unknown') || Date.now() >= deadline) {
-              clearInterval(poll);
-              finish(r);
-            }
-          }, 100);
+    const finish = () => resolve({ botDetection: _creepResult, visitorId: _creepVisitorId });
+
+    // Chờ visitorId thật — poll tối đa 8s sau khi creep đã resolve
+    const waitForVisitorId = () => {
+      if (_creepVisitorId && _creepVisitorId !== 'unknown') return finish();
+      const deadline = Date.now() + 8000;
+      const poll = setInterval(() => {
+        if ((_creepVisitorId && _creepVisitorId !== 'unknown') || Date.now() >= deadline) {
+          clearInterval(poll);
+          finish();
         }
-      });
+      }, 100);
+    };
+
+    if (_creepDone) {
+      waitForVisitorId();
+    } else {
+      _creepResolvers.push(() => waitForVisitorId());
     }
   });
 }
@@ -211,6 +193,7 @@ export default function LinkGateway() {
   const [completionResult, setCompletionResult] = useState(null);
   const [completing, setCompleting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [savedVisitorId, setSavedVisitorId] = useState('unknown');
 
   const [humanPassed, setHumanPassed] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
@@ -337,10 +320,10 @@ export default function LinkGateway() {
         if (powNonce > 5000000) throw new Error('PoW timeout');
       }
 
-      // Now collect creep result (likely already done by the time PoW finishes)
       const creepData = await creepPromise;
       const visitorId = creepData.visitorId || 'unknown';
       const botDetectionResult = creepData.botDetection;
+      setSavedVisitorId(visitorId);
 
       if (window.clarity) {
         window.clarity('set', 'visitor_id', visitorId);
@@ -560,7 +543,7 @@ export default function LinkGateway() {
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API}/task/${task.id}/verify`, {
         method: 'POST', headers,
-        body: JSON.stringify({ code: inputCode.trim(), _tk: task._tk, challengeToken }),
+        body: JSON.stringify({ code: inputCode.trim(), _tk: task._tk, challengeToken, visitorId: savedVisitorId }),
       });
       const data = await res.json();
 
@@ -591,7 +574,7 @@ export default function LinkGateway() {
     } finally {
       setCompleting(false);
     }
-  }, [inputCode, task, slug, fetchTask]);
+  }, [inputCode, task, slug, fetchTask, challengeToken, savedVisitorId]);
 
   const keyword = task?.keyword || '';
   const campaignImage = task?.image1_url || '';
