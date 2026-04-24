@@ -1370,30 +1370,33 @@ async function _handleVerifyPost(req, res) {
     if (needsDailyGuard) {
       const vnDayStartVerify = `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())} 00:00:00`;
       const vnDayEndVerify = `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())} 23:59:59`;
-      const [markResult] = await pool.execute(
-        `UPDATE vuot_link_tasks
-       SET status = 'completed', completed_at = NOW(), time_on_site = ?, earning = ?, ip_country = ?
-       WHERE id = ?
-         AND (
-           SELECT COUNT(*) FROM (
-             SELECT id FROM vuot_link_tasks t2
-             WHERE t2.campaign_id = ? AND t2.status = 'completed'
-               AND t2.bot_detected = 0 AND t2.is_over_limit = 0
-               AND t2.completed_at >= ? AND t2.completed_at <= ?
-           ) AS _daily_cnt
-         ) < ?`,
-        [timeOnSite, earning, ipCountry, task.id, task.campaign_id, vnDayStartVerify, vnDayEndVerify, campDailyViews]
+
+      // Bước 1: Đếm số view hôm nay của campaign
+      const [countRows] = await pool.execute(
+        `SELECT COUNT(*) AS cnt FROM vuot_link_tasks
+         WHERE campaign_id = ? AND status = 'completed'
+           AND bot_detected = 0 AND is_over_limit = 0
+           AND completed_at >= ? AND completed_at <= ?`,
+        [task.campaign_id, vnDayStartVerify, vnDayEndVerify]
       );
-      taskMarkedCompleted = markResult.affectedRows > 0;
-      if (!taskMarkedCompleted) {
-        // Daily limit đã đủ tại thời điểm verify → đánh dấu expired, không cộng view
+      const todayDone = Number(countRows[0]?.cnt || 0);
+
+      if (todayDone >= campDailyViews) {
+        // Daily limit đã đủ → đánh dấu expired
         await pool.execute(
           `UPDATE vuot_link_tasks SET status = 'expired', expires_at = NOW(), earning = 0 WHERE id = ? AND status != 'completed'`,
           [task.id]
         );
-        console.log(`[VuotLink] Daily limit atomic guard: campaign ${task.campaign_id} daily_views=${campDailyViews} already full → task ${task.id} expired (race)`);
+        console.log(`[VuotLink] Daily limit guard: campaign ${task.campaign_id} daily_views=${campDailyViews} done=${todayDone} → task ${task.id} expired`);
         return res.status(429).json({ error: 'Chiến dịch đã đạt giới hạn view hôm nay. Vui lòng thử nhiệm vụ khác.', code: 'DAILY_LIMIT_FULL' });
       }
+
+      // Bước 2: Mark completed
+      const [markResult] = await pool.execute(
+        `UPDATE vuot_link_tasks SET status = 'completed', completed_at = NOW(), time_on_site = ?, earning = ?, ip_country = ? WHERE id = ?`,
+        [timeOnSite, earning, ipCountry, task.id]
+      );
+      taskMarkedCompleted = markResult.affectedRows > 0;
     } else {
       await pool.execute(
         `UPDATE vuot_link_tasks SET status = 'completed', completed_at = NOW(), time_on_site = ?, earning = ?, ip_country = ? WHERE id = ?`,
