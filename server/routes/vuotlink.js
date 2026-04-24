@@ -28,6 +28,12 @@ async function ensureWalletCredit(pool, userId, walletType, amount) {
   }
 }
 const BOT_UA = /bot|crawler|spider|curl|wget|python|httpie|postman|insomnia|axios|node-fetch|headlesschrome|phantomjs|selenium/i;
+
+// Helper: generate unique ref_code = prefix + timestamp + 4-byte random
+// Tránh duplicate key khi nhiều requests xử lý trong cùng millisecond
+function genRef(prefix) {
+  return prefix + Date.now() + '-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+}
 const HMAC_SECRET = process.env.CHALLENGE_KEY || crypto.randomBytes(32).toString('hex');
 
 // ── Normalize IPv4-mapped IPv6 to plain IPv4 ─────────────────────
@@ -1443,7 +1449,7 @@ async function _handleVerifyPost(req, res) {
         ).catch(() => pool.execute("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [task.campaign_id]));
         // Ghi transaction thất bại để admin có thể audit (view đã completed nhưng không trừ tiền được)
         try {
-          const failRef = 'VW-FAIL-' + Date.now();
+          const failRef = genRef('VW-FAIL-');
           await pool.execute(
             `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'failed', ?, ?)`,
             [campaign.user_id, buyerCpc, failRef, `[Ví không đủ tiền] Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id}) - task #${task.id}`]
@@ -1452,7 +1458,7 @@ async function _handleVerifyPost(req, res) {
           console.error('[VuotLink] Failed to log insufficient deduction transaction:', txErr.message);
         }
       } else {
-        const buyerRef = 'VW-' + Date.now();
+        const buyerRef = genRef('VW-');
         await pool.execute(
           `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'completed', ?, ?)`,
           [campaign.user_id, buyerCpc, buyerRef, `Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id})`]
@@ -1468,7 +1474,7 @@ async function _handleVerifyPost(req, res) {
       // Case 1: Task trực tiếp từ worker
       paidWorkerId = task.worker_id;
       await ensureWalletCredit(pool, task.worker_id, 'earning', earning);
-      const refCode = 'VL-' + Date.now();
+      const refCode = genRef('VL-');
       await pool.execute(
         `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
        VALUES (?, 'earning', 'earning', 'system', ?, 'completed', ?, ?)`,
@@ -1494,7 +1500,7 @@ async function _handleVerifyPost(req, res) {
               'UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?',
               [earning, wl.id]
             );
-            const refCode = 'GL-' + Date.now();
+            const refCode = genRef('GL-');
             await pool.execute(
               `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
              VALUES (?, 'earning', 'earning', 'gateway_link', ?, 'completed', ?, ?)`,
@@ -1518,7 +1524,7 @@ async function _handleVerifyPost(req, res) {
         const refEarning = refCommPct > 0 ? Math.floor(earning * refCommPct / 100) : 0;
         if (refEarning > 0) {
           await ensureWalletCredit(pool, task.ref_worker_id, 'earning', refEarning);
-          const refTxCode = 'RL-' + Date.now();
+          const refTxCode = genRef('RL-');
           await pool.execute(
             `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
            VALUES (?, 'earning', 'earning', 'ref_link', ?, 'completed', ?, ?)`,
@@ -1547,7 +1553,7 @@ async function _handleVerifyPost(req, res) {
             const commAmount = Math.floor(earning * commPct / 100);
             if (commAmount > 0) {
               await ensureWalletCredit(pool, referrerId, 'commission', commAmount);
-              const commRef = `COMM-WORKER-${Date.now()}`;
+              const commRef = genRef('COMM-WORKER-');
               await pool.execute(
                 `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
                VALUES (?, 'commission', 'commission', 'referral', ?, 'completed', ?, ?)`,
