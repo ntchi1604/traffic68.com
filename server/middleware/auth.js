@@ -3,10 +3,8 @@ const crypto = require('crypto');
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const { getPool } = require('../db');
 
-// ── In-memory cache: tránh query DB cho mỗi authenticated request ──
-// Key: userId, Value: { status, passwordChangedAt, expiry }
 const userStatusCache = new Map();
-const USER_CACHE_TTL = 10 * 1000; // 10 giây — đủ giảm DB queries mà vẫn gần real-time
+const USER_CACHE_TTL = 10 * 1000;
 
 function getCachedEntry(userId) {
   const entry = userStatusCache.get(userId);
@@ -22,7 +20,6 @@ function setCachedEntry(userId, status, passwordChangedAt) {
   userStatusCache.set(userId, { status, passwordChangedAt, expiry: Date.now() + USER_CACHE_TTL });
 }
 
-// Dọn cache tự động mỗi 5 phút để tránh memory leak
 setInterval(() => {
   const now = Date.now();
   for (const [key, val] of userStatusCache.entries()) {
@@ -42,7 +39,6 @@ async function authMiddleware(req, res, next) {
     req.userId = payload.userId;
     req.userRole = payload.role;
 
-    // Check cache trước, nếu hit thì không cần query DB
     let cached = getCachedEntry(payload.userId);
     if (!cached) {
       const pool = getPool();

@@ -494,16 +494,16 @@ export default function LinkGateway() {
     setCompletionResult(null);
     setShowError(false);
     try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
-    // Pass exclude list directly (don't rely on state update)
     await fetchTask(true, newSkipList);
     setChangingTask(false);
   }, [fetchTask, slug, task, skippedCampaigns]);
 
-  // Called when shake/curve challenge passes — fetch server-side token
-  const handleChallengePass = useCallback(async (shakeLog) => {
-    // KHÔNG đóng overlay ngay — ShakeChallenge tự đóng theo timer 1200ms
-    // Trên mobile: KHÔNG set challengeLoading để tránh dark overlay đè lên green screen của ShakeChallenge
-    if (!isMobileDevice) setChallengeLoading(true);
+  const handleChallengePass = useCallback(async (shakeLog, setVerifying) => {
+    if (isMobileDevice && setVerifying) {
+      setVerifying(true);
+    } else {
+      setChallengeLoading(true);
+    }
     try {
       const headers = { 'Content-Type': 'application/json' };
       const token = localStorage.getItem('token');
@@ -534,15 +534,15 @@ export default function LinkGateway() {
 
       setChallengeToken(data.challengeToken);
       setHumanPassed(true);
+      // Đóng overlay SAU KHI API thành công — tránh màn trắng do race condition
       setShowChallenge(false);
     } catch (err) {
       setShowChallenge(false);
       setShowError(true);
-      // Không tự re-show challenge popup sau khi user đã hoàn thành motion
-      // (lắc / kéo chuột xong) — nếu server lỗi, user bấm nút thủ công để thử lại
       setError('Xác minh thất bại, nhấn nút để thử lại: ' + (err.message || ''));
       setTimeout(() => setShowError(false), 5000);
     } finally {
+      if (setVerifying) setVerifying(false);
       setChallengeLoading(false);
     }
   }, [task, slug, fetchTask, isMobileDevice]);
@@ -1151,9 +1151,11 @@ function ShakeChallenge({ onPass, onClose }) {
   const [shakeCount, setShakeCount] = useState(0);
   const [flashing, setFlashing] = useState(false);
   const [passed, setPassed] = useState(false);
+  const [verifying, setVerifying] = useState(false); // đang gọi API
   const [fakeDetected, setFakeDetected] = useState(false);
   const lastShakeRef = useRef(0);
   const rawLogRef = useRef([]);
+  const passedRef = useRef(false); // tránh gọi onPass nhiều lần
   const TARGET = 3;
   // Ngưỡng lắc: giảm từ 18 → 12 để dễ detect hơn trên các điện thoại nhạy thấp
   const SHAKE_THRESHOLD = 12;
@@ -1190,19 +1192,22 @@ function ShakeChallenge({ onPass, onClose }) {
           setTimeout(() => setFlashing(false), 300);
           setShakeCount(prev => {
             const next = prev + 1;
-            if (next >= TARGET) {
+            if (next >= TARGET && !passedRef.current) {
+              passedRef.current = true; // block repeated triggers
               const log = [...rawLogRef.current];
               // Chỉ phát hiện giả lập khi CẢ 3 trục đều = 0 (emulator hoàn toàn giả)
-              // KHÔNG dùng allAxZero && allAzZero vì điện thoại thật lắc dọc ax≈0 là bình thường
               const allXZero = log.every(s => s.ax === 0);
               const allYZero = log.every(s => s.ay === 0);
               const allZZero = log.every(s => s.az === 0);
               if (allXZero && allYZero && allZZero) {
                 setFakeDetected(true);
+                passedRef.current = false;
                 return next;
               }
               setPassed(true);
-              setTimeout(() => onPass(log), 800);
+              // Gọi onPass ngay, truyền thêm setVerifying để parent hiển thị spinner
+              // KHÔNG dùng auto-close timer — parent sẽ đóng overlay khi API xong
+              onPass(log, setVerifying);
             }
             return next;
           });
@@ -1215,11 +1220,8 @@ function ShakeChallenge({ onPass, onClose }) {
     return () => { cleanup.then && cleanup.then(fn => fn && fn()); };
   }, [onPass]);
 
-  useEffect(() => {
-    if (!passed) return;
-    const t = setTimeout(() => onClose(), 3000);
-    return () => clearTimeout(t);
-  }, [passed, onClose]);
+  // KHÔNG có auto-close timer — parent (handleChallengePass) sẽ gọi setShowChallenge(false)
+  // sau khi API trả kết quả. Điều này tránh race condition gây màn trắng.
 
   return (
     <div style={{
@@ -1235,12 +1237,21 @@ function ShakeChallenge({ onPass, onClose }) {
       {passed ? (
         <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-            <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Check size={40} color="#fff" strokeWidth={3} />
-            </div>
+            {verifying ? (
+              // Spinner khi đang gọi API — thay icon check để không gây nhầm lẫn
+              <div style={{ width: 72, height: 72, borderRadius: '50%', border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />
+            ) : (
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Check size={40} color="#fff" strokeWidth={3} />
+              </div>
+            )}
           </div>
-          <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 8px' }}>Xác minh thành công!</h2>
-          <p style={{ fontSize: 16, opacity: 0.9 }}>Đang mở ô nhập mã...</p>
+          <h2 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 8px' }}>
+            {verifying ? 'Đang xác minh...' : 'Lắc thành công!'}
+          </h2>
+          <p style={{ fontSize: 16, opacity: 0.9 }}>
+            {verifying ? 'Vui lòng chờ trong giây lát' : 'Đang kết nối với máy chủ...'}
+          </p>
         </div>
       ) : fakeDetected ? (
         <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
