@@ -357,6 +357,8 @@ async function _handleTaskPost(req, res) {
   const todayVn = new Intl.DateTimeFormat('en-CA', vnOpts).format(new Date()); // e.g. "2026-04-09"
   const hourVnRaw = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', hour12: false, hourCycle: 'h23' }).format(new Date());
   const hourPad = String(parseInt(hourVnRaw) || 0).padStart(2, '0');
+  // Phút hiện tại trong giờ (0-59) — dùng để rải đều view trong giờ khi bật view_by_hour
+  const minuteVn = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', minute: '2-digit' }).format(new Date())) || 0;
 
   const vnDayStart = `${todayVn} 00:00:00`;
   const vnDayEnd = `${todayVn} 23:59:59`;
@@ -431,16 +433,12 @@ async function _handleTaskPost(req, res) {
     )
     AND c.views_done < c.total_views
     AND (
-      c.traffic_type = 'direct'
-      OR c.traffic_type = 'social'
-      OR (c.keyword_config IS NOT NULL AND c.keyword_config != '' AND c.keyword_config != '[]')
-      OR c.daily_views <= 0
+      c.daily_views <= 0
       OR COALESCE(td.today_done, 0) < c.daily_views
     )
     AND (
       c.view_by_hour <= 0
-      OR (c.keyword_config IS NOT NULL AND c.keyword_config != '' AND c.keyword_config != '[]')
-      OR COALESCE(th.hour_done, 0) < CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24)
+      OR COALESCE(th.hour_done, 0) < CEIL(CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24) * ${minuteVn + 1} / 60)
     )`;
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
@@ -665,7 +663,9 @@ async function _handleTaskPost(req, res) {
                 // Fallback cuối: total_views / 24
                 kwHourlyCap = Math.max(1, Math.ceil(campTotalViews / 24));
               }
-              if (kwHourlyCap > 0 && hourDone >= kwHourlyCap) {
+              // Rải đều trong giờ: tại phút m, chỉ cho phép ceil(hourlyCap*(m+1)/60) views
+              const allowedHourlyNow = Math.ceil(kwHourlyCap * (minuteVn + 1) / 60);
+              if (hourDone >= allowedHourlyNow) {
                 return { ...k, weight: 0 };
               }
             }
@@ -727,7 +727,8 @@ async function _handleTaskPost(req, res) {
               } else if (campTotalViews > 0) {
                 kwHourlyCapCheck = Math.max(1, Math.ceil(campTotalViews / 24));
               }
-              return dailyOkKw && kwHourlyCapCheck > 0 && hourDoneKw >= kwHourlyCapCheck;
+              const allowedNow = Math.ceil(kwHourlyCapCheck * (minuteVn + 1) / 60);
+              return dailyOkKw && kwHourlyCapCheck > 0 && hourDoneKw >= allowedNow;
             });
             if (anyBlockedByHour) {
               console.log(`[VuotLink] Campaign ${picked.id}: all keywords hit hourly cap (view_by_hour) → remove from pool, retrying`);

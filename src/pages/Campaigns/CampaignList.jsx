@@ -516,6 +516,27 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                   <b className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</b> view
                 </p>
               </div>
+              {/* Toggle “Chia view theo giờ” — luôn hiện cho direct */}
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-xs font-bold text-slate-700">Chia view theo giờ</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {Number(dailyViews) > 0
+                      ? `Phân bổ đều trong 24h (~${Math.ceil(Number(dailyViews) / 24).toLocaleString()} view/giờ)`
+                      : 'Chỉ áp dụng khi có giới hạn view/ngày'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewByHour(v => !v)}
+                  disabled={Number(dailyViews) <= 0}
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                    Number(dailyViews) <= 0 ? 'bg-slate-200 opacity-40 cursor-not-allowed' : viewByHour ? 'bg-indigo-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${viewByHour && Number(dailyViews) > 0 ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
             </div>
           ) : (
             /* ── Non-direct: URL mặc định + Ảnh ── */
@@ -755,8 +776,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             </div>
           )}
 
-          {/* Chia view theo giờ — chỉ hiện khi có daily views */}
-          {(() => {
+          {/* Chia view theo giờ — chỉ hiện cho non-direct (direct có toggle riêng ở trên) */}
+          {!isDirect && (() => {
             const kwDailySum = keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
             const effectiveDaily = kwDailySum > 0 ? kwDailySum : Number(dailyViews);
             if (effectiveDaily <= 0) return null;
