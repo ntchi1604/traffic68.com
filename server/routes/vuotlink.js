@@ -1066,7 +1066,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
   const clientClaimsMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
   const isMobile = clientClaimsMobile; // giữ để tương thích log
   if (clientClaimsMobile) {
-    if (!Array.isArray(shakeLog) || shakeLog.length < 8) {
+    if (!Array.isArray(shakeLog) || shakeLog.length < 5) {
       return res.status(403).json({ error: 'Thiếu dữ liệu xác minh cảm biến.' });
     }
 
@@ -1076,8 +1076,8 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     const logEnd = Number(shakeLog[shakeLog.length - 1]?.t || 0);
     const logSpan = logEnd - logStart;
 
-    if (logSpan < 800) {
-      console.log(`[VuotLink] ShakeLog time span too short: ${logSpan}ms < 800ms (task #${req.params.id})`);
+    if (logSpan < 500) {
+      console.log(`[VuotLink] ShakeLog time span too short: ${logSpan}ms < 500ms (task #${req.params.id})`);
       return res.status(403).json({ error: 'Dữ liệu cảm biến không hợp lệ.' });
     }
     if (serverNow - logEnd > 300_000) {

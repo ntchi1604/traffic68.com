@@ -479,7 +479,7 @@ export default function LinkGateway() {
     setChangingTask(false);
   }, [fetchTask, slug, task, skippedCampaigns]);
 
-  const handleChallengePass = useCallback(async (shakeLog, setVerifying) => {
+  const handleChallengePass = useCallback(async (shakeLog, setVerifying, setErrInOverlay) => {
     if (isMobileDevice && setVerifying) {
       setVerifying(true);
     } else {
@@ -510,10 +510,16 @@ export default function LinkGateway() {
         return;
       }
 
-      if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
+      if (!res.ok) {
+        const errMsg = data.error || 'Xác minh thất bại';
+        if (setErrInOverlay) {
+          setErrInOverlay(errMsg);
+          return;
+        }
+        throw new Error(errMsg);
+      }
 
       setHumanPassed(true);
-      // Đóng overlay SAU KHI API thành công
       setShowChallenge(false);
     } catch (err) {
       setShowChallenge(false);
@@ -1130,15 +1136,14 @@ function ShakeChallenge({ onPass, onClose }) {
   const [shakeCount, setShakeCount] = useState(0);
   const [flashing, setFlashing] = useState(false);
   const [passed, setPassed] = useState(false);
-  const [verifying, setVerifying] = useState(false); // đang gọi API
+  const [verifying, setVerifying] = useState(false);
   const [fakeDetected, setFakeDetected] = useState(false);
+  const [errMsg, setErrMsg] = useState('');
   const lastShakeRef = useRef(0);
   const rawLogRef = useRef([]);
-  const passedRef = useRef(false); // tránh gọi onPass nhiều lần
+  const passedRef = useRef(false);
   const TARGET = 3;
-  // Ngưỡng lắc: giảm từ 18 → 12 để dễ detect hơn trên các điện thoại nhạy thấp
   const SHAKE_THRESHOLD = 12;
-  // Debounce giữa các lắc: giảm 400ms → 300ms
   const SHAKE_DEBOUNCE = 300;
 
   useEffect(() => {
@@ -1200,8 +1205,16 @@ function ShakeChallenge({ onPass, onClose }) {
     return () => { cleanup.then && cleanup.then(fn => fn && fn()); };
   }, [onPass]);
 
-  // KHÔNG có auto-close timer — parent (handleChallengePass) sẽ gọi setShowChallenge(false)
-  // sau khi API trả kết quả. Điều này tránh race condition gây màn trắng.
+  // Hàm thử lại khi lỗi (reset về trạng thái lắc ban đầu)
+  const handleRetry = () => {
+    setPassed(false);
+    setVerifying(false);
+    setErrMsg('');
+    setShakeCount(0);
+    passedRef.current = false;
+    rawLogRef.current = [];
+    lastShakeRef.current = 0;
+  };
 
   return (
     <div style={{
@@ -1243,6 +1256,20 @@ function ShakeChallenge({ onPass, onClose }) {
           <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 12px', color: '#fca5a5' }}>Phát hiện giả lập!</h2>
           <p style={{ fontSize: 14, opacity: 0.8, margin: '0 0 24px' }}>Cảm biến điện thoại cho thấy thiết bị không hợp lệ.<br />Vui lòng dùng thiết bị thật.</p>
           <button onClick={onClose} style={{ padding: '10px 24px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>Đóng</button>
+        </div>
+      ) : errMsg ? (
+        <div style={{ textAlign: 'center', color: '#fff', animation: 'fadeIn 0.4s ease' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <AlertCircle size={40} color="#fca5a5" strokeWidth={2.5} />
+            </div>
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 10px', color: '#fca5a5' }}>Xác minh thất bại</h2>
+          <p style={{ fontSize: 14, opacity: 0.8, margin: '0 0 24px', maxWidth: 300, lineHeight: 1.6 }}>{errMsg}</p>
+          <button onClick={handleRetry} style={{ padding: '12px 32px', background: 'linear-gradient(135deg,#7C3AED,#6D28D9)', border: 'none', color: '#fff', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 800, boxShadow: '0 4px 16px rgba(124,58,237,0.4)' }}>
+            <Smartphone size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
+            Lắc lại
+          </button>
         </div>
       ) : (
         <div style={{ textAlign: 'center', color: '#fff' }}>
