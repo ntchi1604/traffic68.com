@@ -1202,10 +1202,10 @@ router.post('/task/:id/verify', optionalAuth, (req, res) => {
       res.status(503).json({ error: 'Server bận, vui lòng thử lại.' });
     }
   }, 25000);
-  _handleVerifyPost(req, res).finally(() => clearTimeout(timeoutId)).catch(err => {
-    if (!res.headersSent) res.status(500).json({ error: 'Lỗi server.' });
+  _handleVerifyPost(req, res).catch(err => {
     console.error('[VuotLink] Unhandled verify error:', err);
-  });
+    if (!res.headersSent) res.status(500).json({ error: 'Lỗi server.' });
+  }).finally(() => clearTimeout(timeoutId));
 });
 
 async function _handleVerifyPost(req, res) {
@@ -1253,13 +1253,8 @@ async function _handleVerifyPost(req, res) {
     await pool.execute("UPDATE vuot_link_tasks SET status = 'step3' WHERE id = ?", [task.id]);
   }
 
-  const { visitorId: verifyVid } = req.body || {};
-  const ipOk = task.ip_address && normalizeIp(task.ip_address) === ip;
-  const vidOk = task.visitor_id && verifyVid && task.visitor_id === verifyVid;
-  if (!ipOk && !vidOk) {
-    console.log(`[VuotLink] verify session check: task.ip=${task.ip_address} normTask=${normalizeIp(task.ip_address || '')} req.ip=${ip} vidOk=${vidOk}`);
-    return res.status(403).json({ error: 'Phien khong hop le' });
-  }
+
+
 
   if (task.expires_at) {
     const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
