@@ -182,6 +182,36 @@
     for (var i = 0; i < cbs.length; i++) { try { cbs[i](); } catch (e) { } }
   }
 
+  // ── Pre-check session result cache ──
+  // null = chưa check, true = có session, false = không có session
+  var _preCheckResult = null;
+  var _preCheckCallbacks = [];
+  function _onPreCheckDone(cb) {
+    if (_preCheckResult !== null) { cb(_preCheckResult); return; }
+    _preCheckCallbacks.push(cb);
+  }
+  function _resolvePreCheck(result) {
+    _preCheckResult = result;
+    var cbs = _preCheckCallbacks.slice();
+    _preCheckCallbacks = [];
+    for (var i = 0; i < cbs.length; i++) { try { cbs[i](result); } catch (e) { } }
+  }
+  function _runPreCheck() {
+    // Chạy check-session ngầm ngay khi init + detection xong
+    // Không ảnh hưởng UI — chỉ cache kết quả để click đầu tiên có ngay
+    _onInitReady(function () {
+      if (!_widgetToken) { _resolvePreCheck(false); return; }
+      _waitForDetection(function () {
+        _doCheckSession(function (ok) {
+          if (ok) {
+            _sessionVerified = true; // cache luôn để checkSession() thấy
+          }
+          _resolvePreCheck(ok);
+        });
+      });
+    });
+  }
+
   var _fpLoaded = false;
   function _loadDetectionLibs(callback) {
     if (_fpLoaded) { callback(); return; }
@@ -555,6 +585,9 @@
         fetchChallenge(function () { });
         return;
       }
+      // Reset retry counter mỗi khi user chủ động click nút
+      // → đảm bảo lần click nào cũng thử đủ MAX_SESSION_RETRY lần
+      _checkSessionRetry = 0;
       // First click: verify session exists before starting countdown
       checkSession(function (hasSession) {
         if (hasSession) {
@@ -1213,19 +1246,49 @@
   var _sessionVerified = false;
   var _requireGoogle = false;
   var _checkSessionRetry = 0;
-  var MAX_SESSION_RETRY = 3;
+  var MAX_SESSION_RETRY = 6;
   function checkSession(callback) {
     if (_sessionVerified) { callback(true); return; }
 
-    // Chờ autoInit XHR xong (tránh race condition khi user click trước khi _widgetToken sẵn sàng)
-    _onInitReady(function () {
-      if (!_widgetToken) { callback(false); return; }
+    // Nếu pre-check đã xong và có kết quả → dùng ngay, không cần XHR thêm
+    if (_preCheckResult !== null) {
+      if (_preCheckResult === true) {
+        callback(true);
+      } else {
+        // Pre-check fail → thử lại 1 lần nữa tại thời điểm click
+        // (có thể task đã được tạo sau khi pre-check fail)
+        _preCheckResult = null; // reset để _doCheckSession không bị chặn
+        _sessionVerified = false;
+        _onInitReady(function () {
+          if (!_widgetToken) { callback(false); return; }
+          _waitForDetection(function () {
+            _doCheckSession(function (ok) {
+              _resolvePreCheck(ok);
+              callback(ok);
+            });
+          });
+        });
+      }
+      return;
+    }
 
-      // CreepJS đã xong rồi mới cho click → không cần chờ nữa
-      // (nút đã bị ẩn cho đến khi _detectionReady=true)
-      _waitForDetection(function () {
-        _doCheckSession(callback);
-      });
+    // Pre-check chưa xong → chờ nó (không tạo request thứ 2)
+    _onPreCheckDone(function (ok) {
+      if (ok) {
+        callback(true);
+      } else {
+        // Pre-check fail → thử lại 1 lần nữa
+        _sessionVerified = false;
+        _onInitReady(function () {
+          if (!_widgetToken) { callback(false); return; }
+          _waitForDetection(function () {
+            _doCheckSession(function (r) {
+              if (r) _sessionVerified = true;
+              callback(r);
+            });
+          });
+        });
+      }
     });
   }
 
@@ -1248,7 +1311,7 @@
         callback(true);
       } else if (xhr.status === 404 && _checkSessionRetry < MAX_SESSION_RETRY) {
         // Task chưa được tạo kịp (race condition giữa gateway và widget)
-        // Tự động thử lại thay vì show popup ngay
+        // Tự động thử lại thay vì show popup ngay — tăng lên 6 lần × 1.5s = tối đa ~9s chờ
         _checkSessionRetry++;
         var btn = document.getElementById('laynut-btn');
         var label = btn && btn.querySelector('.ln-label');
@@ -1259,7 +1322,7 @@
         setTimeout(function () {
           if (label && label.dataset._origText) label.textContent = label.dataset._origText;
           _doCheckSession(callback);
-        }, 2000);
+        }, 1500);
       } else {
         _checkSessionRetry = 0;
         try {
@@ -1933,6 +1996,8 @@
     var badge = document.getElementById('laynut-badge');
     if (badge) badge.textContent = remaining;
     // Don't start countdown — wait for user to click button
+    // Nhưng pre-check session ngay bây giờ (background) để click đầu tiên có kết quả ngay
+    _runPreCheck();
   }
 
   function beginCountdown() {
