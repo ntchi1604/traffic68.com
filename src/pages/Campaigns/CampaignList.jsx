@@ -266,6 +266,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const toast = useToast();
   const isDirect = campaign.traffic_type === 'direct';
   const [dailyViews, setDailyViews] = useState(campaign.daily_views != null ? Number(campaign.daily_views) : 0);
+  const [useDirectDailyLimit, setUseDirectDailyLimit] = useState(() => isDirect && Number(campaign.daily_views) > 0);
+  const toggleDirectDailyLimit = () => {
+    setUseDirectDailyLimit(v => {
+      if (v) { setDailyViews(0); setViewByHour(false); }
+      return !v;
+    });
+  };
   const [note, setNote] = useState(campaign.note || '');
 
   const [useKeywordDailyViews, setUseKeywordDailyViews] = useState(() => {
@@ -403,7 +410,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
       const kwDailySum = keywordConfig.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
       const finalDailyViews = isDirect
-        ? Number(dailyViews) || 0
+        ? (useDirectDailyLimit ? Number(dailyViews) || 0 : 0)
         : useKeywordDailyViews ? kwDailySum : (Number(dailyViews) || 0);
 
       const finalUrl = urls[0]?.trim() || '';
@@ -472,35 +479,57 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 />
                 <p className="mt-1 text-xs text-slate-400">Visitor sẽ truy cập trực tiếp vào URL này</p>
               </div>
-              {/* 2-column grid: view tổng + view/ngày */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* View tổng */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Số view mục tiêu</label>
+                <div className="relative">
+                  <input
+                    type="number" min="1"
+                    value={keywords[0]?.views || 0}
+                    onChange={e => updateKeywordViews(0, e.target.value)}
+                    className={input + ' pr-14'}
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-500 font-bold pointer-events-none">view</span>
+                </div>
+              </div>
+              {/* Toggle View/ngày — bật/tắt daily limit */}
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Số view mục tiêu</label>
+                  <p className="text-xs font-bold text-slate-700">Giới hạn view / ngày</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {useDirectDailyLimit
+                      ? 'Giới hạn số view tối đa mỗi ngày'
+                      : 'Không giới hạn — chạy hết tốc lực'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleDirectDailyLimit}
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                    useDirectDailyLimit ? 'bg-sky-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${useDirectDailyLimit ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+              {/* Input View/ngày — chỉ hiện khi toggle ON */}
+              {useDirectDailyLimit && (
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Số view tối đa / ngày</label>
                   <div className="relative">
                     <input
                       type="number" min="1"
-                      value={keywords[0]?.views || 0}
-                      onChange={e => updateKeywordViews(0, e.target.value)}
-                      className={input + ' pr-14'}
+                      value={dailyViews || ''}
+                      onChange={e => setDailyViews(Number(e.target.value) || 0)}
+                      placeholder="Nhập số view/ngày..."
+                      className={input + ' pr-24'}
+                      autoFocus
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-500 font-bold pointer-events-none">view</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-sky-600 font-bold bg-sky-50 px-2 py-0.5 rounded-md pointer-events-none">view/ngày</span>
                   </div>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">View / ngày</label>
-                  <div className="relative">
-                    <input
-                      type="number" min="0"
-                      value={dailyViews}
-                      onChange={e => setDailyViews(e.target.value)}
-                      className={input + ' pr-20'}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md pointer-events-none">/ ngày</span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-400">0 = không giới hạn</p>
-                </div>
-              </div>
-              {/* Preview info box — giống search */}
+              )}
+              {/* Preview info box */}
               <div className="flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
                 <BarChart3 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-sky-700 leading-relaxed">
@@ -508,9 +537,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                   <b className="text-amber-600">{(Number(keywords[0]?.views) || 0).toLocaleString()}</b> view
                   {' · '}
                   <strong>View/ngày:</strong>{' '}
-                  {Number(dailyViews) > 0
-                    ? <><b className="text-sky-700">{Number(dailyViews).toLocaleString()}</b> view/ngày</>  
-                    : <><b>0</b> = không giới hạn</>}
+                  {useDirectDailyLimit && Number(dailyViews) > 0
+                    ? <><b className="text-sky-700">{Number(dailyViews).toLocaleString()}</b> view/ngày</>
+                    : <b className="text-slate-500">Không giới hạn</b>}
                   {' · '}
                   <strong>Đã chạy:</strong>{' '}
                   <b className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</b> view
@@ -521,20 +550,20 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 <div>
                   <p className="text-xs font-bold text-slate-700">Chia view theo giờ</p>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {Number(dailyViews) > 0
+                    {useDirectDailyLimit && Number(dailyViews) > 0
                       ? `Phân bổ đều trong 24h (~${Math.ceil(Number(dailyViews) / 24).toLocaleString()} view/giờ)`
-                      : 'Chỉ áp dụng khi có giới hạn view/ngày'}
+                      : 'Chỉ áp dụng khi bật giới hạn view/ngày'}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setViewByHour(v => !v)}
-                  disabled={Number(dailyViews) <= 0}
+                  disabled={!useDirectDailyLimit || Number(dailyViews) <= 0}
                   className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
-                    Number(dailyViews) <= 0 ? 'bg-slate-200 opacity-40 cursor-not-allowed' : viewByHour ? 'bg-indigo-500' : 'bg-slate-300'
+                    !useDirectDailyLimit || Number(dailyViews) <= 0 ? 'bg-slate-200 opacity-40 cursor-not-allowed' : viewByHour ? 'bg-indigo-500' : 'bg-slate-300'
                   }`}
                 >
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${viewByHour && Number(dailyViews) > 0 ? 'translate-x-5' : 'translate-x-0'}`} />
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${viewByHour && useDirectDailyLimit && Number(dailyViews) > 0 ? 'translate-x-5' : 'translate-x-0'}`} />
                 </button>
               </div>
             </div>

@@ -106,11 +106,11 @@ async function _getCampaignPool(pool, todaySubquery, campaignWhere) {
     return _campPoolCache;
   }
   const [rows] = await pool.execute(
-    `SELECT c.*, COALESCE(td.today_done, 0) AS _today_done FROM campaigns c ${todaySubquery} WHERE ${campaignWhere} ORDER BY COALESCE(td.today_done, 0) ASC LIMIT 500`
+    `SELECT c.*, COALESCE(td.today_done, 0) AS _today_done, COALESCE(th.hour_done, 0) AS _hour_done FROM campaigns c ${todaySubquery} WHERE ${campaignWhere} ORDER BY COALESCE(td.today_done, 0) ASC LIMIT 500`
   );
   _campPoolCache = rows;
   _campPoolHourKey = hourKey;
-  _campPoolExpiry = now + 5000; // 5 giây
+  _campPoolExpiry = now + 1000; // 1 giây — giảm stale để hourly cap chính xác hơn
   return rows;
 }
 
@@ -775,10 +775,41 @@ async function _handleTaskPost(req, res) {
         }
         // else: kwOk stays false → camp bị loại khỏi pool bên dưới
       } else {
-        // No keyword_config — original random behavior, always OK
-        campaign = picked;
-        selectedKeyword = pickRandom(picked.keyword) || picked.keyword;
-        kwOk = true;
+        // No keyword_config (e.g. direct traffic) — check daily + hourly cap in memory
+        const pickedDailyViews = Number(picked.daily_views) || 0;
+        const pickedTodayDone = Number(picked._today_done) || 0;
+        const pickedHourDone = Number(picked._hour_done) || 0;
+        const pickedViewByHour = Number(picked.view_by_hour) > 0;
+        const campTotalViews2 = Number(picked.total_views) || 0;
+
+        // Daily limit check
+        if (pickedDailyViews > 0 && pickedTodayDone >= pickedDailyViews) {
+          console.log(`[VuotLink] Campaign ${picked.id} (direct): daily limit reached (${pickedTodayDone}/${pickedDailyViews}) → skip`);
+          // Camp bị loại khỏi pool
+        } else if (pickedViewByHour) {
+          // Hourly per-minute cap
+          const effectiveDailyForHour = pickedDailyViews > 0 ? pickedDailyViews : campTotalViews2;
+          const hourlyCap = effectiveDailyForHour > 0 ? Math.max(1, Math.ceil(effectiveDailyForHour / 24)) : 0;
+          if (hourlyCap > 0) {
+            const allowedHourlyNow = Math.ceil(hourlyCap * (minuteVn + 1) / 60);
+            if (pickedHourDone >= allowedHourlyNow) {
+              console.log(`[VuotLink] Campaign ${picked.id} (direct): hourly per-min cap reached (${pickedHourDone}/${allowedHourlyNow} at minute ${minuteVn}) → skip`);
+              // Camp bị loại khỏi pool
+            } else {
+              campaign = picked;
+              selectedKeyword = pickRandom(picked.keyword) || picked.keyword;
+              kwOk = true;
+            }
+          } else {
+            campaign = picked;
+            selectedKeyword = pickRandom(picked.keyword) || picked.keyword;
+            kwOk = true;
+          }
+        } else {
+          campaign = picked;
+          selectedKeyword = pickRandom(picked.keyword) || picked.keyword;
+          kwOk = true;
+        }
       }
     } catch (kwErr) {
       console.error('[VuotLink] Keyword config parse error:', kwErr.message);
@@ -1237,7 +1268,7 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     return res.status(400).json({ error: 'Mã xác nhận không đúng. Vui lòng kiểm tra lại.' });
   }
 
-  const [campaigns] = await pool.execute('SELECT cpc, budget, total_views, user_id, traffic_type, time_on_site, version, name, discount_applied FROM campaigns WHERE id = ?', [task.campaign_id]);
+  const [campaigns] = await pool.execute('SELECT cpc, budget, total_views, daily_views, user_id, traffic_type, time_on_site, version, name, discount_applied FROM campaigns WHERE id = ?', [task.campaign_id]);
   if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
   const campaign = campaigns[0];
 
@@ -1334,10 +1365,46 @@ router.post('/task/:id/verify', optionalAuth, async (req, res) => {
     // buyerCpc giữ nguyên — buyer vẫn bị trừ tiền
   }
 
-  await pool.execute(
-    `UPDATE vuot_link_tasks SET status = 'completed', completed_at = NOW(), time_on_site = ?, earning = ?, ip_country = ? WHERE id = ?`,
-    [timeOnSite, earning, ipCountry, task.id]
-  );
+  // ── Atomic daily limit guard ──
+  // Nếu camp có daily_views và worker KHÔNG phải bonus/over_limit:
+  //   Chỉ mark completed khi today_done < daily_views (đếm ngay tại thời điểm UPDATE)
+  //   → MySQL đảm bảo atomic: không bao giờ vượt daily limit dù 100 worker cùng lúc
+  const campDailyViews = Number(campaign.daily_views) || 0;
+  const needsDailyGuard = campDailyViews > 0 && task.is_over_limit !== 1 && !isBotUser;
+
+  let taskMarkedCompleted = false;
+  if (needsDailyGuard) {
+    const vnDayStartVerify = `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())} 00:00:00`;
+    const vnDayEndVerify   = `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())} 23:59:59`;
+    const [markResult] = await pool.execute(
+      `UPDATE vuot_link_tasks
+       SET status = 'completed', completed_at = NOW(), time_on_site = ?, earning = ?, ip_country = ?
+       WHERE id = ?
+         AND (
+           SELECT COUNT(*) FROM vuot_link_tasks t2
+           WHERE t2.campaign_id = ? AND t2.status = 'completed'
+             AND t2.bot_detected = 0 AND t2.is_over_limit = 0
+             AND t2.completed_at >= ? AND t2.completed_at <= ?
+         ) < ?`,
+      [timeOnSite, earning, ipCountry, task.id, task.campaign_id, vnDayStartVerify, vnDayEndVerify, campDailyViews]
+    );
+    taskMarkedCompleted = markResult.affectedRows > 0;
+    if (!taskMarkedCompleted) {
+      // Daily limit đã đủ tại thời điểm verify → đánh dấu expired, không cộng view
+      await pool.execute(
+        `UPDATE vuot_link_tasks SET status = 'expired', expires_at = NOW(), earning = 0 WHERE id = ? AND status != 'completed'`,
+        [task.id]
+      );
+      console.log(`[VuotLink] Daily limit atomic guard: campaign ${task.campaign_id} daily_views=${campDailyViews} already full → task ${task.id} expired (race)`);
+      return res.status(429).json({ error: 'Chiến dịch đã đạt giới hạn view hôm nay. Vui lòng thử nhiệm vụ khác.', code: 'DAILY_LIMIT_FULL' });
+    }
+  } else {
+    await pool.execute(
+      `UPDATE vuot_link_tasks SET status = 'completed', completed_at = NOW(), time_on_site = ?, earning = ?, ip_country = ? WHERE id = ?`,
+      [timeOnSite, earning, ipCountry, task.id]
+    );
+    taskMarkedCompleted = true;
+  }
 
   if (!isBotUser) {
     await pool.execute('UPDATE campaigns SET views_done = COALESCE(views_done, 0) + 1 WHERE id = ?', [task.campaign_id]);
