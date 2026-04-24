@@ -564,8 +564,6 @@ export default function LinkGateway() {
       setCompletionResult(data);
       setVerified(true); setShowError(false);
       try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
-
-      // Redirect to destination_url after 3 seconds
       if (data.destination_url) {
         setRedirecting(true);
         setTimeout(() => { window.location.href = data.destination_url; }, 3000);

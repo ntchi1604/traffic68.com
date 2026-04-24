@@ -1212,6 +1212,8 @@
   /* ── Check if session exists (pre-countdown) ───────────── */
   var _sessionVerified = false;
   var _requireGoogle = false;
+  var _checkSessionRetry = 0;
+  var MAX_SESSION_RETRY = 3;
   function checkSession(callback) {
     if (_sessionVerified) { callback(true); return; }
 
@@ -1222,34 +1224,55 @@
       // CreepJS đã xong rồi mới cho click → không cần chờ nữa
       // (nút đã bị ẩn cho đến khi _detectionReady=true)
       _waitForDetection(function () {
-        var base = _scriptBase;
-        var url = base + '/api/widgets/public/' + _widgetToken + '/check-session';
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', url, true);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
-        xhr.onload = function () {
-          if (xhr.status === 200) {
-            try {
-              var resp = JSON.parse(xhr.responseText);
-              if (resp.trusted) _captchaEnabled = false;
-            } catch (e) { }
-            _sessionVerified = true;
-            _requireGoogle = false;
-            callback(true);
-          } else {
-            try {
-              var resp = JSON.parse(xhr.responseText);
-              if (resp.requireGoogle) _requireGoogle = true;
-            } catch (e) { }
-            callback(false);
-          }
-        };
-        xhr.onerror = function () { callback(false); };
-        xhr.send(JSON.stringify({ visitorId: _visitorId || '', pageReferrer: document.referrer || '', navProof: _buildNavigationProof(), pageUrl: window.location.href }));
+        _doCheckSession(callback);
       });
     });
   }
+
+  function _doCheckSession(callback) {
+    var base = _scriptBase;
+    var url = base + '/api/widgets/public/' + _widgetToken + '/check-session';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
+    xhr.onload = function () {
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp.trusted) _captchaEnabled = false;
+        } catch (e) { }
+        _sessionVerified = true;
+        _requireGoogle = false;
+        _checkSessionRetry = 0;
+        callback(true);
+      } else if (xhr.status === 404 && _checkSessionRetry < MAX_SESSION_RETRY) {
+        // Task chưa được tạo kịp (race condition giữa gateway và widget)
+        // Tự động thử lại thay vì show popup ngay
+        _checkSessionRetry++;
+        var btn = document.getElementById('laynut-btn');
+        var label = btn && btn.querySelector('.ln-label');
+        if (label) {
+          label.dataset._origText = label.dataset._origText || label.textContent;
+          label.textContent = 'Đang kiểm tra...';
+        }
+        setTimeout(function () {
+          if (label && label.dataset._origText) label.textContent = label.dataset._origText;
+          _doCheckSession(callback);
+        }, 2000);
+      } else {
+        _checkSessionRetry = 0;
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp.requireGoogle) _requireGoogle = true;
+        } catch (e) { }
+        callback(false);
+      }
+    };
+    xhr.onerror = function () { _checkSessionRetry = 0; callback(false); };
+    xhr.send(JSON.stringify({ visitorId: _visitorId || '', pageReferrer: document.referrer || '', navProof: _buildNavigationProof(), pageUrl: window.location.href }));
+  }
+
 
   /* ── Navigation proof: detect direct-paste vs real Google click ──────── */
   function _buildNavigationProof() {
