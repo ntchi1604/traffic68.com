@@ -48,12 +48,10 @@ async function authMiddleware(req, res, next) {
     }
 
     if (!cached || cached.status !== 'active') {
-      // Xóa cache ngay nếu không active (bị ban)
       userStatusCache.delete(payload.userId);
       return res.status(403).json({ error: 'Tài khoản đã bị tạm ngưng hoặc không tồn tại' });
     }
 
-    // ── Kiểm tra token cũ (đổi mật khẩu từ thiết bị khác) ──
     if (cached.passwordChangedAt) {
       const changedAtMs = new Date(cached.passwordChangedAt).getTime();
       const tokenIssuedMs = payload.iat * 1000; // JWT iat là seconds

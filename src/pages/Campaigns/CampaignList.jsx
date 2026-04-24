@@ -459,7 +459,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
           {/* Direct: chỉ URL đích — Non-direct: URL mặc định + Ảnh + Keywords */}
           {isDirect ? (
-            /* ── Direct: URL đích + số view ── */
+            /* ── Direct: URL đích + view tổng + view/ngày + preview ── */
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">URL đích</label>
@@ -472,17 +472,49 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 />
                 <p className="mt-1 text-xs text-slate-400">Visitor sẽ truy cập trực tiếp vào URL này</p>
               </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Số view mục tiêu</label>
-                <div className="relative">
-                  <input
-                    type="number" min="1"
-                    value={keywords[0]?.views || 0}
-                    onChange={e => updateKeywordViews(0, e.target.value)}
-                    className={input + ' pr-14'}
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-500 font-bold pointer-events-none">view</span>
+              {/* 2-column grid: view tổng + view/ngày */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Số view mục tiêu</label>
+                  <div className="relative">
+                    <input
+                      type="number" min="1"
+                      value={keywords[0]?.views || 0}
+                      onChange={e => updateKeywordViews(0, e.target.value)}
+                      className={input + ' pr-14'}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-500 font-bold pointer-events-none">view</span>
+                  </div>
                 </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">View / ngày</label>
+                  <div className="relative">
+                    <input
+                      type="number" min="0"
+                      value={dailyViews}
+                      onChange={e => setDailyViews(e.target.value)}
+                      className={input + ' pr-20'}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md pointer-events-none">/ ngày</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400">0 = không giới hạn</p>
+                </div>
+              </div>
+              {/* Preview info box — giống search */}
+              <div className="flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
+                <BarChart3 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-sky-700 leading-relaxed">
+                  <strong>Tổng view:</strong>{' '}
+                  <b className="text-amber-600">{(Number(keywords[0]?.views) || 0).toLocaleString()}</b> view
+                  {' · '}
+                  <strong>View/ngày:</strong>{' '}
+                  {Number(dailyViews) > 0
+                    ? <><b className="text-sky-700">{Number(dailyViews).toLocaleString()}</b> view/ngày</>  
+                    : <><b>0</b> = không giới hạn</>}
+                  {' · '}
+                  <strong>Đã chạy:</strong>{' '}
+                  <b className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</b> view
+                </p>
               </div>
             </div>
           ) : (
@@ -676,52 +708,52 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             </div>
           )}{/* end !isDirect keywords */}
 
-          {/* Daily views + Tổng view preview */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">View / ngày (tổng)</label>
-              {useKeywordDailyViews ? (
-                <>
-                  {(() => {
-                    const kwSum = keywords.filter(k => k.keyword.trim()).reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
-                    return (
-                      <div className="px-3.5 py-2.5 bg-sky-50 border border-sky-200 rounded-xl flex items-center justify-between">
-                        {kwSum > 0
-                          ? <span className="text-base font-black text-sky-700 tabular-nums">{kwSum.toLocaleString()}</span>
-                          : <span className="text-base font-black text-slate-400">∞</span>
-                        }
-                        <span className="text-xs text-sky-500 font-bold">{kwSum > 0 ? 'view/ngày' : 'không giới hạn'}</span>
-                      </div>
-                    );
-                  })()}
-                  <p className="mt-1 text-xs text-slate-400">Tính từ từng từ khóa</p>
-                </>
-              ) : (
-                <>
-                  <div className="relative">
-                    <input type="number" min="0" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={input + ' pr-24'} />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view/ngày</span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-400">0 = không giới hạn (chung toàn camp)</p>
-                </>
-              )}
+          {/* Daily views + Tổng view preview — chỉ cho non-direct (direct có preview riêng ở trên) */}
+          {!isDirect && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">View / ngày (tổng)</label>
+                {useKeywordDailyViews ? (
+                  <>
+                    {(() => {
+                      const kwSum = keywords.filter(k => k.keyword.trim()).reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
+                      return (
+                        <div className="px-3.5 py-2.5 bg-sky-50 border border-sky-200 rounded-xl flex items-center justify-between">
+                          {kwSum > 0
+                            ? <span className="text-base font-black text-sky-700 tabular-nums">{kwSum.toLocaleString()}</span>
+                            : <span className="text-base font-black text-slate-400">∞</span>
+                          }
+                          <span className="text-xs text-sky-500 font-bold">{kwSum > 0 ? 'view/ngày' : 'không giới hạn'}</span>
+                        </div>
+                      );
+                    })()}
+                    <p className="mt-1 text-xs text-slate-400">Tính từ từng từ khóa</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <input type="number" min="0" value={dailyViews} onChange={e => setDailyViews(e.target.value)} className={input + ' pr-24'} />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-md">view/ngày</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400">0 = không giới hạn (chung toàn camp)</p>
+                  </>
+                )}
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Tổng view</label>
+                {(() => {
+                  const preview = keywords.filter(k => k.keyword.trim()).reduce((s, k) => s + (Number(k.views) || 0), 0) || Number(campaign.total_views);
+                  return (
+                    <div className="px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+                      <span className="text-base font-black text-amber-700 tabular-nums">{preview.toLocaleString()}</span>
+                      <span className="text-xs text-amber-500 font-bold">view</span>
+                    </div>
+                  );
+                })()}
+                <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view · Tổng tính từ các từ khóa</p>
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Tổng view</label>
-              {(() => {
-                const preview = isDirect
-                  ? (Number(keywords[0]?.views) || Number(campaign.total_views))
-                  : keywords.filter(k => k.keyword.trim()).reduce((s, k) => s + (Number(k.views) || 0), 0) || Number(campaign.total_views);
-                return (
-                  <div className="px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
-                    <span className="text-base font-black text-amber-700 tabular-nums">{preview.toLocaleString()}</span>
-                    <span className="text-xs text-amber-500 font-bold">view</span>
-                  </div>
-                );
-              })()}
-              <p className="mt-1 text-xs text-slate-400">Đã chạy: <strong className="text-emerald-600">{Number(campaign.views_done || 0).toLocaleString()}</strong> view · Tổng tính từ các từ khóa</p>
-            </div>
-          </div>
+          )}
 
           {/* Chia view theo giờ — chỉ hiện khi có daily views */}
           {(() => {
