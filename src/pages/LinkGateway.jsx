@@ -197,7 +197,6 @@ export default function LinkGateway() {
 
   const [humanPassed, setHumanPassed] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
-  const [challengeToken, setChallengeToken] = useState(null);
   const [challengeLoading, setChallengeLoading] = useState(false);
   const [retryCountdown, setRetryCountdown] = useState(0);
   const retryTimerRef = useRef(null);
@@ -286,7 +285,7 @@ export default function LinkGateway() {
       setLoading(true); setError('');
       // Chỉ reset humanPassed khi thực sự cần (forceRefresh=true)
       // KHÔNG reset khi user vừa pass challenge (tránh race condition)
-      if (force) { setHumanPassed(false); setChallengeToken(null); }
+      if (force) { setHumanPassed(false); }
 
       if (navigator.storage && navigator.storage.estimate) {
         const { quota } = await navigator.storage.estimate();
@@ -448,7 +447,6 @@ export default function LinkGateway() {
           setInputCode('');
           setShowError(false);
           setHumanPassed(false);
-          setChallengeToken(null);
           try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
           fetchTask(true);
           return 0;
@@ -506,7 +504,6 @@ export default function LinkGateway() {
         setTask(null);
         setInputCode('');
         setHumanPassed(false);
-        setChallengeToken(null);
         setShowError(false);
         try { sessionStorage.removeItem(`gw_task_${slug}`); } catch { }
         fetchTask(true);
@@ -515,9 +512,8 @@ export default function LinkGateway() {
 
       if (!res.ok) throw new Error(data.error || 'Xác minh thất bại');
 
-      setChallengeToken(data.challengeToken);
       setHumanPassed(true);
-      // Đóng overlay SAU KHI API thành công — tránh màn trắng do race condition
+      // Đóng overlay SAU KHI API thành công
       setShowChallenge(false);
     } catch (err) {
       setShowChallenge(false);
@@ -543,7 +539,7 @@ export default function LinkGateway() {
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API}/task/${task.id}/verify`, {
         method: 'POST', headers,
-        body: JSON.stringify({ code: inputCode.trim(), _tk: task._tk, challengeToken, visitorId: savedVisitorId }),
+        body: JSON.stringify({ code: inputCode.trim(), _tk: task._tk, visitorId: savedVisitorId }),
       });
       const data = await res.json();
 
@@ -574,7 +570,7 @@ export default function LinkGateway() {
     } finally {
       setCompleting(false);
     }
-  }, [inputCode, task, slug, fetchTask, challengeToken, savedVisitorId]);
+  }, [inputCode, task, slug, fetchTask, savedVisitorId]);
 
   const keyword = task?.keyword || '';
   const campaignImage = task?.image1_url || '';
@@ -1157,13 +1153,14 @@ function ShakeChallenge({ onPass, onClose }) {
         if (!(e instanceof DeviceMotionEvent)) return;
         const _ua = navigator.userAgent || '';
         const _isInApp = /FBAN|FBAV|Instagram|TikTok|Line\/|ZaloApp|Twitter\/|Snapchat|Viber/i.test(_ua);
-        if (!e.isTrusted && !_isInApp) return;
+        const acc0 = e.accelerationIncludingGravity;
+        const hasRealGravity = acc0 && (acc0.z !== 0 && acc0.z !== null);
+        if (!e.isTrusted && !(_isInApp && hasRealGravity)) return;
 
         const acc = e.accelerationIncludingGravity;
         if (!acc) return;
         const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
         const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
-        // Bỏ qua nếu tất cả bằng nhau (sensor cố định / lỗi)
         if (ax === ay && ay === az) return;
         const now = Date.now();
         rawLogRef.current.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });

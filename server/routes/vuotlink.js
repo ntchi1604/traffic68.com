@@ -1040,10 +1040,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     if (workerId) {
       const [uRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [workerId]);
       if (uRows[0]?.trusted === 1) {
-        const ts = Date.now();
-        const challengeToken = signChallengeToken(req.params.id, ip, ts);
-        challengePassedStore[req.params.id] = { token: challengeToken, ts, ip };
-        return res.json({ challengeToken, trusted: true });
+        return res.json({ trusted: true });
       }
     }
   } catch (_) { }
@@ -1182,17 +1179,13 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     } catch (e) { }
   }
 
-  const ts = Date.now();
-  const challengeToken = signChallengeToken(req.params.id, ip, ts);
-  challengePassedStore[req.params.id] = { token: challengeToken, ts, ip };
-
-  // Lưu vào DB — để vẫn hoạt động sau khi PM2 restart (challengePassedStore sẽ trống)
+  // Lưu status step1 vào DB — đây là guard duy nhất cho verify route
   try {
     const pool = getPool();
     await pool.execute("UPDATE vuot_link_tasks SET status = 'step1' WHERE id = ? AND status = 'pending'", [req.params.id]);
   } catch (e) { console.error('[VuotLink] challenge-passed step1 update error:', e.message); }
 
-  res.json({ challengeToken });
+  res.json({ ok: true });
 });
 
 router.post('/task/:id/verify', optionalAuth, (req, res) => {
@@ -1210,7 +1203,7 @@ router.post('/task/:id/verify', optionalAuth, (req, res) => {
 
 async function _handleVerifyPost(req, res) {
   const pool = getPool();
-  const { code, _tk, challengeToken } = req.body;
+  const { code, _tk } = req.body;
   const ip = normalizeIp(req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress);
   if (!_tk || !verifyTaskToken(_tk, req.params.id, ip)) {
     return res.status(403).json({ error: 'Invalid token' });
@@ -1219,6 +1212,7 @@ async function _handleVerifyPost(req, res) {
   if (!code || code.trim().length < 4) {
     return res.status(400).json({ error: 'Mã xác nhận không hợp lệ' });
   }
+  try {
   const [tasks] = await pool.execute('SELECT * FROM vuot_link_tasks WHERE id = ?', [req.params.id]);
   if (tasks.length === 0) return res.status(404).json({ error: 'Task không tồn tại' });
   const task = tasks[0];
@@ -1677,6 +1671,10 @@ async function _handleVerifyPost(req, res) {
     if (campaign && campaign.user_id) cache.invalidate('reports:overview:' + campaign.user_id);
     cache.invalidatePrefix('admin:overview:');
   } catch (e) { }
+  } catch (err) {
+    console.error('[VuotLink] _handleVerifyPost ERROR:', err?.message, err?.stack?.split('\n')[1]);
+    throw err; // re-throw để route wrapper bắt và trả 500
+  }
 }
 
 router.post('/task/:id/complete', optionalAuth, async (req, res) => {
