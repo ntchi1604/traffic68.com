@@ -1371,7 +1371,6 @@ async function _handleVerifyPost(req, res) {
       const vnDayStartVerify = `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())} 00:00:00`;
       const vnDayEndVerify = `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())} 23:59:59`;
 
-      // Bước 1: Đếm số view hôm nay của campaign
       const [countRows] = await pool.execute(
         `SELECT COUNT(*) AS cnt FROM vuot_link_tasks
          WHERE campaign_id = ? AND status = 'completed'
@@ -1382,7 +1381,6 @@ async function _handleVerifyPost(req, res) {
       const todayDone = Number(countRows[0]?.cnt || 0);
 
       if (todayDone >= campDailyViews) {
-        // Daily limit đã đủ → đánh dấu expired
         await pool.execute(
           `UPDATE vuot_link_tasks SET status = 'expired', expires_at = NOW(), earning = 0 WHERE id = ? AND status != 'completed'`,
           [task.id]
@@ -1391,7 +1389,6 @@ async function _handleVerifyPost(req, res) {
         return res.status(429).json({ error: 'Chiến dịch đã đạt giới hạn view hôm nay. Vui lòng thử nhiệm vụ khác.', code: 'DAILY_LIMIT_FULL' });
       }
 
-      // Bước 2: Mark completed
       const [markResult] = await pool.execute(
         `UPDATE vuot_link_tasks SET status = 'completed', completed_at = NOW(), time_on_site = ?, earning = ?, ip_country = ? WHERE id = ?`,
         [timeOnSite, earning, ipCountry, task.id]
@@ -1417,7 +1414,6 @@ async function _handleVerifyPost(req, res) {
       const isMobile = !isTablet && /mobile|android|iphone|ipod|blackberry|windows phone/i.test(ua);
       const deviceCol = isTablet ? 'tablet_views' : isMobile ? 'mobile_views' : 'desktop_views';
 
-      // ── Cập nhật traffic_logs (dùng VN timezone tránh lệch CURDATE UTC) ──
       const vnDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
       const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [task.campaign_id, vnDate]);
       if (logs.length > 0) {
