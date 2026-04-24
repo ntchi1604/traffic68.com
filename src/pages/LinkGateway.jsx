@@ -1141,7 +1141,7 @@ function ShakeChallenge({ onPass, onClose }) {
   const rawLogRef = useRef([]);
   const passedRef = useRef(false);
   const TARGET = 3;
-  const SHAKE_THRESHOLD = 36;
+  const SHAKE_THRESHOLD = 22;
   const SHAKE_DEBOUNCE = 300;
 
   useEffect(() => {
