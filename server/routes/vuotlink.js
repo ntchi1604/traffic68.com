@@ -976,12 +976,14 @@ async function _handleTaskPost(req, res) {
           [campaign.id, vnHourStart, vnNextHourStart]
         );
         const completedThisHour = Number(compRes[0].cnt);
+        // Chỉ đếm pending tasks trong 10 phút gần nhất (tasks cũ hơn = bị bỏ dở, không giữ slot)
         const [rankRes] = await pool.execute(
           `SELECT COUNT(*) as my_rank FROM vuot_link_tasks
            WHERE campaign_id = ? AND is_over_limit = 0 AND bot_detected = 0
              AND status IN ('pending','step1','step2','step3') AND expires_at > NOW()
-             AND created_at >= ? AND created_at < ? AND id <= ?`,
-          [campaign.id, vnHourStart, vnNextHourStart, result.insertId]
+             AND created_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+             AND id <= ?`,
+          [campaign.id, result.insertId]
         );
         const myPendingRank = Number(rankRes[0].my_rank);
         if (completedThisHour + myPendingRank > hCap) {
