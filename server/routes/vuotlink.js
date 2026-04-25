@@ -285,18 +285,13 @@ async function _handleTaskPost(req, res) {
 
   if (!challengeId || powNonce === undefined) return res.status(403).json(ERR);
 
-  // Verify stateless HMAC challenge token
   const ch = verifyChallenge(challengeId);
   if (!ch) return res.status(403).json(ERR);
-  // IP binding: soft check — log mismatch but don't block
-  // Dual-stack (IPv4/IPv6) routing can cause GET /challenge and POST /task to come from different IPs.
-  // HMAC signature + PoW prevents token forgery, so this is defense-in-depth only.
   if (ch.ip && ch.ip !== ip) {
     const bothIPv4 = !ch.ip.includes(':') && !ip.includes(':');
     if (bothIPv4) {
       console.warn(`[VuotLink] IP mismatch (allowed): challenge_ip=${ch.ip} request_ip=${ip} — different IPv4`);
     }
-    // IPv4↔IPv6 dual-stack: bình thường, không log để tránh noise
   }
 
   const hash = crypto.createHash('sha256').update(ch.prefix + String(powNonce)).digest('hex');
