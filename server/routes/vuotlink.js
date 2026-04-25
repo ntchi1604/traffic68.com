@@ -363,6 +363,7 @@ async function _handleTaskPost(req, res) {
   const hourVnRaw = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', hour12: false, hourCycle: 'h23' }).format(new Date());
   const hourPad = String(parseInt(hourVnRaw) || 0).padStart(2, '0');
   const minuteVn = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', minute: '2-digit' }).format(new Date())) || 0;
+  const remainingHoursVn = Math.max(1, 24 - parseInt(hourPad));
 
   function _seededRand(seed) {
     let h = 2166136261;
@@ -474,7 +475,13 @@ async function _handleTaskPost(req, res) {
     )
     AND (
       c.view_by_hour <= 0
-      OR (COALESCE(th.hour_done, 0) + COALESCE(ta.hour_active, 0)) < CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24)
+      OR (COALESCE(th.hour_done, 0) + COALESCE(ta.hour_active, 0)) <
+         GREATEST(1, CEIL(
+           CASE
+             WHEN c.daily_views > 0 THEN GREATEST(0, c.daily_views - COALESCE(td.today_done, 0))
+             ELSE GREATEST(0, c.total_views - c.views_done)
+           END / ${remainingHoursVn}
+         ))
     )`;
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
@@ -667,11 +674,11 @@ async function _handleTaskPost(req, res) {
               ? avgExplicitDaily
               : 1000;
 
-        // ── Tính hourly cap per-keyword (áp dụng khi campaign bật view_by_hour) ──
-        //   Cách tính kwHourlyCap:
-        //   • Keyword có daily_views tường minh → hourly = CEIL(daily_views / 24)
-        //   • Keyword không set daily, camp có daily_views → hourly = CEIL(autoDaily / 24)
-        //   • Keyword không set daily, camp không set daily → hourly = CEIL(total_views / 24)
+        // ── Tính hourly cap per-keyword theo thời gian còn lại trong ngày ──
+        //   Quy tắc: remaining_views / remaining_hours → tự tăng tốc cuối ngày
+        //   • Keyword có daily_views tường minh → (daily_views - todayDone) / remainingHours
+        //   • Keyword không set daily, camp có autoDaily → (autoDaily - todayDone) / remainingHours
+        //   • Không có daily nào → total_views / remainingHours (rough estimate)
         const kwViewByHour = picked.view_by_hour > 0;
         const campTotalViews = Number(picked.total_views) || 0;
 
@@ -691,24 +698,22 @@ async function _handleTaskPost(req, res) {
             // Daily limit: hard stop — weight = 0 nếu đã hết quota ngày
             if (!dailyOk) return { ...k, weight: 0 };
 
-            // ── Hourly cap per-keyword khi view_by_hour bật ──
-            // Quy tắc: keyword có daily_views → daily_views/24
-            //          không có daily_views, camp có daily_views → camp.daily_views/24
-            //          không có gì → total_views/24
+            // ── Hourly cap per-keyword theo remaining_views / remaining_hours ──
             let kwHourlyCap = 0;
             if (kwViewByHour) {
               if (Number(k.daily_views) > 0) {
-                // Keyword có daily tường minh → cap = daily/24
-                kwHourlyCap = Math.max(1, Math.ceil(Number(k.daily_views) / 24));
+                // Keyword có daily tường minh → (daily - todayDone) / remainingHours
+                const kwDailyRemaining = Math.max(0, Number(k.daily_views) - todayDone);
+                kwHourlyCap = Math.max(1, Math.ceil(kwDailyRemaining / remainingHoursVn));
               } else if (autoDaily > 0) {
-                // Keyword không set daily, camp có quota còn lại → cap = autoDaily/24
-                kwHourlyCap = Math.max(1, Math.ceil(autoDaily / 24));
+                // Keyword không set daily, camp có quota còn lại → autoDaily / remainingHours
+                kwHourlyCap = Math.max(1, Math.ceil(autoDaily / remainingHoursVn));
               } else if (campaignDailyViews > 0) {
-                // Fallback: campaign daily / số kw / 24
-                kwHourlyCap = Math.max(1, Math.ceil(campaignDailyViews / Math.max(1, kwConfig.length) / 24));
+                // Fallback: campaign daily / số kw / remainingHours
+                kwHourlyCap = Math.max(1, Math.ceil(campaignDailyViews / Math.max(1, kwConfig.length) / remainingHoursVn));
               } else if (campTotalViews > 0) {
-                // Fallback cuối: total_views / 24
-                kwHourlyCap = Math.max(1, Math.ceil(campTotalViews / 24));
+                // Fallback cuối: total_views / remainingHours
+                kwHourlyCap = Math.max(1, Math.ceil(campTotalViews / remainingHoursVn));
               }
               // Random-proportional: tại phút m, cho phép số view theo đường cong ngẫu nhiên
               const allowedHourlyNow = allowedHourlyAtMinute(kwHourlyCap, `kw:${picked.id}:${k.keyword}`, minuteVn);
@@ -766,13 +771,14 @@ async function _handleTaskPost(req, res) {
               // Tính hourly cap cùng rule với trên
               let kwHourlyCapCheck = 0;
               if (kwDailyLimitEx > 0) {
-                kwHourlyCapCheck = Math.max(1, Math.ceil(kwDailyLimitEx / 24));
+                const kwDailyRemCheck = Math.max(0, kwDailyLimitEx - todayDoneKw);
+                kwHourlyCapCheck = Math.max(1, Math.ceil(kwDailyRemCheck / remainingHoursVn));
               } else if (autoDaily > 0) {
-                kwHourlyCapCheck = Math.max(1, Math.ceil(autoDaily / 24));
+                kwHourlyCapCheck = Math.max(1, Math.ceil(autoDaily / remainingHoursVn));
               } else if (campaignDailyViews > 0) {
-                kwHourlyCapCheck = Math.max(1, Math.ceil(campaignDailyViews / Math.max(1, kwConfig.length) / 24));
+                kwHourlyCapCheck = Math.max(1, Math.ceil(campaignDailyViews / Math.max(1, kwConfig.length) / remainingHoursVn));
               } else if (campTotalViews > 0) {
-                kwHourlyCapCheck = Math.max(1, Math.ceil(campTotalViews / 24));
+                kwHourlyCapCheck = Math.max(1, Math.ceil(campTotalViews / remainingHoursVn));
               }
               const allowedNow = allowedHourlyAtMinute(kwHourlyCapCheck, `kw:${picked.id}:${k.keyword}`, minuteVn);
               return dailyOkKw && kwHourlyCapCheck > 0 && hourDoneKw >= allowedNow;
@@ -837,7 +843,11 @@ async function _handleTaskPost(req, res) {
           // Hourly per-minute cap: tính cả task đang active (chưa complete) để không dồn view
           const pickedHourActive = Number(picked._hour_active) || 0;
           const effectiveDailyForHour = pickedDailyViews > 0 ? pickedDailyViews : campTotalViews2;
-          const hourlyCap = effectiveDailyForHour > 0 ? Math.max(1, Math.ceil(effectiveDailyForHour / 24)) : 0;
+          // Adaptive cap: remaining_views / remaining_hours → tự tăng tốc cuối ngày
+          const dailyRemainingForCap = pickedDailyViews > 0
+            ? Math.max(0, pickedDailyViews - pickedTodayDone)
+            : Math.max(0, campTotalViews2 - (Number(picked.views_done) || 0));
+          const hourlyCap = effectiveDailyForHour > 0 ? Math.max(1, Math.ceil(dailyRemainingForCap / remainingHoursVn)) : 0;
           if (hourlyCap > 0) {
             const allowedHourlyNow = allowedHourlyAtMinute(hourlyCap, `direct:${picked.id}`, minuteVn);
             const effectiveHourDone = pickedHourDone + pickedHourActive;
@@ -1025,8 +1035,13 @@ async function _handleTaskPost(req, res) {
       // Tính hourlyCap của campaign này để biết bao nhiêu task song song được phép
       const _concDailyViews = Number(campaign.daily_views) || 0;
       const _concTotalViews = Number(campaign.total_views) || 0;
+      const _concTodayDone = Number(campaign._today_done) || 0;
       const _concEffective = _concDailyViews > 0 ? _concDailyViews : _concTotalViews;
-      const _concHourlyCap = _concEffective > 0 ? Math.max(1, Math.ceil(_concEffective / 24)) : 1;
+      // Adaptive cap: remaining / remainingHours → đồng bộ với SQL filter
+      const _concRemaining = _concDailyViews > 0
+        ? Math.max(0, _concDailyViews - _concTodayDone)
+        : Math.max(0, _concTotalViews - (Number(campaign.views_done) || 0));
+      const _concHourlyCap = _concEffective > 0 ? Math.max(1, Math.ceil(_concRemaining / remainingHoursVn)) : 1;
       // Cho phép tối đa hourlyCap task song song (tránh false-positive khi nhiều worker hợp lệ)
       if (Number(concRes[0].cnt) >= _concHourlyCap) {
         await pool.execute(`UPDATE vuot_link_tasks SET status = 'expired', expires_at = NOW() WHERE id = ?`, [result.insertId]);
