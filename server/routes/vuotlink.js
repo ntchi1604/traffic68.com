@@ -445,9 +445,11 @@ async function _handleTaskPost(req, res) {
       c.view_by_hour <= 0
       OR (
         COALESCE(th.hour_done, 0) < CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24)
-        AND GREATEST(COALESCE(th.last_unix, 0), COALESCE(ta.last_active_unix, 0))
-            + FLOOR(3600.0 / CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24))
-            <= UNIX_TIMESTAMP(NOW())
+        AND (
+          th.last_unix IS NULL
+          OR th.last_unix + FLOOR(3600.0 / CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24))
+             <= UNIX_TIMESTAMP(NOW())
+        )
       )
     )`;
   const todaySubquery = `LEFT JOIN (
@@ -464,14 +466,7 @@ async function _handleTaskPost(req, res) {
       WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
         AND completed_at >= '${vnHourStart}' AND completed_at < '${vnNextHourStart}'
       GROUP BY campaign_id
-    ) th ON th.campaign_id = c.id
-    LEFT JOIN (
-      SELECT campaign_id, UNIX_TIMESTAMP(MAX(created_at)) as last_active_unix
-      FROM vuot_link_tasks
-      WHERE status IN ('pending','step1','step2','step3')
-        AND expires_at > NOW() AND is_over_limit = 0 AND bot_detected = 0
-      GROUP BY campaign_id
-    ) ta ON ta.campaign_id = c.id`;
+    ) th ON th.campaign_id = c.id`;
 
   const cleanVidExcl = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const clientExcludes = Array.isArray(excludeCampaigns)
