@@ -444,8 +444,10 @@ async function _handleTaskPost(req, res) {
     )
     AND (
       c.view_by_hour <= 0
-      OR COALESCE(ha.hour_active, 0) < CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24)
+      OR COALESCE(th.hour_done, 0) < CEIL(CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24) * ${minuteVn + 1} / 60)
     )`;
+  // th: chỉ đếm completed trong giờ — không đếm pending để workers vẫn nhận task
+  // Race condition (burst đầu giờ) được xử lý bởi post-INSERT rank guard bên dưới
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
       FROM vuot_link_tasks
@@ -454,15 +456,12 @@ async function _handleTaskPost(req, res) {
       GROUP BY campaign_id
     ) td ON td.campaign_id = c.id
     LEFT JOIN (
-      SELECT campaign_id, COUNT(*) as hour_active
+      SELECT campaign_id, COUNT(*) as hour_done
       FROM vuot_link_tasks
-      WHERE bot_detected = 0 AND is_over_limit = 0
-        AND (
-          (status = 'completed' AND completed_at >= '${vnHourStart}' AND completed_at < '${vnNextHourStart}')
-          OR (status IN ('pending','step1','step2','step3') AND expires_at > NOW() AND created_at >= '${vnHourStart}' AND created_at < '${vnNextHourStart}')
-        )
+      WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
+        AND completed_at >= '${vnHourStart}' AND completed_at < '${vnNextHourStart}'
       GROUP BY campaign_id
-    ) ha ON ha.campaign_id = c.id`;
+    ) th ON th.campaign_id = c.id`;
 
   const cleanVidExcl = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const clientExcludes = Array.isArray(excludeCampaigns)
@@ -968,33 +967,44 @@ async function _handleTaskPost(req, res) {
     }
   }
 
+  // ── Hourly cap: time-based ramp + rank guard ─────────────────────────────
+  // allowedNow tăng dần theo phút → phân phối đều trong giờ.
+  // Rank (id <= insertId) trong pending chưa hết hạn → xử lý burst concurrent.
+  // Chỉ đếm completed (không đếm pending) → workers luôn nhận được task.
   if (!isOverLimit && Number(campaign.view_by_hour) > 0) {
     try {
       const hCapDaily = Number(campaign.daily_views) > 0 ? Number(campaign.daily_views) : Number(campaign.total_views);
       const hCap = hCapDaily > 0 ? Math.max(1, Math.ceil(hCapDaily / 24)) : 0;
       if (hCap > 0) {
+        // Số view được phép tại phút này (tăng dần từ 0→hCap trong 60 phút)
+        const allowedNow = Math.ceil(hCap * (minuteVn + 1) / 60);
+        // Completed trong giờ (cố định, không thay đổi bởi concurrent inserts)
         const [compRes] = await pool.execute(
           `SELECT COUNT(*) as cnt FROM vuot_link_tasks
            WHERE campaign_id = ? AND is_over_limit = 0 AND bot_detected = 0
-             AND status = 'completed'
-             AND completed_at >= ? AND completed_at < ?`,
+             AND status = 'completed' AND completed_at >= ? AND completed_at < ?`,
           [campaign.id, vnHourStart, vnNextHourStart]
         );
         const completedThisHour = Number(compRes[0].cnt);
+        // Nếu đã đủ completed → không cần thêm pending nào
+        if (completedThisHour >= allowedNow) {
+          await pool.execute(`UPDATE vuot_link_tasks SET status = 'expired', expires_at = NOW() WHERE id = ?`, [result.insertId]);
+          console.log(`[VuotLink] Hourly ramp: camp=${campaign.id} completed=${completedThisHour} >= allowed=${allowedNow} at min=${minuteVn} → expired ${result.insertId}`);
+          return res.status(404).json({ error: 'Không có nhiệm vụ phù hợp. Vui lòng thử lại sau.' });
+        }
+        // Rank trong pending chưa hết hạn — chỉ cho phép (allowedNow - completed) pending cùng lúc
+        const remainingSlots = allowedNow - completedThisHour;
         const [rankRes] = await pool.execute(
           `SELECT COUNT(*) as my_rank FROM vuot_link_tasks
            WHERE campaign_id = ? AND is_over_limit = 0 AND bot_detected = 0
-             AND status IN ('pending','step1','step2','step3')
-             AND expires_at > NOW()
-             AND created_at >= ? AND created_at < ?
-             AND id <= ?`,
+             AND status IN ('pending','step1','step2','step3') AND expires_at > NOW()
+             AND created_at >= ? AND created_at < ? AND id <= ?`,
           [campaign.id, vnHourStart, vnNextHourStart, result.insertId]
         );
         const myPendingRank = Number(rankRes[0].my_rank);
-        const totalSlots = completedThisHour + myPendingRank;
-        if (totalSlots > hCap) {
+        if (myPendingRank > remainingSlots) {
           await pool.execute(`UPDATE vuot_link_tasks SET status = 'expired', expires_at = NOW() WHERE id = ?`, [result.insertId]);
-          console.log(`[VuotLink] Hourly slot: camp=${campaign.id} completed=${completedThisHour} + pendingRank=${myPendingRank} = ${totalSlots} > cap=${hCap} → expired task ${result.insertId}`);
+          console.log(`[VuotLink] Hourly ramp: camp=${campaign.id} pendingRank=${myPendingRank} > remaining=${remainingSlots} (allowed=${allowedNow}-done=${completedThisHour}) at min=${minuteVn} → expired ${result.insertId}`);
           return res.status(404).json({ error: 'Không có nhiệm vụ phù hợp. Vui lòng thử lại sau.' });
         }
       }
