@@ -347,11 +347,15 @@ export default function LinkGateway() {
       });
 
       if (taskRes.status === 404) {
+        _noTaskRetryCount.current += 1;
+        const isEarlyRetry = _noTaskRetryCount.current <= 3;
+        const retryDelay = isEarlyRetry ? 200 : 1000;
+        _silentRetrying = isEarlyRetry; // không gọi setLoading(false) khi retry nhanh
         retryTimerRef.current = setTimeout(() => {
           retryTimerRef.current = null;
           fetchTask(true, excludeList);
-        }, 1000);
-        setError('no_task');
+        }, retryDelay);
+        if (!isEarlyRetry) setError('no_task');
         return;
       }
       if (taskRes.status === 429) {
@@ -404,7 +408,7 @@ export default function LinkGateway() {
         const errBody = await taskRes.json().catch(() => ({}));
         throw new Error(errBody.error || `Lỗi server (${taskRes.status})`);
       }
-      _noTaskRetryCount.current = 0;
+      _noTaskRetryCount.current = 0; // reset khi task thành công
       const newTask = await taskRes.json();
       setTask(newTask);
       if (newTask.trusted) setHumanPassed(true);
