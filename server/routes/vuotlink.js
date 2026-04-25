@@ -359,11 +359,42 @@ async function _handleTaskPost(req, res) {
   const maxViewsPerIp = await getViewsPerIp(pool);
 
   const vnOpts = { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' };
-  const todayVn = new Intl.DateTimeFormat('en-CA', vnOpts).format(new Date()); // e.g. "2026-04-09"
+  const todayVn = new Intl.DateTimeFormat('en-CA', vnOpts).format(new Date());
   const hourVnRaw = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', hour12: false, hourCycle: 'h23' }).format(new Date());
   const hourPad = String(parseInt(hourVnRaw) || 0).padStart(2, '0');
-  // Phút hiện tại trong giờ (0-59) — dùng để rải đều view trong giờ khi bật view_by_hour
   const minuteVn = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', minute: '2-digit' }).format(new Date())) || 0;
+
+  function _seededRand(seed) {
+    let h = 2166136261;
+    for (let i = 0; i < seed.length; i++) {
+      h ^= seed.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+      h >>>= 0;
+    }
+    return function () {
+      h ^= h << 13;
+      h ^= h >> 17;
+      h ^= h << 5;
+      h >>>= 0;
+      return h / 4294967296;
+    };
+  }
+
+  function allowedHourlyAtMinute(hourlyCap, campSeed, minute) {
+    if (hourlyCap <= 0) return 0;
+    if (minute >= 59) return hourlyCap;
+    const rand = _seededRand(`${todayVn}:${hourPad}:${campSeed}`);
+    const weights = [];
+    for (let m = 0; m < 60; m++) {
+      const base = 0.6 + rand() * 1.2;
+      const bell = 1 + 0.4 * Math.sin(Math.PI * m / 59);
+      weights.push(base * bell);
+    }
+    const total = weights.reduce((a, b) => a + b, 0);
+    let cumFrac = 0;
+    for (let m = 0; m <= minute; m++) cumFrac += weights[m] / total;
+    return Math.ceil(hourlyCap * cumFrac);
+  }
 
   const vnDayStart = `${todayVn} 00:00:00`;
   const vnDayEnd = `${todayVn} 23:59:59`;
@@ -443,14 +474,7 @@ async function _handleTaskPost(req, res) {
     )
     AND (
       c.view_by_hour <= 0
-      OR (
-        COALESCE(th.hour_done, 0) < CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24)
-        AND (
-          th.last_unix IS NULL
-          OR th.last_unix + FLOOR(3600.0 / CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24))
-             <= UNIX_TIMESTAMP(NOW())
-        )
-      )
+      OR (COALESCE(th.hour_done, 0) + COALESCE(ta.hour_active, 0)) < CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24)
     )`;
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
@@ -466,7 +490,16 @@ async function _handleTaskPost(req, res) {
       WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
         AND completed_at >= '${vnHourStart}' AND completed_at < '${vnNextHourStart}'
       GROUP BY campaign_id
-    ) th ON th.campaign_id = c.id`;
+    ) th ON th.campaign_id = c.id
+    LEFT JOIN (
+      SELECT campaign_id, COUNT(*) as hour_active
+      FROM vuot_link_tasks
+      WHERE status IN ('pending','step1','step2','step3')
+        AND is_over_limit = 0 AND bot_detected = 0
+        AND expires_at > NOW()
+        AND created_at >= '${vnHourStart}' AND created_at < '${vnNextHourStart}'
+      GROUP BY campaign_id
+    ) ta ON ta.campaign_id = c.id`;
 
   const cleanVidExcl = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const clientExcludes = Array.isArray(excludeCampaigns)
@@ -676,8 +709,8 @@ async function _handleTaskPost(req, res) {
                 // Fallback cuối: total_views / 24
                 kwHourlyCap = Math.max(1, Math.ceil(campTotalViews / 24));
               }
-              // Rải đều trong giờ: tại phút m, chỉ cho phép ceil(hourlyCap*(m+1)/60) views
-              const allowedHourlyNow = Math.ceil(kwHourlyCap * (minuteVn + 1) / 60);
+              // Random-proportional: tại phút m, cho phép số view theo đường cong ngẫu nhiên
+              const allowedHourlyNow = allowedHourlyAtMinute(kwHourlyCap, `kw:${picked.id}:${k.keyword}`, minuteVn);
               if (hourDone >= allowedHourlyNow) {
                 return { ...k, weight: 0 };
               }
@@ -740,7 +773,7 @@ async function _handleTaskPost(req, res) {
               } else if (campTotalViews > 0) {
                 kwHourlyCapCheck = Math.max(1, Math.ceil(campTotalViews / 24));
               }
-              const allowedNow = Math.ceil(kwHourlyCapCheck * (minuteVn + 1) / 60);
+              const allowedNow = allowedHourlyAtMinute(kwHourlyCapCheck, `kw:${picked.id}:${k.keyword}`, minuteVn);
               return dailyOkKw && kwHourlyCapCheck > 0 && hourDoneKw >= allowedNow;
             });
             if (anyBlockedByHour) {
@@ -804,7 +837,7 @@ async function _handleTaskPost(req, res) {
           const effectiveDailyForHour = pickedDailyViews > 0 ? pickedDailyViews : campTotalViews2;
           const hourlyCap = effectiveDailyForHour > 0 ? Math.max(1, Math.ceil(effectiveDailyForHour / 24)) : 0;
           if (hourlyCap > 0) {
-            const allowedHourlyNow = Math.ceil(hourlyCap * (minuteVn + 1) / 60);
+            const allowedHourlyNow = allowedHourlyAtMinute(hourlyCap, `direct:${picked.id}`, minuteVn);
             if (pickedHourDone >= allowedHourlyNow) {
               console.log(`[VuotLink] Campaign ${picked.id} (direct): hourly per-min cap reached (${pickedHourDone}/${allowedHourlyNow} at minute ${minuteVn}) → skip`);
               // Camp bị loại khỏi pool
