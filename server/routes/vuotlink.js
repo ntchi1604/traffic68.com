@@ -964,38 +964,7 @@ async function _handleTaskPost(req, res) {
     }
   }
 
-  if (!isOverLimit && Number(campaign.view_by_hour) > 0) {
-    try {
-      const hCapDaily = Number(campaign.daily_views) > 0 ? Number(campaign.daily_views) : Number(campaign.total_views);
-      const hCap = hCapDaily > 0 ? Math.max(1, Math.ceil(hCapDaily / 24)) : 0;
-      if (hCap > 0) {
-        const [compRes] = await pool.execute(
-          `SELECT COUNT(*) as cnt FROM vuot_link_tasks
-           WHERE campaign_id = ? AND is_over_limit = 0 AND bot_detected = 0
-             AND status = 'completed' AND completed_at >= ? AND completed_at < ?`,
-          [campaign.id, vnHourStart, vnNextHourStart]
-        );
-        const completedThisHour = Number(compRes[0].cnt);
-        // Chỉ đếm pending tasks trong 10 phút gần nhất (tasks cũ hơn = bị bỏ dở, không giữ slot)
-        const [rankRes] = await pool.execute(
-          `SELECT COUNT(*) as my_rank FROM vuot_link_tasks
-           WHERE campaign_id = ? AND is_over_limit = 0 AND bot_detected = 0
-             AND status IN ('pending','step1','step2','step3') AND expires_at > NOW()
-             AND created_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
-             AND id <= ?`,
-          [campaign.id, result.insertId]
-        );
-        const myPendingRank = Number(rankRes[0].my_rank);
-        if (completedThisHour + myPendingRank > hCap) {
-          await pool.execute(`UPDATE vuot_link_tasks SET status = 'expired', expires_at = NOW() WHERE id = ?`, [result.insertId]);
-          console.log(`[VuotLink] Hourly cap: camp=${campaign.id} completed=${completedThisHour}+pendingRank=${myPendingRank} > hCap=${hCap} → expired ${result.insertId}`);
-          return res.status(404).json({ error: 'Không có nhiệm vụ phù hợp. Vui lòng thử lại sau.' });
-        }
-      }
-    } catch (hErr) {
-      console.error('[VuotLink] Hourly cap race-guard error:', hErr.message);
-    }
-  }
+
 
   let isTrustedWorker = false;
   const targetCheckId = refWorkerId || req.userId;
