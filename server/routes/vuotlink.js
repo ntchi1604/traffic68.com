@@ -112,7 +112,7 @@ async function _getCampaignPool(pool, todaySubquery, campaignWhere) {
     return _campPoolCache;
   }
   const [rows] = await pool.execute(
-    `SELECT c.*, COALESCE(td.today_done, 0) AS _today_done, COALESCE(th.hour_done, 0) AS _hour_done FROM campaigns c ${todaySubquery} WHERE ${campaignWhere} ORDER BY COALESCE(td.today_done, 0) ASC LIMIT 500`
+    `SELECT c.*, COALESCE(td.today_done, 0) AS _today_done, COALESCE(th.hour_done, 0) AS _hour_done, COALESCE(ta.hour_active, 0) AS _hour_active FROM campaigns c ${todaySubquery} WHERE ${campaignWhere} ORDER BY COALESCE(td.today_done, 0) ASC LIMIT 500`
   );
   _campPoolCache = rows;
   _campPoolHourKey = hourKey;
@@ -498,6 +498,7 @@ async function _handleTaskPost(req, res) {
         AND is_over_limit = 0 AND bot_detected = 0
         AND expires_at > NOW()
         AND created_at >= '${vnHourStart}' AND created_at < '${vnNextHourStart}'
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 8 MINUTE)
       GROUP BY campaign_id
     ) ta ON ta.campaign_id = c.id`;
 
@@ -833,13 +834,15 @@ async function _handleTaskPost(req, res) {
           console.log(`[VuotLink] Campaign ${picked.id} (direct): daily limit reached (${pickedTodayDone}/${pickedDailyViews}) → skip`);
           // Camp bị loại khỏi pool
         } else if (pickedViewByHour) {
-          // Hourly per-minute cap
+          // Hourly per-minute cap: tính cả task đang active (chưa complete) để không dồn view
+          const pickedHourActive = Number(picked._hour_active) || 0;
           const effectiveDailyForHour = pickedDailyViews > 0 ? pickedDailyViews : campTotalViews2;
           const hourlyCap = effectiveDailyForHour > 0 ? Math.max(1, Math.ceil(effectiveDailyForHour / 24)) : 0;
           if (hourlyCap > 0) {
             const allowedHourlyNow = allowedHourlyAtMinute(hourlyCap, `direct:${picked.id}`, minuteVn);
-            if (pickedHourDone >= allowedHourlyNow) {
-              console.log(`[VuotLink] Campaign ${picked.id} (direct): hourly per-min cap reached (${pickedHourDone}/${allowedHourlyNow} at minute ${minuteVn}) → skip`);
+            const effectiveHourDone = pickedHourDone + pickedHourActive;
+            if (effectiveHourDone >= allowedHourlyNow) {
+              console.log(`[VuotLink] Campaign ${picked.id} (direct): hourly cap reached (done=${pickedHourDone}+active=${pickedHourActive}/${allowedHourlyNow} at minute ${minuteVn}) → skip`);
               // Camp bị loại khỏi pool
             } else {
               campaign = picked;
@@ -1019,9 +1022,15 @@ async function _handleTaskPost(req, res) {
            AND created_at >= DATE_SUB(NOW(), INTERVAL 30 SECOND)`,
         [campaign.id, result.insertId]
       );
-      if (Number(concRes[0].cnt) >= 1) {
+      // Tính hourlyCap của campaign này để biết bao nhiêu task song song được phép
+      const _concDailyViews = Number(campaign.daily_views) || 0;
+      const _concTotalViews = Number(campaign.total_views) || 0;
+      const _concEffective = _concDailyViews > 0 ? _concDailyViews : _concTotalViews;
+      const _concHourlyCap = _concEffective > 0 ? Math.max(1, Math.ceil(_concEffective / 24)) : 1;
+      // Cho phép tối đa hourlyCap task song song (tránh false-positive khi nhiều worker hợp lệ)
+      if (Number(concRes[0].cnt) >= _concHourlyCap) {
         await pool.execute(`UPDATE vuot_link_tasks SET status = 'expired', expires_at = NOW() WHERE id = ?`, [result.insertId]);
-        console.log(`[VuotLink] Concurrent burst: camp=${campaign.id} lost race → expired task ${result.insertId}`);
+        console.log(`[VuotLink] Concurrent burst: camp=${campaign.id} lost race (${concRes[0].cnt}>=${_concHourlyCap}) → expired task ${result.insertId}`);
         return res.status(404).json({ error: 'Không có nhiệm vụ phù hợp. Vui lòng thử lại sau.' });
       }
     } catch (hErr) {
