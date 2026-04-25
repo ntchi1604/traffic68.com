@@ -446,8 +446,6 @@ async function _handleTaskPost(req, res) {
       c.view_by_hour <= 0
       OR COALESCE(ha.hour_active, 0) < CEIL(COALESCE(NULLIF(c.daily_views, 0), c.total_views) / 24)
     )`;
-  // ha = slot đang dùng trong giờ = completed + pending chưa hết hạn
-  // Khi task bị bỏ (expire), slot tự mở lại ngay (không cần đợi sang giờ mới)
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
       FROM vuot_link_tasks
@@ -970,17 +968,11 @@ async function _handleTaskPost(req, res) {
     }
   }
 
-  // ── Hourly slot guard (slot-based, view_by_hour) ────────────────────────────
-  // Slot đang dùng = completed trong giờ + pending chưa hết hạn.
-  // Dùng rank (id <= insertId) để handle 50 workers đồng thời:
-  //   → 3 ID nhỏ nhất thắng, 47 còn lại bị expire ngay lập tức.
-  //   → Task expire → slot mở lại ngay cho worker tiếp theo.
   if (!isOverLimit && Number(campaign.view_by_hour) > 0) {
     try {
       const hCapDaily = Number(campaign.daily_views) > 0 ? Number(campaign.daily_views) : Number(campaign.total_views);
       const hCap = hCapDaily > 0 ? Math.max(1, Math.ceil(hCapDaily / 24)) : 0;
       if (hCap > 0) {
-        // completed trong giờ (không thay đổi thứ tự — luôn đếm hết)
         const [compRes] = await pool.execute(
           `SELECT COUNT(*) as cnt FROM vuot_link_tasks
            WHERE campaign_id = ? AND is_over_limit = 0 AND bot_detected = 0
@@ -989,7 +981,6 @@ async function _handleTaskPost(req, res) {
           [campaign.id, vnHourStart, vnNextHourStart]
         );
         const completedThisHour = Number(compRes[0].cnt);
-        // rank của task này trong các pending chưa hết hạn (id nhỏ = ưu tiên cao hơn)
         const [rankRes] = await pool.execute(
           `SELECT COUNT(*) as my_rank FROM vuot_link_tasks
            WHERE campaign_id = ? AND is_over_limit = 0 AND bot_detected = 0
