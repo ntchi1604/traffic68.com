@@ -1174,16 +1174,28 @@ export default function CampaignList() {
                 </tr>
               </thead>
               {pagedList.map(c => {
-                const isDone = Number(c.views_done) >= Number(c.total_views) && Number(c.total_views) > 0;
-                const effStatus = isDone ? 'completed' : c.status;
-                const pct = Number(c.total_views) > 0
-                  ? Math.min(Math.round(Number(c.views_done) / Number(c.total_views) * 100), 100) : 0;
-                const barColor = effStatus === 'completed' ? '#6366f1' : effStatus === 'running' ? '#10b981' : '#f59e0b';
-                const isExpanded = expandedId === c.id;
-
                 const keywords = (() => {
                   try { return JSON.parse(c.keyword); } catch { return [c.keyword || '']; }
                 })();
+
+                // Tính total_views thực = tổng views từng keyword trong keyword_config
+                const totalViewsReal = (() => {
+                  try {
+                    const cfg = c.keyword_config ? JSON.parse(c.keyword_config) : null;
+                    if (Array.isArray(cfg) && cfg.length > 0) {
+                      const sum = cfg.reduce((s, k) => s + (Number(k.views) || 0), 0);
+                      if (sum > 0) return sum;
+                    }
+                  } catch { }
+                  return Number(c.total_views) || 0;
+                })();
+
+                const isDone = Number(c.views_done) >= totalViewsReal && totalViewsReal > 0;
+                const effStatus = isDone ? 'completed' : c.status;
+                const isExpanded = expandedId === c.id;
+                const pct = totalViewsReal > 0
+                  ? Math.min(Math.round(Number(c.views_done) / totalViewsReal * 100), 100) : 0;
+                const barColor = effStatus === 'completed' ? '#6366f1' : effStatus === 'running' ? '#10b981' : '#f59e0b';
 
                 return (
                   <tbody key={c.id} className={`border-b border-slate-100 last:border-0 group transition-colors ${isExpanded ? 'bg-indigo-50/20' : 'hover:bg-slate-50/60'}`}>
@@ -1225,21 +1237,34 @@ export default function CampaignList() {
                       <td className="px-5 py-4 text-right align-top pt-5">
                         <div className="flex flex-col items-end w-36 ml-auto">
                           <div className="flex justify-between w-full mb-1.5">
-                            <span className="text-[11px] font-semibold text-slate-500 tabular-nums">{fmt(c.views_done)}<span className="text-slate-300">/{fmt(c.total_views)}</span></span>
+                            <span className="text-[11px] font-semibold text-slate-500 tabular-nums">{fmt(c.views_done)}<span className="text-slate-300">/{fmt(totalViewsReal)}</span></span>
                             <span className="text-[12px] font-black tabular-nums" style={{ color: barColor }}>{pct}%</span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                             <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: barColor }} />
                           </div>
-                          {Number(c.daily_views) > 0 ? (
-                            <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                              Hôm nay: <span className="text-indigo-600 font-bold">{fmt(c.views_today || 0)}</span>/{fmt(c.daily_views)}/ngày
-                            </p>
-                          ) : (c.views_today > 0 ? (
-                            <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                              Hôm nay: <span className="font-semibold">{fmt(c.views_today)}</span> view
-                            </p>
-                          ) : null)}
+                          {/* daily_views thực = tổng daily_views từng keyword trong keyword_config */}
+                          {(() => {
+                            const dailyViewsReal = (() => {
+                              try {
+                                const cfg = c.keyword_config ? JSON.parse(c.keyword_config) : null;
+                                if (Array.isArray(cfg) && cfg.length > 0) {
+                                  const sum = cfg.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
+                                  if (sum > 0) return sum;
+                                }
+                              } catch { }
+                              return Number(c.daily_views) || 0;
+                            })();
+                            return dailyViewsReal > 0 ? (
+                              <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                                Hôm nay: <span className="text-indigo-600 font-bold">{fmt(c.views_today || 0)}</span>/{fmt(dailyViewsReal)}/ngày
+                              </p>
+                            ) : (c.views_today > 0 ? (
+                              <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                                Hôm nay: <span className="font-semibold">{fmt(c.views_today)}</span> view
+                              </p>
+                            ) : null);
+                          })()}
                         </div>
                       </td>
 
