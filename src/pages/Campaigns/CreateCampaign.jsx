@@ -415,10 +415,10 @@ export default function CreateCampaign() {
       const globalImage = form.imageUrls[0]?.trim();
       const allImages = globalImage ? [globalImage, ...images] : images;
 
-      // Build keyword_config
+      // Build keyword_config — views = views riêng của từng keyword (không dùng total)
       const keywordConfig = validKeywords.map(k => ({
         keyword: k.keyword,
-        views: form.useKeywordTotalViews ? (Number(k.views) || 0) : computedTotalViews,
+        views: Number(k.views) || 0,
         daily_views: Number(k.daily_views) || 0, // 0 = không giới hạn
         url: k.url || '',
         image: k.image || ''
