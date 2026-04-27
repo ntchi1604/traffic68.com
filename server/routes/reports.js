@@ -346,25 +346,31 @@ router.get('/detailed', async (req, res) => {
       );
     }
 
-    // — Tính per-keyword daily_views từ keyword_config —
+    // — Tính per-keyword daily_views và keyword_views (tổng view target) từ keyword_config —
     const safeData = data.map(r => {
       let kwDailyViews = Number(r.campaign_daily_views) || 0;
+      let kwTotalViews = 0; // tổng view target của keyword này
       try {
         const cfg = r.keyword_config ? JSON.parse(r.keyword_config) : null;
         if (Array.isArray(cfg) && cfg.length > 0) {
           const kwEntry = cfg.find(k => k.keyword === r.keyword);
-          if (kwEntry && Number(kwEntry.daily_views) > 0) {
-            // Keyword có daily_views riêng → dùng cái đó
-            kwDailyViews = Number(kwEntry.daily_views);
-          } else if (kwEntry && !(Number(kwEntry.daily_views) > 0)) {
-            // Keyword không set riêng → tính phần còn lại chia đều
-            const explicit = cfg.filter(k => Number(k.daily_views) > 0);
-            const totalExplicit = explicit.reduce((s, k) => s + Number(k.daily_views), 0);
-            const unsetCount = cfg.filter(k => !(Number(k.daily_views) > 0)).length;
-            const remaining = Math.max(0, Number(r.campaign_daily_views) - totalExplicit);
-            kwDailyViews = unsetCount > 0 && Number(r.campaign_daily_views) > 0
-              ? Math.floor(remaining / unsetCount)
-              : 0;
+          if (kwEntry) {
+            // Tổng view target của keyword
+            kwTotalViews = Number(kwEntry.views) || 0;
+
+            if (Number(kwEntry.daily_views) > 0) {
+              // Keyword có daily_views riêng → dùng cái đó
+              kwDailyViews = Number(kwEntry.daily_views);
+            } else {
+              // Keyword không set riêng → tính phần còn lại chia đều
+              const explicit = cfg.filter(k => Number(k.daily_views) > 0);
+              const totalExplicit = explicit.reduce((s, k) => s + Number(k.daily_views), 0);
+              const unsetCount = cfg.filter(k => !(Number(k.daily_views) > 0)).length;
+              const remaining = Math.max(0, Number(r.campaign_daily_views) - totalExplicit);
+              kwDailyViews = unsetCount > 0 && Number(r.campaign_daily_views) > 0
+                ? Math.floor(remaining / unsetCount)
+                : 0;
+            }
           }
         }
       } catch (_) { /* fallback to campaign_daily_views */ }
@@ -374,6 +380,7 @@ router.get('/detailed', async (req, res) => {
         ...rest,
         date: localDateStr(new Date(r.date)),
         daily_views: kwDailyViews,
+        keyword_views: kwTotalViews, // tổng view target của keyword (dùng cho tiến độ)
       };
     });
     res.json({ detailed: safeData });

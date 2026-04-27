@@ -219,7 +219,19 @@ function KeywordStats({ campaignId, trafficType }) {
                         : <td className="px-4 py-2.5 font-semibold text-indigo-600 truncate max-w-[130px]">{kwDisplay || '(Trống)'}</td>
                       }
                       <td className="px-4 py-2.5 font-bold text-emerald-600 tabular-nums">
-                        {d.completed}<span className="text-slate-400 font-medium text-[10px] ml-0.5">/ {Number(d.daily_views) > 0 ? d.daily_views : '∞'}</span>
+                        <div className="flex flex-col gap-0.5">
+                          <span>
+                            {d.completed}
+                            <span className="text-slate-400 font-medium text-[10px] ml-0.5">
+                              / {Number(d.keyword_views) > 0 ? Number(d.keyword_views).toLocaleString() : '∞'}
+                            </span>
+                          </span>
+                          {Number(d.daily_views) > 0 && (
+                            <span className="text-[10px] text-sky-500 font-medium">
+                              {Number(d.daily_views).toLocaleString()} lượt/ngày
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-2.5 text-right font-semibold text-slate-700 tabular-nums">{fmt(d.cost)} đ</td>
                     </tr>
