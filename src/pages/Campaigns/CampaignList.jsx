@@ -647,7 +647,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                 </div>
               </div>
 
-              {/* Info box */}
+              {/* Info box + Quick-apply views */}
               {(() => {
                 const allocDV = keywords.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
                 const totalViewsPreview = keywords.filter(k => k.keyword.trim()).reduce((s, k) => s + (Number(k.views) || 0), 0);
@@ -658,15 +658,33 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                   ? Math.floor(Math.max(0, effectiveGlobal - allocDV) / unsetCount)
                   : 0;
                 return (
-                  <div className="mb-3 flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
-                    <BarChart3 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-xs text-sky-700">
-                      <strong>Tổng view:</strong> <b className="text-amber-600">{totalViewsPreview.toLocaleString()}</b> view
-                      {' · '}<strong>View/ngày:</strong> Để <b>0</b> = không giới hạn
-                      {unsetCount > 0 && autoPerKw > 0 && (
-                        <> ({autoPerKw.toLocaleString()}/ngày ÷ {unsetCount} từ khóa)</>
-                      )}.
-                    </p>
+                  <div className="mb-3 space-y-2">
+                    {/* Quick apply views to all keywords */}
+                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                      <span className="text-[11px] font-bold text-amber-700 whitespace-nowrap">Apply tất cả:</span>
+                      <input
+                        type="number" min="1"
+                        placeholder="Số view/keyword..."
+                        className="flex-1 px-2 py-1 text-xs border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/30 text-amber-900 font-bold"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            const v = Number(e.target.value);
+                            if (v > 0) { keywords.forEach((_, i) => updateKeywordViews(i, v)); e.target.value = ''; }
+                          }
+                        }}
+                      />
+                      <span className="text-[10px] text-amber-500 font-medium whitespace-nowrap">view/kw → Enter</span>
+                    </div>
+                    <div className="flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
+                      <BarChart3 size={13} className="text-sky-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-sky-700">
+                        <strong>Tổng view:</strong> <b className="text-amber-600">{totalViewsPreview.toLocaleString()}</b> view
+                        {' · '}<strong>View/ngày:</strong> Để <b>0</b> = không giới hạn
+                        {unsetCount > 0 && autoPerKw > 0 && (
+                          <> ({autoPerKw.toLocaleString()}/ngày ÷ {unsetCount} từ khóa)</>
+                        )}.
+                      </p>
+                    </div>
                   </div>
                 );
               })()}

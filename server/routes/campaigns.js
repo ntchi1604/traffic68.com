@@ -234,27 +234,6 @@ router.get('/', async (req, res) => {
       }
     } catch (_) { }
 
-    // ── Sync total_views từ keyword_config (fix campaigns bị lưu sai tổng view) ──
-    try {
-      for (const c of campaigns) {
-        if (!c.keyword_config) continue;
-        try {
-          const cfg = JSON.parse(c.keyword_config);
-          if (!Array.isArray(cfg) || cfg.length === 0) continue;
-          const cfgSum = cfg.reduce((s, k) => s + (Number(k.views) || 0), 0);
-          console.log(`[Campaign sync] #${c.id} "${c.name}": total_views=${c.total_views}, cfgSum=${cfgSum}, cfg=${JSON.stringify(cfg.map(k=>({kw:k.keyword?.slice(0,15), v:k.views})))}`);
-          if (cfgSum > 0 && cfgSum !== Number(c.total_views)) {
-            await pool.execute(
-              'UPDATE campaigns SET total_views = ? WHERE id = ? AND total_views != ?',
-              [cfgSum, c.id, cfgSum]
-            );
-            c.total_views = cfgSum; // cập nhật in-memory luôn
-            console.log(`[Campaign sync] #${c.id}: updated total_views ${c.total_views} → ${cfgSum}`);
-          }
-        } catch (_) { }
-      }
-    } catch (_) { }
-
     // ── Background checks: redirect 301 + embed script (không block response) ──
     setImmediate(async () => {
       try {
