@@ -992,15 +992,57 @@
   var _lastChallengeId = null; // Track last challenge to prevent consecutive duplicates
 
   function scheduleChallenges() {
-    // Random 3-5 challenges, evenly distributed
+    // Random 3-5 challenges, randomly distributed
     var count = 3 + Math.floor(Math.random() * 3); // 3, 4, or 5
     var total = cfg.waitTime;
-    var gap = Math.floor(total / (count + 1)); // even spacing
+
+    // Ensure we have enough time for minimum gaps
+    var minGap = 5;
+    var maxPossible = Math.floor((total - 5) / minGap); // reserve 5s at end
+    if (count > maxPossible) count = Math.max(1, maxPossible);
+
     challengeTimes = [];
-    for (var i = 1; i <= count; i++) {
-      var t_val = total - (gap * i);
-      if (t_val >= 2) challengeTimes.push(t_val); // don't schedule at 0 or 1
+    var usedTimes = [];
+
+    // Calculate valid range for random times
+    var minTime = 5;
+    var maxTime = total - 5;
+    var range = maxTime - minTime;
+
+    // If range is too small, skip challenge scheduling
+    if (range < minGap) {
+      return;
     }
+
+    // Generate random times with minimum 5s gap between them
+    for (var i = 0; i < count; i++) {
+      var attempts = 0;
+      var t_val;
+      var valid = false;
+
+      while (!valid && attempts < 50) {
+        // Random time between minTime and maxTime
+        t_val = Math.floor(Math.random() * range) + minTime;
+
+        // Check if this time is at least 5s away from all existing times
+        valid = true;
+        for (var j = 0; j < usedTimes.length; j++) {
+          if (Math.abs(t_val - usedTimes[j]) < minGap) {
+            valid = false;
+            break;
+          }
+        }
+        attempts++;
+      }
+
+      if (valid) {
+        usedTimes.push(t_val);
+        challengeTimes.push(t_val);
+      }
+    }
+
+    // Sort descending (higher times first) for countdown check
+    challengeTimes.sort(function(a, b) { return b - a; });
   }
 
   function showChallenge() {
@@ -1143,30 +1185,38 @@
 
   /* ── Visibility handling ─────────────────────────────── */
   var _isPageVisible = true;
-  function bindVisibility() {
-    // Track page visibility state
-    document.addEventListener('visibilitychange', function () {
-      _isPageVisible = !document.hidden;
-      if (!countdownRunning || revealed) return;
-      if (!_isPageVisible) {
-        // Tab hidden → stop timer completely
-        if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-      } else if (!challengeActive) {
-        // Tab visible again → resume
-        doTick();
-      }
-    });
-    // Also handle window blur/focus (catches minimize, alt-tab)
-    window.addEventListener('blur', function () {
-      _isPageVisible = false;
-      if (!countdownRunning || revealed) return;
+  var _visibilityBound = false;
+
+  function _onVisibilityChange() {
+    _isPageVisible = !document.hidden;
+    if (!countdownRunning || revealed) return;
+    if (!_isPageVisible) {
+      // Tab hidden → stop timer completely
       if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-    });
-    window.addEventListener('focus', function () {
-      _isPageVisible = true;
-      if (!countdownRunning || revealed || challengeActive) return;
+    } else if (!challengeActive) {
+      // Tab visible again → resume
       doTick();
-    });
+    }
+  }
+
+  function _onWindowBlur() {
+    _isPageVisible = false;
+    if (!countdownRunning || revealed) return;
+    if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+  }
+
+  function _onWindowFocus() {
+    _isPageVisible = true;
+    if (!countdownRunning || revealed || challengeActive) return;
+    doTick();
+  }
+
+  function bindVisibility() {
+    if (_visibilityBound) return; // Prevent duplicate bindings
+    _visibilityBound = true;
+    document.addEventListener('visibilitychange', _onVisibilityChange);
+    window.addEventListener('blur', _onWindowBlur);
+    window.addEventListener('focus', _onWindowFocus);
   }
 
   /* ── Countdown tick ──────────────────────────────────── */
@@ -1206,13 +1256,23 @@
       var msgEl = document.getElementById('laynut-msg');
       if (msgEl) msgEl.textContent = cfg.countdownText.replace('{s}', remaining);
 
-      if (remaining > 0 && challengeTimes.length > 0 && remaining <= challengeTimes[0]) {
-        challengeTimes.shift();
-        showChallenge();
-        return;
+      // Check if we should trigger a challenge (only trigger once per threshold)
+      if (remaining > 0 && challengeTimes.length > 0) {
+        var nextChallenge = challengeTimes[0];
+        // Only trigger if we just crossed the threshold (within 1 second)
+        if (remaining <= nextChallenge && remaining > nextChallenge - 2) {
+          challengeTimes.shift();
+          showChallenge();
+          return;
+        }
+        // Skip missed challenges (e.g., due to tab switching or slow completion)
+        while (challengeTimes.length > 0 && remaining < challengeTimes[0] - 2) {
+          challengeTimes.shift();
+        }
       }
 
       if (remaining <= 0) {
+        countdownRunning = false; // Reset state when countdown ends
         if (badge) badge.remove();
         challengeTimes = [];
         if (_noCampaign) {
@@ -1904,16 +1964,50 @@
     var seconds = Math.floor(Math.random() * 11) + 25; // 25-35s
     _v1Phase2Wait = seconds;
     countdownRunning = true;
+    countdownStartTime = 0; // Reset start time for V1 phase 2
     remaining = seconds;
     cfg.waitTime = seconds; // override for progress calc
 
-    // Schedule 1-2 random challenges for phase 2 (reuse global challengeTimes)
+    // Schedule 1-2 random challenges for phase 2 with random timing
     var v1ChallengeCount = 1 + Math.floor(Math.random() * 2); // 1 or 2
     challengeTimes = [];
-    var gap = Math.floor(seconds / (v1ChallengeCount + 1));
-    for (var ci = 1; ci <= v1ChallengeCount; ci++) {
-      var ct = seconds - (gap * ci);
-      if (ct >= 2) challengeTimes.push(ct);
+
+    var minGap = 5;
+    var maxPossible = Math.floor((seconds - 5) / minGap);
+    if (v1ChallengeCount > maxPossible) v1ChallengeCount = Math.max(1, maxPossible);
+
+    var minTime = 5;
+    var maxTime = seconds - 5;
+    var range = maxTime - minTime;
+
+    // If range is too small, skip challenge scheduling
+    if (range >= minGap) {
+      var usedTimes = [];
+      for (var ci = 0; ci < v1ChallengeCount; ci++) {
+        var attempts = 0;
+        var ct;
+        var valid = false;
+
+        while (!valid && attempts < 50) {
+          ct = Math.floor(Math.random() * range) + minTime;
+          valid = true;
+          for (var cj = 0; cj < usedTimes.length; cj++) {
+            if (Math.abs(ct - usedTimes[cj]) < minGap) {
+              valid = false;
+              break;
+            }
+          }
+          attempts++;
+        }
+
+        if (valid) {
+          usedTimes.push(ct);
+          challengeTimes.push(ct);
+        }
+      }
+
+      // Sort descending
+      challengeTimes.sort(function(a, b) { return b - a; });
     }
 
     // Update button to show countdown
@@ -2086,6 +2180,8 @@
   function beginCountdown() {
     if (countdownRunning) return;
     countdownRunning = true;
+    countdownStartTime = 0; // Reset start time for new countdown
+    remaining = cfg.waitTime; // Reset remaining time
 
     // Start _bv tracking (same as VuotLink.jsx)
     _initBehaviorTracking();
@@ -2155,6 +2251,13 @@
   window.LayNut = {
     init: function (userCfg) {
       cfg = Object.assign({}, D, userCfg);
+
+      // Validate waitTime (minimum 15s for proper challenge scheduling)
+      if (cfg.waitTime < 15) {
+        console.warn('[LayNut] waitTime too short (' + cfg.waitTime + 's), setting to minimum 15s');
+        cfg.waitTime = 15;
+      }
+
       t = Object.assign({}, THEMES.default, THEMES[cfg.theme] || {});
       remaining = cfg.waitTime;
       circumference = 2 * Math.PI * 36;
