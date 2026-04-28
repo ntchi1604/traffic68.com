@@ -646,6 +646,30 @@ router.post('/users/:id/balance', async (req, res) => {
   res.json({ message: `Đã ${type === 'add' ? 'cộng' : 'trừ'} ${numAmount.toLocaleString('vi-VN')} đ`, newBalance, refCode });
 });
 
+// ── Admin: Đổi mật khẩu người dùng ──────────────────────────────────────────
+router.post('/users/:id/change-password', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Mật khẩu mới phải ít nhất 6 ký tự' });
+    }
+    const [users] = await pool.execute('SELECT id, name, email FROM users WHERE id = ?', [req.params.id]);
+    if (!users.length) return res.status(404).json({ error: 'Không tìm thấy người dùng' });
+    const bcrypt = require('bcryptjs');
+    const hash = bcrypt.hashSync(newPassword, 10);
+    await pool.execute('UPDATE users SET password_hash = ? WHERE id = ?', [hash, req.params.id]);
+    console.log(`[Admin] Password changed for user #${req.params.id} (${users[0].email}) by admin #${req.userId}`);
+    res.json({ ok: true, message: `Đã đổi mật khẩu cho ${users[0].name}` });
+  } catch (err) {
+    console.error('[Admin] change-password error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+
 
 router.get('/campaigns', async (req, res) => {
   const pool = getPool();

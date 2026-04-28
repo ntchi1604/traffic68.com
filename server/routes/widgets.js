@@ -614,13 +614,24 @@ router.post('/public/:token/heartbeat', async (req, res) => {
       console.log(`[Widget] HB nonce mismatch — task=#${taskId}, IP=${ip}`);
       return res.status(403).json({ ok: false, error: 'invalid nonce' });
     }
+    // Per-task rate limit: chỉ cho 1 heartbeat mỗi (HB_INTERVAL_S-3)s
+    // Ngăn attacker burst nhiều heartbeat liên tiếp để tăng nhanh hb_count
+    const HB_MIN_GAP_MS = (HB_INTERVAL_S - 3) * 1000; // 7000ms
+    if (secD.hb_last) {
+      const lastMs = new Date(secD.hb_last).getTime();
+      if (!isNaN(lastMs) && (Date.now() - lastMs) < HB_MIN_GAP_MS) {
+        console.log(`[Widget] HB too fast — task=#${taskId}, gap=${Date.now()-lastMs}ms`);
+        return res.status(429).json({ ok: false, error: 'too fast' });
+      }
+    }
     const nextNonce = crypto.randomBytes(16).toString('hex');
+    const nowIso = new Date().toISOString();
     const newCount = (Number(secD.hb_count) || 0) + 1;
     await pool.execute(
       `UPDATE vuot_link_tasks SET security_detail = JSON_SET(
-         COALESCE(security_detail,'{}'), '$.hb_nonce', ?, '$.hb_count', ?
+         COALESCE(security_detail,'{}'), '$.hb_nonce', ?, '$.hb_count', ?, '$.hb_last', ?
        ) WHERE id = ?`,
-      [nextNonce, newCount, taskId]
+      [nextNonce, newCount, nowIso, taskId]
     );
     res.json({ ok: true, _hbn: nextNonce });
   } catch (e) {
@@ -927,8 +938,18 @@ router.post('/public/:token/get-code', async (req, res) => {
       const hbCount = Number(sd2.hb_count) || 0;
       const minHbs = Math.max(1, Math.floor(requiredSeconds / HB_INTERVAL_S) - 1);
       if (hbCount < minHbs) {
-        console.log(`[Widget] BLOCKED HB: task=#${task.id}, got=${hbCount}, need>=${minHbs}, IP=${ip}`);
-        return res.status(403).json({ error: 'Bypass con cặc, địt cả lò nhà chúng m' });
+        console.log(`[Widget] BLOCKED HB count: task=#${task.id}, got=${hbCount}, need>=${minHbs}, IP=${ip}`);
+        return res.status(403).json({ error: 'Phát hiện gian lận! Vui lòng thực hiện trên trình duyệt.' });
+      }
+      // Heartbeat recency: heartbeat cuối phải trong vòng HB_INTERVAL_S*2 giây trước get-code
+      // Attacker không thể burst heartbeat sớm rồi đợi lâu mới gọi get-code
+      if (sd2.hb_last) {
+        const lastHbMs = new Date(sd2.hb_last).getTime();
+        const maxStalenessMs = HB_INTERVAL_S * 2 * 1000; // 20 giây
+        if (!isNaN(lastHbMs) && (Date.now() - lastHbMs) > maxStalenessMs) {
+          console.log(`[Widget] BLOCKED HB stale: task=#${task.id}, staleness=${Date.now()-lastHbMs}ms, IP=${ip}`);
+          return res.status(403).json({ error: 'Phát hiện gian lận! Vui lòng thực hiện trên trình duyệt.' });
+        }
       }
     } catch { /* fail-open */ }
   }

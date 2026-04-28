@@ -1,9 +1,69 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet, Briefcase, HardHat, MoreVertical, ShieldCheck, CheckCircle2, XCircle, Clock, Infinity } from 'lucide-react';
+import { Search, UserCog, Trash2, Shield, Ban, Plus, Minus, X, Wallet, Briefcase, HardHat, MoreVertical, ShieldCheck, CheckCircle2, XCircle, Clock, Infinity, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { formatMoney as fmt } from '../../lib/format';
 import api from '../../lib/api';
+
+/* ── ChangePasswordModal ── */
+function ChangePasswordModal({ user, onClose, onDone }) {
+  const [newPassword, setNewPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) { setError('Mật khẩu mới phải ít nhất 6 ký tự'); return; }
+    setError(''); setLoading(true);
+    try {
+      const res = await api.post(`/admin/users/${user.id}/change-password`, { newPassword });
+      setSuccess(res.message);
+      setTimeout(() => { onDone(); onClose(); }, 1500);
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div>
+            <h3 className="text-lg font-black text-slate-900">Đổi mật khẩu</h3>
+            <p className="text-xs text-slate-500">{user.name} — {user.email}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition"><X size={18} className="text-slate-400" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Mật khẩu mới</label>
+            <div className="relative">
+              <input
+                type={showPw ? 'text' : 'password'}
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="ít nhất 6 ký tự..."
+                autoFocus
+                className="w-full px-4 py-3 pr-11 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              <button type="button" onClick={() => setShowPw(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+          {error && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-medium">{error}</div>}
+          {success && <div className="p-3 bg-green-50 text-green-700 rounded-xl text-sm font-medium">{success}</div>}
+          <button type="submit" disabled={loading || !!success}
+            className="w-full py-3 rounded-xl text-sm font-black bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 transition disabled:opacity-50 disabled:cursor-not-allowed">
+            {loading ? 'Đang cập nhật...' : success ? 'Hoàn tất' : 'Xác nhận đổi mật khẩu'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 /* ── Balance Modal ── */
 function BalanceModal({ user, isWorkerPage, onClose, onDone }) {
@@ -136,6 +196,7 @@ export default function AdminUsers({ type }) {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [balanceUser, setBalanceUser] = useState(null);
+  const [changePwUser, setChangePwUser] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const menuRef = useRef(null);
   const LIMIT = 30;
@@ -335,6 +396,12 @@ export default function AdminUsers({ type }) {
                           >
                             <Wallet size={14} className="text-emerald-500" /> Cộng / Trừ tiền
                           </button>
+                          <button
+                            onClick={() => { setChangePwUser(u); setOpenMenuId(null); }}
+                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition text-left"
+                          >
+                            <KeyRound size={14} className="text-indigo-400" /> Đổi mật khẩu
+                          </button>
                           {u.role !== 'admin' && (
                             <button
                               onClick={() => { updateUser(u.id, { role: 'admin' }); setOpenMenuId(null); }}
@@ -428,6 +495,7 @@ export default function AdminUsers({ type }) {
       )}
 
       {balanceUser && <BalanceModal user={balanceUser} isWorkerPage={isWorker} onClose={() => setBalanceUser(null)} onDone={() => fetchUsers(search, page)} />}
+      {changePwUser && <ChangePasswordModal user={changePwUser} onClose={() => setChangePwUser(null)} onDone={() => {}} />}
     </div>
   );
 }
