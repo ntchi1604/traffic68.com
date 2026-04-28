@@ -979,6 +979,8 @@
   var challengeListener = null;
   var challengeTimes = [];
   var countdownStartTime = 0; // Track actual start time
+  var pausedTime = 0; // Track when countdown was paused
+  var totalPausedDuration = 0; // Total time spent paused
 
   var _IC_UP = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
   var _IC_DOWN = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
@@ -995,17 +997,17 @@
     var count = 3 + Math.floor(Math.random() * 3); // 3, 4, or 5
     var total = cfg.waitTime;
 
-    // Ensure we have enough time for minimum gaps
-    var minGap = 5;
-    var maxPossible = Math.floor((total - 5) / minGap); // reserve 5s at end
+    // Ensure we have enough time for minimum gaps (8-10s between challenges)
+    var minGap = 8 + Math.floor(Math.random() * 3); // 8-10s random gap
+    var maxPossible = Math.floor((total - 10) / minGap); // reserve 10s at end
     if (count > maxPossible) count = Math.max(1, maxPossible);
 
     challengeTimes = [];
     var usedTimes = [];
 
     // Calculate valid range for random times
-    var minTime = 5;
-    var maxTime = total - 5;
+    var minTime = 8;
+    var maxTime = total - 8;
     var range = maxTime - minTime;
 
     // If range is too small, skip challenge scheduling
@@ -1013,7 +1015,7 @@
       return;
     }
 
-    // Generate random times with minimum 5s gap between them
+    // Generate random times with minimum gap between them
     for (var i = 0; i < count; i++) {
       var attempts = 0;
       var t_val;
@@ -1023,7 +1025,7 @@
         // Random time between minTime and maxTime
         t_val = Math.floor(Math.random() * range) + minTime;
 
-        // Check if this time is at least 5s away from all existing times
+        // Check if this time is at least minGap away from all existing times
         valid = true;
         for (var j = 0; j < usedTimes.length; j++) {
           if (Math.abs(t_val - usedTimes[j]) < minGap) {
@@ -1190,10 +1192,15 @@
     _isPageVisible = !document.hidden;
     if (!countdownRunning || revealed) return;
     if (!_isPageVisible) {
-      // Tab hidden → stop timer completely
+      // Tab hidden → stop timer and record pause time
       if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+      pausedTime = Date.now();
     } else if (!challengeActive) {
-      // Tab visible again → resume
+      // Tab visible again → add paused duration and resume
+      if (pausedTime > 0) {
+        totalPausedDuration += (Date.now() - pausedTime);
+        pausedTime = 0;
+      }
       doTick();
     }
   }
@@ -1202,11 +1209,16 @@
     _isPageVisible = false;
     if (!countdownRunning || revealed) return;
     if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+    pausedTime = Date.now();
   }
 
   function _onWindowFocus() {
     _isPageVisible = true;
     if (!countdownRunning || revealed || challengeActive) return;
+    if (pausedTime > 0) {
+      totalPausedDuration += (Date.now() - pausedTime);
+      pausedTime = 0;
+    }
     doTick();
   }
 
@@ -1235,8 +1247,9 @@
       }
       if (revealed || challengeActive) return;
 
-      // Calculate remaining time based on actual elapsed time
-      var elapsed = Math.floor((Date.now() - countdownStartTime) / 1000);
+      // Calculate remaining time based on actual elapsed time (excluding paused duration)
+      var actualElapsed = Date.now() - countdownStartTime - totalPausedDuration;
+      var elapsed = Math.floor(actualElapsed / 1000);
       remaining = Math.max(0, cfg.waitTime - elapsed);
 
       var badge = document.getElementById('laynut-badge');
@@ -1964,6 +1977,8 @@
     _v1Phase2Wait = seconds;
     countdownRunning = true;
     countdownStartTime = 0; // Reset start time for V1 phase 2
+    pausedTime = 0; // Reset pause tracking
+    totalPausedDuration = 0; // Reset total paused duration
     remaining = seconds;
     cfg.waitTime = seconds; // override for progress calc
 
@@ -1971,12 +1986,12 @@
     var v1ChallengeCount = 1 + Math.floor(Math.random() * 2); // 1 or 2
     challengeTimes = [];
 
-    var minGap = 5;
-    var maxPossible = Math.floor((seconds - 5) / minGap);
+    var minGap = 8 + Math.floor(Math.random() * 3); // 8-10s random gap
+    var maxPossible = Math.floor((seconds - 10) / minGap);
     if (v1ChallengeCount > maxPossible) v1ChallengeCount = Math.max(1, maxPossible);
 
-    var minTime = 5;
-    var maxTime = seconds - 5;
+    var minTime = 8;
+    var maxTime = seconds - 8;
     var range = maxTime - minTime;
 
     // If range is too small, skip challenge scheduling
@@ -2180,6 +2195,8 @@
     if (countdownRunning) return;
     countdownRunning = true;
     countdownStartTime = 0; // Reset start time for new countdown
+    pausedTime = 0; // Reset pause tracking
+    totalPausedDuration = 0; // Reset total paused duration
     remaining = cfg.waitTime; // Reset remaining time
 
     // Start _bv tracking (same as VuotLink.jsx)
@@ -2251,10 +2268,10 @@
     init: function (userCfg) {
       cfg = Object.assign({}, D, userCfg);
 
-      // Validate waitTime (minimum 15s for proper challenge scheduling)
-      if (cfg.waitTime < 15) {
-        console.warn('[LayNut] waitTime too short (' + cfg.waitTime + 's), setting to minimum 15s');
-        cfg.waitTime = 15;
+      // Validate waitTime (minimum 25s for proper challenge scheduling with 8-10s gaps)
+      if (cfg.waitTime < 25) {
+        console.warn('[LayNut] waitTime too short (' + cfg.waitTime + 's), setting to minimum 25s');
+        cfg.waitTime = 25;
       }
 
       t = Object.assign({}, THEMES.default, THEMES[cfg.theme] || {});
