@@ -1717,7 +1717,7 @@
       } else {
         // ── Kiểm tra có nên retry không ──
         var _errBody = '';
-        try { _errBody = JSON.parse(xhr.responseText).error || ''; } catch (_) {}
+        try { _errBody = JSON.parse(xhr.responseText).error || ''; } catch (_) { }
         // Không retry với lỗi terminal: captcha/gian lận — token đã consumed, retry luôn thất bại
         var _isTerminal = _errBody && (
           _errBody.indexOf('Captcha') >= 0 ||
@@ -1913,11 +1913,10 @@
     var badge = document.getElementById('laynut-badge');
     if (badge) { badge.style.display = ''; badge.textContent = remaining; }
 
-    // Use the normal doTick — it handles V1 phase 2 via _v1Phase2Active flag
     doTick();
+    _startHeartbeat();
   }
 
-  /* ── V1 Phase 2: Show captcha after countdown ends ── */
   function _showV1Phase2Captcha() {
     closeModal();
     var ov = document.createElement('div');
