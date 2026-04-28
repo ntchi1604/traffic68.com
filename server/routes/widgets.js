@@ -101,8 +101,8 @@ function verifySessionToken(token, ip, ua) {
   return hmac === expected;
 }
 
-function signWidgetChallenge(challengeId, ip) {
-  return crypto.createHmac('sha256', HMAC_SECRET).update(`${challengeId}|${ip}`).digest('hex').substring(0, 24);
+function signWidgetChallenge(_ci, ip) {
+  return crypto.createHmac('sha256', HMAC_SECRET).update(`${_ci}|${ip}`).digest('hex').substring(0, 24);
 }
 
 const DEPRECATED_FIELDS = ['code', 'icon'];
@@ -253,9 +253,9 @@ router.get('/public/:token', async (req, res) => {
   }
 
 
-  let captchaEnabled = await getCaptchaEnabled(pool);
+  let _ce = await getCaptchaEnabled(pool);
 
-  if (captchaEnabled) {
+  if (_ce) {
     try {
       // Batch: kiểm tra owner admin + trusted worker trong 1 query (có thể skip captcha)
       const visitorId = req.query.v || req.query.visitorId || '';
@@ -264,15 +264,15 @@ router.get('/public/:token', async (req, res) => {
       // Kiểm tra owner có phải admin không
       const [ownerRows] = await pool.execute('SELECT role FROM users WHERE id = ?', [widgets[0].user_id]);
       if (ownerRows.length > 0 && ownerRows[0].role === 'admin') {
-        captchaEnabled = false;
+        _ce = false;
       }
 
-      if (captchaEnabled) {
+      if (_ce) {
         // Kiểm tra worker trusted — tìm trong 6h qua (không chỉ active tasks)
         // Nếu worker đã làm task gần đây → bỏ qua captcha dù task đã expire
         const cacheKey = cleanVid || ip;
         if (_trustedCache.get(cacheKey)) {
-          captchaEnabled = false;
+          _ce = false;
         } else {
           const [tasks] = await pool.execute(
             `SELECT u.trusted
@@ -285,7 +285,7 @@ router.get('/public/:token', async (req, res) => {
             [ip, cleanVid]
           );
           if (tasks.length > 0 && tasks[0].trusted === 1) {
-            captchaEnabled = false;
+            _ce = false;
             _trustedCache.set(cacheKey, true); // cache 5 phút
           }
         }
@@ -293,7 +293,7 @@ router.get('/public/:token', async (req, res) => {
     } catch (e) { }
   }
 
-  const resp = { campaignFound: !!campaignInfo, captchaEnabled };
+  const resp = { campaignFound: !!campaignInfo, _ce };
   if (dailyFull && !campaignInfo) resp.dailyFull = true; // hôm nay đã đủ, nhưng campaign vẫn còn quota tổng
   if (campaignInfo && campaignInfo.trafficType) resp.trafficType = campaignInfo.trafficType;
   if (campaignInfo && campaignInfo.trafficType === 'direct') resp.isDirect = true;
@@ -364,7 +364,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   );
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
-  const { visitorId, pageReferrer, navProof, pageUrl } = req.body || {};
+  const { visitorId, _ref, _np, pageUrl } = req.body || {};
 
   const cleanVisitorId = (visitorId && visitorId !== 'unknown') ? visitorId : '';
   const normIp = normalizeIp(ip);
@@ -382,14 +382,14 @@ router.post('/public/:token/check-session', async (req, res) => {
   );
 
   if (tasks.length === 0) {
-    console.log(`[Widget] check-session NO TASK — IP: ${normIp} (alt: ${altIp}), visitorId: ${(cleanVisitorId).substring(0, 20)}, referrer: ${(pageReferrer || '').substring(0, 60)}`);
-    return res.status(404).json({ hasSession: false });
+    console.log(`[Widget] check-session NO TASK — IP: ${normIp} (alt: ${altIp}), visitorId: ${(cleanVisitorId).substring(0, 20)}, referrer: ${(_ref || '').substring(0, 60)}`);
+    return res.status(404).json({ _hs: false });
   }
 
   const task = tasks[0];
   if (task.traffic_type === 'google_search' && !['step2', 'step3'].includes(task.task_status)) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
-    const clientRef = pageReferrer || '';
+    const clientRef = _ref || '';
     const CF_CHALLENGE = /[?&](__cf_chl_tk|__cf_chl_f_tk|cf_chl_prog|cf_chl_opt|cf_chl_seq)[=_]/i;
     const CF_PATH = /\/cdn-cgi\/challenge-platform\//i;
     const isCfChallenge = CF_CHALLENGE.test(clientRef) || CF_PATH.test(clientRef);
@@ -406,7 +406,7 @@ router.post('/public/:token/check-session', async (req, res) => {
 
     const isGoogleRef = clientRef && GOOGLE_DOMAINS.test(clientRef);
 
-    const np = navProof || {};
+    const np = _np || {};
     const navType = np.navType || null;
     const hasGoogleParams = !!np.hasGoogleParams;
 
@@ -439,7 +439,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   // ── Social traffic: referer phải đến từ domain social URL ──
   // Logic giống search: chỉ block khi referrer RÕ RÀNG sai domain; cho phép rỗng trừ khi direct-paste
   if (task.traffic_type === 'social' && !['step2', 'step3'].includes(task.task_status)) {
-    const clientRef = pageReferrer || '';
+    const clientRef = _ref || '';
     const socialKeyword = task.task_keyword || '';
     let socialDomain = '';
     try { socialDomain = new URL(socialKeyword).hostname.replace(/^www\./, '').toLowerCase(); } catch (_) { }
@@ -463,8 +463,8 @@ router.post('/public/:token/check-session', async (req, res) => {
         } catch (_) { }
       }
 
-      // navProof: detect direct-paste — giống search
-      const np = navProof || {};
+      // _np: detect direct-paste — giống search
+      const np = _np || {};
       const navType = np.navType || null;
       const hasCfClearance = !!np.hasCfClearance;
       const CF_CHALLENGE = /[?&](__cf_chl_tk|__cf_chl_f_tk|cf_chl_prog|cf_chl_opt|cf_chl_seq)[=_]/i;
@@ -558,7 +558,7 @@ router.post('/public/:token/check-session', async (req, res) => {
     );
   } catch (e) { /* non-critical */ }
 
-  res.json({ hasSession: true, trusted: isTrustedWorker, _hbn: initNonce });
+  res.json({ _hs: true, trusted: isTrustedWorker, _hbn: initNonce });
 });
 
 router.get('/public/:token/challenge', (req, res) => {
@@ -575,19 +575,19 @@ router.get('/public/:token/challenge', (req, res) => {
     return res.status(403).json({ error: 'Invalid session' });
   }
 
-  const challengeId = crypto.randomBytes(16).toString('hex');
+  const _ci = crypto.randomBytes(16).toString('hex');
   // Canvas Proof-of-Work seed: client phải render canvas với seed này và gửi SHA-256 hash
   // Server sign seed bằng HMAC → không ai giả mạo được expected hash mà không có HMAC_SECRET
   const canvasSeed = crypto.randomBytes(8).toString('hex');
   // SHA-256 thuần — khớp với SubtleCrypto trên client (browser thật)
   // expectedCanvasHash được lưu in-memory trong widgetChallenges, không expose ra ngoài
   const expectedCanvasHash = crypto.createHash('sha256')
-    .update('canvas:' + canvasSeed + ':' + challengeId).digest('hex').substring(0, 32);
-  widgetChallenges[challengeId] = { createdAt: Date.now(), used: false, ip, canvasSeed, expectedCanvasHash };
+    .update('canvas:' + canvasSeed + ':' + _ci).digest('hex').substring(0, 32);
+  widgetChallenges[_ci] = { createdAt: Date.now(), used: false, ip, _cvs, expectedCanvasHash };
 
-  const _ck = signWidgetChallenge(challengeId, ip);
+  const _ck = signWidgetChallenge(_ci, ip);
 
-  res.json({ c: challengeId, _ck, canvasSeed });
+  res.json({ c: _ci, _ck, _cvs });
 });
 
 const HB_INTERVAL_S = 10;
@@ -663,7 +663,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(403).json({ error: 'Invalid session' });
   }
 
-  const { challengeId, _ck, visitorId, deviceData, botDetection, hcaptchaToken, pageReferrer, navProof } = req.body || {};
+  const { _ci, _ck, visitorId, _dd, _bd, _hct, _ref, _np } = req.body || {};
 
   if (BOT_UA.test(ua)) {
     logSecurityEvent('Bot UA (widget)', ip, ua, visitorId || null, {});
@@ -687,7 +687,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     return res.status(404).json({ error: 'Không tìm thấy session.' });
   }
   const task = tasks[0];
-  console.log(`[Widget] get-code task found — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, status: ${task.status}, ref: "${(pageReferrer || '').substring(0, 80)}"`);
+  console.log(`[Widget] get-code task found — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, status: ${task.status}, ref: "${(_ref || '').substring(0, 80)}"`);
 
   let isTrustedWorker = false;
   const targetCheckId = task.ref_worker_id || task.worker_id || req.userId;
@@ -698,20 +698,20 @@ router.post('/public/:token/get-code', async (req, res) => {
     } catch (_) { }
   }
   const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
-  // ── hCaptcha gate: BẮt BUỘC khi captchaEnabled — không cho bỏ qua bằng cách không gửi token
+  // ── hCaptcha gate: BẮt BUỘC khi _ce — không cho bỏ qua bằng cách không gửi token
   if (!isTrustedWorker) {
     const captchaRequired = await getCaptchaEnabled(pool);
     if (captchaRequired) {
       const SKIP_TOKENS = ['skip', 'error', 'render-error', 'disabled'];
-      if (!hcaptchaToken || SKIP_TOKENS.includes(hcaptchaToken)) {
-        console.log('[Widget] BLOCKED: missing/skip hcaptchaToken — IP: ' + ip + ', task: #' + task.id);
+      if (!hcaptchaToken || SKIP_TOKENS.includes(_hct)) {
+        console.log('[Widget] BLOCKED: missing/skip _hct — IP: ' + ip + ', task: #' + task.id);
         return res.status(403).json({ error: 'Captcha bắt buộc. Vui lòng thực hiện trên trình duyệt.' });
       }
       try {
         const hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'response=' + encodeURIComponent(hcaptchaToken) + '&secret=' + encodeURIComponent(HCAPTCHA_SECRET),
+          body: 'response=' + encodeURIComponent(_hct) + '&secret=' + encodeURIComponent(HCAPTCHA_SECRET),
         });
         const hcData = await hcRes.json();
         if (!hcData.success) {
@@ -725,26 +725,27 @@ router.post('/public/:token/get-code', async (req, res) => {
     }
   }
 
+
   let botDetected = false;
   let detectionLog = [];
 
   if (!challengeId) return res.status(403).json(ERR);
-  const ch = widgetChallenges[challengeId];
-  if (!ch || ch.used) { delete widgetChallenges[challengeId]; return res.status(403).json(ERR); }
-  if (Date.now() - ch.createdAt > 600000) { delete widgetChallenges[challengeId]; return res.status(403).json(ERR); }
-  if (!_ck || _ck !== signWidgetChallenge(challengeId, ch.ip)) return res.status(403).json(ERR);
+  const ch = widgetChallenges[_ci];
+  if (!ch || ch.used) { delete widgetChallenges[_ci]; return res.status(403).json(ERR); }
+  if (Date.now() - ch.createdAt > 600000) { delete widgetChallenges[_ci]; return res.status(403).json(ERR); }
+  if (!_ck || _ck !== signWidgetChallenge(_ci, ch.ip)) return res.status(403).json(ERR);
 
   // Canvas Proof-of-Work verification
-  // canvasHash phải khớp với HMAC(seed+challengeId) — chỉ browser thật render canvas mới tính đúng
+  // _cvh phải khớp với HMAC(seed+challengeId) — chỉ browser thật render canvas mới tính đúng
   // Script thuần không có canvas API → không tính được expectedCanvasHash
-  // Fail-open cho trusted workers và client cũ chưa gửi canvasHash
+  // Fail-open cho trusted workers và client cũ chưa gửi _cvh
   if (!isTrustedWorker && ch.expectedCanvasHash) {
-    const submittedHash = req.body?.canvasHash || '';
+    const submittedHash = req.body?._cvh || '';
     if (!submittedHash) {
-      // Client cũ không gửi canvasHash → fail-open (không block) - tránh false-positive
-      console.log('[Widget] canvasHash missing (old client) — fail-open, task=#' + task.id);
+      // Client cũ không gửi _cvh → fail-open (không block) - tránh false-positive
+      console.log('[Widget] _cvh missing (old client) — fail-open, task=#' + task.id);
     } else if (submittedHash !== ch.expectedCanvasHash) {
-      console.log('[Widget] BLOCKED canvasHash mismatch: task=#' + task.id + ', IP=' + ip);
+      console.log('[Widget] BLOCKED _cvh mismatch: task=#' + task.id + ', IP=' + ip);
       return res.status(403).json({ error: 'Phát hiện gian lận! Vui lòng thực hiện trên trình duyệt.' });
     }
   }
@@ -753,18 +754,18 @@ router.post('/public/:token/get-code', async (req, res) => {
   ch.used = true;
 
 
-  if (deviceData) {
-    if (req.body?.behavioral?.probes?.eventTampered === true) {
+  if (_dd) {
+    if (req.body?._bv?.probes?.eventTampered === true) {
       deviceData.automation = deviceData.automation || {};
       deviceData.automation.eventTampered = true;
     }
-    const result = analyzeDevice(deviceData, ua, botDetection || {});
+    const result = analyzeDevice(_dd, ua, _bd || {});
     if (result.isFake) {
       botDetected = true;
       detectionLog.push(...(result.detectionLog || ['headless_or_webdriver']));
     }
   }
-  if (botDetection && botDetection.bot === true && !botDetected) {
+  if (_bd && botDetection.bot === true && !botDetected) {
     botDetected = true;
     detectionLog.push('creepjs_bot');
   }
@@ -774,7 +775,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
     logSecurityEvent('Phát hiện Bot (widget)', ip, ua, visitorId || null, {
       detectionLog,
-      canvasHash: botDetection?.canvasHash || null,
+      _cvh: botDetection?._cvh || null,
       audioHash: botDetection?.audioHash || null,
       webglRenderer: botDetection?.webglRenderer || null,
       totalLies: botDetection?.totalLies || 0,
@@ -828,7 +829,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   if (task.traffic_type === 'google_search' && v1Phase !== 2 && !['step2', 'step3'].includes(task.status)) {
     const GOOGLE_DOMAINS = /^https?:\/\/(www\.)?google\.(com|co\.[a-z]{2,3}|com\.[a-z]{2,3}|[a-z]{2,3})\//i;
-    const clientRef = pageReferrer || '';
+    const clientRef = _ref || '';
     const CF_CHALLENGE = /[?&](__cf_chl_tk|__cf_chl_f_tk|cf_chl_prog|cf_chl_opt|cf_chl_seq)[=_]/i;
     const CF_PATH = /\/cdn-cgi\/challenge-platform\//i;
     const isCfChallenge = CF_CHALLENGE.test(clientRef) || CF_PATH.test(clientRef);
@@ -843,7 +844,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
     const isGoogleRef = clientRef && GOOGLE_DOMAINS.test(clientRef);
 
-    const np2 = navProof || {};
+    const np2 = _np || {};
     const navType2 = np2.navType || null;
     const hasGoogleParams2 = !!np2.hasGoogleParams;
 
@@ -877,7 +878,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   // Logic giống search: chỉ block khi referrer RÕ RÀNG sai domain; cho phép rỗng trừ khi direct-paste
   // Bỏ qua khi task đã qua step2/step3 (referer check đã thực hiện ở bước trước)
   if (task.traffic_type === 'social' && !['step2', 'step3'].includes(task.status)) {
-    const clientRef = pageReferrer || '';
+    const clientRef = _ref || '';
     const socialKeyword = task.keyword || '';
     let socialDomain = '';
     try { socialDomain = new URL(socialKeyword).hostname.replace(/^www\./, '').toLowerCase(); } catch (_) { }
@@ -902,8 +903,8 @@ router.post('/public/:token/get-code', async (req, res) => {
         } catch (_) { }
       }
 
-      // navProof: detect direct-paste (referrer rỗng + navigate + không qua CF) — giống search
-      const np2 = navProof || {};
+      // _np: detect direct-paste (referrer rỗng + navigate + không qua CF) — giống search
+      const np2 = _np || {};
       const navType2 = np2.navType || null;
       const hasCfClearance2 = !!np2.hasCfClearance;
       const CF_CHALLENGE = /[?&](__cf_chl_tk|__cf_chl_f_tk|cf_chl_prog|cf_chl_opt|cf_chl_seq)[=_]/i;
@@ -991,7 +992,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   // Fail-open (không block) nếu bhv=null (client cũ không gửi), isTrustedWorker, hoặc requiredSeconds < 15.
   if (!isTrustedWorker && requiredSeconds >= 15) {
     try {
-      const bhv = req.body?.behavioral || null;
+      const bhv = req.body?._bv || null;
       if (bhv !== null) {
         const mousePoints = Number(bhv.mousePoints) || 0;
         const scrollCount = Array.isArray(bhv.scrollEvents) ? bhv.scrollEvents.length : (Number(bhv.scrollEvents) || 0);

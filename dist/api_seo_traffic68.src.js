@@ -247,7 +247,7 @@
       if (d.visitorId && d.visitorId !== 'unknown') {
         _visitorId = d.visitorId;
       }
-      if (d.botDetection) _botDetection = d.botDetection;
+      if (d._bd) _botDetection = d._bd;
       done();
     });
 
@@ -589,8 +589,8 @@
       // → đảm bảo lần click nào cũng thử đủ MAX_SESSION_RETRY lần
       _checkSessionRetry = 0;
       // First click: verify session exists before starting countdown
-      checkSession(function (hasSession) {
-        if (hasSession) {
+      checkSession(function (_hs) {
+        if (_hs) {
           beginCountdown();
         } else {
           showNoSessionPopup();
@@ -1305,6 +1305,7 @@
           var resp = JSON.parse(xhr.responseText);
           if (resp.trusted) _captchaEnabled = false;
           if (resp._hbn) _hbNonce = resp._hbn; // lưu nonce đầu cho heartbeat chain
+          if (resp._pws) _powSeed = resp._pws;   // lưu powSeed cho get-code PoW
         } catch (e) { }
         _sessionVerified = true;
         _requireGoogle = false;
@@ -1334,7 +1335,7 @@
       }
     };
     xhr.onerror = function () { _checkSessionRetry = 0; callback(false); };
-    xhr.send(JSON.stringify({ visitorId: _visitorId || '', pageReferrer: document.referrer || '', navProof: _buildNavigationProof(), pageUrl: window.location.href }));
+    xhr.send(JSON.stringify({ visitorId: _visitorId || '', _ref: document.referrer || '', _np: _buildNavigationProof(), pageUrl: window.location.href }));
   }
 
 
@@ -1397,6 +1398,7 @@
 
   var _domText = '', _domFontSize = 16, _glColor = [0, 0, 0];
   var _canvasHash = ''; // Canvas PoW hash
+  var _powSeed = '';    // Server PoW seed: dùng tính powHash lúc gọi get-code
 
   function fetchChallenge(callback) {
     if (!_widgetToken) { callback(false); return; }
@@ -1416,8 +1418,8 @@
           _glColor = resp.gc || [0, 0, 0];
           _canvasHash = '';
           // Canvas PoW: compute SHA-256('canvas:'+seed+':'+challengeId) - browser only
-          if (resp.canvasSeed && _challengeId && window.crypto && window.crypto.subtle) {
-            var _seed = resp.canvasSeed, _cid = _challengeId;
+          if (resp._cvs && _challengeId && window.crypto && window.crypto.subtle) {
+            var _seed = resp._cvs, _cid = _challengeId;
             var _raw = new TextEncoder().encode('canvas:' + _seed + ':' + _cid);
             window.crypto.subtle.digest('SHA-256', _raw).then(function(buf) {
               _canvasHash = Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2,'0'); }).join('').substring(0, 32);
@@ -1579,13 +1581,26 @@
   }
 
   /* ── Fetch session code from server (ONLY after countdown + captcha) ── */
-  /* Sends behavioral data + challenge + hCaptcha token */
+  /* Sends _bv data + challenge + hCaptcha token */
   /* With automatic retry: on failure, fetches new challenge and retries */
   var _fetchRetryCount = 0;
   var _MAX_RETRIES = 2;
 
+  // PoW: SHA-256(powSeed + Math.floor(Date.now()/1000)) — giây thực tế, server verify ±10s
+  // Browser thật có window.crypto.subtle; script thuần không đoạn được giây server đang ở
+  var _powHashReady = '';
+  function _computePowHash() { return _powHashReady; }
+  function _preparePowHash() {
+    if (!_powSeed || !window.crypto || !window.crypto.subtle) return;
+    var nowSec = Math.floor(Date.now() / 1000);
+    var raw = new TextEncoder().encode(_powSeed + nowSec);
+    window.crypto.subtle.digest('SHA-256', raw).then(function(buf) {
+      _powHashReady = Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('').substring(0, 32);
+    }).catch(function() { _powHashReady = ''; });
+  }
+
   function _buildGetCodePayload() {
-    // Collect comprehensive behavioral data (v2)
+    // Collect comprehensive _bv data (v2)
     var countdownElapsed = _bhv.startTime ? Math.floor((Date.now() - _bhv.startTime) / 1000) : 0;
 
     // Compute keystroke flight times (time between consecutive key releases)
@@ -1618,15 +1633,15 @@
     } catch (e) { }
 
     return {
-      challengeId: _challengeId,
+      _ci: _challengeId,
       _ck: _challengeKey,
       domWidth: _dw,
       glRenderer: _glR,
       glPixel: _glP,
       visitorId: _visitorId,
-      botDetection: _botDetection,
-      hcaptchaToken: _hcaptchaToken,
-      behavioral: {
+      _bd: _botDetection,
+      _hct: _hcaptchaToken,
+      _bv: {
         // 1. Mouse dynamics
         mouseTrail: _bhv.mouse.slice(-50),
         mousePoints: _bhv.mouse.length,
@@ -1653,9 +1668,10 @@
           dpr: window.devicePixelRatio || 1
         }
       },
-      pageReferrer: _isDirect ? '' : (document.referrer || ''),
-      navProof: _isDirect ? null : _buildNavigationProof(),
-      canvasHash: _canvasHash || undefined
+      _ref: _isDirect ? '' : (document.referrer || ''),
+      _np: _isDirect ? null : _buildNavigationProof(),
+      _cvh: _canvasHash || undefined,
+      powHash: _computePowHash()
     };
   }
 
@@ -1832,6 +1848,7 @@
     // Pre-load detection libs and challenge in background
     _initBehaviorTracking();
     _loadDetectionLibs(function () { });
+    _preparePowHash();
     fetchChallenge(function () { });
     bindVisibility();
     // Update button text to indicate next step
@@ -2016,12 +2033,12 @@
     if (countdownRunning) return;
     countdownRunning = true;
 
-    // Start behavioral tracking (same as VuotLink.jsx)
+    // Start _bv tracking (same as VuotLink.jsx)
     _initBehaviorTracking();
 
     // Load FingerprintJS + BotD (same as VuotLink.jsx useEffect)
     _loadDetectionLibs(function () {
-      // Libraries loaded, visitorId and botDetection are now set
+      // Libraries loaded, visitorId and _bd are now set
     });
 
     // Fetch challenge token (anti-replay — same as vuotlink.js)
@@ -2141,7 +2158,7 @@
                 if (!resp.campaignFound) {
                   _noCampaign = true; // mark — show button/countdown but no code
                 }
-                if (resp.captchaEnabled === false) _captchaEnabled = false;
+                if (resp._ce === false) _captchaEnabled = false;
                 if (resp.version === 1) _campVersion = 1;
                 window.LayNut.init(config);
 
