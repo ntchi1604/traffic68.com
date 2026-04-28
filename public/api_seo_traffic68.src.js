@@ -1013,7 +1013,11 @@
     var atBottom = distBottom <= scrollThreshold;
 
     var pool = [];
-    if (atTop) {
+    var isScrollable = docH > window.innerHeight + 80; // page phải đủ dài để scroll
+    if (!isScrollable) {
+      // Trang quá ngắn không scroll được → chỉ show click
+      pool = [CHALLENGES[2]];
+    } else if (atTop) {
       pool.push(CHALLENGES[1]); // scroll-bottom
     } else if (atBottom) {
       pool.push(CHALLENGES[0]); // scroll-top
@@ -1072,13 +1076,27 @@
         return el.scrollTop <= Math.max(50, ch2 * 0.15);
       };
 
+      // Ghi nhận vị trí scroll ban đầu — yêu cầu cuộn ít nhất 80px
+      var _scrollStartSt = window.pageYOffset || document.documentElement.scrollTop || 0;
+      var MIN_SCROLL_PX = 80;
+
       var _checkScrollPos = function (evt) {
         if (_scDone) return;
 
         var winSt = window.pageYOffset || document.documentElement.scrollTop || 0;
         var winDH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-        if (_isBot && winDH - winSt - window.innerHeight <= 150) { _doScrollComplete(); return; }
-        if (!_isBot && winSt <= Math.max(200, (window.innerHeight || 600) * 0.15)) { _doScrollComplete(); return; }
+
+        if (_isBot) {
+          // scroll-bottom: phải cuộn xuống ít nhất MIN_SCROLL_PX từ điểm bắt đầu
+          if (winDH - winSt - window.innerHeight <= 150 && winSt >= _scrollStartSt + MIN_SCROLL_PX) {
+            _doScrollComplete(); return;
+          }
+        } else {
+          // scroll-top: phải cuộn lên ít nhất MIN_SCROLL_PX từ điểm bắt đầu
+          if (winSt <= Math.max(200, (window.innerHeight || 600) * 0.15) && _scrollStartSt - winSt >= MIN_SCROLL_PX) {
+            _doScrollComplete(); return;
+          }
+        }
 
         if (evt && _chkEl(evt.target)) { _doScrollComplete(); return; }
 
@@ -1099,7 +1117,8 @@
       document.addEventListener('scroll', _checkScrollPos, { passive: true, capture: true });
       var _scPoll = setInterval(_checkScrollPos, 300);
       challengeListener._scPoll = _scPoll;
-      _checkScrollPos();
+      // KHÔNG gọi _checkScrollPos() ngay — đợi modal hiện ra trước (100ms)
+      // Tránh complete ngay khi user đang ở vị trí đã thỏa điều kiện
 
     } else if (ch.id === 'click') {
       challengeListener = function (e) {
@@ -1508,17 +1527,36 @@
       if (!box) return;
 
       if (!window.hcaptcha) {
-        // hCaptcha failed to load — skip captcha, get code directly
-        if (status) status.textContent = 'Captcha không tải được, đang lấy mã...';
-        _hcaptchaToken = 'skip';
-        setTimeout(function () {
-          revealed = true;
-          fetchSessionCode(function () {
-            closeModal();
-            openModal();
-            if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
-          });
-        }, 1000);
+        // hCaptcha CDN không tải được — hiện lỗi với nút thử lại
+        if (status) {
+          status.innerHTML = '❌ Captcha không tải được. <a href="#" id="ln-hc-retry" style="color:#3b82f6;text-decoration:underline">Thử lại</a>';
+          var retryLink = document.getElementById('ln-hc-retry');
+          if (retryLink) {
+            retryLink.onclick = function(e) {
+              e.preventDefault();
+              _hcaptchaLoaded = false;
+              document.querySelectorAll('script[src*="hcaptcha"]').forEach(function(s) { s.remove(); });
+              if (status) status.textContent = 'Đang tải lại captcha...';
+              _loadHcaptcha(function() {
+                if (!window.hcaptcha) {
+                  // Vẫn fail — send render-error để server fail-open
+                  _hcaptchaToken = 'render-error';
+                  if (status) status.textContent = 'Captcha không hoạt động, đang bỏ qua...';
+                  setTimeout(function() {
+                    revealed = true;
+                    fetchSessionCode(function() { closeModal(); openModal(); if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode); });
+                  }, 1000);
+                } else {
+                  if (box) window.hcaptcha.render(box, { sitekey: cfg.hcaptchaSiteKey, size: 'normal', callback: function(token) {
+                    _hcaptchaToken = token;
+                    revealed = true;
+                    fetchSessionCode(function() { closeModal(); openModal(); if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode); });
+                  }});
+                }
+              });
+            };
+          }
+        }
         return;
       }
 
@@ -2143,6 +2181,7 @@
                   _noCampaign = true; // mark — show button/countdown but no code
                 }
                 if (resp._ce === false) _captchaEnabled = false;
+                if (resp._sk) cfg.hcaptchaSiteKey = resp._sk; // sitekey từ server .env
                 if (resp.version === 1) _campVersion = 1;
                 window.LayNut.init(config);
 

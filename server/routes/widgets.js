@@ -725,25 +725,32 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (!isTrustedWorker) {
     const captchaRequired = await getCaptchaEnabled(pool);
     if (captchaRequired) {
-      const SKIP_TOKENS = ['skip', 'error', 'render-error', 'disabled'];
-      if (!_hct || SKIP_TOKENS.includes(_hct)) {
+      // Cố ý bỏ qua captcha → block tuyệt đối
+      const HARD_BLOCK = ['skip', 'disabled'];
+      // CDN fail thật (network lỗi) → fail-open, log để monitor
+      const CDN_FAIL = ['render-error', 'error'];
+      if (!_hct || HARD_BLOCK.includes(_hct)) {
         console.log('[Widget] BLOCKED: missing/skip _hct — IP: ' + ip + ', task: #' + task.id);
         return res.status(403).json({ error: 'Captcha bắt buộc. Vui lòng thực hiện trên trình duyệt.' });
       }
-      try {
-        const hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'response=' + encodeURIComponent(_hct) + '&secret=' + encodeURIComponent(HCAPTCHA_SECRET),
-        });
-        const hcData = await hcRes.json();
-        if (!hcData.success) {
-          console.log('[Widget] hCaptcha failed — IP: ' + ip + ', task: #' + task.id + ', errors: ' + (hcData['error-codes'] || []).join(','));
-          return res.status(403).json({ error: 'Captcha verification failed' });
+      if (CDN_FAIL.includes(_hct)) {
+        console.log('[Widget] hCaptcha CDN fail-open — IP: ' + ip + ', task: #' + task.id + ', token: ' + _hct);
+      } else {
+        try {
+          const hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'response=' + encodeURIComponent(_hct) + '&secret=' + encodeURIComponent(HCAPTCHA_SECRET),
+          });
+          const hcData = await hcRes.json();
+          if (!hcData.success) {
+            console.log('[Widget] hCaptcha failed — IP: ' + ip + ', task: #' + task.id + ', errors: ' + (hcData['error-codes'] || []).join(','));
+            return res.status(403).json({ error: 'Captcha verification failed' });
+          }
+        } catch (e) {
+          console.error('[Widget] hCaptcha verify error:', e.message);
+          // fail-open khi hCaptcha API down
         }
-      } catch (e) {
-        console.error('[Widget] hCaptcha verify error:', e.message);
-        // fail-open khi hᲪCaptcha API down
       }
     }
   }
