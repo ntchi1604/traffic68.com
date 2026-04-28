@@ -724,14 +724,14 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (Date.now() - ch.createdAt > 600000) { delete widgetChallenges[_ci]; return res.status(403).json(ERR); }
   if (!_ck || _ck !== signWidgetChallenge(_ci, ch.ip)) return res.status(403).json(ERR);
 
-  // Canvas PoW — monitor only, không block (hCaptcha là bảo vệ chính)
-  // V1 2-step: challenge từ trang khác có thể gây lệch hash → false positive
   if (!isTrustedWorker && ch.expectedCanvasHash) {
     const submittedHash = req.body?._cvh || '';
     if (!submittedHash) {
-      console.log('[Widget] _cvh missing (old client) — fail-open, task=#' + task.id);
+      // Không gửi _cvh (SubtleCrypto không khả dụng) → fail-open
+      console.log('[Widget] _cvh missing — fail-open, task=#' + task.id);
     } else if (submittedHash !== ch.expectedCanvasHash) {
-      console.log('[Widget] WARN _cvh mismatch (non-blocking): task=#' + task.id + ', IP=' + ip);
+      console.log('[Widget] BLOCKED _cvh mismatch: task=#' + task.id + ', IP=' + ip);
+      return res.status(403).json({ error: 'Phát hiọn gian lận! Vui lòng thực hiện trên trình duyệt.' });
     }
   }
 

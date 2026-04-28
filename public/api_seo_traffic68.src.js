@@ -1425,15 +1425,18 @@
           _domFontSize = resp.df || 16;
           _glColor = resp.gc || [0, 0, 0];
           _canvasHash = '';
-          // Canvas PoW: compute SHA-256('canvas:'+seed+':'+challengeId) - browser only
           if (resp._cvs && _challengeId && window.crypto && window.crypto.subtle) {
             var _seed = resp._cvs, _cid = _challengeId;
             var _raw = new TextEncoder().encode('canvas:' + _seed + ':' + _cid);
             window.crypto.subtle.digest('SHA-256', _raw).then(function (buf) {
-              _canvasHash = Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('').substring(0, 32);
-            }).catch(function () { _canvasHash = ''; });
+              if (_challengeId === _cid) {
+                _canvasHash = Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('').substring(0, 32);
+              }
+              callback(true);
+            }).catch(function () { _canvasHash = ''; callback(true); });
+          } else {
+            callback(true);
           }
-          callback(true);
         } catch (e) { callback(false); }
       } else {
         callback(false);
@@ -1478,11 +1481,8 @@
 
   /* ── hCaptcha ────────────────────────────────────────── */
   function _loadHcaptcha(cb) {
-    // Nếu đã load thành công và window.hcaptcha có sẵn → dùng ngay
     if (_hcaptchaLoaded && window.hcaptcha) { cb(); return; }
-    // Script tag tồn tại và window.hcaptcha đã set → ok
     if (window.hcaptcha) { _hcaptchaLoaded = true; cb(); return; }
-    // Script đang tải (có tag nhưng chưa xong) → chờ onload
     var existing = document.getElementById('ln-hcaptcha-script');
     if (existing) {
       existing.addEventListener('load', function () { _hcaptchaLoaded = true; cb(); });
@@ -1490,11 +1490,11 @@
       return;
     }
     var s = document.createElement('script');
-    s.id = 'ln-hcaptcha-script'; // ID để retry có thể xóa và tải lại
+    s.id = 'ln-hcaptcha-script';
     s.src = 'https://js.hcaptcha.com/1/api.js?render=explicit';
     s.async = true;
     s.onload = function () { _hcaptchaLoaded = true; cb(); };
-    s.onerror = function () { _hcaptchaLoaded = false; cb(); }; // fail-open: gọi cb để hiện retry
+    s.onerror = function () { _hcaptchaLoaded = false; cb(); };
     document.head.appendChild(s);
   }
 
@@ -1521,14 +1521,12 @@
     applyModalTheme(ov.querySelector('#laynut-modal'));
     document.body.appendChild(ov);
 
-    // Load and render hCaptcha
     _loadHcaptcha(function () {
       var box = document.getElementById('ln-hcaptcha-box');
       var status = document.getElementById('ln-hcaptcha-status');
       if (!box) return;
 
       if (!window.hcaptcha) {
-        // hCaptcha CDN không tải được — hiện lỗi với nút thử lại
         if (status) {
           status.innerHTML = '❌ Captcha không tải được. <a href="#" id="ln-hc-retry" style="color:#3b82f6;text-decoration:underline">Thử lại</a>';
           var retryLink = document.getElementById('ln-hc-retry');
@@ -1540,7 +1538,6 @@
               if (status) status.textContent = 'Đang tải lại captcha...';
               _loadHcaptcha(function () {
                 if (!window.hcaptcha) {
-                  // Vẫn fail — không bypass, yêu cầu tải lại trang
                   if (status) status.innerHTML = '❌ Không thể tải captcha. <a href="javascript:window.location.reload()" style="color:#3b82f6;text-decoration:underline">Tải lại trang</a> để tiếp tục.';
                 } else {
                   if (status) status.textContent = '';
@@ -1564,7 +1561,6 @@
         return;
       }
 
-
       if (status) status.textContent = '';
       try {
         window.hcaptcha.render(box, {
@@ -1577,7 +1573,6 @@
               status.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><polyline points="20 6 9 17 4 12"/></svg> Đã xác minh! Đang lấy mã...';
               status.style.color = '#16a34a';
             }
-            // Got captcha token → fetch code
             setTimeout(function () {
               revealed = true;
               fetchSessionCode(function () {
