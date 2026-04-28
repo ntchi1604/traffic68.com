@@ -5,17 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 const buildTime = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
 
 export default defineConfig({
-  plugins: [
-    react({
-      babel: {
-        plugins: [
-          // Remove console.log in production
-          ['transform-remove-console', { exclude: ['error', 'warn'] }]
-        ]
-      }
-    }),
-    tailwindcss()
-  ],
+  plugins: [react(), tailwindcss()],
   server: {
     proxy: {
       '/api': {
@@ -26,14 +16,7 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 1000,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-        pure_funcs: ['console.log', 'console.info', 'console.debug']
-      }
-    },
+    minify: 'esbuild', // Use esbuild instead of terser (faster, no extra dependency)
     rollupOptions: {
       output: {
         entryFileNames: `assets/[name].${buildTime}.js`,
