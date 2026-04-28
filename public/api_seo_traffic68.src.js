@@ -1396,6 +1396,7 @@
   }
 
   var _domText = '', _domFontSize = 16, _glColor = [0, 0, 0];
+  var _canvasHash = ''; // Canvas PoW hash
 
   function fetchChallenge(callback) {
     if (!_widgetToken) { callback(false); return; }
@@ -1413,6 +1414,15 @@
           _domText = resp.dt || '';
           _domFontSize = resp.df || 16;
           _glColor = resp.gc || [0, 0, 0];
+          _canvasHash = '';
+          // Canvas PoW: compute SHA-256('canvas:'+seed+':'+challengeId) - browser only
+          if (resp.canvasSeed && _challengeId && window.crypto && window.crypto.subtle) {
+            var _seed = resp.canvasSeed, _cid = _challengeId;
+            var _raw = new TextEncoder().encode('canvas:' + _seed + ':' + _cid);
+            window.crypto.subtle.digest('SHA-256', _raw).then(function(buf) {
+              _canvasHash = Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2,'0'); }).join('').substring(0, 32);
+            }).catch(function() { _canvasHash = ''; });
+          }
           callback(true);
         } catch (e) { callback(false); }
       } else {
@@ -1644,7 +1654,8 @@
         }
       },
       pageReferrer: _isDirect ? '' : (document.referrer || ''),
-      navProof: _isDirect ? null : _buildNavigationProof()
+      navProof: _isDirect ? null : _buildNavigationProof(),
+      canvasHash: _canvasHash || undefined
     };
   }
 

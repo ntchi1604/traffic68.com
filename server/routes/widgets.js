@@ -576,11 +576,18 @@ router.get('/public/:token/challenge', (req, res) => {
   }
 
   const challengeId = crypto.randomBytes(16).toString('hex');
-  widgetChallenges[challengeId] = { createdAt: Date.now(), used: false, ip };
+  // Canvas Proof-of-Work seed: client phải render canvas với seed này và gửi SHA-256 hash
+  // Server sign seed bằng HMAC → không ai giả mạo được expected hash mà không có HMAC_SECRET
+  const canvasSeed = crypto.randomBytes(8).toString('hex');
+  // SHA-256 thuần — khớp với SubtleCrypto trên client (browser thật)
+  // expectedCanvasHash được lưu in-memory trong widgetChallenges, không expose ra ngoài
+  const expectedCanvasHash = crypto.createHash('sha256')
+    .update('canvas:' + canvasSeed + ':' + challengeId).digest('hex').substring(0, 32);
+  widgetChallenges[challengeId] = { createdAt: Date.now(), used: false, ip, canvasSeed, expectedCanvasHash };
 
   const _ck = signWidgetChallenge(challengeId, ip);
 
-  res.json({ c: challengeId, _ck });
+  res.json({ c: challengeId, _ck, canvasSeed });
 });
 
 const HB_INTERVAL_S = 10;
@@ -691,21 +698,30 @@ router.post('/public/:token/get-code', async (req, res) => {
     } catch (_) { }
   }
   const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
-  if (!isTrustedWorker && hcaptchaToken && !['skip', 'error', 'render-error', 'disabled'].includes(hcaptchaToken)) {
-    try {
-      const hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `response=${encodeURIComponent(hcaptchaToken)}&secret=${encodeURIComponent(HCAPTCHA_SECRET)}`,
-      });
-      const hcData = await hcRes.json();
-      if (!hcData.success) {
-        console.log(`[Widget] hCaptcha failed — IP: ${ip}, errors: ${(hcData['error-codes'] || []).join(',')}`);
-        return res.status(403).json({ error: 'Captcha verification failed' });
+  // ── hCaptcha gate: BẮt BUỘC khi captchaEnabled — không cho bỏ qua bằng cách không gửi token
+  if (!isTrustedWorker) {
+    const captchaRequired = await getCaptchaEnabled(pool);
+    if (captchaRequired) {
+      const SKIP_TOKENS = ['skip', 'error', 'render-error', 'disabled'];
+      if (!hcaptchaToken || SKIP_TOKENS.includes(hcaptchaToken)) {
+        console.log('[Widget] BLOCKED: missing/skip hcaptchaToken — IP: ' + ip + ', task: #' + task.id);
+        return res.status(403).json({ error: 'Captcha bắt buộc. Vui lòng thực hiện trên trình duyệt.' });
       }
-    } catch (e) {
-      console.error(`[Widget] hCaptcha verify error:`, e.message);
-
+      try {
+        const hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'response=' + encodeURIComponent(hcaptchaToken) + '&secret=' + encodeURIComponent(HCAPTCHA_SECRET),
+        });
+        const hcData = await hcRes.json();
+        if (!hcData.success) {
+          console.log('[Widget] hCaptcha failed — IP: ' + ip + ', task: #' + task.id + ', errors: ' + (hcData['error-codes'] || []).join(','));
+          return res.status(403).json({ error: 'Captcha verification failed' });
+        }
+      } catch (e) {
+        console.error('[Widget] hCaptcha verify error:', e.message);
+        // fail-open khi hᲪCaptcha API down
+      }
     }
   }
 
@@ -717,6 +733,21 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (!ch || ch.used) { delete widgetChallenges[challengeId]; return res.status(403).json(ERR); }
   if (Date.now() - ch.createdAt > 600000) { delete widgetChallenges[challengeId]; return res.status(403).json(ERR); }
   if (!_ck || _ck !== signWidgetChallenge(challengeId, ch.ip)) return res.status(403).json(ERR);
+
+  // Canvas Proof-of-Work verification
+  // canvasHash phải khớp với HMAC(seed+challengeId) — chỉ browser thật render canvas mới tính đúng
+  // Script thuần không có canvas API → không tính được expectedCanvasHash
+  // Fail-open cho trusted workers và client cũ chưa gửi canvasHash
+  if (!isTrustedWorker && ch.expectedCanvasHash) {
+    const submittedHash = req.body?.canvasHash || '';
+    if (!submittedHash) {
+      // Client cũ không gửi canvasHash → fail-open (không block) - tránh false-positive
+      console.log('[Widget] canvasHash missing (old client) — fail-open, task=#' + task.id);
+    } else if (submittedHash !== ch.expectedCanvasHash) {
+      console.log('[Widget] BLOCKED canvasHash mismatch: task=#' + task.id + ', IP=' + ip);
+      return res.status(403).json({ error: 'Phát hiện gian lận! Vui lòng thực hiện trên trình duyệt.' });
+    }
+  }
 
   const v1Phase = req.body?.v1Phase || 0;
   ch.used = true;
@@ -948,6 +979,28 @@ router.post('/public/:token/get-code', async (req, res) => {
         const maxStalenessMs = HB_INTERVAL_S * 2 * 1000; // 20 giây
         if (!isNaN(lastHbMs) && (Date.now() - lastHbMs) > maxStalenessMs) {
           console.log(`[Widget] BLOCKED HB stale: task=#${task.id}, staleness=${Date.now()-lastHbMs}ms, IP=${ip}`);
+          return res.status(403).json({ error: 'Phát hiện gian lận! Vui lòng thực hiện trên trình duyệt.' });
+        }
+      }
+    } catch { /* fail-open */ }
+  }
+
+  // ── Behavioral entropy check ────────────────────────────────────────
+  // Script thuần (curl, python, node-fetch) không tạo ra mouse/scroll/keyboard events.
+  // Behavioral hoàn toàn trống = không có browser thật → block.
+  // Fail-open (không block) nếu bhv=null (client cũ không gửi), isTrustedWorker, hoặc requiredSeconds < 15.
+  if (!isTrustedWorker && requiredSeconds >= 15) {
+    try {
+      const bhv = req.body?.behavioral || null;
+      if (bhv !== null) {
+        const mousePoints = Number(bhv.mousePoints) || 0;
+        const scrollCount = Array.isArray(bhv.scrollEvents) ? bhv.scrollEvents.length : (Number(bhv.scrollEvents) || 0);
+        const totalKeys   = Number(bhv.totalKeys) || 0;
+        const focusCh     = Number(bhv.focusChanges) || 0;
+        const entropy = mousePoints + scrollCount * 3 + totalKeys * 2 + focusCh * 5;
+        // Threshold rất thấp — user mobile chỉ tap 1 lần cũng qua
+        if (entropy === 0) {
+          console.log(`[Widget] BLOCKED behavioral=empty: task=#${task.id}, IP=${ip}, mouse=${mousePoints}, scroll=${scrollCount}, keys=${totalKeys}, focus=${focusCh}`);
           return res.status(403).json({ error: 'Phát hiện gian lận! Vui lòng thực hiện trên trình duyệt.' });
         }
       }
