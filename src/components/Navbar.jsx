@@ -31,7 +31,7 @@ export default function Navbar() {
 
         {/* Logo */}
         <Link to="/" className="flex items-center gap-1.5 shrink-0">
-          <img src="/traffic68_com.gif" alt="traffic68.com" className="h-14 sm:h-16 w-auto object-contain" />
+          <img src="/traffic68_com.gif" alt="traffic68.com" className="h-10 sm:h-12 w-auto object-contain" style={{ maxWidth: '180px' }} />
         </Link>
 
         {/* Desktop Nav Links */}

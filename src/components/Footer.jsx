@@ -29,7 +29,7 @@ export default function Footer() {
           {/* Col 1 — Brand */}
           <div className="md:col-span-1">
             <a href="#" className="flex items-center gap-2 mb-4">
-              <img src="/traffic68_com.gif" alt="traffic68.com" className="h-14 sm:h-16 w-auto object-contain" />
+              <img src="/traffic68_com.gif" alt="traffic68.com" className="h-10 sm:h-12 w-auto object-contain" style={{ maxWidth: '160px' }} />
             </a>
             <p className="text-gray-300 text-xs leading-relaxed">
               Giải pháp traffic user thật hàng đầu Việt Nam. An toàn, hiệu quả, cam kết kết quả.
