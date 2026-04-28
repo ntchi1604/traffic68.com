@@ -1055,18 +1055,31 @@
     var atBottom = distBottom <= scrollThreshold;
 
     var pool = [];
-    var isScrollable = docH > window.innerHeight + 80; // page phải đủ dài để scroll
+    // Check if page is scrollable enough (need at least 300px scroll range)
+    var isScrollable = docH > window.innerHeight + 300;
+
     if (!isScrollable) {
       // Trang quá ngắn không scroll được → chỉ show click
       pool = [CHALLENGES[2]];
-    } else if (atTop) {
-      pool.push(CHALLENGES[1]); // scroll-bottom
-    } else if (atBottom) {
-      pool.push(CHALLENGES[0]); // scroll-top
     } else {
-      pool.push(CHALLENGES[0], CHALLENGES[1]); // either direction
+      // Trang scroll được → ưu tiên click (70%), scroll (30%)
+      // Add click challenge multiple times to increase probability
+      pool.push(CHALLENGES[2], CHALLENGES[2]);
+
+      // Add scroll challenges based on position
+      if (atTop) {
+        pool.push(CHALLENGES[1]); // scroll-bottom
+      } else if (atBottom) {
+        pool.push(CHALLENGES[0]); // scroll-top
+      } else {
+        // User ở giữa trang → có thể scroll cả 2 hướng, nhưng ít hơn
+        if (Math.random() > 0.5) {
+          pool.push(CHALLENGES[0]); // scroll-top
+        } else {
+          pool.push(CHALLENGES[1]); // scroll-bottom
+        }
+      }
     }
-    pool.push(CHALLENGES[2]); // click is always an option
 
     // Filter out last challenge to prevent consecutive duplicates
     if (_lastChallengeId && pool.length > 1) {
