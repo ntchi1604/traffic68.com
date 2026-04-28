@@ -373,13 +373,13 @@ router.post('/public/:token/check-session', async (req, res) => {
     const allowedDomain = widgets[0].allowed_domain || '';
     if (originHeader) {
       let originHost = '';
-      try { originHost = new URL(originHeader).hostname.replace(/^www\./, '').toLowerCase(); } catch (_) {}
+      try { originHost = new URL(originHeader).hostname.replace(/^www\./, '').toLowerCase(); } catch (_) { }
       let allowedHost = '';
       if (allowedDomain) {
         try {
           allowedHost = new URL(allowedDomain.startsWith('http') ? allowedDomain : 'https://' + allowedDomain)
             .hostname.replace(/^www\./, '').toLowerCase();
-        } catch (_) {}
+        } catch (_) { }
       }
       if (allowedHost && originHost && originHost !== allowedHost) {
         console.log('[Widget] BLOCKED Origin mismatch: origin=' + originHeader + ', expected=' + allowedDomain + ', IP=' + ip);
@@ -490,20 +490,15 @@ router.post('/public/:token/check-session', async (req, res) => {
         } catch (_) { }
       }
 
-      // _np: detect direct-paste — giống search
       const np = _np || {};
       const navType = np.navType || null;
       const hasCfClearance = !!np.hasCfClearance;
       const CF_CHALLENGE = /[?&](__cf_chl_tk|__cf_chl_f_tk|cf_chl_prog|cf_chl_opt|cf_chl_seq)[=_]/i;
       const isCfChallenge = CF_CHALLENGE.test(clientRef);
-      const isDirectPaste = !clientRef && navType === 'navigate' && !isCfChallenge && !hasCfClearance;
-
-      if (isDirectPaste) {
-        console.log(`[Widget] check-session BLOCKED: Direct paste for social — IP: ${ip}, task: #${task.id}, navType: ${navType}`);
-        return res.status(403).json({ error: 'Vui lòng truy cập trang từ bài đăng social đã chỉ định.', requireSocial: true, socialDomain });
+      if (!clientRef && navType === 'navigate' && !isCfChallenge && !hasCfClearance) {
+        console.log(`[Widget] check-session social: empty referrer (new tab?) — IP: ${ip}, task: #${task.id}`);
       }
 
-      // Chỉ block khi referrer RÕ RÀNG sai domain (non-empty, không phải social, không phải self)
       if (!isCfChallenge && !isSelfReferrer && !isSocialRef && clientRef !== '') {
         console.log(`[Widget] check-session BLOCKED: Non-social referrer — IP: ${ip}, task: #${task.id}, expected: ${socialDomain}, got: "${clientRef.substring(0, 120)}"`);
         return res.status(403).json({ error: 'Vui lòng truy cập trang từ bài đăng social đã chỉ định.', requireSocial: true, socialDomain });
@@ -654,7 +649,7 @@ router.post('/public/:token/heartbeat', async (req, res) => {
     if (secD.hb_last) {
       const lastMs = new Date(secD.hb_last).getTime();
       if (!isNaN(lastMs) && (Date.now() - lastMs) < HB_MIN_GAP_MS) {
-        console.log(`[Widget] HB too fast — task=#${taskId}, gap=${Date.now()-lastMs}ms`);
+        console.log(`[Widget] HB too fast — task=#${taskId}, gap=${Date.now() - lastMs}ms`);
         return res.status(429).json({ ok: false, error: 'too fast' });
       }
     }
@@ -730,7 +725,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     const captchaRequired = await getCaptchaEnabled(pool);
     if (captchaRequired) {
       const SKIP_TOKENS = ['skip', 'error', 'render-error', 'disabled'];
-      if (!hcaptchaToken || SKIP_TOKENS.includes(_hct)) {
+      if (!_hct || SKIP_TOKENS.includes(_hct)) {
         console.log('[Widget] BLOCKED: missing/skip _hct — IP: ' + ip + ', task: #' + task.id);
         return res.status(403).json({ error: 'Captcha bắt buộc. Vui lòng thực hiện trên trình duyệt.' });
       }
@@ -756,7 +751,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   let botDetected = false;
   let detectionLog = [];
 
-  if (!challengeId) return res.status(403).json(ERR);
+  if (!_ci) return res.status(403).json(ERR);
   const ch = widgetChallenges[_ci];
   if (!ch || ch.used) { delete widgetChallenges[_ci]; return res.status(403).json(ERR); }
   if (Date.now() - ch.createdAt > 600000) { delete widgetChallenges[_ci]; return res.status(403).json(ERR); }
@@ -783,8 +778,8 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   if (_dd) {
     if (req.body?._bv?.probes?.eventTampered === true) {
-      deviceData.automation = deviceData.automation || {};
-      deviceData.automation.eventTampered = true;
+      _dd.automation = _dd.automation || {};
+      _dd.automation.eventTampered = true;
     }
     const result = analyzeDevice(_dd, ua, _bd || {});
     if (result.isFake) {
@@ -792,7 +787,7 @@ router.post('/public/:token/get-code', async (req, res) => {
       detectionLog.push(...(result.detectionLog || ['headless_or_webdriver']));
     }
   }
-  if (_bd && botDetection.bot === true && !botDetected) {
+  if (_bd && _bd.bot === true && !botDetected) {
     botDetected = true;
     detectionLog.push('creepjs_bot');
   }
@@ -930,21 +925,15 @@ router.post('/public/:token/get-code', async (req, res) => {
         } catch (_) { }
       }
 
-      // _np: detect direct-paste (referrer rỗng + navigate + không qua CF) — giống search
+      // _np: detect direct-paste — chỉ log, không block
+      // Lý do: click link mở tab mới trên social → referrer rỗng bình thường
       const np2 = _np || {};
       const navType2 = np2.navType || null;
       const hasCfClearance2 = !!np2.hasCfClearance;
       const CF_CHALLENGE = /[?&](__cf_chl_tk|__cf_chl_f_tk|cf_chl_prog|cf_chl_opt|cf_chl_seq)[=_]/i;
       const isCfChallenge = CF_CHALLENGE.test(clientRef);
-      const isDirectPaste = !clientRef && navType2 === 'navigate' && !isCfChallenge && !hasCfClearance2;
-
-      if (isDirectPaste) {
-        console.log(`[Widget] BLOCKED: Direct paste for social campaign — IP: ${ip}, task: #${task.id}, navType: ${navType2}`);
-        await pool.execute(
-          `UPDATE vuot_link_tasks SET security_detail = JSON_SET(COALESCE(security_detail,'{}'), '$.social_direct_paste', true, '$.nav_type', ?) WHERE id = ?`,
-          [navType2 || 'unknown', task.id]
-        ).catch(() => { });
-        return res.status(403).json({ error: 'Vui lòng truy cập trang từ bài đăng social đã chỉ định.', requireSocial: true, socialDomain });
+      if (!clientRef && navType2 === 'navigate' && !isCfChallenge && !hasCfClearance2) {
+        console.log(`[Widget] get-code social: empty referrer (new tab?) — IP: ${ip}, task: #${task.id}`);
       }
 
       // Chỉ block khi referrer RÕ RÀNG sai domain (non-empty, không phải social, không phải self)
@@ -1006,7 +995,7 @@ router.post('/public/:token/get-code', async (req, res) => {
         const lastHbMs = new Date(sd2.hb_last).getTime();
         const maxStalenessMs = HB_INTERVAL_S * 2 * 1000; // 20 giây
         if (!isNaN(lastHbMs) && (Date.now() - lastHbMs) > maxStalenessMs) {
-          console.log(`[Widget] BLOCKED HB stale: task=#${task.id}, staleness=${Date.now()-lastHbMs}ms, IP=${ip}`);
+          console.log(`[Widget] BLOCKED HB stale: task=#${task.id}, staleness=${Date.now() - lastHbMs}ms, IP=${ip}`);
           return res.status(403).json({ error: 'Phát hiện gian lận! Vui lòng thực hiện trên trình duyệt.' });
         }
       }
@@ -1023,8 +1012,8 @@ router.post('/public/:token/get-code', async (req, res) => {
       if (bhv !== null) {
         const mousePoints = Number(bhv.mousePoints) || 0;
         const scrollCount = Array.isArray(bhv.scrollEvents) ? bhv.scrollEvents.length : (Number(bhv.scrollEvents) || 0);
-        const totalKeys   = Number(bhv.totalKeys) || 0;
-        const focusCh     = Number(bhv.focusChanges) || 0;
+        const totalKeys = Number(bhv.totalKeys) || 0;
+        const focusCh = Number(bhv.focusChanges) || 0;
         const entropy = mousePoints + scrollCount * 3 + totalKeys * 2 + focusCh * 5;
         // Threshold rất thấp — user mobile chỉ tap 1 lần cũng qua
         if (entropy === 0) {
