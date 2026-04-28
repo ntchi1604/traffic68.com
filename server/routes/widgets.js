@@ -548,7 +548,17 @@ router.post('/public/:token/check-session', async (req, res) => {
   }
 
   console.log(`[Widget] check-session trusted — IP: ${ip}, task: #${task.id}, ref_worker_id: ${task.ref_worker_id}, worker_id: ${task.worker_id}, trusted: ${isTrustedWorker}`);
-  res.json({ hasSession: true, trusted: isTrustedWorker });
+  const initNonce = crypto.randomBytes(16).toString('hex');
+  try {
+    await pool.execute(
+      `UPDATE vuot_link_tasks SET security_detail = JSON_SET(
+         COALESCE(security_detail, '{}'), '$.hb_nonce', ?, '$.hb_count', 0
+       ) WHERE id = ?`,
+      [initNonce, task.id]
+    );
+  } catch (e) { /* non-critical */ }
+
+  res.json({ hasSession: true, trusted: isTrustedWorker, _hbn: initNonce });
 });
 
 router.get('/public/:token/challenge', (req, res) => {
@@ -571,6 +581,52 @@ router.get('/public/:token/challenge', (req, res) => {
   const _ck = signWidgetChallenge(challengeId, ip);
 
   res.json({ c: challengeId, _ck });
+});
+
+const HB_INTERVAL_S = 10;
+router.post('/public/:token/heartbeat', async (req, res) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const ua = req.headers['user-agent'] || '';
+  if (BOT_UA.test(ua)) return res.status(403).json({ ok: false });
+  if (!checkWidgetRateLimit(ip, 'heartbeat', 30)) return res.status(429).json({ ok: false });
+  const sToken = req.headers['x-session-token'] || '';
+  if (!verifySessionToken(sToken, ip, ua)) return res.status(403).json({ ok: false });
+  const { visitorId, nonce } = req.body || {};
+  if (!nonce) return res.status(400).json({ ok: false, error: 'missing nonce' });
+  const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
+  const normIp = normalizeIp(ip);
+  const altIp = normIp.includes(':') ? normIp : `::ffff:${normIp}`;
+  try {
+    const pool = getPool();
+    const [tasks] = await pool.execute(
+      `SELECT id, security_detail FROM vuot_link_tasks
+       WHERE (ip_address = ? OR ip_address = ? OR (visitor_id = ? AND visitor_id IS NOT NULL AND visitor_id != '' AND visitor_id != 'unknown'))
+         AND status IN ('pending','step1','step2','step3') AND expires_at > NOW()
+       ORDER BY created_at DESC LIMIT 1`,
+      [normIp, altIp, cleanVid]
+    );
+    if (tasks.length === 0) return res.status(404).json({ ok: false });
+    const taskId = tasks[0].id;
+    let secD = {};
+    try { secD = JSON.parse(tasks[0].security_detail || '{}'); } catch { }
+    const storedNonce = secD.hb_nonce || '';
+    if (!storedNonce || nonce !== storedNonce) {
+      console.log(`[Widget] HB nonce mismatch — task=#${taskId}, IP=${ip}`);
+      return res.status(403).json({ ok: false, error: 'invalid nonce' });
+    }
+    const nextNonce = crypto.randomBytes(16).toString('hex');
+    const newCount = (Number(secD.hb_count) || 0) + 1;
+    await pool.execute(
+      `UPDATE vuot_link_tasks SET security_detail = JSON_SET(
+         COALESCE(security_detail,'{}'), '$.hb_nonce', ?, '$.hb_count', ?
+       ) WHERE id = ?`,
+      [nextNonce, newCount, taskId]
+    );
+    res.json({ ok: true, _hbn: nextNonce });
+  } catch (e) {
+    console.error('[Widget] heartbeat error:', e.message);
+    res.status(500).json({ ok: false });
+  }
 });
 
 router.post('/public/:token/get-code', async (req, res) => {
@@ -841,29 +897,40 @@ router.post('/public/:token/get-code', async (req, res) => {
     requiredSeconds = parseInt(tos) || 30;
   }
 
-  // Dùng widget_started_at (thời điểm check-session đầu tiên) nếu có,
-  // fallback về created_at. Điều này tránh false-positive khi task tự động
-  // renew (auto-fetch sau 20 phút) — lúc đó created_at reset về NOW() nhưng
-  // user đã đợi đủ waitTime từ trước rồi.
   let refTime;
   try {
+    const createdAtMs = new Date(task.created_at).getTime();
     let secDetail = {};
     try { secDetail = JSON.parse(task.security_detail || '{}'); } catch { }
     if (secDetail.widget_started_at) {
-      refTime = new Date(secDetail.widget_started_at).getTime();
-      if (isNaN(refTime)) refTime = new Date(task.created_at).getTime();
+      const wMs = new Date(secDetail.widget_started_at).getTime();
+      refTime = isNaN(wMs) ? createdAtMs : Math.max(createdAtMs, wMs);
     } else {
-      refTime = new Date(task.created_at).getTime();
+      refTime = createdAtMs;
     }
-  } catch { refTime = new Date(task.created_at).getTime(); }
+    if (isNaN(refTime)) refTime = Date.now();
+  } catch { refTime = Date.now(); }
 
   const elapsedMs = Date.now() - refTime;
   const elapsedSeconds = Math.floor(elapsedMs / 1000);
 
   if (elapsedSeconds < requiredSeconds) {
     const remaining = requiredSeconds - elapsedSeconds;
-    console.log(`[Widget] Code request TOO EARLY — IP: ${ip}, task: #${task.id}, elapsed: ${elapsedSeconds}s < required: ${requiredSeconds}s (ref: widget_started_at=${!!refTime})`);
+    console.log(`[Widget] Code request TOO EARLY — IP: ${ip}, task: #${task.id}, elapsed: ${elapsedSeconds}s < required: ${requiredSeconds}s`);
     return res.status(403).json({ error: 'Phát hiện gian lận!', remaining });
+  }
+
+  if (!isTrustedWorker && requiredSeconds >= 15) {
+    try {
+      let sd2 = {};
+      try { sd2 = JSON.parse(task.security_detail || '{}'); } catch { }
+      const hbCount = Number(sd2.hb_count) || 0;
+      const minHbs = Math.max(1, Math.floor(requiredSeconds / HB_INTERVAL_S) - 1);
+      if (hbCount < minHbs) {
+        console.log(`[Widget] BLOCKED HB: task=#${task.id}, got=${hbCount}, need>=${minHbs}, IP=${ip}`);
+        return res.status(403).json({ error: 'Bypass con cặc, địt cả lò nhà chúng m' });
+      }
+    } catch { /* fail-open */ }
   }
 
 

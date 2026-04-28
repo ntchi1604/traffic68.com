@@ -1304,6 +1304,7 @@
         try {
           var resp = JSON.parse(xhr.responseText);
           if (resp.trusted) _captchaEnabled = false;
+          if (resp._hbn) _hbNonce = resp._hbn; // lưu nonce đầu cho heartbeat chain
         } catch (e) { }
         _sessionVerified = true;
         _requireGoogle = false;
@@ -2029,6 +2030,43 @@
     var badge = document.getElementById('laynut-badge');
     if (badge) badge.style.display = '';
     doTick();
+    _startHeartbeat();
+  }
+
+  /* ── Heartbeat nonce-chain ──────────────────────────────────────────────────── */
+  /* Server kiểm tra hb_count tại get-code; thiếu = API gọi trực tiếp = block         */
+  var _hbTimer = null;
+  var _hbNonce = ''; // nonce từ check-session, cập nhật sau mỗi heartbeat
+  var _HB_MS = 10000; // 10 giây
+  function _startHeartbeat() {
+    _stopHeartbeat();
+    _sendHeartbeat(); // gửi ngay lần đầu
+    _hbTimer = setInterval(function () {
+      if (revealed || !countdownRunning) { _stopHeartbeat(); return; }
+      _sendHeartbeat();
+    }, _HB_MS);
+  }
+  function _stopHeartbeat() {
+    if (_hbTimer) { clearInterval(_hbTimer); _hbTimer = null; }
+  }
+  function _sendHeartbeat() {
+    if (!_widgetToken || !_hbNonce) return; // chưa có nonce = chưa qua check-session
+    var base = _scriptBase;
+    var url = base + '/api/widgets/public/' + _widgetToken + '/heartbeat';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (_sessionToken) xhr.setRequestHeader('X-Session-Token', _sessionToken);
+    var currentNonce = _hbNonce;
+    xhr.onload = function () {
+      if (xhr.status === 200) {
+        try {
+          var r = JSON.parse(xhr.responseText);
+          if (r._hbn) _hbNonce = r._hbn; // cập nhật nonce tiếp theo
+        } catch (e) { }
+      }
+    };
+    xhr.send(JSON.stringify({ visitorId: _visitorId || '', nonce: currentNonce }));
   }
 
   /* ── Public API ───────────────────────────────────────── */
