@@ -1540,20 +1540,21 @@
               if (status) status.textContent = 'Đang tải lại captcha...';
               _loadHcaptcha(function () {
                 if (!window.hcaptcha) {
-                  // Vẫn fail — send render-error để server fail-open
-                  _hcaptchaToken = 'render-error';
-                  if (status) status.textContent = 'Captcha không hoạt động, đang bỏ qua...';
-                  setTimeout(function () {
-                    revealed = true;
-                    fetchSessionCode(function () { closeModal(); openModal(); if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode); });
-                  }, 1000);
+                  // Vẫn fail — không bypass, yêu cầu tải lại trang
+                  if (status) status.innerHTML = '❌ Không thể tải captcha. <a href="javascript:window.location.reload()" style="color:#3b82f6;text-decoration:underline">Tải lại trang</a> để tiếp tục.';
                 } else {
+                  if (status) status.textContent = '';
                   if (box) window.hcaptcha.render(box, {
-                    sitekey: cfg.hcaptchaSiteKey, size: 'normal', callback: function (token) {
+                    sitekey: cfg.hcaptchaSiteKey,
+                    size: 'normal',
+                    theme: (cfg.theme === 'dark' || cfg.theme === 'glass') ? 'dark' : 'light',
+                    callback: function (token) {
                       _hcaptchaToken = token;
                       revealed = true;
                       fetchSessionCode(function () { closeModal(); openModal(); if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode); });
-                    }
+                    },
+                    'expired-callback': function () { _hcaptchaToken = ''; if (status) { status.textContent = 'Captcha hết hạn, vui lòng giải lại.'; status.style.color = '#ef4444'; } },
+                    'error-callback': function () { _hcaptchaToken = ''; if (status) { status.textContent = 'Captcha lỗi, vui lòng thử lại.'; status.style.color = '#ef4444'; } try { if (window.hcaptcha) window.hcaptcha.reset(); } catch (e2) { } },
                   });
                 }
               });
@@ -1562,6 +1563,7 @@
         }
         return;
       }
+
 
       if (status) status.textContent = '';
       try {
@@ -1588,34 +1590,29 @@
           'expired-callback': function () {
             _hcaptchaToken = '';
             if (status) {
-              status.textContent = 'Captcha hết hạn, vui lòng thử lại';
+              status.textContent = 'Captcha hết hạn, vui lòng giải lại.';
               status.style.color = '#ef4444';
             }
           },
           'error-callback': function () {
-            if (status) status.textContent = 'Lỗi captcha, đang thử lại...';
-            // Fallback: skip captcha
-            _hcaptchaToken = 'error';
-            setTimeout(function () {
-              revealed = true;
-              fetchSessionCode(function () {
-                closeModal();
-                openModal();
-                if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
-              });
-            }, 1500);
+            // Lỗi captcha — không bypass, yêu cầu giải lại
+            _hcaptchaToken = '';
+            if (status) {
+              status.textContent = 'Captcha gặp lỗi. Vui lòng thử lại.';
+              status.style.color = '#ef4444';
+            }
+            // Reset captcha để user giải lại
+            try { if (window.hcaptcha) window.hcaptcha.reset(); } catch (e2) { }
           },
         });
       } catch (e) {
-        // Render failed — skip
-        _hcaptchaToken = 'render-error';
-        revealed = true;
-        fetchSessionCode(function () {
-          closeModal();
-          openModal();
-          if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode);
-        });
+        // Render thất bại — không bypass, hiện lỗi và hướng dẫn tải lại trang
+        if (status) {
+          status.innerHTML = 'Captcha không tải được. <a href="javascript:window.location.reload()" style="color:#3b82f6;text-decoration:underline">Tải lại trang</a> để thử lại.';
+          status.style.color = '#ef4444';
+        }
       }
+
     });
   }
 

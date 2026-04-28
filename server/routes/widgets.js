@@ -685,40 +685,35 @@ router.post('/public/:token/get-code', async (req, res) => {
     } catch (_) { }
   }
   const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
-  // ── hCaptcha gate: BẮt BUỘC khi _ce — không cho bỏ qua bằng cách không gửi token
+  // ── hCaptcha gate: BẮT BUỘC với non-trusted — không có bất kỳ fallback nào
   if (!isTrustedWorker) {
     const captchaRequired = await getCaptchaEnabled(pool);
     if (captchaRequired) {
-      // Cố ý bỏ qua captcha → block tuyệt đối
-      const HARD_BLOCK = ['skip', 'disabled'];
-      // CDN fail thật (network lỗi) → fail-open, log để monitor
-      const CDN_FAIL = ['render-error', 'error'];
-      if (!_hct || HARD_BLOCK.includes(_hct)) {
-        console.log('[Widget] BLOCKED: missing/skip _hct — IP: ' + ip + ', task: #' + task.id);
+      // Tất cả token không phải real token từ hCaptcha → block tuyệt đối
+      const BLOCK_TOKENS = ['skip', 'disabled', 'render-error', 'error'];
+      if (!_hct || BLOCK_TOKENS.includes(_hct)) {
+        console.log('[Widget] BLOCKED: invalid _hct=' + (_hct || 'empty') + ' — IP: ' + ip + ', task: #' + task.id);
         return res.status(403).json({ error: 'Captcha bắt buộc. Vui lòng thực hiện trên trình duyệt.' });
       }
-      if (CDN_FAIL.includes(_hct)) {
-        console.log('[Widget] hCaptcha CDN fail-open — IP: ' + ip + ', task: #' + task.id + ', token: ' + _hct);
-      } else {
-        try {
-          const hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'response=' + encodeURIComponent(_hct) + '&secret=' + encodeURIComponent(HCAPTCHA_SECRET),
-          });
-          const hcData = await hcRes.json();
-          if (!hcData.success) {
-            console.log('[Widget] hCaptcha failed — IP: ' + ip + ', task: #' + task.id + ', errors: ' + (hcData['error-codes'] || []).join(','));
-            return res.status(403).json({ error: 'Captcha verification failed' });
-          }
-        } catch (e) {
-          console.error('[Widget] hCaptcha verify error:', e.message);
-          // fail-open khi hCaptcha API down
+      // Verify với hCaptcha API — user đã giải captcha, cần xác nhận token hợp lệ
+      try {
+        const hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'response=' + encodeURIComponent(_hct) + '&secret=' + encodeURIComponent(HCAPTCHA_SECRET),
+        });
+        const hcData = await hcRes.json();
+        if (!hcData.success) {
+          console.log('[Widget] hCaptcha FAILED — IP: ' + ip + ', task: #' + task.id + ', errors: ' + (hcData['error-codes'] || []).join(','));
+          return res.status(403).json({ error: 'Captcha không hợp lệ. Vui lòng giải lại.' });
         }
+        console.log('[Widget] hCaptcha OK — IP: ' + ip + ', task: #' + task.id);
+      } catch (e) {
+        // siteverify API down (không phải CDN issue) → fail-open vì user đã thực sự giải
+        console.error('[Widget] hCaptcha siteverify error (fail-open):', e.message);
       }
     }
   }
-
 
   let botDetected = false;
   let detectionLog = [];
