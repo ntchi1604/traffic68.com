@@ -219,7 +219,7 @@ export default function CreateCampaign() {
     directDailyViews: 0,
     viewByHour: false,
     useKeywordViews: false,       // per-keyword daily_views limit toggle
-    keywords: [{ keyword: '', views: 1000, daily_views: 0, url: '', image: '' }],
+    keywords: [{ keyword: '', views: 1000, daily_views: 0, url: '', images: [''] }],
     urls: [''],
     imageUrls: [''],
     devices: ['desktop', 'mobile'],
@@ -234,7 +234,7 @@ export default function CreateCampaign() {
   const addKeyword = () => setForm(f => ({
     ...f,
     keywords: [...f.keywords, {
-      keyword: '', url: '', image: '', daily_views: 0,
+      keyword: '', url: '', images: [''], daily_views: 0,
       views: f.keywords[0]?.views || 1000,
     }],
   }));
@@ -247,9 +247,25 @@ export default function CreateCampaign() {
     ...f,
     keywords: f.keywords.map((k, i) => i === idx ? { ...k, url: val } : k),
   }));
-  const updateKeywordImage = (idx, val) => setForm(f => ({
+  const updateKeywordImage = (kwIdx, imgIdx, val) => setForm(f => ({
     ...f,
-    keywords: f.keywords.map((k, i) => i === idx ? { ...k, image: val } : k),
+    keywords: f.keywords.map((k, i) => {
+      if (i !== kwIdx) return k;
+      const newImages = [...k.images];
+      newImages[imgIdx] = val;
+      return { ...k, images: newImages };
+    }),
+  }));
+  const addKeywordImage = (kwIdx) => setForm(f => ({
+    ...f,
+    keywords: f.keywords.map((k, i) => i === kwIdx ? { ...k, images: [...k.images, ''] } : k),
+  }));
+  const removeKeywordImage = (kwIdx, imgIdx) => setForm(f => ({
+    ...f,
+    keywords: f.keywords.map((k, i) => {
+      if (i !== kwIdx) return k;
+      return { ...k, images: k.images.filter((_, j) => j !== imgIdx) };
+    }),
   }));
   const updateKeywordViews = (idx, val) => setForm(f => ({
     ...f,
@@ -329,10 +345,12 @@ export default function CreateCampaign() {
   };
 
   const [uploadingKwIdx, setUploadingKwIdx] = useState(-1);
-  const handleKeywordImageUpload = async (e, idx) => {
+  const [uploadingKwImgIdx, setUploadingKwImgIdx] = useState(-1);
+  const handleKeywordImageUpload = async (e, kwIdx, imgIdx) => {
     const file = e.target.files[0];
     if (!file) return;
-    setUploadingKwIdx(idx);
+    setUploadingKwIdx(kwIdx);
+    setUploadingKwImgIdx(imgIdx);
     try {
       const formData = new FormData();
       formData.append('image', file);
@@ -340,11 +358,12 @@ export default function CreateCampaign() {
       const res = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload thất bại');
-      updateKeywordImage(idx, data.imageUrl);
+      updateKeywordImage(kwIdx, imgIdx, data.imageUrl);
     } catch (err) {
       toast.error(err.message);
     } finally {
       setUploadingKwIdx(-1);
+      setUploadingKwImgIdx(-1);
     }
   };
 
@@ -411,9 +430,12 @@ export default function CreateCampaign() {
     setError('');
     setSubmitting(true);
     try {
-      const images = validKeywords.map(k => k.image).filter(u => u && u.trim());
+      // Collect all images from all keywords
+      const allKeywordImages = validKeywords.flatMap(k =>
+        (k.images || []).filter(img => img && img.trim())
+      );
       const globalImage = form.imageUrls[0]?.trim();
-      const allImages = globalImage ? [globalImage, ...images] : images;
+      const allImages = globalImage ? [globalImage, ...allKeywordImages] : allKeywordImages;
 
       // Build keyword_config — views = views riêng của từng keyword (không dùng total)
       const keywordConfig = validKeywords.map(k => ({
@@ -421,7 +443,7 @@ export default function CreateCampaign() {
         views: Number(k.views) || 0,
         daily_views: Number(k.daily_views) || 0, // 0 = không giới hạn
         url: k.url || '',
-        image: k.image || ''
+        images: (k.images || []).filter(img => img && img.trim())
       }));
 
       // tổng daily = sum keyword daily; nếu tất cả = 0 thì dùng form.dailyViews (tính trong allocatedDailyViews)
@@ -755,38 +777,52 @@ export default function CreateCampaign() {
                             </button>
                           )}
                         </div>
-                        {/* URL Đích + Link Image — luôn hiện */}
-                        <div className="flex gap-2 items-center mt-1">
+                        {/* URL Đích + Link Images — luôn hiện */}
+                        <div className="flex gap-2 items-start mt-1">
                           <TextInput
                             placeholder={isSocial ? 'URL Đích (trang sẽ đến)' : 'URL Đích riêng (Tuỳ chọn)'}
                             value={kw.url}
                             onChange={e => updateKeywordUrl(i, e.target.value)}
                             className="flex-1 text-xs"
                           />
-                          <div className="flex-1 flex gap-2">
-                            <TextInput
-                              placeholder="Link Image - Ctrl+V dán ảnh"
-                              value={kw.image}
-                              onChange={e => updateKeywordImage(i, e.target.value)}
-                              onPaste={async e => {
-                                const items = e.clipboardData?.items;
-                                if (!items) return;
-                                for (let j = 0; j < items.length; j++) {
-                                  const item = items[j];
-                                  if (item.type.startsWith('image/')) {
-                                    e.preventDefault();
-                                    const file = item.getAsFile();
-                                    if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
-                                    break;
-                                  }
-                                }
-                              }}
-                              className="flex-1 text-xs"
-                            />
-                            <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
-                              {uploadingKwIdx === i ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
-                              <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
-                            </label>
+                          <div className="flex-1 space-y-2">
+                            {(kw.images || ['']).map((img, imgIdx) => (
+                              <div key={imgIdx} className="flex gap-2">
+                                <TextInput
+                                  placeholder={`Link Image ${imgIdx + 1} - Ctrl+V dán ảnh`}
+                                  value={img}
+                                  onChange={e => updateKeywordImage(i, imgIdx, e.target.value)}
+                                  onPaste={async e => {
+                                    const items = e.clipboardData?.items;
+                                    if (!items) return;
+                                    for (let j = 0; j < items.length; j++) {
+                                      const item = items[j];
+                                      if (item.type.startsWith('image/')) {
+                                        e.preventDefault();
+                                        const file = item.getAsFile();
+                                        if (file) handleKeywordImageUpload({ target: { files: [file] } }, i, imgIdx);
+                                        break;
+                                      }
+                                    }
+                                  }}
+                                  className="flex-1 text-xs"
+                                />
+                                <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0" title="Upload Image">
+                                  {uploadingKwIdx === i && uploadingKwImgIdx === imgIdx ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
+                                  <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i, imgIdx)} />
+                                </label>
+                                {(kw.images || []).length > 1 && (
+                                  <button type="button" onClick={() => removeKeywordImage(i, imgIdx)}
+                                    className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            <button type="button" onClick={() => addKeywordImage(i)}
+                              className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1">
+                              <Plus size={14} /> Thêm ảnh
+                            </button>
                           </div>
                         </div>
                       </div>

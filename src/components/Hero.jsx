@@ -72,6 +72,10 @@ export default function Hero() {
                 alt="Chuyên gia traffic68.com với biểu đồ tăng trưởng"
                 className="w-full max-w-md xl:max-w-lg rounded-3xl object-cover shadow-2xl"
                 style={{ filter: 'drop-shadow(0 30px 60px rgba(249,115,22,0.2))' }}
+                width="512"
+                height="512"
+                loading="eager"
+                fetchpriority="high"
               />
 
               {/* Traffic Sources dashboard card */}

@@ -841,8 +841,11 @@ async function _handleTaskPost(req, res) {
           campaign = picked;
           selectedKeyword = selectedObj.keyword;
           selectedKwUrl = selectedObj.url || selectedObj.domain;
-          selectedKwImage = selectedObj.image;
-          console.log(`[VuotLink] Keyword config selected: "${selectedKeyword}" (URL: ${selectedKwUrl || 'None'}, Image: ${selectedKwImage ? 'Yes' : 'No'})`);
+          // Support both old format (image: string) and new format (images: array)
+          selectedKwImage = selectedObj.images
+            ? (Array.isArray(selectedObj.images) ? selectedObj.images : [selectedObj.images])
+            : (selectedObj.image ? [selectedObj.image] : []);
+          console.log(`[VuotLink] Keyword config selected: "${selectedKeyword}" (URL: ${selectedKwUrl || 'None'}, Images: ${selectedKwImage.length})`);
           kwOk = true;
         }
         // else: kwOk stays false → camp bị loại khỏi pool bên dưới
@@ -919,8 +922,12 @@ async function _handleTaskPost(req, res) {
   // ── Bắt đầu fetch widget config sớm (song song với INSERT / race check) ──
   const _widgetConfigPromise = _fetchWidgetConfig(pool, campaign.user_id, selectedUrl);
 
-  const allImages = [...parseImgArray(campaign.image1_url), ...parseImgArray(campaign.image2_url)].filter(Boolean);
-  const selectedImage1 = (selectedKwImage && selectedKwImage.trim()) ? selectedKwImage.trim() : (allImages.length > 0 ? allImages[Math.floor(Math.random() * allImages.length)] : '');
+  // Merge keyword images + campaign images
+  const keywordImages = Array.isArray(selectedKwImage) ? selectedKwImage.filter(Boolean) : [];
+  const campaignImages = [...parseImgArray(campaign.image1_url), ...parseImgArray(campaign.image2_url)].filter(Boolean);
+  const allImages = [...keywordImages, ...campaignImages];
+
+  const selectedImage1 = allImages.length > 0 ? allImages[Math.floor(Math.random() * allImages.length)] : '';
   const selectedImage2 = allImages.length > 1 ? allImages.filter(u => u !== selectedImage1)[Math.floor(Math.random() * Math.max(1, allImages.length - 1))] || '' : '';
 
   // Extra URLs for url2 (pick random from JSON array)

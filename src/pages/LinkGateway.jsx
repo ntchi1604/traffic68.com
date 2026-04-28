@@ -1150,58 +1150,73 @@ function ShakeChallenge({ onPass, onClose }) {
 
   useEffect(() => {
     const requestAndListen = async () => {
-      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-        try {
-          const perm = await DeviceMotionEvent.requestPermission();
-          if (perm !== 'granted') return;
-        } catch (e) { return; }
-      }
-      const handler = (e) => {
-        if (!(e instanceof DeviceMotionEvent)) return;
-        const _ua = navigator.userAgent || '';
-        const _isInApp = /FBAN|FBAV|Instagram|TikTok|Line\/|ZaloApp|Twitter\/|Snapchat|Viber/i.test(_ua);
-        const acc0 = e.accelerationIncludingGravity;
-        const hasRealGravity = acc0 && (acc0.z !== 0 && acc0.z !== null);
-        if (!e.isTrusted && !(_isInApp && hasRealGravity)) return;
-
-        const acc = e.accelerationIncludingGravity;
-        if (!acc) return;
-        const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
-        const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
-        if (ax === ay && ay === az) return;
-        const now = Date.now();
-        rawLogRef.current.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
-        if (rawLogRef.current.length > 50) rawLogRef.current.shift();
-
-        if (total > SHAKE_THRESHOLD && now - lastShakeRef.current > SHAKE_DEBOUNCE) {
-          lastShakeRef.current = now;
-          setFlashing(true);
-          setTimeout(() => setFlashing(false), 300);
-          setShakeCount(prev => {
-            const next = prev + 1;
-            if (next >= TARGET && !passedRef.current) {
-              passedRef.current = true; // block repeated triggers
-              const log = [...rawLogRef.current];
-              // Chỉ phát hiện giả lập khi CẢ 3 trục đều = 0 (emulator hoàn toàn giả)
-              const allXZero = log.every(s => s.ax === 0);
-              const allYZero = log.every(s => s.ay === 0);
-              const allZZero = log.every(s => s.az === 0);
-              if (allXZero && allYZero && allZZero) {
-                setFakeDetected(true);
-                passedRef.current = false;
-                return next;
-              }
-              setPassed(true);
-              // Gọi onPass ngay, truyền thêm setVerifying để parent hiển thị spinner
-              // KHÔNG dùng auto-close timer — parent sẽ đóng overlay khi API xong
-              onPass(log, setVerifying);
+      try {
+        if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+          try {
+            const perm = await DeviceMotionEvent.requestPermission();
+            if (perm !== 'granted') {
+              console.log('[ShakeChallenge] Permission denied');
+              return;
             }
-            return next;
+          } catch (e) {
+            console.error('[ShakeChallenge] Permission error:', e);
+            return;
+          }
+        }
+        const handler = (e) => {
+          try {
+            if (!(e instanceof DeviceMotionEvent)) return;
+            const _ua = navigator.userAgent || '';
+            const _isInApp = /FBAN|FBAV|Instagram|TikTok|Line\/|ZaloApp|Twitter\/|Snapchat|Viber/i.test(_ua);
+            const acc0 = e.accelerationIncludingGravity;
+            const hasRealGravity = acc0 && (acc0.z !== 0 && acc0.z !== null);
+            if (!e.isTrusted && !(_isInApp && hasRealGravity)) return;
+
+            const acc = e.accelerationIncludingGravity;
+            if (!acc) return;
+            const ax = acc.x || 0, ay = acc.y || 0, az = acc.z || 0;
+            const total = (ax < 0 ? -ax : ax) + (ay < 0 ? -ay : ay) + (az < 0 ? -az : az);
+            if (ax === ay && ay === az) return;
+            const now = Date.now();
+            rawLogRef.current.push({ t: now, ax: +ax.toFixed(2), ay: +ay.toFixed(2), az: +az.toFixed(2) });
+            if (rawLogRef.current.length > 50) rawLogRef.current.shift();
+
+            if (total > SHAKE_THRESHOLD && now - lastShakeRef.current > SHAKE_DEBOUNCE) {
+              lastShakeRef.current = now;
+              setFlashing(true);
+              setTimeout(() => setFlashing(false), 300);
+              setShakeCount(prev => {
+                const next = prev + 1;
+                if (next >= TARGET && !passedRef.current) {
+                  passedRef.current = true; // block repeated triggers
+                  const log = [...rawLogRef.current];
+                  // Chỉ phát hiện giả lập khi CẢ 3 trục đều = 0 (emulator hoàn toàn giả)
+                  const allXZero = log.every(s => s.ax === 0);
+                  const allYZero = log.every(s => s.ay === 0);
+                  const allZZero = log.every(s => s.az === 0);
+                  if (allXZero && allYZero && allZZero) {
+                    setFakeDetected(true);
+                    passedRef.current = false;
+                    return next;
+                  }
+                  setPassed(true);
+                  // Gọi onPass ngay, truyền thêm setVerifying để parent hiển thị spinner
+                  // KHÔNG dùng auto-close timer — parent sẽ đóng overlay khi API xong
+                  onPass(log, setVerifying);
+                }
+                return next;
           });
         }
+          } catch (handlerErr) {
+            console.error('[ShakeChallenge] Handler error:', handlerErr);
+          }
       };
       window.addEventListener('devicemotion', handler, { passive: true });
       return () => window.removeEventListener('devicemotion', handler);
+      } catch (err) {
+        console.error('[ShakeChallenge] Setup error:', err);
+        return () => {};
+      }
     };
     const cleanup = requestAndListen();
     return () => { cleanup.then && cleanup.then(fn => fn && fn()); };
@@ -1361,24 +1376,56 @@ function CurveChallenge({ onPass, onClose }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
 
-    // Fix: canvas trong fixed overlay thường trả offsetWidth=0 → dùng parentElement hoặc window
-    const W = canvas.width = Math.max(canvas.offsetWidth, canvas.parentElement?.offsetWidth || 0, window.innerWidth > 640 ? 560 : window.innerWidth - 64) || 500;
+    let ctx;
+    try {
+      ctx = canvas.getContext('2d');
+      if (!ctx) {
+        console.error('[CurveChallenge] Cannot get 2d context');
+        return;
+      }
+    } catch (err) {
+      console.error('[CurveChallenge] Context error:', err);
+      return;
+    }
+
+    // Fix: Đảm bảo canvas luôn có kích thước hợp lệ, thử nhiều cách lấy width
+    const getCanvasWidth = () => {
+      if (canvas.offsetWidth > 0) return canvas.offsetWidth;
+      if (canvas.parentElement?.offsetWidth > 0) return canvas.parentElement.offsetWidth;
+      if (canvas.clientWidth > 0) return canvas.clientWidth;
+      const computed = window.getComputedStyle(canvas);
+      const w = parseInt(computed.width);
+      if (w > 0) return w;
+      return window.innerWidth > 640 ? 560 : Math.max(window.innerWidth - 64, 320);
+    };
+
+    const W = canvas.width = Math.max(getCanvasWidth(), 320); // Minimum 320px
     const H = canvas.height = 220;
+
+    if (W < 100 || H < 100) {
+      console.error('[CurveChallenge] Canvas too small:', W, H);
+      return;
+    }
 
     const state = stateRef.current;
     if (!state.initialized) {
-      state.pts = _genCurve(W, H);
-      state.samples = _sampleBezier(state.pts);
-      state.initialized = true;
+      try {
+        state.pts = _genCurve(W, H);
+        state.samples = _sampleBezier(state.pts);
+        state.initialized = true;
+      } catch (err) {
+        console.error('[CurveChallenge] Curve generation error:', err);
+        return;
+      }
     }
     state.progress = 0;
     state.isDragging = false;
     state.passed = false;
 
     const draw = () => {
-      ctx.clearRect(0, 0, W, H);
+      try {
+        ctx.clearRect(0, 0, W, H);
 
       // Background guide track (faint)
       ctx.beginPath();
@@ -1446,6 +1493,9 @@ function CurveChallenge({ onPass, onClose }) {
       ctx.fillText('KẾT THÚC', endPt.x - 28, endPt.y - 16);
 
       animRef.current = requestAnimationFrame(draw);
+      } catch (err) {
+        console.error('[CurveChallenge] Draw error:', err);
+      }
     };
     animRef.current = requestAnimationFrame(draw);
 
