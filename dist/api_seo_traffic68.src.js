@@ -1932,12 +1932,33 @@
       if (!box) return;
 
       if (!window.hcaptcha) {
-        if (status) status.textContent = 'Captcha không tải được, đang lấy mã...';
-        _hcaptchaToken = 'skip';
-        setTimeout(function () {
-          revealed = true;
-          fetchSessionCodeV1Phase2(function () { closeModal(); openModal(); if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode); });
-        }, 1000);
+        // hCaptcha CDN fail → hiện nút retry, không auto-skip
+        var _v1p2RetryCount = (window._v1p2RetryCount || 0);
+        if (_v1p2RetryCount >= 2) {
+          // Đã thử đủ lần → fail-open (server sẽ log và cho qua)
+          if (status) status.textContent = 'Không tải được captcha. Đang lấy mã...';
+          _hcaptchaToken = 'render-error';
+          setTimeout(function () {
+            revealed = true;
+            fetchSessionCodeV1Phase2(function () { closeModal(); openModal(); if (typeof cfg.onReveal === 'function') cfg.onReveal(sessionCode); });
+          }, 1000);
+        } else {
+          if (status) status.innerHTML = 'Captcha không tải được. <a href="#" id="ln-v1p2-retry" style="color:#3b82f6;text-decoration:underline;">Thử lại</a>';
+          var retryLink = document.getElementById('ln-v1p2-retry');
+          if (retryLink) {
+            retryLink.onclick = function (e) {
+              e.preventDefault();
+              window._v1p2RetryCount = (_v1p2RetryCount || 0) + 1;
+              delete window.hcaptcha;
+              // Reload hcaptcha script
+              var oldScript = document.getElementById('ln-hcaptcha-script');
+              if (oldScript) oldScript.remove();
+              _hcaptchaLoaded = false;
+              closeModal();
+              _showV1Phase2Captcha();
+            };
+          }
+        }
         return;
       }
 

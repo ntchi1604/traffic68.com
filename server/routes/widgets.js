@@ -518,7 +518,8 @@ router.post('/public/:token/check-session', async (req, res) => {
   }
 
   let isTrustedWorker = false;
-  const targetCheckId = task.ref_worker_id || task.worker_id;
+  // Chỉ dùng worker_id (người thực sự làm task) — ref_worker_id là referrer, không ảnh hưởng captcha
+  const targetCheckId = task.worker_id;
   if (targetCheckId) {
     try {
       const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
@@ -675,7 +676,8 @@ router.post('/public/:token/get-code', async (req, res) => {
   console.log(`[Widget] get-code task found — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, status: ${task.status}, ref: "${(_ref || '').substring(0, 80)}"`);
 
   let isTrustedWorker = false;
-  const targetCheckId = task.ref_worker_id || task.worker_id || req.userId;
+  // Chỉ dùng worker_id (người thực sự làm task) — ref_worker_id là referrer, không ảnh hưởng captcha
+  const targetCheckId = task.worker_id || req.userId;
   if (targetCheckId) {
     try {
       const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
