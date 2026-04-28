@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*)"
+      "Bash(*)",
+      "mcp__grapuco__bootstrap",
+      "mcp__grapuco__get_architecture",
+      "mcp__grapuco__get_data_flows",
+      "mcp__grapuco__semantic_search",
+      "mcp__grapuco__list_projects",
+      "mcp__grapuco__get_context"
     ]
   }
 }
