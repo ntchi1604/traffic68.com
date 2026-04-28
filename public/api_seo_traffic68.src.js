@@ -1305,7 +1305,6 @@
           var resp = JSON.parse(xhr.responseText);
           if (resp.trusted) _captchaEnabled = false;
           if (resp._hbn) _hbNonce = resp._hbn; // lưu nonce đầu cho heartbeat chain
-          if (resp._pws) _powSeed = resp._pws;   // lưu powSeed cho get-code PoW
         } catch (e) { }
         _sessionVerified = true;
         _requireGoogle = false;
@@ -1398,7 +1397,6 @@
 
   var _domText = '', _domFontSize = 16, _glColor = [0, 0, 0];
   var _canvasHash = ''; // Canvas PoW hash
-  var _powSeed = '';    // Server PoW seed: dùng tính powHash lúc gọi get-code
 
   function fetchChallenge(callback) {
     if (!_widgetToken) { callback(false); return; }
@@ -1586,18 +1584,6 @@
   var _fetchRetryCount = 0;
   var _MAX_RETRIES = 2;
 
-  // PoW: SHA-256(powSeed + Math.floor(Date.now()/1000)) — giây thực tế, server verify ±10s
-  // Browser thật có window.crypto.subtle; script thuần không đoạn được giây server đang ở
-  var _powHashReady = '';
-  function _computePowHash() { return _powHashReady; }
-  function _preparePowHash() {
-    if (!_powSeed || !window.crypto || !window.crypto.subtle) return;
-    var nowSec = Math.floor(Date.now() / 1000);
-    var raw = new TextEncoder().encode(_powSeed + nowSec);
-    window.crypto.subtle.digest('SHA-256', raw).then(function(buf) {
-      _powHashReady = Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('').substring(0, 32);
-    }).catch(function() { _powHashReady = ''; });
-  }
 
   function _buildGetCodePayload() {
     // Collect comprehensive _bv data (v2)
@@ -1670,8 +1656,7 @@
       },
       _ref: _isDirect ? '' : (document.referrer || ''),
       _np: _isDirect ? null : _buildNavigationProof(),
-      _cvh: _canvasHash || undefined,
-      powHash: _computePowHash()
+      _cvh: _canvasHash || undefined
     };
   }
 
@@ -1848,7 +1833,6 @@
     // Pre-load detection libs and challenge in background
     _initBehaviorTracking();
     _loadDetectionLibs(function () { });
-    _preparePowHash();
     fetchChallenge(function () { });
     bindVisibility();
     // Update button text to indicate next step

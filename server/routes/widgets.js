@@ -649,8 +649,9 @@ router.post('/public/:token/heartbeat', async (req, res) => {
     if (secD.hb_last) {
       const lastMs = new Date(secD.hb_last).getTime();
       if (!isNaN(lastMs) && (Date.now() - lastMs) < HB_MIN_GAP_MS) {
-        console.log(`[Widget] HB too fast — task=#${taskId}, gap=${Date.now() - lastMs}ms`);
-        return res.status(429).json({ ok: false, error: 'too fast' });
+        console.log(`[Widget] HB too fast (silent) — task=#${taskId}, gap=${Date.now() - lastMs}ms`);
+        // Trả ok:true + nonce cũ — tránh break UI khi tab focus lại gọi HB ngay lập tức
+        return res.json({ ok: true, _hbn: storedNonce });
       }
     }
     const nextNonce = crypto.randomBytes(16).toString('hex');
