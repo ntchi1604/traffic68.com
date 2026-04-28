@@ -537,7 +537,7 @@ router.post('/public/:token/check-session', async (req, res) => {
   try {
     await pool.execute(
       `UPDATE vuot_link_tasks SET security_detail = JSON_SET(
-         COALESCE(security_detail, '{}'), '$.hb_nonce', ?, '$.hb_count', 0
+         COALESCE(security_detail, '{}'), '$.hb_nonce', ?
        ) WHERE id = ?`,
       [initNonce, task.id]
     );
