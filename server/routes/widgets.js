@@ -257,39 +257,30 @@ router.get('/public/:token', async (req, res) => {
 
   if (_ce) {
     try {
-      // Batch: kiểm tra owner admin + trusted worker trong 1 query (có thể skip captcha)
+      // Chỉ bỏ qua captcha khi WORKER là trusted — admin owner không liên quan
       const visitorId = req.query.v || req.query.visitorId || '';
       const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
 
-      // Kiểm tra owner có phải admin không
-      const [ownerRows] = await pool.execute('SELECT role FROM users WHERE id = ?', [widgets[0].user_id]);
-      if (ownerRows.length > 0 && ownerRows[0].role === 'admin') {
+      // Kiểm tra worker trusted — tìm trong 6h qua
+      const cacheKey = cleanVid || ip;
+      if (_trustedCache.get(cacheKey)) {
         _ce = false;
-      }
-
-      if (_ce) {
-        // Kiểm tra worker trusted — tìm trong 6h qua (không chỉ active tasks)
-        // Nếu worker đã làm task gần đây → bỏ qua captcha dù task đã expire
-        const cacheKey = cleanVid || ip;
-        if (_trustedCache.get(cacheKey)) {
-          _ce = false;
-        } else {
-          const [tasks] = await pool.execute(
-            `SELECT u.trusted
-             FROM vuot_link_tasks vt
-             LEFT JOIN users u ON u.id = COALESCE(vt.ref_worker_id, vt.worker_id)
-             WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id != ''))
-               AND vt.created_at >= DATE_SUB(NOW(), INTERVAL 6 HOUR)
-               AND u.trusted = 1
-             LIMIT 1`,
-            [ip, cleanVid]
-          );
+      } else {
+        const [tasks] = await pool.execute(
+          `SELECT u.trusted
+           FROM vuot_link_tasks vt
+           LEFT JOIN users u ON u.id = COALESCE(vt.ref_worker_id, vt.worker_id)
+           WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id != ''))
+             AND vt.created_at >= DATE_SUB(NOW(), INTERVAL 6 HOUR)
+             AND u.trusted = 1
+           LIMIT 1`,
+          [ip, cleanVid]
+        );
           if (tasks.length > 0 && tasks[0].trusted === 1) {
             _ce = false;
             _trustedCache.set(cacheKey, true); // cache 5 phút
           }
         }
-      }
     } catch (e) { }
   }
 
