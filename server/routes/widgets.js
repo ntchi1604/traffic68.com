@@ -716,19 +716,29 @@ router.post('/public/:token/get-code', async (req, res) => {
         return res.status(403).json({ error: 'Captcha bắt buộc. Vui lòng thực hiện trên trình duyệt.' });
       }
       try {
-        const hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'response=' + encodeURIComponent(_hct) + '&secret=' + encodeURIComponent(HCAPTCHA_SECRET),
-        });
-        const hcData = await hcRes.json();
+        const _hcAbort = new AbortController();
+        const _hcTimeout = setTimeout(() => _hcAbort.abort(), 5000);
+        let hcRes, hcData;
+        try {
+          hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'response=' + encodeURIComponent(_hct) + '&secret=' + encodeURIComponent(HCAPTCHA_SECRET),
+            signal: _hcAbort.signal,
+          });
+          hcData = await hcRes.json();
+        } finally {
+          clearTimeout(_hcTimeout);
+        }
         if (!hcData.success) {
           console.log('[Widget] hCaptcha FAILED — IP: ' + ip + ', task: #' + task.id + ', errors: ' + (hcData['error-codes'] || []).join(','));
           return res.status(403).json({ error: 'Captcha không hợp lệ. Vui lòng giải lại.' });
         }
         console.log('[Widget] hCaptcha OK — IP: ' + ip + ', task: #' + task.id);
       } catch (e) {
-        console.error('[Widget] hCaptcha siteverify error (fail-open):', e.message);
+        const isTimeout = e.name === 'AbortError';
+        console.error('[Widget] hCaptcha siteverify error (fail-closed)' + (isTimeout ? ' [timeout]' : '') + ':', e.message);
+        return res.status(503).json({ error: 'Không thể xác minh captcha. Vui lòng thử lại.' });
       }
     }
   }
