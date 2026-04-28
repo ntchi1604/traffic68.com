@@ -1595,18 +1595,15 @@
             }
           },
           'error-callback': function () {
-            // Lỗi captcha — không bypass, yêu cầu giải lại
             _hcaptchaToken = '';
             if (status) {
               status.textContent = 'Captcha gặp lỗi. Vui lòng thử lại.';
               status.style.color = '#ef4444';
             }
-            // Reset captcha để user giải lại
             try { if (window.hcaptcha) window.hcaptcha.reset(); } catch (e2) { }
           },
         });
       } catch (e) {
-        // Render thất bại — không bypass, hiện lỗi và hướng dẫn tải lại trang
         if (status) {
           status.innerHTML = 'Captcha không tải được. <a href="javascript:window.location.reload()" style="color:#3b82f6;text-decoration:underline">Tải lại trang</a> để thử lại.';
           status.style.color = '#ef4444';
@@ -1616,9 +1613,6 @@
     });
   }
 
-  /* ── Fetch session code from server (ONLY after countdown + captcha) ── */
-  /* Sends _bv data + challenge + hCaptcha token */
-  /* With automatic retry: on failure, fetches new challenge and retries */
   var _fetchRetryCount = 0;
   var _MAX_RETRIES = 2;
 

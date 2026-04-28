@@ -724,18 +724,14 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (Date.now() - ch.createdAt > 600000) { delete widgetChallenges[_ci]; return res.status(403).json(ERR); }
   if (!_ck || _ck !== signWidgetChallenge(_ci, ch.ip)) return res.status(403).json(ERR);
 
-  // Canvas Proof-of-Work verification
-  // _cvh phải khớp với HMAC(seed+challengeId) — chỉ browser thật render canvas mới tính đúng
-  // Script thuần không có canvas API → không tính được expectedCanvasHash
-  // Fail-open cho trusted workers và client cũ chưa gửi _cvh
+  // Canvas PoW — monitor only, không block (hCaptcha là bảo vệ chính)
+  // V1 2-step: challenge từ trang khác có thể gây lệch hash → false positive
   if (!isTrustedWorker && ch.expectedCanvasHash) {
     const submittedHash = req.body?._cvh || '';
     if (!submittedHash) {
-      // Client cũ không gửi _cvh → fail-open (không block) - tránh false-positive
       console.log('[Widget] _cvh missing (old client) — fail-open, task=#' + task.id);
     } else if (submittedHash !== ch.expectedCanvasHash) {
-      console.log('[Widget] BLOCKED _cvh mismatch: task=#' + task.id + ', IP=' + ip);
-      return res.status(403).json({ error: 'Phát hiện gian lận! Vui lòng thực hiện trên trình duyệt.' });
+      console.log('[Widget] WARN _cvh mismatch (non-blocking): task=#' + task.id + ', IP=' + ip);
     }
   }
 
@@ -786,7 +782,6 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
 
   if (visitorId && visitorId !== 'unknown') {
-    // Dùng VN timezone và completed_at (nhất quán với vuotlink.js) — tránh bug UTC
     const maxViewsPerIp = await getViewsPerIp(pool);
     const vnDateWidget = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
     const vnStartW = `${vnDateWidget} 00:00:00`;
