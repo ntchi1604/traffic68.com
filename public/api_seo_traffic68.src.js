@@ -979,6 +979,7 @@
   var currentChallenge = null;
   var challengeListener = null;
   var challengeTimes = [];
+  var countdownStartTime = 0; // Track actual start time
 
   var _IC_UP = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
   var _IC_DOWN = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
@@ -1171,6 +1172,12 @@
   /* ── Countdown tick ──────────────────────────────────── */
   function doTick() {
     if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+
+    // Initialize start time on first tick
+    if (!countdownStartTime) {
+      countdownStartTime = Date.now();
+    }
+
     function tick() {
       // MUST be visible to count — fully stop if hidden
       if (!_isPageVisible || document.hidden) {
@@ -1178,6 +1185,10 @@
         return;
       }
       if (revealed || challengeActive) return;
+
+      // Calculate remaining time based on actual elapsed time
+      var elapsed = Math.floor((Date.now() - countdownStartTime) / 1000);
+      remaining = Math.max(0, cfg.waitTime - elapsed);
 
       var badge = document.getElementById('laynut-badge');
       if (badge) badge.textContent = remaining;
@@ -1246,7 +1257,7 @@
         return;
       }
 
-      remaining--;
+      // Don't manually decrement — remaining is already calculated from elapsed time
       tickTimer = setTimeout(tick, 1000);
     }
     tick();
