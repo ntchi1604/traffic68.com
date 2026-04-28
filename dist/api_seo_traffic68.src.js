@@ -1715,19 +1715,34 @@
 
 
       } else {
-        // ── RETRY: Fetch new challenge and try again ──
+        // ── Kiểm tra có nên retry không ──
+        var _errBody = '';
+        try { _errBody = JSON.parse(xhr.responseText).error || ''; } catch (_) {}
+        // Không retry với lỗi terminal: captcha/gian lận — token đã consumed, retry luôn thất bại
+        var _isTerminal = _errBody && (
+          _errBody.indexOf('Captcha') >= 0 ||
+          _errBody.indexOf('gian l') >= 0 ||
+          _errBody.indexOf('tr\u00ecnh duy\u1ec7t') >= 0
+        );
+        if (_isTerminal) {
+          console.warn('[LayNut] get-code terminal error (no retry): ' + _errBody);
+          sessionCode = 'ERR';
+          _fetchRetryCount = 0;
+          if (callback) callback();
+          return;
+        }
+        // ── RETRY: lỗi challenge (hết hạn, network), fetch challenge mới
         console.warn('[LayNut] get-code failed (status=' + xhr.status + '), retry ' + (_fetchRetryCount + 1) + '/' + _MAX_RETRIES);
         _fetchRetryCount++;
         if (_fetchRetryCount <= _MAX_RETRIES) {
-          // Fetch a brand new challenge, then retry
           fetchChallenge(function (ok) {
             if (ok) {
-              // Small delay to let challenge settle on server
               setTimeout(function () { _sendGetCode(callback); }, 300);
             } else {
               sessionCode = 'ERR';
               _fetchRetryCount = 0;
               if (callback) callback();
+
             }
           });
         } else {

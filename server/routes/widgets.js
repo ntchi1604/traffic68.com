@@ -684,18 +684,37 @@ router.post('/public/:token/get-code', async (req, res) => {
       isTrustedWorker = tRows[0]?.trusted === 1;
     } catch (_) { }
   }
+  // Buoc 1: Check _ci _ck TRUOC khi verify hCaptcha (tranh consume token khi _cvh sai)
+  let botDetected = false;
+  let detectionLog = [];
+
+  if (!_ci) return res.status(403).json(ERR);
+  const ch = widgetChallenges[_ci];
+  if (!ch || ch.used) { delete widgetChallenges[_ci]; return res.status(403).json(ERR); }
+  if (Date.now() - ch.createdAt > 600000) { delete widgetChallenges[_ci]; return res.status(403).json(ERR); }
+  if (!_ck || _ck !== signWidgetChallenge(_ci, ch.ip)) return res.status(403).json(ERR);
+
+  // Buoc 2: _cvh check TRUOC hCaptcha - neu sai, token chua bi consume, client co the retry
+  if (!isTrustedWorker && ch.expectedCanvasHash) {
+    const submittedHash = req.body?._cvh || '';
+    if (!submittedHash) {
+      console.log('[Widget] _cvh missing — fail-open, task=#' + task.id);
+    } else if (submittedHash !== ch.expectedCanvasHash) {
+      console.log('[Widget] BLOCKED _cvh mismatch: task=#' + task.id + ', IP=' + ip + ', submitted=' + submittedHash + ', expected=' + ch.expectedCanvasHash);
+      return res.status(403).json({ error: 'Phát hiọn gian lận! Vui lòng thực hiện trên trình duyệt.' });
+    }
+  }
+
+  // Buoc 3: hCaptcha gate - chi verify khi _ci, _ck, _cvh da OK
   const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
-  // ── hCaptcha gate: BẮT BUỘC với non-trusted — không có bất kỳ fallback nào
   if (!isTrustedWorker) {
     const captchaRequired = await getCaptchaEnabled(pool);
     if (captchaRequired) {
-      // Tất cả token không phải real token từ hCaptcha → block tuyệt đối
       const BLOCK_TOKENS = ['skip', 'disabled', 'render-error', 'error'];
       if (!_hct || BLOCK_TOKENS.includes(_hct)) {
         console.log('[Widget] BLOCKED: invalid _hct=' + (_hct || 'empty') + ' — IP: ' + ip + ', task: #' + task.id);
         return res.status(403).json({ error: 'Captcha bắt buộc. Vui lòng thực hiện trên trình duyệt.' });
       }
-      // Verify với hCaptcha API — user đã giải captcha, cần xác nhận token hợp lệ
       try {
         const hcRes = await fetch('https://api.hcaptcha.com/siteverify', {
           method: 'POST',
@@ -709,29 +728,8 @@ router.post('/public/:token/get-code', async (req, res) => {
         }
         console.log('[Widget] hCaptcha OK — IP: ' + ip + ', task: #' + task.id);
       } catch (e) {
-        // siteverify API down (không phải CDN issue) → fail-open vì user đã thực sự giải
         console.error('[Widget] hCaptcha siteverify error (fail-open):', e.message);
       }
-    }
-  }
-
-  let botDetected = false;
-  let detectionLog = [];
-
-  if (!_ci) return res.status(403).json(ERR);
-  const ch = widgetChallenges[_ci];
-  if (!ch || ch.used) { delete widgetChallenges[_ci]; return res.status(403).json(ERR); }
-  if (Date.now() - ch.createdAt > 600000) { delete widgetChallenges[_ci]; return res.status(403).json(ERR); }
-  if (!_ck || _ck !== signWidgetChallenge(_ci, ch.ip)) return res.status(403).json(ERR);
-
-  if (!isTrustedWorker && ch.expectedCanvasHash) {
-    const submittedHash = req.body?._cvh || '';
-    if (!submittedHash) {
-      // Không gửi _cvh (SubtleCrypto không khả dụng) → fail-open
-      console.log('[Widget] _cvh missing — fail-open, task=#' + task.id);
-    } else if (submittedHash !== ch.expectedCanvasHash) {
-      console.log('[Widget] BLOCKED _cvh mismatch: task=#' + task.id + ', IP=' + ip);
-      return res.status(403).json({ error: 'Phát hiọn gian lận! Vui lòng thực hiện trên trình duyệt.' });
     }
   }
 
