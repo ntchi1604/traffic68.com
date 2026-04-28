@@ -253,34 +253,9 @@ router.get('/public/:token', async (req, res) => {
   }
 
 
-  let _ce = await getCaptchaEnabled(pool);
-
-  if (_ce) {
-    try {
-      const visitorId = req.query.v || req.query.visitorId || '';
-      const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
-
-      const cacheKey = cleanVid || ip;
-      if (_trustedCache.get(cacheKey)) {
-        _ce = false;
-      } else {
-        const [tasks] = await pool.execute(
-          `SELECT u.trusted
-           FROM vuot_link_tasks vt
-           LEFT JOIN users u ON u.id = COALESCE(vt.ref_worker_id, vt.worker_id)
-           WHERE (vt.ip_address = ? OR (vt.visitor_id = ? AND vt.visitor_id != ''))
-             AND vt.created_at >= DATE_SUB(NOW(), INTERVAL 6 HOUR)
-             AND u.trusted = 1
-           LIMIT 1`,
-          [ip, cleanVid]
-        );
-        if (tasks.length > 0 && tasks[0].trusted === 1) {
-          _ce = false;
-          _trustedCache.set(cacheKey, true);
-        }
-      }
-    } catch (e) { }
-  }
+  // _ce = cài đặt captcha toàn cục
+  // Trusted status xác định tại check-session (biết task + worker cụ thể)
+  const _ce = await getCaptchaEnabled(pool);
 
   const resp = { campaignFound: !!campaignInfo, _ce };
   if (dailyFull && !campaignInfo) resp.dailyFull = true;
