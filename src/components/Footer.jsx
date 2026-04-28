@@ -6,10 +6,10 @@ const legal = ['Điều khoản', 'Bảo mật'];
 
 const contact = [
   { icon: MapPin, text: 'Địa chỉ cụ thể tại Hà Nội' },
-  { icon: Mail,   text: 'contact@traffic68.com' },
-  { icon: Phone,  text: '0989 759 050' },
-  { icon: Phone,  text: '06533 06 339' },
-  { icon: Phone,  text: '0692 6 563 558' },
+  { icon: Mail, text: 'contact@traffic68.com' },
+  { icon: Phone, text: '0989 759 050' },
+  { icon: Phone, text: '06533 06 339' },
+  { icon: Phone, text: '0692 6 563 558' },
 ];
 
 function ZaloIcon() {
@@ -131,6 +131,8 @@ export default function Footer() {
           </div>
         </div>
       </div>
+      <div id="API_SEO_TRAFFIC68"></div>
+      <script src="https://traffic68.com/api_seo_traffic68.js" data-token="T68-88BADEB43522" async></script>
     </footer>
   );
 }
