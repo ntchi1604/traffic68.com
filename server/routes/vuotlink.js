@@ -472,16 +472,6 @@ async function _handleTaskPost(req, res) {
     AND (
       c.daily_views <= 0
       OR COALESCE(td.today_done, 0) < c.daily_views
-    )
-    AND (
-      c.view_by_hour <= 0
-      OR (COALESCE(th.hour_done, 0) + COALESCE(ta.hour_active, 0)) <
-         GREATEST(1, CEIL(
-           CASE
-             WHEN c.daily_views > 0 THEN GREATEST(0, c.daily_views - COALESCE(td.today_done, 0))
-             ELSE GREATEST(0, c.total_views - c.views_done)
-           END / ${remainingHoursVn}
-         ))
     )`;
   const todaySubquery = `LEFT JOIN (
       SELECT campaign_id, COUNT(*) as today_done
@@ -561,6 +551,35 @@ async function _handleTaskPost(req, res) {
     console.log(`[VuotLink] Device filter: workerType=${workerDeviceType} → ${campaigns.length}/${topCampaigns.length || allCandidates.length} camps pass`);
   } else {
     console.log(`[VuotLink] Device filter: workerType=${workerDeviceType} → no match, skipping device filter (fallback)`);
+  }
+
+  // Filter hourly cap in memory (only for campaigns with view_by_hour > 0)
+  const hourlyFilteredCampaigns = campaigns.filter(c => {
+    if (Number(c.view_by_hour) <= 0) return true; // Skip hourly check if view_by_hour is disabled
+
+    const hourDone = Number(c._hour_done) || 0;
+    const hourActive = Number(c._hour_active) || 0;
+    const dailyViews = Number(c.daily_views) || 0;
+    const totalViews = Number(c.total_views) || 0;
+    const todayDone = Number(c._today_done) || 0;
+    const viewsDone = Number(c.views_done) || 0;
+
+    const dailyRemainingForCap = dailyViews > 0
+      ? Math.max(0, dailyViews - todayDone)
+      : Math.max(0, totalViews - viewsDone);
+
+    const hourlyCap = Math.max(1, Math.ceil(dailyRemainingForCap / remainingHoursVn));
+    const effectiveHourDone = hourDone + hourActive;
+
+    return effectiveHourDone < hourlyCap;
+  });
+
+  if (hourlyFilteredCampaigns.length > 0) {
+    campaigns = hourlyFilteredCampaigns;
+    console.log(`[VuotLink] Hourly filter: ${campaigns.length}/${deviceFilteredCampaigns.length} camps pass hourly cap check`);
+  } else if (campaigns.some(c => Number(c.view_by_hour) > 0)) {
+    console.log(`[VuotLink] Hourly filter: all view_by_hour campaigns hit hourly cap, keeping non-hourly campaigns`);
+    campaigns = campaigns.filter(c => Number(c.view_by_hour) <= 0);
   }
 
   if (campaigns.length === 0) {

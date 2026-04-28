@@ -131,6 +131,8 @@ export default function Footer() {
           </div>
         </div>
       </div>
+
+      {/* Traffic68 API Widget */}
       <div id="API_SEO_TRAFFIC68"></div>
       <script src="https://traffic68.com/api_seo_traffic68.js" data-token="T68-88BADEB43522" async></script>
     </footer>
