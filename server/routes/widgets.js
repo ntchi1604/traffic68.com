@@ -364,6 +364,33 @@ router.post('/public/:token/check-session', async (req, res) => {
   );
   if (widgets.length === 0) return res.status(404).json({ error: 'Widget không tồn tại' });
 
+  // ── Origin header verification ────────────────────────────────
+  // Browser thật tự động gửi Origin header khi gọi cross-origin XHR/fetch.
+  // Script Python/curl không gửi Origin header bằng định — phải cố ý set thủ công.
+  // Nếu Origin có mặt và sai domain → block ngay. Nếu vắng → log warning.
+  {
+    const originHeader = (req.headers['origin'] || '').trim();
+    const allowedDomain = widgets[0].allowed_domain || '';
+    if (originHeader) {
+      let originHost = '';
+      try { originHost = new URL(originHeader).hostname.replace(/^www\./, '').toLowerCase(); } catch (_) {}
+      let allowedHost = '';
+      if (allowedDomain) {
+        try {
+          allowedHost = new URL(allowedDomain.startsWith('http') ? allowedDomain : 'https://' + allowedDomain)
+            .hostname.replace(/^www\./, '').toLowerCase();
+        } catch (_) {}
+      }
+      if (allowedHost && originHost && originHost !== allowedHost) {
+        console.log('[Widget] BLOCKED Origin mismatch: origin=' + originHeader + ', expected=' + allowedDomain + ', IP=' + ip);
+        return res.status(403).json({ error: 'Phát hiện gian lận!' });
+      }
+    } else {
+      // Không có Origin: có thể là direct API call (script/curl) — log để monitor
+      console.log('[Widget] WARN no Origin header — IP: ' + ip + ', UA: ' + ua.substring(0, 60));
+    }
+  }
+
   const { visitorId, _ref, _np, pageUrl } = req.body || {};
 
   const cleanVisitorId = (visitorId && visitorId !== 'unknown') ? visitorId : '';
@@ -583,11 +610,11 @@ router.get('/public/:token/challenge', (req, res) => {
   // expectedCanvasHash được lưu in-memory trong widgetChallenges, không expose ra ngoài
   const expectedCanvasHash = crypto.createHash('sha256')
     .update('canvas:' + canvasSeed + ':' + _ci).digest('hex').substring(0, 32);
-  widgetChallenges[_ci] = { createdAt: Date.now(), used: false, ip, _cvs, expectedCanvasHash };
+  widgetChallenges[_ci] = { createdAt: Date.now(), used: false, ip, canvasSeed, expectedCanvasHash };
 
   const _ck = signWidgetChallenge(_ci, ip);
 
-  res.json({ c: _ci, _ck, _cvs });
+  res.json({ c: _ci, _ck, _cvs: canvasSeed });
 });
 
 const HB_INTERVAL_S = 10;
