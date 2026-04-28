@@ -1098,18 +1098,9 @@
           }
         }
 
+        // Chỉ check target element khi có scroll event thực sự (evt)
+        // Không quét DOM theo timer — tránh false-positive trên trang nhúng
         if (evt && _chkEl(evt.target)) { _doScrollComplete(); return; }
-
-        try {
-          var kids = document.body ? document.body.children : [];
-          for (var i = 0; i < kids.length; i++) {
-            if (_chkEl(kids[i])) { _doScrollComplete(); return; }
-            var gk = kids[i].children;
-            for (var j = 0; j < gk.length; j++) {
-              if (_chkEl(gk[j])) { _doScrollComplete(); return; }
-            }
-          }
-        } catch (e) { }
       };
 
       challengeListener = _checkScrollPos;
