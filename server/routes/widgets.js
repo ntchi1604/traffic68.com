@@ -257,11 +257,9 @@ router.get('/public/:token', async (req, res) => {
 
   if (_ce) {
     try {
-      // Chỉ bỏ qua captcha khi WORKER là trusted — admin owner không liên quan
       const visitorId = req.query.v || req.query.visitorId || '';
       const cleanVid = (visitorId && visitorId !== 'unknown') ? visitorId : '';
 
-      // Kiểm tra worker trusted — tìm trong 6h qua
       const cacheKey = cleanVid || ip;
       if (_trustedCache.get(cacheKey)) {
         _ce = false;
@@ -276,16 +274,16 @@ router.get('/public/:token', async (req, res) => {
            LIMIT 1`,
           [ip, cleanVid]
         );
-          if (tasks.length > 0 && tasks[0].trusted === 1) {
-            _ce = false;
-            _trustedCache.set(cacheKey, true); // cache 5 phút
-          }
+        if (tasks.length > 0 && tasks[0].trusted === 1) {
+          _ce = false;
+          _trustedCache.set(cacheKey, true);
         }
+      }
     } catch (e) { }
   }
 
   const resp = { campaignFound: !!campaignInfo, _ce };
-  if (dailyFull && !campaignInfo) resp.dailyFull = true; // hôm nay đã đủ, nhưng campaign vẫn còn quota tổng
+  if (dailyFull && !campaignInfo) resp.dailyFull = true;
   if (campaignInfo && campaignInfo.trafficType) resp.trafficType = campaignInfo.trafficType;
   if (campaignInfo && campaignInfo.trafficType === 'direct') resp.isDirect = true;
   if (Object.keys(overrides).length > 0) resp.config = overrides;
