@@ -312,7 +312,7 @@
   function _initBehaviorTracking() {
     if (_bhvInit) return;
     _bhvInit = true;
-    _bhv.startTime = Date.now();
+    _bhv.startTime = Date.now(); // Only set once when first initialized
 
     document.addEventListener('mousemove', function (e) {
       _bhv.mouse.push({ x: e.clientX, y: e.clientY, t: Date.now() - _bhv.startTime });
@@ -345,7 +345,6 @@
       }
     }, { passive: true });
 
-    var scrollTimer = null;
     window.addEventListener('scroll', function () {
       var now = Date.now();
       var y = window.scrollY || window.pageYOffset || 0;
