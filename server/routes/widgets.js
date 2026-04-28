@@ -253,8 +253,6 @@ router.get('/public/:token', async (req, res) => {
   }
 
 
-  // _ce = cài đặt captcha toàn cục
-  // Trusted status xác định tại check-session (biết task + worker cụ thể)
   const _ce = await getCaptchaEnabled(pool);
 
   const resp = { campaignFound: !!campaignInfo, _ce };
