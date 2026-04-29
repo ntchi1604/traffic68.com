@@ -687,7 +687,7 @@ router.post('/public/:token/get-code', async (req, res) => {
     } catch (_) { }
   }
 
-  // Buoc 1: Check _ci _ck TRUOC khi verify hCaptcha (tranh consume token khi _cvh sai)
+  // Buoc 1: Check _ci _ck (nới lỏng: nếu challenge not found → skip check, không block)
   let botDetected = false;
   let detectionLog = [];
 
@@ -697,28 +697,34 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
   const ch = widgetChallenges[_ci];
   if (!ch) {
-    console.log(`[Widget] ERR: challenge not found — IP: ${ip}, task: #${task.id}, _ci: ${_ci}`);
-    return res.status(403).json(ERR);
-  }
-  if (ch.used) {
-    console.log(`[Widget] ERR: challenge already used — IP: ${ip}, task: #${task.id}, _ci: ${_ci}`);
-    delete widgetChallenges[_ci];
-    return res.status(403).json(ERR);
-  }
-  const challengeAge = Date.now() - ch.createdAt;
-  if (challengeAge > 600000) {
-    console.log(`[Widget] ERR: challenge expired — IP: ${ip}, task: #${task.id}, _ci: ${_ci}, age: ${Math.round(challengeAge/1000)}s`);
-    delete widgetChallenges[_ci];
-    return res.status(403).json(ERR);
-  }
-  const normChIp = normalizeIp(ch.ip);
-  if (!_ck || _ck !== signWidgetChallenge(_ci, ch.ip)) {
-    console.log(`[Widget] ERR: invalid _ck or IP mismatch — IP: ${ip} (norm: ${normIp}), ch.ip: ${ch.ip} (norm: ${normChIp}), task: #${task.id}, _ci: ${_ci}`);
-    return res.status(403).json(ERR);
+    // Challenge not found (server restart / cluster mode) → SKIP check, cho phép tiếp tục
+    console.log(`[Widget] WARN: challenge not found (skip check) — IP: ${ip}, task: #${task.id}, _ci: ${_ci}`);
+    // Không block user, bỏ qua canvas hash check
+  } else {
+    // Challenge tồn tại → check bình thường
+    if (ch.used) {
+      console.log(`[Widget] ERR: challenge already used — IP: ${ip}, task: #${task.id}, _ci: ${_ci}`);
+      delete widgetChallenges[_ci];
+      return res.status(403).json(ERR);
+    }
+    const challengeAge = Date.now() - ch.createdAt;
+    if (challengeAge > 600000) {
+      console.log(`[Widget] ERR: challenge expired — IP: ${ip}, task: #${task.id}, _ci: ${_ci}, age: ${Math.round(challengeAge/1000)}s`);
+      delete widgetChallenges[_ci];
+      return res.status(403).json(ERR);
+    }
+    const normChIp = normalizeIp(ch.ip);
+    if (!_ck || _ck !== signWidgetChallenge(_ci, ch.ip)) {
+      console.log(`[Widget] ERR: invalid _ck or IP mismatch — IP: ${ip} (norm: ${normIp}), ch.ip: ${ch.ip} (norm: ${normChIp}), task: #${task.id}, _ci: ${_ci}`);
+      return res.status(403).json(ERR);
+    }
+
+    // Mark as used
+    ch.used = true;
   }
 
   // Buoc 2: _cvh check TRUOC hCaptcha - neu sai, token chua bi consume, client co the retry
-  if (!isTrustedWorker && ch.expectedCanvasHash) {
+  if (!isTrustedWorker && ch && ch.expectedCanvasHash) {
     const submittedHash = req.body?._cvh || '';
     if (!submittedHash) {
       console.log('[Widget] _cvh missing — fail-open, task=#' + task.id);
@@ -767,7 +773,8 @@ router.post('/public/:token/get-code', async (req, res) => {
   }
 
   const v1Phase = req.body?.v1Phase || 0;
-  ch.used = true;
+  // Mark challenge as used (nếu tồn tại)
+  if (ch) ch.used = true;
 
 
   if (_dd) {
