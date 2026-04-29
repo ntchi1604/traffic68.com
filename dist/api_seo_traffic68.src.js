@@ -1048,6 +1048,9 @@
 
   function showChallenge() {
     challengeActive = true;
+    // Pause countdown timer while challenge is active
+    if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+    if (!pausedTime) pausedTime = Date.now();
 
     var st = window.pageYOffset || document.documentElement.scrollTop;
     var docH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
@@ -1180,6 +1183,11 @@
     }
     challengeActive = false;
     currentChallenge = null;
+    // Resume countdown timer after challenge completion
+    if (pausedTime > 0) {
+      totalPausedDuration += (Date.now() - pausedTime);
+      pausedTime = 0;
+    }
     closeModal();
     doTick();
   }
@@ -1215,7 +1223,8 @@
   function _onWindowFocus() {
     _isPageVisible = true;
     if (!countdownRunning || revealed) return;
-    // Bỏ check challengeActive — cho phép resume countdown ngay cả khi có challenge
+    // Don't resume countdown if challenge is active — timer pauses during challenges
+    if (challengeActive) return;
     if (pausedTime > 0) {
       totalPausedDuration += (Date.now() - pausedTime);
       pausedTime = 0;
@@ -1247,6 +1256,8 @@
         return;
       }
       if (revealed) return;
+      // Pause tick while challenge is active — timer should not count down
+      if (challengeActive) return;
 
       // Calculate remaining time based on actual elapsed time (excluding paused duration)
       var actualElapsed = Date.now() - countdownStartTime - totalPausedDuration;
