@@ -997,8 +997,8 @@
     var count = 3 + Math.floor(Math.random() * 3); // 3, 4, or 5
     var total = cfg.waitTime;
 
-    // Ensure we have enough time for minimum gaps (8-10s between challenges)
-    var minGap = 8 + Math.floor(Math.random() * 3); // 8-10s random gap
+    // Random gap 12-18s giữa các lần xác minh (tránh liên tục gần nhau)
+    var minGap = 12 + Math.floor(Math.random() * 7); // 12-18s random gap
     var maxPossible = Math.floor((total - 10) / minGap); // reserve 10s at end
     if (count > maxPossible) count = Math.max(1, maxPossible);
 
