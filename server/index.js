@@ -207,7 +207,7 @@ app.get('/api/blog', async (req, res) => {
   try {
     const pool = getPool();
     const [posts] = await pool.execute(
-      'SELECT id, slug, title, excerpt, cover, tag, tag_color, author, read_time, gradient, status, views, created_at, published_at FROM blog_posts WHERE status = ? ORDER BY published_at DESC, created_at DESC',
+      'SELECT * FROM blog_posts WHERE status = ? ORDER BY published_at DESC, created_at DESC',
       ['published']
     );
     res.json({ posts });
