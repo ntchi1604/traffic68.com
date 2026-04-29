@@ -84,13 +84,13 @@ function checkEmbedScript(urlStr, tokens) {
             return resolve('skip'); // CF challenge / 403 / non-HTML → không hành động
           }
 
-          // Đọc tối đa 200KB đầu — token thường nằm trong <head>
+          // Đọc tối đa 500KB — script có thể ở cuối trang (trước </body>)
           let received = 0;
           res.on('data', (chunk) => {
             if (settled) return;
-            body += chunk.toString('utf8', 0, Math.min(chunk.length, 200000 - received));
+            body += chunk.toString('utf8', 0, Math.min(chunk.length, 500000 - received));
             received += chunk.length;
-            if (received >= 200000) {
+            if (received >= 500000) {
               settled = true;
               req.destroy();
               resolve(_hasToken(body, tokens));
@@ -115,10 +115,10 @@ function checkEmbedScript(urlStr, tokens) {
 function _hasToken(html, tokens) {
   // Tìm bất kỳ token nào trong HTML (data-token="T68-...", token: 'T68-...', v.v.)
   // Cũng chấp nhận nếu trên trang có api_seo_traffic68 dùng token khác (user mới chưa xuất hiện)
-  const lowerHtml = html;
+  const lowerHtml = html.toLowerCase(); // ✅ Lowercase để search case-insensitive
   // Kiểm tra từng token cụ thể của user
   for (const tok of tokens) {
-    if (lowerHtml.includes(tok)) return 'ok';
+    if (lowerHtml.includes(tok.toLowerCase())) return 'ok';
   }
   // Nếu không thấy token cụ thể, kiểm tra xem có script traffic68 nào không
   // (user có thể đã gắn nhưng widget_url chưa khớp — không pause)
