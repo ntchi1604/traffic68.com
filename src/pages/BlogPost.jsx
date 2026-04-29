@@ -32,15 +32,20 @@ export default function BlogPost() {
 
   const fetchPosts = async () => {
     try {
+      console.log('Fetching blog posts for slug:', slug);
       const data = await api.get('/blog');
+      console.log('API response:', data);
       const allPosts = (data.posts && data.posts.length > 0) ? data.posts : fallbackPosts;
+      console.log('All posts:', allPosts);
       const currentPost = allPosts.find(p => p.slug === slug && (p.status === 'published' || !p.status));
+      console.log('Current post found:', currentPost);
       setPost(currentPost);
       setPosts(allPosts.filter(p => p.status === 'published' || !p.status));
     } catch (error) {
       console.error('Error fetching posts:', error);
       // Nếu API lỗi, dùng fallback data
       const currentPost = fallbackPosts.find(p => p.slug === slug);
+      console.log('Fallback post:', currentPost);
       setPost(currentPost);
       setPosts(fallbackPosts);
     } finally {
@@ -85,15 +90,18 @@ export default function BlogPost() {
   };
 
   const renderContent = (md) => {
-    const lines = md.split('\n');
-    const elements = [];
-    let firstH2Found = false;
-    let topicClusterInserted = false;
-    let h2Count = 0;
+    if (!md) return [];
 
-    for (let i = 0; i < lines.length; i++) {
-      const trimmed = lines[i].trim();
-      if (!trimmed) { elements.push(<br key={i} />); continue; }
+    try {
+      const lines = md.split('\n');
+      const elements = [];
+      let firstH2Found = false;
+      let topicClusterInserted = false;
+      let h2Count = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+        if (!trimmed) { elements.push(<br key={i} />); continue; }
 
       // H2
       if (trimmed.startsWith('## ')) {
@@ -183,10 +191,18 @@ export default function BlogPost() {
       );
     }
     return elements;
+    } catch (error) {
+      console.error('Error rendering content:', error);
+      return [<p key="error" className="text-red-500">Lỗi khi hiển thị nội dung</p>];
+    }
   };
 
-  const related = posts.filter(p => p.id !== post.id).slice(0, 4);
-  const allTags = [...new Set(posts.map(p => p.tag))];
+  if (!post) {
+    console.log('Post is null, showing 404');
+  }
+
+  const related = post ? posts.filter(p => p.id !== post.id).slice(0, 4) : [];
+  const allTags = post ? [...new Set(posts.map(p => p.tag))] : [];
 
   return (
     <>
