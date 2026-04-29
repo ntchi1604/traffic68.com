@@ -72,6 +72,7 @@ const AdminConfig              = lazy(() => import('./pages/Admin/AdminConfig'))
 const AdminWithdrawalAddresses = lazy(() => import('./pages/Admin/AdminWithdrawalAddresses'));
 const AdminSourceApproval      = lazy(() => import('./pages/Admin/AdminSourceApproval'));
 const AdminWorkerLinks         = lazy(() => import('./pages/Admin/AdminWorkerLinks'));
+const AdminBlog                = lazy(() => import('./pages/Admin/AdminBlog'));
 
 const DASHBOARD_ROUTES = ['/buyer', '/worker', '/dashboard', '/campaigns', '/reports', '/finance', '/settings', '/profile', '/admin'];
 
@@ -186,6 +187,7 @@ function Layout() {
             <Route path="source-approval" element={<AdminSourceApproval />} />
             <Route path="worker-tickets" element={<AdminTickets defaultRole="worker" />} />
             <Route path="worker-links" element={<AdminWorkerLinks />} />
+            <Route path="blog" element={<AdminBlog />} />
             <Route path="config" element={<AdminConfig />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>

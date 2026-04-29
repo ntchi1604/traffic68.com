@@ -3179,5 +3179,133 @@ router.get('/pricing-groups-all-workers', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ═══════════════════════════════════════════════════════
+// Blog Management
+// ═══════════════════════════════════════════════════════
+
+// GET /admin/blog — list all blog posts
+router.get('/blog', async (req, res) => {
+  const pool = getPool();
+  try {
+    const [posts] = await pool.execute(
+      'SELECT * FROM blog_posts ORDER BY created_at DESC'
+    );
+    res.json({ posts });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/blog/:id — get single post
+router.get('/blog/:id', async (req, res) => {
+  const pool = getPool();
+  try {
+    const [posts] = await pool.execute(
+      'SELECT * FROM blog_posts WHERE id = ?',
+      [req.params.id]
+    );
+    if (posts.length === 0) {
+      return res.status(404).json({ error: 'Bài viết không tồn tại' });
+    }
+    res.json({ post: posts[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/blog — create new post
+router.post('/blog', async (req, res) => {
+  const pool = getPool();
+  const {
+    title, slug, excerpt, content, cover, tag, tag_color,
+    author, read_time, gradient, status
+  } = req.body;
+
+  try {
+    // Check if slug already exists
+    const [existing] = await pool.execute(
+      'SELECT id FROM blog_posts WHERE slug = ?',
+      [slug]
+    );
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'Slug đã tồn tại' });
+    }
+
+    const published_at = status === 'published' ? new Date() : null;
+
+    const [result] = await pool.execute(
+      `INSERT INTO blog_posts
+       (title, slug, excerpt, content, cover, tag, tag_color, author, read_time, gradient, status, published_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [title, slug, excerpt, content, cover || null, tag, tag_color, author, read_time, gradient, status, published_at]
+    );
+
+    res.json({ ok: true, id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /admin/blog/:id — update post
+router.put('/blog/:id', async (req, res) => {
+  const pool = getPool();
+  const {
+    title, slug, excerpt, content, cover, tag, tag_color,
+    author, read_time, gradient, status
+  } = req.body;
+
+  try {
+    // Check if slug exists for other posts
+    const [existing] = await pool.execute(
+      'SELECT id FROM blog_posts WHERE slug = ? AND id != ?',
+      [slug, req.params.id]
+    );
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'Slug đã tồn tại' });
+    }
+
+    // Get current post to check if status changed
+    const [current] = await pool.execute(
+      'SELECT status, published_at FROM blog_posts WHERE id = ?',
+      [req.params.id]
+    );
+    if (current.length === 0) {
+      return res.status(404).json({ error: 'Bài viết không tồn tại' });
+    }
+
+    // Update published_at if status changed to published
+    let published_at = current[0].published_at;
+    if (status === 'published' && current[0].status !== 'published') {
+      published_at = new Date();
+    } else if (status === 'draft') {
+      published_at = null;
+    }
+
+    await pool.execute(
+      `UPDATE blog_posts SET
+       title = ?, slug = ?, excerpt = ?, content = ?, cover = ?,
+       tag = ?, tag_color = ?, author = ?, read_time = ?, gradient = ?,
+       status = ?, published_at = ?
+       WHERE id = ?`,
+      [title, slug, excerpt, content, cover || null, tag, tag_color, author, read_time, gradient, status, published_at, req.params.id]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /admin/blog/:id — delete post
+router.delete('/blog/:id', async (req, res) => {
+  const pool = getPool();
+  try {
+    await pool.execute('DELETE FROM blog_posts WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 

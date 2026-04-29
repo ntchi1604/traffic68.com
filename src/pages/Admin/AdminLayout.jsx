@@ -4,6 +4,7 @@ import {
   LayoutDashboard, Users, Megaphone, Receipt, LifeBuoy,
   ChevronLeft, Shield, Settings, Settings2, Menu, X, DollarSign, LogOut,
   ChevronDown, Briefcase, HardHat, Gift, ShieldAlert, ShieldCheck, Fingerprint, Tags, Link2,
+  BookOpen,
 } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -39,6 +40,7 @@ const WORKER_NAV = [
 ];
 
 const SYSTEM_NAV = [
+  { to: '/admin/blog',           icon: BookOpen,    label: 'Blog' },
   { to: '/admin/config',         icon: Settings2,   label: 'Cấu hình' },
   { to: '/admin/settings',       icon: Settings,    label: 'Cài đặt' },
 ];

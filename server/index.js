@@ -202,6 +202,38 @@ app.use('/api/shortlink', require('./routes/shortlink'));
 app.use('/api/quicklink', require('./routes/quicklink'));
 app.use('/api/buyer',     require('./routes/buyer'));
 
+// ── Public Blog API ──
+app.get('/api/blog', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [posts] = await pool.execute(
+      'SELECT id, slug, title, excerpt, cover, tag, tag_color, author, read_time, gradient, status, views, created_at, published_at FROM blog_posts WHERE status = ? ORDER BY published_at DESC, created_at DESC',
+      ['published']
+    );
+    res.json({ posts });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/blog/:slug', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [posts] = await pool.execute(
+      'SELECT * FROM blog_posts WHERE slug = ? AND status = ?',
+      [req.params.slug, 'published']
+    );
+    if (posts.length === 0) {
+      return res.status(404).json({ error: 'Bài viết không tồn tại' });
+    }
+    // Increment view count
+    await pool.execute('UPDATE blog_posts SET views = views + 1 WHERE id = ?', [posts[0].id]);
+    res.json({ post: posts[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.use('/api', (req, res) => {
   res.status(404).json({ error: `API endpoint không tồn tại: ${req.method} ${req.originalUrl}` });
 });

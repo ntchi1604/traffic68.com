@@ -218,3 +218,25 @@ CREATE TABLE IF NOT EXISTS worker_links (
   created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (worker_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS blog_posts (
+  id          INT PRIMARY KEY AUTO_INCREMENT,
+  slug        VARCHAR(255) NOT NULL UNIQUE,
+  title       VARCHAR(500) NOT NULL,
+  excerpt     TEXT NOT NULL,
+  content     LONGTEXT NOT NULL,
+  cover       VARCHAR(500) DEFAULT NULL,
+  tag         VARCHAR(50) NOT NULL DEFAULT 'SEO',
+  tag_color   VARCHAR(100) NOT NULL DEFAULT 'bg-blue-100 text-blue-700',
+  author      VARCHAR(255) NOT NULL DEFAULT 'Admin',
+  read_time   VARCHAR(50) NOT NULL DEFAULT '5 phút đọc',
+  gradient    VARCHAR(100) NOT NULL DEFAULT 'from-blue-500 to-blue-700',
+  status      VARCHAR(20) NOT NULL DEFAULT 'draft',
+  views       INT NOT NULL DEFAULT 0,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  published_at DATETIME DEFAULT NULL,
+  KEY idx_status (status),
+  KEY idx_tag (tag),
+  KEY idx_published (published_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

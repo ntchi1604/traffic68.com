@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import usePageTitle from '../hooks/usePageTitle';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Clock, Tag, User, Calendar, ChevronRight, BookOpen, Share2, MessageCircle, Send } from 'lucide-react';
-import { posts } from '../data/blogPosts';
 import Footer from '../components/Footer';
+import api from '../lib/api';
 
 /* Social share buttons */
 const socials = [
@@ -18,9 +18,41 @@ const socials = [
 
 export default function BlogPost() {
   const { slug } = useParams();
-  const post = posts.find(p => p.slug === slug);
+  const [post, setPost] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState('');
+
   usePageTitle(post ? post.title : 'Blog');
+
+  useEffect(() => {
+    fetchPosts();
+  }, [slug]);
+
+  const fetchPosts = async () => {
+    try {
+      const data = await api.get('/blog');
+      const allPosts = data.posts || [];
+      const currentPost = allPosts.find(p => p.slug === slug && p.status === 'published');
+      setPost(currentPost);
+      setPosts(allPosts.filter(p => p.status === 'published'));
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <>
+        <div className="min-h-[60vh] flex items-center justify-center bg-gray-50">
+          <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+        <Footer />
+      </>
+    );
+  }
 
   if (!post) {
     return (

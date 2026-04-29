@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import usePageTitle from '../hooks/usePageTitle';
 import { Link } from 'react-router-dom';
 import { Clock, Tag, ArrowRight, BookOpen, TrendingUp, Search } from 'lucide-react';
-import { posts } from '../data/blogPosts';
 import Footer from '../components/Footer';
+import api from '../lib/api';
 
 
 const tags = ['Tất cả', 'SEO', 'Traffic', 'CRO', 'Case Study', 'Hướng dẫn'];
@@ -12,11 +12,28 @@ export default function Blog() {
   usePageTitle('Blog');
   const [activeTag, setActiveTag] = useState('Tất cả');
   const [query, setQuery] = useState('');
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  const fetchPosts = async () => {
+    try {
+      const data = await api.get('/blog');
+      setPosts(data.posts || []);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filtered = posts.filter((p) => {
     const matchTag = activeTag === 'Tất cả' || p.tag === activeTag;
     const matchQ = p.title.toLowerCase().includes(query.toLowerCase()) || p.excerpt.toLowerCase().includes(query.toLowerCase());
-    return matchTag && matchQ;
+    return matchTag && matchQ && p.status === 'published';
   });
 
   return (
@@ -59,7 +76,9 @@ export default function Blog() {
           {filtered.length === 0 ? (
             <div className="text-center py-16">
               <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-400 font-medium">Không tìm thấy bài viết phù hợp.</p>
+              <p className="text-gray-400 font-medium">
+                {loading ? 'Đang tải bài viết...' : 'Không tìm thấy bài viết phù hợp.'}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
