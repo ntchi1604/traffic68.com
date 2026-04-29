@@ -234,32 +234,15 @@ router.get('/', async (req, res) => {
       }
     } catch (_) { }
 
-    // ── Background checks: redirect 301 + embed script (không block response) ──
+    // ── Background checks: redirect 301 (BỎ check embed script) ──
     setImmediate(async () => {
       try {
         const running = campaigns.filter(c => c.status === 'running' && c.url);
         // Chỉ check tối đa 3 campaign mỗi lần để tránh quá tải
         const toCheck = running.slice(0, 3);
 
-        // Lấy widget tokens của tất cả user_id liên quan (batch query)
-        const userIds = [...new Set(toCheck.map(c => c.user_id))];
-        let userTokenMap = {}; // userId → [token1, token2, ...]
-        if (userIds.length > 0) {
-          try {
-            const ph2 = userIds.map(() => '?').join(',');
-            const [wRows] = await pool.execute(
-              `SELECT user_id, token FROM widgets WHERE user_id IN (${ph2}) AND is_active = 1`,
-              userIds
-            );
-            wRows.forEach(r => {
-              if (!userTokenMap[r.user_id]) userTokenMap[r.user_id] = [];
-              userTokenMap[r.user_id].push(r.token);
-            });
-          } catch (_) { }
-        }
-
         for (const camp of toCheck) {
-          // 1️⃣  Kiểm tra 301 redirect
+          // Kiểm tra 301 redirect
           const redirectResult = await checkRedirect(camp.url);
           if (redirectResult && redirectResult.changed) {
             const reason = `Đổi domain → ${redirectResult.newDomain}`;
@@ -272,32 +255,6 @@ router.get('/', async (req, res) => {
               `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
               [camp.user_id, 'Chiến dịch tạm dừng tự động',
               `Chiến dịch "${camp.name}" đã bị tạm dừng do website đích đổi domain sang ${redirectResult.newDomain}.`,
-                'warning', 'buyer']
-            );
-            continue; // đã xử lý redirect → bỏ qua check embed
-          }
-
-          // 2️⃣  Kiểm tra embed script — dùng cache 30 phút
-          const now = Date.now();
-          const cached = _embedCheckCache.get(camp.id);
-          if (cached && (now - cached.ts) < EMBED_CHECK_TTL) continue; // đã check gần đây
-
-          const tokens = userTokenMap[camp.user_id] || [];
-          if (tokens.length === 0) continue; // user chưa tạo widget nào → bỏ qua
-
-          const embedResult = await checkEmbedScript(camp.url, tokens);
-          _embedCheckCache.set(camp.id, { ts: now, result: embedResult });
-
-          if (embedResult === 'not_found') {
-            await pool.execute(
-              `UPDATE campaigns SET status = 'paused', pause_reason = 'Chưa gắn script widget' WHERE id = ? AND status = 'running'`,
-              [camp.id]
-            );
-            console.log(`[Campaign] Auto-paused #${camp.id} "${camp.name}": embed script not found`);
-            await pool.execute(
-              `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
-              [camp.user_id, 'Chiến dịch tạm dừng tự động',
-              `Chiến dịch "${camp.name}" đã bị tạm dừng vì không tìm thấy script widget trên trang ${camp.url}. Vui lòng gắn script rồi bật lại.`,
                 'warning', 'buyer']
             );
           }
