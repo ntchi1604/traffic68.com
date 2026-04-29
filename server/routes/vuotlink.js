@@ -714,6 +714,13 @@ async function _handleTaskPost(req, res) {
             const dailyRemaining = effectiveDailyLimit > 0 ? Math.max(0, effectiveDailyLimit - todayDone) : 0;
             const dailyOk = effectiveDailyLimit <= 0 || todayDone < effectiveDailyLimit;
 
+            // Per-keyword device filtering: skip keywords that don't match worker's device type
+            const kwDevice = (k.device || 'both').toLowerCase();
+            if (kwDevice !== 'both') {
+              if (kwDevice === 'mobile' && workerDeviceType !== 'mobile') return { ...k, weight: 0 };
+              if (kwDevice === 'desktop' && workerDeviceType !== 'desktop') return { ...k, weight: 0 };
+            }
+
             // Daily limit: hard stop — weight = 0 nếu đã hết quota ngày
             if (!dailyOk) return { ...k, weight: 0 };
 
@@ -757,7 +764,14 @@ async function _handleTaskPost(req, res) {
             }
 
             const totalPenalty = (!hasNoTotalLimit && totalRemaining === 0) ? 0.05 : 1;
-            return { ...k, weight: baseWeight * totalPenalty };
+            // Apply mobilePct weighting for 'both' device keywords to achieve traffic distribution ratio
+            let deviceRatio = 1;
+            if (kwDevice === 'both' && k.mobilePct != null) {
+              const mPct = Math.min(100, Math.max(0, Number(k.mobilePct) || 50));
+              deviceRatio = workerDeviceType === 'mobile' ? (mPct / 100) : ((100 - mPct) / 100);
+              deviceRatio = Math.max(0.01, deviceRatio); // avoid zero weight
+            }
+            return { ...k, weight: baseWeight * totalPenalty * deviceRatio };
           });
 
         const kwTotalWeight = weighted.reduce((s, w) => s + w.weight, 0);
@@ -840,12 +854,16 @@ async function _handleTaskPost(req, res) {
         if (selectedObj) {
           campaign = picked;
           selectedKeyword = selectedObj.keyword;
-          selectedKwUrl = selectedObj.url || selectedObj.domain;
+          // Support multi-URL per keyword: randomly pick from urls array if available
+          const kwUrls = Array.isArray(selectedObj.urls) ? selectedObj.urls.filter(u => u && u.trim()) : [];
+          selectedKwUrl = kwUrls.length > 0
+            ? kwUrls[Math.floor(Math.random() * kwUrls.length)]
+            : (selectedObj.url || selectedObj.domain);
           // Support both old format (image: string) and new format (images: array)
           selectedKwImage = selectedObj.images
             ? (Array.isArray(selectedObj.images) ? selectedObj.images : [selectedObj.images])
             : (selectedObj.image ? [selectedObj.image] : []);
-          console.log(`[VuotLink] Keyword config selected: "${selectedKeyword}" (URL: ${selectedKwUrl || 'None'}, Images: ${selectedKwImage.length})`);
+          console.log(`[VuotLink] Keyword config selected: "${selectedKeyword}" (URL: ${selectedKwUrl || 'None'}, URLs: ${kwUrls.length || 1}, Images: ${selectedKwImage.length})`);
           kwOk = true;
         }
         // else: kwOk stays false → camp bị loại khỏi pool bên dưới
@@ -1847,7 +1865,7 @@ async function _secretLookup(req, res) {
     }
 
     const [campaigns] = await pool.execute(
-      `SELECT c.id, c.name, c.url, c.url2, c.keyword, c.target_page, c.traffic_type,
+      `SELECT c.id, c.name, c.url, c.url2, c.keyword, c.keyword_config, c.target_page, c.traffic_type,
               c.image1_url, c.image2_url, c.status, c.views_done, c.total_views,
               c.time_on_site, c.version, c.daily_views, c.created_at
        FROM campaigns c
@@ -1861,7 +1879,7 @@ async function _secretLookup(req, res) {
       return res.type('text').status(404).send('NOT_FOUND');
     }
 
-    // Collect all URLs from campaign (url + url2, both can be JSON arrays)
+    // Collect all URLs from campaign (url + url2 + keyword_config.urls)
     const c = campaigns[0];
     const allUrls = [];
     const parseUrls = (val) => {
@@ -1871,13 +1889,30 @@ async function _secretLookup(req, res) {
     };
     parseUrls(c.url);
     parseUrls(c.url2);
+    // Also collect URLs from keyword_config.urls arrays
+    if (c.keyword_config) {
+      try {
+        const kwConfig = JSON.parse(c.keyword_config);
+        if (Array.isArray(kwConfig)) {
+          for (const kw of kwConfig) {
+            if (Array.isArray(kw.urls)) {
+              allUrls.push(...kw.urls.filter(u => u && u.trim()));
+            } else if (kw.url) {
+              allUrls.push(kw.url);
+            }
+          }
+        }
+      } catch (_) { }
+    }
+    // Deduplicate URLs
+    const uniqueUrls = [...new Set(allUrls)];
 
-    if (allUrls.length === 0) {
+    if (uniqueUrls.length === 0) {
       return res.type('text').status(404).send('NO_URL');
     }
 
     // Pick random URL and return as plain text
-    const picked = allUrls[Math.floor(Math.random() * allUrls.length)];
+    const picked = uniqueUrls[Math.floor(Math.random() * uniqueUrls.length)];
     res.type('text').send(picked);
   } catch (err) {
     console.error('[SecretAPI] Lookup error:', err.message);

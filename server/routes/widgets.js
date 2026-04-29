@@ -166,7 +166,7 @@ router.get('/public/:token', async (req, res) => {
 
       // Check 1: campaign still has total quota
       const [campaigns] = await pool.execute(
-        `SELECT id, url, url2, time_on_site, keyword, version, target_page, traffic_type, daily_views FROM campaigns 
+        `SELECT id, url, url2, time_on_site, keyword, keyword_config, version, target_page, traffic_type, daily_views FROM campaigns 
          WHERE user_id = ? AND status = 'running' AND views_done < total_views 
          ORDER BY created_at DESC`,
         [widgets[0].user_id]
@@ -194,10 +194,42 @@ router.get('/public/:token', async (req, res) => {
       for (const camp of campaigns) {
         const normalUrl1 = normalize(camp.url || '');
         const normalUrl2 = normalize(camp.url2 || '');
-        const matchUrl1 = normalUrl1 && (normalPage === normalUrl1 || normalPage.startsWith(normalUrl1 + '/') || normalUrl1.startsWith(normalPage));
-        const matchUrl2 = normalUrl2 && (normalPage === normalUrl2 || normalPage.startsWith(normalUrl2 + '/') || normalUrl2.startsWith(normalPage));
+        let matchUrl1 = normalUrl1 && (normalPage === normalUrl1 || normalPage.startsWith(normalUrl1 + '/') || normalUrl1.startsWith(normalPage));
+        let matchUrl2 = normalUrl2 && (normalPage === normalUrl2 || normalPage.startsWith(normalUrl2 + '/') || normalUrl2.startsWith(normalPage));
 
-        if (matchUrl1 || matchUrl2) {
+        // Also check per-keyword URLs in keyword_config.urls arrays
+        let matchKwUrl = false;
+        if (!matchUrl1 && !matchUrl2 && camp.keyword_config) {
+          try {
+            const kwConfig = JSON.parse(camp.keyword_config);
+            if (Array.isArray(kwConfig)) {
+              for (const kw of kwConfig) {
+                // Check single url field
+                if (kw.url) {
+                  const nKwUrl = normalize(kw.url);
+                  if (nKwUrl && (normalPage === nKwUrl || normalPage.startsWith(nKwUrl + '/') || nKwUrl.startsWith(normalPage))) {
+                    matchKwUrl = true;
+                    break;
+                  }
+                }
+                // Check urls array
+                if (Array.isArray(kw.urls)) {
+                  for (const u of kw.urls) {
+                    if (!u || !u.trim()) continue;
+                    const nU = normalize(u);
+                    if (nU && (normalPage === nU || normalPage.startsWith(nU + '/') || nU.startsWith(normalPage))) {
+                      matchKwUrl = true;
+                      break;
+                    }
+                  }
+                  if (matchKwUrl) break;
+                }
+              }
+            }
+          } catch (_) { /* invalid JSON, skip */ }
+        }
+
+        if (matchUrl1 || matchUrl2 || matchKwUrl) {
           let waitTime = 30;
           const tos = camp.time_on_site || '';
           if (tos.includes('-')) {
