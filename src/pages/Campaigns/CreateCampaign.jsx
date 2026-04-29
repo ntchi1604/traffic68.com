@@ -219,7 +219,7 @@ export default function CreateCampaign() {
     directDailyViews: 0,
     viewByHour: false,
     useKeywordViews: false,       // per-keyword daily_views limit toggle
-    keywords: [{ keyword: '', views: 1000, daily_views: 0, url: '', images: [''], device: 'both', mobilePct: 50 }],
+    keywords: [{ keyword: '', views: 1000, daily_views: 0, urls: [''], images: [''], device: 'both', mobilePct: 50 }],
     urls: [''],
     imageUrls: [''],
     discountCode: '',
@@ -232,7 +232,7 @@ export default function CreateCampaign() {
   const addKeyword = () => setForm(f => ({
     ...f,
     keywords: [...f.keywords, {
-      keyword: '', url: '', images: [''], daily_views: 0,
+      keyword: '', urls: [''], images: [''], daily_views: 0,
       views: f.keywords[0]?.views || 1000,
       device: 'both', mobilePct: 50,
     }],
@@ -242,9 +242,25 @@ export default function CreateCampaign() {
     ...f,
     keywords: f.keywords.map((k, i) => i === idx ? { ...k, keyword: val } : k),
   }));
-  const updateKeywordUrl = (idx, val) => setForm(f => ({
+  const updateKeywordUrlItem = (kwIdx, urlIdx, val) => setForm(f => ({
     ...f,
-    keywords: f.keywords.map((k, i) => i === idx ? { ...k, url: val } : k),
+    keywords: f.keywords.map((k, i) => {
+      if (i !== kwIdx) return k;
+      const newUrls = [...(k.urls || [''])];
+      newUrls[urlIdx] = val;
+      return { ...k, urls: newUrls };
+    }),
+  }));
+  const addKeywordUrl = (kwIdx) => setForm(f => ({
+    ...f,
+    keywords: f.keywords.map((k, i) => i === kwIdx ? { ...k, urls: [...(k.urls || ['']), ''] } : k),
+  }));
+  const removeKeywordUrl = (kwIdx, urlIdx) => setForm(f => ({
+    ...f,
+    keywords: f.keywords.map((k, i) => {
+      if (i !== kwIdx) return k;
+      return { ...k, urls: (k.urls || ['']).filter((_, j) => j !== urlIdx) };
+    }),
   }));
   const updateKeywordImage = (kwIdx, imgIdx, val) => setForm(f => ({
     ...f,
@@ -433,7 +449,7 @@ export default function CreateCampaign() {
 
     // Non-direct: Google Search / Social cần từ khóa
     const validKeywords = form.keywords.filter(k => k.keyword.trim());
-    const extractedUrls = validKeywords.map(k => k.url).filter(u => u && u.trim());
+    const extractedUrls = validKeywords.flatMap(k => (k.urls || []).filter(u => u && u.trim()));
 
     if (!form.campaignName || !form.trafficType || !form.duration || validKeywords.length === 0) {
       setError('Vui lòng điền đầy đủ Tên, Loại traffic, Thời gian và ít nhất 1 từ khoá.');
@@ -455,7 +471,8 @@ export default function CreateCampaign() {
         keyword: k.keyword,
         views: Number(k.views) || 0,
         daily_views: Number(k.daily_views) || 0,
-        url: k.url || '',
+        url: (k.urls || []).find(u => u && u.trim()) || '',
+        urls: (k.urls || []).filter(u => u && u.trim()),
         images: (k.images || []).filter(img => img && img.trim()),
         device: k.device || 'both',
         mobilePct: k.mobilePct ?? 50,
@@ -851,14 +868,30 @@ export default function CreateCampaign() {
                             </button>
                           )}
                         </div>
-                        {/* URL Đích + Link Images — luôn hiện */}
+                        {/* URL Đích riêng — nhiều URL giống ảnh */}
                         <div className="flex gap-2 items-start mt-1">
-                          <TextInput
-                            placeholder={isSocial ? 'URL Đích (trang sẽ đến)' : 'URL Đích riêng (Tuỳ chọn)'}
-                            value={kw.url}
-                            onChange={e => updateKeywordUrl(i, e.target.value)}
-                            className="flex-1 text-xs"
-                          />
+                          <div className="flex-1 space-y-2">
+                            {(kw.urls || ['']).map((urlItem, urlIdx) => (
+                              <div key={urlIdx} className="flex gap-2">
+                                <TextInput
+                                  placeholder={isSocial ? `URL Đích ${urlIdx + 1} (trang sẽ đến)` : `URL Đích ${urlIdx + 1} (Tuỳ chọn)`}
+                                  value={urlItem}
+                                  onChange={e => updateKeywordUrlItem(i, urlIdx, e.target.value)}
+                                  className="flex-1 text-xs"
+                                />
+                                {(kw.urls || []).length > 1 && (
+                                  <button type="button" onClick={() => removeKeywordUrl(i, urlIdx)}
+                                    className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            <button type="button" onClick={() => addKeywordUrl(i)}
+                              className="text-xs text-violet-600 hover:text-violet-700 font-semibold flex items-center gap-1">
+                              <Plus size={14} /> Thêm URL đích
+                            </button>
+                          </div>
                           <div className="flex-1 space-y-2">
                             {(kw.images || ['']).map((img, imgIdx) => (
                               <div key={imgIdx} className="flex gap-2">

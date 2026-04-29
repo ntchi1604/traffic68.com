@@ -313,6 +313,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             views: found ? Number(found.views) : Number(campaign.total_views) || 1000,
             daily_views: found ? Number(found.daily_views) || 0 : 0,
             url: found?.url || found?.domain || '',
+            urls: found?.urls ? (Array.isArray(found.urls) ? found.urls : [found.urls]) : (found?.url ? [found.url] : ['']),
             images: found?.images ? (Array.isArray(found.images) ? found.images : [found.images]) : (found?.image ? [found.image] : ['']),
             device: found?.device || 'both',
             mobilePct: found?.mobilePct ?? 50,
@@ -320,7 +321,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         });
       }
     } catch { }
-    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, daily_views: 0, url: '', images: [''], device: 'both', mobilePct: 50 }));
+    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, daily_views: 0, url: '', urls: [''], images: [''], device: 'both', mobilePct: 50 }));
   });
 
   const [urls, setUrls] = useState(() => {
@@ -352,12 +353,22 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   }));
 
   const addKeyword = () => setKeywords(prev => [...prev, {
-    keyword: '', url: '', images: [''], daily_views: 0, views: Number(campaign.total_views) || 1000,
+    keyword: '', urls: [''], images: [''], daily_views: 0, views: Number(campaign.total_views) || 1000,
     device: 'both', mobilePct: 50,
   }]);
   const removeKeyword = (idx) => setKeywords(prev => prev.filter((_, i) => i !== idx));
   const updateKeywordText = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, keyword: val } : k));
-  const updateKeywordUrl = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, url: val } : k));
+  const updateKeywordUrlItem = (kwIdx, urlIdx, val) => setKeywords(prev => prev.map((k, i) => {
+    if (i !== kwIdx) return k;
+    const newUrls = [...(k.urls || [''])];
+    newUrls[urlIdx] = val;
+    return { ...k, urls: newUrls };
+  }));
+  const addKeywordUrl = (kwIdx) => setKeywords(prev => prev.map((k, i) => i === kwIdx ? { ...k, urls: [...(k.urls || ['']), ''] } : k));
+  const removeKeywordUrl = (kwIdx, urlIdx) => setKeywords(prev => prev.map((k, i) => {
+    if (i !== kwIdx) return k;
+    return { ...k, urls: (k.urls || ['']).filter((_, j) => j !== urlIdx) };
+  }));
   const updateKeywordImage = (kwIdx, imgIdx, val) => setKeywords(prev => prev.map((k, i) => {
     if (i !== kwIdx) return k;
     const newImages = [...(k.images || [''])];
@@ -442,7 +453,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         keyword: k.keyword,
         views: Number(k.views) || Math.max(1, Math.floor(computedTotal / Math.max(1, validKws.length))),
         daily_views: Number(k.daily_views) || 0,
-        url: k.url || '',
+        url: (k.urls || []).find(u => u && u.trim()) || k.url || '',
+        urls: (k.urls || []).filter(u => u && u.trim()),
         images: (k.images || []).filter(img => img && img.trim()),
         device: k.device || 'both',
         mobilePct: k.mobilePct ?? 50,
@@ -758,14 +770,30 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                         </button>
                       )}
                     </div>
-                    {/* Row 2: URL + Images (always shown) */}
+                    {/* Row 2: URLs + Images (always shown) */}
                     <div className="flex gap-2 items-start">
-                      <input
-                        type="text" value={kw.url}
-                        onChange={e => updateKeywordUrl(i, e.target.value)}
-                        placeholder="URL đích riêng (Tuỳ chọn)"
-                        className={input + ' flex-1 text-xs'}
-                      />
+                      <div className="flex-1 space-y-2">
+                        {(kw.urls || ['']).map((urlItem, urlIdx) => (
+                          <div key={urlIdx} className="flex gap-2">
+                            <input
+                              type="text" value={urlItem}
+                              onChange={e => updateKeywordUrlItem(i, urlIdx, e.target.value)}
+                              placeholder={`URL đích ${urlIdx + 1} (Tuỳ chọn)`}
+                              className={input + ' flex-1 text-xs'}
+                            />
+                            {(kw.urls || []).length > 1 && (
+                              <button type="button" onClick={() => removeKeywordUrl(i, urlIdx)}
+                                className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => addKeywordUrl(i)}
+                          className="text-xs text-violet-600 hover:text-violet-700 font-semibold flex items-center gap-1">
+                          <Plus size={14} /> Thêm URL đích
+                        </button>
+                      </div>
                       <div className="flex-1 space-y-2">
                         {(kw.images || ['']).map((img, imgIdx) => (
                           <div key={imgIdx} className="flex gap-2">
