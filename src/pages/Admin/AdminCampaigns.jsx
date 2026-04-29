@@ -268,11 +268,13 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       if (Array.isArray(cfg) && cfg.length > 0) {
         return kwList.map(kw => {
           const found = cfg.find(c => c.keyword === kw);
-          return { keyword: kw, views: found ? Number(found.views) : Number(campaign.total_views) || 1000, daily_views: found ? Number(found.daily_views) || 0 : 0, url: found?.url || found?.domain || '', image: found?.image || '' };
+          const fUrls = found?.urls && Array.isArray(found.urls) && found.urls.length > 0 ? found.urls : (found?.url ? [found.url] : ['']);
+          const fImgs = found?.images && Array.isArray(found.images) && found.images.length > 0 ? found.images : (found?.image ? [found.image] : ['']);
+          return { keyword: kw, views: found ? Number(found.views) : Number(campaign.total_views) || 1000, daily_views: found ? Number(found.daily_views) || 0 : 0, urls: fUrls, images: fImgs, device: found?.device || 'both', mobilePct: found?.mobilePct ?? 50 };
         });
       }
     } catch { }
-    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, daily_views: 0, url: '', image: '' }));
+    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, daily_views: 0, urls: [''], images: [''], device: 'both', mobilePct: 50 }));
   });
   const [urls, setUrls] = useState(() => {
     const main = campaign.url || '';
@@ -304,12 +306,18 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const removeItem = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
   const updateItem = (setter, idx, val) => setter(prev => prev.map((v, i) => i === idx ? val : v));
 
-  const addKeyword = () => setKeywords(prev => [...prev, { keyword: '', url: '', image: '', views: Number(campaign.total_views) || 1000, daily_views: 0 }]);
+  const addKeyword = () => setKeywords(prev => [...prev, { keyword: '', urls: [''], images: [''], views: Number(campaign.total_views) || 1000, daily_views: 0, device: 'both', mobilePct: 50 }]);
   const removeKeyword = (idx) => setKeywords(prev => prev.filter((_, i) => i !== idx));
   const updateKeywordText = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, keyword: val } : k));
-  const updateKeywordUrl = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, url: val } : k));
-  const updateKeywordImage = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, image: val } : k));
+  const updateKeywordUrlItem = (kwIdx, urlIdx, val) => setKeywords(prev => prev.map((k, i) => { if (i !== kwIdx) return k; const n = [...(k.urls || [''])]; n[urlIdx] = val; return { ...k, urls: n }; }));
+  const addKeywordUrl = (kwIdx) => setKeywords(prev => prev.map((k, i) => i === kwIdx ? { ...k, urls: [...(k.urls || ['']), ''] } : k));
+  const removeKeywordUrl = (kwIdx, urlIdx) => setKeywords(prev => prev.map((k, i) => { if (i !== kwIdx) return k; return { ...k, urls: (k.urls || ['']).filter((_, j) => j !== urlIdx) }; }));
+  const updateKeywordImageItem = (kwIdx, imgIdx, val) => setKeywords(prev => prev.map((k, i) => { if (i !== kwIdx) return k; const n = [...(k.images || [''])]; n[imgIdx] = val; return { ...k, images: n }; }));
+  const addKeywordImage = (kwIdx) => setKeywords(prev => prev.map((k, i) => i === kwIdx ? { ...k, images: [...(k.images || ['']), ''] } : k));
+  const removeKeywordImage = (kwIdx, imgIdx) => setKeywords(prev => prev.map((k, i) => { if (i !== kwIdx) return k; return { ...k, images: (k.images || ['']).filter((_, j) => j !== imgIdx) }; }));
   const updateKeywordViews = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, views: Number(val) || 0 } : k));
+  const updateKeywordDevice = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, device: val } : k));
+  const updateKeywordMobilePct = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, mobilePct: Math.min(100, Math.max(0, Number(val) || 0)) } : k));
 
   const toggleKeywordViews = () => {
     const next = !useKeywordViews;
@@ -331,10 +339,11 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   };
 
   const [uploadingKwIdx, setUploadingKwIdx] = useState(-1);
-  const handleKeywordImageUpload = async (e, idx) => {
+  const [uploadingKwImgIdx, setUploadingKwImgIdx] = useState(-1);
+  const handleKeywordImageUpload = async (e, kwIdx, imgIdx = 0) => {
     const file = e.target.files[0];
     if (!file) return;
-    setUploadingKwIdx(idx);
+    setUploadingKwIdx(kwIdx); setUploadingKwImgIdx(imgIdx);
     try {
       const formData = new FormData();
       formData.append('image', file);
@@ -342,9 +351,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
       const res = await fetch('/api/campaigns/upload-image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload thất bại');
-      updateKeywordImage(idx, data.imageUrl);
+      updateKeywordImageItem(kwIdx, imgIdx, data.imageUrl);
     } catch (err) { toast.error(err.message); }
-    finally { setUploadingKwIdx(-1); }
+    finally { setUploadingKwIdx(-1); setUploadingKwImgIdx(-1); }
   };
 
   const handleImageUpload = async (e, idx) => {
@@ -374,13 +383,12 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     setSaving(true);
     try {
       const kws = keywords.filter(k => k.keyword.trim());
-      const u = kws.map(k => k.url).filter(x => x && x.trim());
-      const imgs = kws.map(k => k.image).filter(x => x && x.trim());
+      const allKwUrls = kws.flatMap(k => (k.urls || []).filter(u => u && u.trim()));
+      const allKwImgs = kws.flatMap(k => (k.images || []).filter(x => x && x.trim()));
       const globalUrl = urls[0]?.trim();
       const globalImg = imageUrls[0]?.trim();
-      const allImages = globalImg ? [globalImg, ...imgs] : imgs;
+      const allImages = [...new Set([globalImg, ...allKwImgs].filter(Boolean))];
 
-      // totalViews luôn tính từ tổng views của từng keyword
       const finalTotalViews = isDirect
         ? (Number(keywords[0]?.views) || Number(campaign.total_views))
         : (kws.reduce((s, k) => s + (Number(k.views) || 0), 0) || Number(campaign.total_views));
@@ -395,20 +403,22 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         ? JSON.stringify([globalUrl || ''])
         : JSON.stringify(kws.length ? kws.map(k => k.keyword) : [campaign.keyword || '']);
       const finalKeywordConfig = isDirect
-        ? JSON.stringify([{ keyword: globalUrl || '', views: finalTotalViews, daily_views: finalDailyViews, url: globalUrl || '', image: '' }])
+        ? JSON.stringify([{ keyword: globalUrl || '', views: finalTotalViews, daily_views: finalDailyViews, urls: [globalUrl || ''], images: [], device: 'both', mobilePct: 50 }])
         : JSON.stringify(kws.length ? kws.map(k => ({
           keyword: k.keyword,
           views: Number(k.views) || Math.max(1, Math.floor(finalTotalViews / kws.length)),
           daily_views: useKeywordDailyViews ? (Number(k.daily_views) || 0) : 0,
-          url: k.url || '',
-          image: k.image || ''
+          urls: (k.urls || []).filter(u => u && u.trim()),
+          images: (k.images || []).filter(x => x && x.trim()),
+          device: k.device || 'both',
+          mobilePct: k.mobilePct ?? 50,
         })) : []);
 
       await api.put(`/admin/campaigns/${campaign.id}`, {
         name,
         keyword: finalKeyword,
         keyword_config: finalKeywordConfig,
-        url: globalUrl || u[0] || '',
+        url: globalUrl || allKwUrls[0] || '',
         url2: JSON.stringify([]),
         dailyViews: finalDailyViews,
         totalViews: finalTotalViews,
@@ -523,38 +533,43 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                       )}
                       {keywords.length > 1 && <button onClick={() => removeKeyword(i)} className="p-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 bg-white border border-red-200 hover:bg-red-50 rounded-xl cursor-pointer transition flex-shrink-0 absolute -top-2 -right-2 shadow-sm z-10"><Trash2 size={13} /></button>}
                     </div>
-                    <div className="flex gap-2 items-center mt-1">
-                      <input
-                        type="text" value={kw.url}
-                        onChange={e => updateKeywordUrl(i, e.target.value)}
-                        placeholder="URL đích riêng (Tuỳ chọn)"
-                        className={inputCls + ' flex-1 text-xs py-2'}
-                      />
-                      <div className="flex-1 flex gap-2">
-                        <input
-                          type="text" value={kw.image}
-                          onChange={e => updateKeywordImage(i, e.target.value)}
-                          onPaste={async e => {
-                            const items = e.clipboardData?.items;
-                            if (!items) return;
-                            for (let j = 0; j < items.length; j++) {
-                              const item = items[j];
-                              if (item.type.startsWith('image/')) {
-                                e.preventDefault();
-                                const file = item.getAsFile();
-                                if (file) handleKeywordImageUpload({ target: { files: [file] } }, i);
-                                break;
-                              }
-                            }
-                          }}
-                          placeholder="Link Image riêng - Ctrl+V"
-                          className={inputCls + ' flex-1 text-xs py-2'}
-                        />
-                        <label className="flex items-center justify-center p-2 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-slate-100 transition flex-shrink-0">
-                          {uploadingKwIdx === i ? <span className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin" /> : <Upload size={14} className="text-slate-500" />}
-                          <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i)} />
-                        </label>
-                      </div>
+                    {/* Multi-URL per keyword */}
+                    <div className="space-y-1.5 mt-1">
+                      {(kw.urls || ['']).map((url, urlIdx) => (
+                        <div key={urlIdx} className="flex gap-2">
+                          <input type="text" value={url} onChange={e => updateKeywordUrlItem(i, urlIdx, e.target.value)} placeholder={`URL đích ${urlIdx + 1}`} className={inputCls + ' flex-1 text-xs py-2'} />
+                          {(kw.urls || []).length > 1 && <button onClick={() => removeKeywordUrl(i, urlIdx)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0"><Trash2 size={14} /></button>}
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => addKeywordUrl(i)} className="text-xs text-violet-600 hover:text-violet-700 font-semibold flex items-center gap-1"><Plus size={14} /> Thêm URL</button>
+                    </div>
+                    {/* Multi-Image per keyword */}
+                    <div className="space-y-1.5">
+                      {(kw.images || ['']).map((img, imgIdx) => (
+                        <div key={imgIdx} className="flex gap-2">
+                          <input type="text" value={img} onChange={e => updateKeywordImageItem(i, imgIdx, e.target.value)}
+                            onPaste={async e => { const items = e.clipboardData?.items; if (!items) return; for (let j = 0; j < items.length; j++) { if (items[j].type.startsWith('image/')) { e.preventDefault(); const file = items[j].getAsFile(); if (file) handleKeywordImageUpload({ target: { files: [file] } }, i, imgIdx); break; } } }}
+                            placeholder={`Link Image ${imgIdx + 1} - Ctrl+V`} className={inputCls + ' flex-1 text-xs py-2'} />
+                          <label className="flex items-center justify-center p-2 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-slate-100 transition flex-shrink-0">
+                            {uploadingKwIdx === i && uploadingKwImgIdx === imgIdx ? <span className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin" /> : <Upload size={14} className="text-slate-500" />}
+                            <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i, imgIdx)} />
+                          </label>
+                          {(kw.images || []).length > 1 && <button onClick={() => removeKeywordImage(i, imgIdx)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0"><Trash2 size={14} /></button>}
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => addKeywordImage(i)} className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1"><Plus size={14} /> Thêm ảnh</button>
+                    </div>
+                    {/* Device targeting per keyword */}
+                    <div className="flex items-center gap-2 mt-1 p-2 bg-teal-50 border border-teal-100 rounded-lg">
+                      <span className="text-[10px] font-bold text-teal-700 whitespace-nowrap">Thiết bị:</span>
+                      {[{ value: 'both', label: 'Cả hai' }, { value: 'desktop', label: 'PC' }, { value: 'mobile', label: 'Mobi' }].map(d => (
+                        <button key={d.value} type="button" onClick={() => updateKeywordDevice(i, d.value)}
+                          className={`px-2 py-0.5 text-[10px] font-bold rounded-lg border transition-all ${(kw.device || 'both') === d.value ? 'border-teal-500 bg-teal-200 text-teal-900' : 'border-slate-200 bg-white text-slate-500 hover:border-teal-300'}`}>{d.label}</button>
+                      ))}
+                      {(kw.device === 'both' || !kw.device) && (<>
+                        <input type="range" min="0" max="100" step="5" value={kw.mobilePct ?? 50} onChange={e => updateKeywordMobilePct(i, e.target.value)} className="flex-1 accent-teal-600 h-1" style={{ minWidth: 60 }} />
+                        <span className="text-[10px] font-black text-teal-800 bg-white border border-teal-200 px-1.5 py-0.5 rounded tabular-nums whitespace-nowrap">M:{kw.mobilePct ?? 50}% P:{100 - (kw.mobilePct ?? 50)}%</span>
+                      </>)}
                     </div>
                   </div>
                 ))}
