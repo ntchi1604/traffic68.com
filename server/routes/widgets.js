@@ -738,10 +738,11 @@ router.post('/public/:token/get-code', async (req, res) => {
   const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '0x0000000000000000000000000000000000000000';
   if (!isTrustedWorker) {
     const captchaRequired = await getCaptchaEnabled(pool);
+    console.log(`[Widget] hCaptcha check — IP: ${ip}, task: #${task.id}, trusted: ${isTrustedWorker}, captchaRequired: ${captchaRequired}, _hct: ${_hct ? 'present' : 'empty'}`);
     if (captchaRequired) {
       const BLOCK_TOKENS = ['skip', 'disabled', 'render-error', 'error'];
       if (!_hct || BLOCK_TOKENS.includes(_hct)) {
-        console.log('[Widget] BLOCKED: invalid _hct=' + (_hct || 'empty') + ' — IP: ' + ip + ', task: #' + task.id);
+        console.log('[Widget] BLOCKED: invalid _hct=' + (_hct || 'empty') + ' — IP: ' + ip + ', task: #' + task.id + ', ref_worker_id: ' + task.ref_worker_id);
         return res.status(403).json({ error: 'Captcha bắt buộc. Vui lòng thực hiện trên trình duyệt.' });
       }
       try {
@@ -989,16 +990,18 @@ router.post('/public/:token/get-code', async (req, res) => {
         console.log(`[Widget] BLOCKED HB count: task=#${task.id}, got=${hbCount}, need>=${minHbs}, IP=${ip}`);
         return res.status(403).json({ error: 'Phát hiện gian lận! Vui lòng thực hiện trên trình duyệt.' });
       }
-      // Heartbeat recency: heartbeat cuối phải trong vòng HB_INTERVAL_S*2 giây trước get-code
-      // Attacker không thể burst heartbeat sớm rồi đợi lâu mới gọi get-code
+      // Heartbeat recency check: BỎ - gây false positive khi user chuyển tab
+      // Chỉ check hbCount là đủ
+      /*
       if (sd2.hb_last) {
         const lastHbMs = new Date(sd2.hb_last).getTime();
-        const maxStalenessMs = HB_INTERVAL_S * 2 * 1000; // 20 giây
+        const maxStalenessMs = HB_INTERVAL_S * 4 * 1000; // 40 giây
         if (!isNaN(lastHbMs) && (Date.now() - lastHbMs) > maxStalenessMs) {
           console.log(`[Widget] BLOCKED HB stale: task=#${task.id}, staleness=${Date.now() - lastHbMs}ms, IP=${ip}`);
           return res.status(403).json({ error: 'Phát hiện gian lận! Vui lòng thực hiện trên trình duyệt.' });
         }
       }
+      */
     } catch { /* fail-open */ }
   }
 

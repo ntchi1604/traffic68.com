@@ -1214,7 +1214,8 @@
 
   function _onWindowFocus() {
     _isPageVisible = true;
-    if (!countdownRunning || revealed || challengeActive) return;
+    if (!countdownRunning || revealed) return;
+    // Bỏ check challengeActive — cho phép resume countdown ngay cả khi có challenge
     if (pausedTime > 0) {
       totalPausedDuration += (Date.now() - pausedTime);
       pausedTime = 0;
@@ -1245,7 +1246,7 @@
         // Don't schedule next tick — visibility handler will resume
         return;
       }
-      if (revealed || challengeActive) return;
+      if (revealed) return;
 
       // Calculate remaining time based on actual elapsed time (excluding paused duration)
       var actualElapsed = Date.now() - countdownStartTime - totalPausedDuration;
@@ -1255,7 +1256,7 @@
       var badge = document.getElementById('laynut-badge');
       if (badge) badge.textContent = remaining;
 
-      // Update modal UI if open
+      // Update modal UI if open (ngay cả khi challengeActive)
       var ring = document.getElementById('laynut-ring');
       var numEl = document.getElementById('laynut-num');
       if (ring) {
@@ -1268,14 +1269,14 @@
       var msgEl = document.getElementById('laynut-msg');
       if (msgEl) msgEl.textContent = cfg.countdownText.replace('{s}', remaining);
 
-      // Check if we should trigger a challenge (only trigger once per threshold)
-      if (remaining > 0 && challengeTimes.length > 0) {
+      // Check if we should trigger a challenge (chỉ khi KHÔNG có challenge đang active)
+      if (!challengeActive && remaining > 0 && challengeTimes.length > 0) {
         var nextChallenge = challengeTimes[0];
         // Only trigger if we just crossed the threshold (within 1 second)
         if (remaining <= nextChallenge && remaining > nextChallenge - 2) {
           challengeTimes.shift();
           showChallenge();
-          return;
+          // Không return — vẫn schedule tick tiếp theo
         }
         // Skip missed challenges (e.g., due to tab switching or slow completion)
         while (challengeTimes.length > 0 && remaining < challengeTimes[0] - 2) {

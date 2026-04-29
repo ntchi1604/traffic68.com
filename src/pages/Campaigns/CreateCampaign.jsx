@@ -219,11 +219,9 @@ export default function CreateCampaign() {
     directDailyViews: 0,
     viewByHour: false,
     useKeywordViews: false,       // per-keyword daily_views limit toggle
-    keywords: [{ keyword: '', views: 1000, daily_views: 0, url: '', images: [''] }],
+    keywords: [{ keyword: '', views: 1000, daily_views: 0, url: '', images: [''], device: 'both', mobilePct: 50 }],
     urls: [''],
     imageUrls: [''],
-    devices: ['desktop', 'mobile'],
-    countries: ['VN'],
     discountCode: '',
     note: '',
   });
@@ -236,6 +234,7 @@ export default function CreateCampaign() {
     keywords: [...f.keywords, {
       keyword: '', url: '', images: [''], daily_views: 0,
       views: f.keywords[0]?.views || 1000,
+      device: 'both', mobilePct: 50,
     }],
   }));
   const removeKeyword = (idx) => setForm(f => ({ ...f, keywords: f.keywords.filter((_, i) => i !== idx) }));
@@ -280,6 +279,15 @@ export default function CreateCampaign() {
     const next = !f.useKeywordViews;
     return { ...f, useKeywordViews: next, keywords: f.keywords.map(k => ({ ...k, daily_views: 0 })) };
   });
+
+  const updateKeywordDevice = (idx, val) => setForm(f => ({
+    ...f,
+    keywords: f.keywords.map((k, i) => i === idx ? { ...k, device: val } : k),
+  }));
+  const updateKeywordMobilePct = (idx, val) => setForm(f => ({
+    ...f,
+    keywords: f.keywords.map((k, i) => i === idx ? { ...k, mobilePct: Math.min(100, Math.max(0, Number(val) || 0)) } : k),
+  }));
 
 
 
@@ -385,13 +393,18 @@ export default function CreateCampaign() {
       setSubmitting(true);
       try {
         const directTotalViews = Number(form.totalViews) || 1000;
+        const directUrls = form.urls.filter(u => u && u.trim());
+        const firstKw = form.keywords[0] || {};
+        const kwDevice = firstKw.device || 'both';
+        const kwMobilePct = firstKw.mobilePct ?? 50;
+        const deviceStr = kwDevice === 'mobile' ? 'mobile' : kwDevice === 'desktop' ? 'desktop' : 'desktop,mobile';
         await api.post('/campaigns', {
           name: form.campaignName,
           url: validGlobalUrl,
-          url2: JSON.stringify([]),
+          url2: JSON.stringify(directUrls.slice(1)),
           traffic_type: 'direct',
           keyword: JSON.stringify([validGlobalUrl]),
-          keyword_config: JSON.stringify([{ keyword: validGlobalUrl, views: directTotalViews, daily_views: Number(form.directDailyViews) || 0, url: validGlobalUrl, image: '' }]),
+          keyword_config: JSON.stringify([{ keyword: validGlobalUrl, views: directTotalViews, daily_views: Number(form.directDailyViews) || 0, url: validGlobalUrl, image: '', device: kwDevice, mobilePct: kwMobilePct }]),
           total_views: directTotalViews,
           daily_views: Number(form.directDailyViews) || 0,
           view_by_hour: form.viewByHour ? 1 : 0,
@@ -401,8 +414,8 @@ export default function CreateCampaign() {
           discount_code: discountApplied ? form.discountCode.trim() : '',
           cpc: pricePerView,
           budget: totalPrice,
-          device: form.devices.join(','),
-          country: form.countries.join(','),
+          device: deviceStr,
+          country: 'VN',
           image1_url: '',
           image2_url: '',
           note: form.note,
@@ -441,9 +454,11 @@ export default function CreateCampaign() {
       const keywordConfig = validKeywords.map(k => ({
         keyword: k.keyword,
         views: Number(k.views) || 0,
-        daily_views: Number(k.daily_views) || 0, // 0 = không giới hạn
+        daily_views: Number(k.daily_views) || 0,
         url: k.url || '',
-        images: (k.images || []).filter(img => img && img.trim())
+        images: (k.images || []).filter(img => img && img.trim()),
+        device: k.device || 'both',
+        mobilePct: k.mobilePct ?? 50,
       }));
 
       // tổng daily = sum keyword daily; nếu tất cả = 0 thì dùng form.dailyViews (tính trong allocatedDailyViews)
@@ -466,8 +481,8 @@ export default function CreateCampaign() {
         discount_code: discountApplied ? form.discountCode.trim() : '',
         cpc: pricePerView,
         budget: totalPrice,
-        device: form.devices.join(','),
-        country: form.countries.join(','),
+        device: 'desktop,mobile',
+        country: 'VN',
         image1_url: allImages.length > 0 ? JSON.stringify(allImages) : '',
         image2_url: '',
         note: form.note,
@@ -687,6 +702,65 @@ export default function CreateCampaign() {
                       </div>
                     )}
                   </div>
+
+                  {/* URL đích riêng — thêm/xóa giống image */}
+                  {form.urls.slice(1).map((u, idx) => (
+                    <div key={idx + 1} className="flex gap-2 items-center">
+                      <TextInput
+                        placeholder={`URL đích ${idx + 2}`}
+                        value={u}
+                        onChange={e => updateArrayItem('urls', idx + 1, e.target.value)}
+                        className="flex-1 text-xs"
+                      />
+                      <button type="button" onClick={() => removeArrayItem('urls', idx + 1)}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => addArrayItem('urls')}
+                    className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1 mt-1">
+                    <Plus size={14} /> Thêm URL đích
+                  </button>
+                </div>
+
+                {/* Device targeting cho Direct */}
+                <div className="mt-3 p-3 bg-teal-50 border border-teal-200 rounded-xl">
+                  <p className="text-xs font-bold text-teal-700 mb-2">📱 Thiết bị & Tỷ lệ Mobi/PC</p>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {[
+                      { value: 'both', label: 'Cả hai' },
+                      { value: 'desktop', label: '🖥️ Desktop' },
+                      { value: 'mobile', label: '📱 Mobile' },
+                    ].map(d => {
+                      const kw0 = form.keywords[0] || {};
+                      const active = (kw0.device || 'both') === d.value;
+                      return (
+                        <button key={d.value} type="button"
+                          onClick={() => updateKeywordDevice(0, d.value)}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-xl border-2 transition-all ${active
+                            ? 'border-teal-500 bg-teal-100 text-teal-800 shadow-sm'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-teal-300'}`}>
+                          {d.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {(form.keywords[0]?.device === 'both' || !form.keywords[0]?.device) && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] font-bold text-teal-700 whitespace-nowrap">Mobile</span>
+                      <input
+                        type="range" min="0" max="100" step="5"
+                        value={form.keywords[0]?.mobilePct ?? 50}
+                        onChange={e => updateKeywordMobilePct(0, e.target.value)}
+                        className="flex-1 accent-teal-600 h-1.5"
+                      />
+                      <span className="text-[11px] font-bold text-teal-700 whitespace-nowrap">PC</span>
+                      <span className="text-xs font-black text-teal-800 bg-white border border-teal-200 px-2 py-0.5 rounded-lg tabular-nums min-w-[70px] text-center">
+                        {form.keywords[0]?.mobilePct ?? 50}% / {100 - (form.keywords[0]?.mobilePct ?? 50)}%
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Tổng view summary — amber box giống bên search */}
@@ -825,6 +899,40 @@ export default function CreateCampaign() {
                             </button>
                           </div>
                         </div>
+                        {/* Device targeting per keyword */}
+                        <div className="flex items-center gap-2 mt-1 p-2 bg-teal-50 border border-teal-100 rounded-lg">
+                          <span className="text-[10px] font-bold text-teal-700 whitespace-nowrap">Thiết bị:</span>
+                          {[
+                            { value: 'both', label: 'Cả hai' },
+                            { value: 'desktop', label: 'PC' },
+                            { value: 'mobile', label: 'Mobi' },
+                          ].map(d => {
+                            const active = (kw.device || 'both') === d.value;
+                            return (
+                              <button key={d.value} type="button"
+                                onClick={() => updateKeywordDevice(i, d.value)}
+                                className={`px-2 py-0.5 text-[10px] font-bold rounded-lg border transition-all ${active
+                                  ? 'border-teal-500 bg-teal-200 text-teal-900'
+                                  : 'border-slate-200 bg-white text-slate-500 hover:border-teal-300'}`}>
+                                {d.label}
+                              </button>
+                            );
+                          })}
+                          {(kw.device === 'both' || !kw.device) && (
+                            <>
+                              <input
+                                type="range" min="0" max="100" step="5"
+                                value={kw.mobilePct ?? 50}
+                                onChange={e => updateKeywordMobilePct(i, e.target.value)}
+                                className="flex-1 accent-teal-600 h-1"
+                                style={{ minWidth: 60 }}
+                              />
+                              <span className="text-[10px] font-black text-teal-800 bg-white border border-teal-200 px-1.5 py-0.5 rounded tabular-nums whitespace-nowrap">
+                                M:{kw.mobilePct ?? 50}% P:{100 - (kw.mobilePct ?? 50)}%
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -898,56 +1006,6 @@ export default function CreateCampaign() {
               );
             })()}
 
-            {/* ── 4. Thiết bị & Quốc gia ── */}
-            <SectionCard icon={MousePointerClick} iconBg="bg-teal-50" iconColor="text-teal-600" title="Thiết bị & Quốc gia">
-              {/* Devices */}
-              <div>
-                <Label hint="Chọn loại thiết bị mà visitor sẽ sử dụng để truy cập">Thiết bị target</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  {DEVICES.map(d => {
-                    const Icon = d.icon;
-                    const active = form.devices.includes(d.value);
-                    return (
-                      <div
-                        key={d.value}
-                        onClick={() => {
-                          const next = active ? form.devices.filter(v => v !== d.value) : [...form.devices, d.value];
-                          if (next.length > 0) set('devices', next);
-                        }}
-                        className={`flex items-center gap-3 border-2 rounded-xl px-4 py-3 cursor-pointer transition-all ${active ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
-                          }`}
-                      >
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${active ? 'bg-indigo-100' : 'bg-slate-100'}`}>
-                          <Icon size={18} className={active ? 'text-indigo-600' : 'text-slate-400'} />
-                        </div>
-                        <div>
-                          <p className={`text-sm font-bold ${active ? 'text-indigo-700' : 'text-slate-600'}`}>{d.label}</p>
-                          <p className="text-xs text-slate-400">{d.desc}</p>
-                        </div>
-                        <div className={`ml-auto w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${active ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'
-                          }`}>
-                          {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <Hint>Chọn cả hai để phân phối đều, chọn một để target cụ thể hơn.</Hint>
-              </div>
-
-              {/* Country */}
-              <div>
-                <Label hint="Quốc gia xuất phát của traffic">Quốc gia</Label>
-                <div className="flex flex-wrap gap-2">
-                  <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border-2 border-indigo-500 bg-indigo-50 shadow-sm">
-                    <img src="https://flagcdn.com/w40/vn.png" alt="VN" className="w-6 h-4 rounded-sm object-cover" />
-                    <span className="text-sm font-bold text-indigo-700">Việt Nam</span>
-                    <CheckCircle2 size={14} className="text-indigo-500" />
-                  </div>
-                </div>
-                <Hint>Hiện tại chỉ hỗ trợ traffic từ Việt Nam.</Hint>
-              </div>
-            </SectionCard>
 
             {/* ── 5. Mã giảm giá & Ghi chú ── */}
             <SectionCard icon={Tag} iconBg="bg-indigo-50" iconColor="text-indigo-600" title="Mã giảm giá & Ghi chú">

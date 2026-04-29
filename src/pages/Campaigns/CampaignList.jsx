@@ -313,12 +313,14 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             views: found ? Number(found.views) : Number(campaign.total_views) || 1000,
             daily_views: found ? Number(found.daily_views) || 0 : 0,
             url: found?.url || found?.domain || '',
-            images: found?.images ? (Array.isArray(found.images) ? found.images : [found.images]) : (found?.image ? [found.image] : [''])
+            images: found?.images ? (Array.isArray(found.images) ? found.images : [found.images]) : (found?.image ? [found.image] : ['']),
+            device: found?.device || 'both',
+            mobilePct: found?.mobilePct ?? 50,
           };
         });
       }
     } catch { }
-    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, daily_views: 0, url: '', images: [''] }));
+    return kwList.map(kw => ({ keyword: kw, views: Number(campaign.total_views) || 1000, daily_views: 0, url: '', images: [''], device: 'both', mobilePct: 50 }));
   });
 
   const [urls, setUrls] = useState(() => {
@@ -351,6 +353,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 
   const addKeyword = () => setKeywords(prev => [...prev, {
     keyword: '', url: '', images: [''], daily_views: 0, views: Number(campaign.total_views) || 1000,
+    device: 'both', mobilePct: 50,
   }]);
   const removeKeyword = (idx) => setKeywords(prev => prev.filter((_, i) => i !== idx));
   const updateKeywordText = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, keyword: val } : k));
@@ -372,6 +375,9 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
     if (useKeywordDailyViews) setKeywords(prev => prev.map(k => ({ ...k, daily_views: 0 })));
     setUseKeywordDailyViews(v => !v);
   };
+
+  const updateKeywordDevice = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, device: val } : k));
+  const updateKeywordMobilePct = (idx, val) => setKeywords(prev => prev.map((k, i) => i === idx ? { ...k, mobilePct: Math.min(100, Math.max(0, Number(val) || 0)) } : k));
 
   const addUrlItem = () => setUrls(prev => [...prev, '']);
   const removeUrlItem = (idx) => setUrls(prev => prev.filter((_, i) => i !== idx));
@@ -438,6 +444,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         daily_views: Number(k.daily_views) || 0,
         url: k.url || '',
         images: (k.images || []).filter(img => img && img.trim()),
+        device: k.device || 'both',
+        mobilePct: k.mobilePct ?? 50,
       }));
 
       const kwDailySum = keywordConfig.reduce((s, k) => s + (Number(k.daily_views) || 0), 0);
@@ -465,7 +473,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         image1_url: allImages.length ? JSON.stringify(allImages) : null,
         image2_url: null,
         note: note || null,
-        device: [selectedDevices.desktop && 'desktop', selectedDevices.mobile && 'mobile'].filter(Boolean).join(',') || 'desktop,mobile',
+        device: 'desktop,mobile',
       });
       toast.success('Cập nhật chiến dịch thành công');
       onSaved(); onClose();
@@ -798,6 +806,40 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                         </button>
                       </div>
                     </div>
+                    {/* Device targeting per keyword */}
+                    <div className="flex items-center gap-2 mt-1 p-2 bg-teal-50 border border-teal-100 rounded-lg">
+                      <span className="text-[10px] font-bold text-teal-700 whitespace-nowrap">Thiết bị:</span>
+                      {[
+                        { value: 'both', label: 'Cả hai' },
+                        { value: 'desktop', label: 'PC' },
+                        { value: 'mobile', label: 'Mobi' },
+                      ].map(d => {
+                        const active = (kw.device || 'both') === d.value;
+                        return (
+                          <button key={d.value} type="button"
+                            onClick={() => updateKeywordDevice(i, d.value)}
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-lg border transition-all ${active
+                              ? 'border-teal-500 bg-teal-200 text-teal-900'
+                              : 'border-slate-200 bg-white text-slate-500 hover:border-teal-300'}`}>
+                            {d.label}
+                          </button>
+                        );
+                      })}
+                      {(kw.device === 'both' || !kw.device) && (
+                        <>
+                          <input
+                            type="range" min="0" max="100" step="5"
+                            value={kw.mobilePct ?? 50}
+                            onChange={e => updateKeywordMobilePct(i, e.target.value)}
+                            className="flex-1 accent-teal-600 h-1"
+                            style={{ minWidth: 60 }}
+                          />
+                          <span className="text-[10px] font-black text-teal-800 bg-white border border-teal-200 px-1.5 py-0.5 rounded tabular-nums whitespace-nowrap">
+                            M:{kw.mobilePct ?? 50}% P:{100 - (kw.mobilePct ?? 50)}%
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -881,26 +923,8 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             );
           })()}
 
-          {/* Device targeting */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-            <p className="text-xs font-bold text-slate-700 mb-2">Thiết bị mục tiêu</p>
-            <div className="flex gap-4">
-              {[{ key: 'desktop', label: '🖥️ Desktop' }, { key: 'mobile', label: '📱 Mobile' }].map(({ key, label }) => (
-                <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={selectedDevices[key]}
-                    onChange={() => toggleDevice(key)}
-                    className="w-4 h-4 rounded accent-indigo-600"
-                  />
-                  <span className="text-sm font-semibold text-slate-700">{label}</span>
-                </label>
-              ))}
-            </div>
-            {!selectedDevices.desktop && !selectedDevices.mobile && (
-              <p className="mt-1.5 text-xs text-red-500 font-medium">⚠️ Chọn ít nhất 1 thiết bị</p>
-            )}
-          </div>
+
+
 
           {/* Ghi chú */}
           <div>
