@@ -1940,7 +1940,27 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
           pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
           pool.execute('SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ? GROUP BY DATE(completed_at) ORDER BY day", [...wlParams, sevenAgo, todayEnd]),
           pool.execute('SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id WHERE ' + wlCondT + " AND (t.bot_detected = 0 OR t.status != 'completed') ORDER BY t.created_at DESC LIMIT 10", wlParams),
-          pool.execute("SELECT COALESCE(SUM(c.daily_views),0) as total_daily, COALESCE(SUM(LEAST(COALESCE(td.done,0),c.daily_views)),0) as today_done FROM campaigns c LEFT JOIN (SELECT campaign_id, COUNT(*) as done FROM vuot_link_tasks WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ? GROUP BY campaign_id) td ON td.campaign_id = c.id WHERE c.status = 'running' AND c.daily_views > 0", [todayStart, todayEnd]),
+          // Fix: Tính view khả dụng cho CẢ daily_views=0 (không giới hạn ngày) VÀ daily_views>0
+          // - Nếu daily_views > 0: dùng (daily_views - today_done)
+          // - Nếu daily_views = 0: dùng (total_views - views_done) — giới hạn tổng
+          pool.execute(`
+            SELECT
+              COALESCE(SUM(
+                CASE
+                  WHEN c.daily_views > 0 THEN GREATEST(0, c.daily_views - COALESCE(td.done, 0))
+                  ELSE GREATEST(0, c.total_views - c.views_done)
+                END
+              ), 0) as remaining_views
+            FROM campaigns c
+            LEFT JOIN (
+              SELECT campaign_id, COUNT(*) as done
+              FROM vuot_link_tasks
+              WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
+                AND completed_at >= ? AND completed_at <= ?
+              GROUP BY campaign_id
+            ) td ON td.campaign_id = c.id
+            WHERE c.status = 'running' AND c.views_done < c.total_views
+          `, [todayStart, todayEnd]),
         ]);
 
         const walletMap = {};
@@ -1949,7 +1969,7 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
           today: { tasks: todayR[0][0].cnt, earnings: Number(todayR[0][0].earn) },
           total: { tasks: totalR[0][0].cnt, earnings: Number(totalR[0][0].earn) },
           pending: pendingR[0][0].cnt,
-          remainingDailyViews: Math.max(0, Number(remR[0][0].total_daily) - Number(remR[0][0].today_done)),
+          remainingDailyViews: Number(remR[0][0].remaining_views) || 0,
           balance: walletMap.earning || 0,
           commissionBalance: walletMap.commission || 0,
           chart: chartR[0],
