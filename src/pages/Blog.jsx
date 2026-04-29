@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Clock, Tag, ArrowRight, BookOpen, TrendingUp, Search } from 'lucide-react';
 import Footer from '../components/Footer';
 import api from '../lib/api';
+import { posts as fallbackPosts } from '../data/blogPosts';
 
 
 const tags = ['Tất cả', 'SEO', 'Traffic', 'CRO', 'Case Study', 'Hướng dẫn'];
@@ -22,9 +23,12 @@ export default function Blog() {
   const fetchPosts = async () => {
     try {
       const data = await api.get('/blog');
-      setPosts(data.posts || []);
+      // Nếu database trống, dùng fallback data
+      setPosts(data.posts && data.posts.length > 0 ? data.posts : fallbackPosts);
     } catch (error) {
       console.error('Error fetching posts:', error);
+      // Nếu API lỗi, dùng fallback data
+      setPosts(fallbackPosts);
     } finally {
       setLoading(false);
     }
@@ -33,7 +37,8 @@ export default function Blog() {
   const filtered = posts.filter((p) => {
     const matchTag = activeTag === 'Tất cả' || p.tag === activeTag;
     const matchQ = p.title.toLowerCase().includes(query.toLowerCase()) || p.excerpt.toLowerCase().includes(query.toLowerCase());
-    return matchTag && matchQ && p.status === 'published';
+    const matchStatus = p.status === 'published' || !p.status; // fallback posts không có status
+    return matchTag && matchQ && matchStatus;
   });
 
   return (

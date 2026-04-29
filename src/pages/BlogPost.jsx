@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Clock, Tag, User, Calendar, ChevronRight, BookOpen, Share2, MessageCircle, Send } from 'lucide-react';
 import Footer from '../components/Footer';
 import api from '../lib/api';
+import { posts as fallbackPosts } from '../data/blogPosts';
 
 /* Social share buttons */
 const socials = [
@@ -32,12 +33,16 @@ export default function BlogPost() {
   const fetchPosts = async () => {
     try {
       const data = await api.get('/blog');
-      const allPosts = data.posts || [];
-      const currentPost = allPosts.find(p => p.slug === slug && p.status === 'published');
+      const allPosts = (data.posts && data.posts.length > 0) ? data.posts : fallbackPosts;
+      const currentPost = allPosts.find(p => p.slug === slug && (p.status === 'published' || !p.status));
       setPost(currentPost);
-      setPosts(allPosts.filter(p => p.status === 'published'));
+      setPosts(allPosts.filter(p => p.status === 'published' || !p.status));
     } catch (error) {
       console.error('Error fetching posts:', error);
+      // Nếu API lỗi, dùng fallback data
+      const currentPost = fallbackPosts.find(p => p.slug === slug);
+      setPost(currentPost);
+      setPosts(fallbackPosts);
     } finally {
       setLoading(false);
     }
@@ -193,11 +198,11 @@ export default function BlogPost() {
             <div className="lg:col-span-2">
               {/* Post meta above title */}
               <div className="flex items-center gap-3 mb-4">
-                <span className={`text-xs font-bold px-3 py-1 rounded-full ${post.tagColor} flex items-center gap-1`}>
+                <span className={`text-xs font-bold px-3 py-1 rounded-full ${post.tag_color || post.tagColor} flex items-center gap-1`}>
                   <Tag size={12} /> {post.tag}
                 </span>
                 <span className="text-xs text-gray-400 flex items-center gap-1">
-                  <Clock size={12} /> {post.readTime}
+                  <Clock size={12} /> {post.read_time || post.readTime}
                 </span>
               </div>
 
@@ -212,7 +217,7 @@ export default function BlogPost() {
                   <User size={14} className="text-gray-400" /> Tác giả: <strong className="text-gray-700">{post.author}</strong>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <Calendar size={14} className="text-gray-400" /> Ngày đăng: <strong className="text-gray-700">{post.date}</strong>
+                  <Calendar size={14} className="text-gray-400" /> Ngày đăng: <strong className="text-gray-700">{post.date || new Date(post.created_at || post.published_at).toLocaleDateString('vi-VN')}</strong>
                 </span>
                 <div className="flex items-center gap-1.5">
                   <span>Tag:</span>
@@ -224,14 +229,14 @@ export default function BlogPost() {
                   })}
                 </div>
                 <span className="flex items-center gap-1.5">
-                  <Clock size={14} className="text-gray-400" /> Thời gian đọc: <strong className="text-gray-700">{post.readTime}</strong>
+                  <Clock size={14} className="text-gray-400" /> Thời gian đọc: <strong className="text-gray-700">{post.read_time || post.readTime}</strong>
                 </span>
               </div>
 
               {/* Featured Image */}
               <div className="rounded-2xl overflow-hidden mb-8 border border-gray-100 shadow-sm">
                 <img
-                  src={post.id === 1 ? '/blog_featured_seo.png' : post.cover}
+                  src={post.cover || '/blog_featured_seo.png'}
                   alt={post.title}
                   className="w-full object-cover"
                 />
@@ -300,9 +305,9 @@ export default function BlogPost() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-1">
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${p.tagColor}`}>{p.tag}</span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${p.tag_color || p.tagColor}`}>{p.tag}</span>
                           <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-                            <Clock size={9} /> {p.readTime}
+                            <Clock size={9} /> {p.read_time || p.readTime}
                           </span>
                         </div>
                         <h4 className="text-xs font-bold text-[#1e3a5f] leading-snug mb-1 line-clamp-2 group-hover:text-[#f97316] transition">
