@@ -691,11 +691,31 @@ router.post('/public/:token/get-code', async (req, res) => {
   let botDetected = false;
   let detectionLog = [];
 
-  if (!_ci) return res.status(403).json(ERR);
+  if (!_ci) {
+    console.log(`[Widget] ERR: missing _ci — IP: ${ip}, task: #${task.id}`);
+    return res.status(403).json(ERR);
+  }
   const ch = widgetChallenges[_ci];
-  if (!ch || ch.used) { delete widgetChallenges[_ci]; return res.status(403).json(ERR); }
-  if (Date.now() - ch.createdAt > 600000) { delete widgetChallenges[_ci]; return res.status(403).json(ERR); }
-  if (!_ck || _ck !== signWidgetChallenge(_ci, ch.ip)) return res.status(403).json(ERR);
+  if (!ch) {
+    console.log(`[Widget] ERR: challenge not found — IP: ${ip}, task: #${task.id}, _ci: ${_ci}`);
+    return res.status(403).json(ERR);
+  }
+  if (ch.used) {
+    console.log(`[Widget] ERR: challenge already used — IP: ${ip}, task: #${task.id}, _ci: ${_ci}`);
+    delete widgetChallenges[_ci];
+    return res.status(403).json(ERR);
+  }
+  const challengeAge = Date.now() - ch.createdAt;
+  if (challengeAge > 600000) {
+    console.log(`[Widget] ERR: challenge expired — IP: ${ip}, task: #${task.id}, _ci: ${_ci}, age: ${Math.round(challengeAge/1000)}s`);
+    delete widgetChallenges[_ci];
+    return res.status(403).json(ERR);
+  }
+  const normChIp = normalizeIp(ch.ip);
+  if (!_ck || _ck !== signWidgetChallenge(_ci, ch.ip)) {
+    console.log(`[Widget] ERR: invalid _ck or IP mismatch — IP: ${ip} (norm: ${normIp}), ch.ip: ${ch.ip} (norm: ${normChIp}), task: #${task.id}, _ci: ${_ci}`);
+    return res.status(403).json(ERR);
+  }
 
   // Buoc 2: _cvh check TRUOC hCaptcha - neu sai, token chua bi consume, client co the retry
   if (!isTrustedWorker && ch.expectedCanvasHash) {
