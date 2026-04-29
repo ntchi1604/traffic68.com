@@ -206,12 +206,14 @@ export default function BlogPost() {
 
   return (
     <>
+      {console.log('Rendering BlogPost, post:', post)}
       <section className="bg-white py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
 
             {/* ── Main Content (Left) ── */}
             <div className="lg:col-span-2">
+              {console.log('Rendering main content')}
               {/* Post meta above title */}
               <div className="flex items-center gap-3 mb-4">
                 <span className={`text-xs font-bold px-3 py-1 rounded-full ${post.tag_color || post.tagColor} flex items-center gap-1`}>
@@ -260,7 +262,14 @@ export default function BlogPost() {
 
               {/* Article content */}
               <article className="prose-custom">
-                {renderContent(post.content)}
+                {post.content ? (
+                  <>
+                    {console.log('Rendering content:', post.content)}
+                    {renderContent(post.content)}
+                  </>
+                ) : (
+                  <p className="text-gray-500">Nội dung đang được cập nhật...</p>
+                )}
               </article>
 
               {/* Comment section */}
