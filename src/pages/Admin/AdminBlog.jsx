@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Eye, EyeOff, Search, Tag, Calendar, Clock } from 'lucide-react';
 import api from '../../lib/api';
+import MarkdownEditor from '../../components/MarkdownEditor';
 
 export default function AdminBlog() {
   const [posts, setPosts] = useState([]);
@@ -23,6 +24,8 @@ export default function AdminBlog() {
     gradient: 'from-blue-500 to-blue-700',
     status: 'draft',
   });
+
+  const [uploading, setUploading] = useState(false);
 
   const tags = [
     { value: 'SEO', color: 'bg-blue-100 text-blue-700', gradient: 'from-blue-500 to-blue-700' },
@@ -148,6 +151,49 @@ export default function AdminBlog() {
       tag_color: selectedTag.color,
       gradient: selectedTag.gradient,
     });
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Vui lòng chọn file ảnh');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Kích thước ảnh không được vượt quá 5MB');
+      return;
+    }
+
+    setUploading(true);
+    const formDataUpload = new FormData();
+    formDataUpload.append('image', file);
+
+    try {
+      const response = await fetch('/api/admin/upload-image', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formDataUpload,
+      });
+
+      const data = await response.json();
+      if (data.url) {
+        setFormData({ ...formData, cover: data.url });
+      } else {
+        alert('Lỗi khi upload ảnh');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Lỗi khi upload ảnh');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const filtered = posts.filter(p => {
@@ -376,14 +422,47 @@ export default function AdminBlog() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Ảnh bìa (URL)</label>
-                <input
-                  type="text"
-                  value={formData.cover}
-                  onChange={(e) => setFormData({ ...formData, cover: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="/blog_1.png"
-                />
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Ảnh bìa</label>
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formData.cover}
+                      onChange={(e) => setFormData({ ...formData, cover: e.target.value })}
+                      className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="/blog_1.png hoặc https://..."
+                    />
+                    <label className="relative cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        disabled={uploading}
+                      />
+                      <div className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl font-semibold text-sm transition flex items-center gap-2">
+                        {uploading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                            Đang tải...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Upload
+                          </>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                  {formData.cover && (
+                    <div className="relative w-full h-32 rounded-xl overflow-hidden border border-slate-200">
+                      <img src={formData.cover} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -399,12 +478,10 @@ export default function AdminBlog() {
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Nội dung (Markdown)</label>
-                <textarea
+                <MarkdownEditor
                   value={formData.content}
                   onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                  rows={15}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
-                  required
+                  placeholder="Nhập nội dung bài viết..."
                 />
               </div>
 
