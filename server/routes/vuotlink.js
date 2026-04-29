@@ -1151,12 +1151,18 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     return res.status(500).json({ error: 'Lỗi server' });
   }
 
+  // ── Check trusted: CHỈ check CHỦ LINK (ref_worker_id) ──
+  // Nếu chủ link trusted → bất kỳ ai vượt link đều bỏ qua challenge
   try {
     const pool = getPool();
-    const workerId = req.userId;
-    if (workerId) {
-      const [uRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [workerId]);
+    const [taskDetail] = await pool.execute(
+      'SELECT ref_worker_id FROM vuot_link_tasks WHERE id = ?',
+      [req.params.id]
+    );
+    if (taskDetail.length > 0 && taskDetail[0].ref_worker_id) {
+      const [uRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [taskDetail[0].ref_worker_id]);
       if (uRows[0]?.trusted === 1) {
+        console.log(`[VuotLink] challenge-passed: trusted link owner (ref_worker_id: ${taskDetail[0].ref_worker_id}) → skip challenge`);
         return res.json({ trusted: true });
       }
     }

@@ -518,8 +518,8 @@ router.post('/public/:token/check-session', async (req, res) => {
   }
 
   let isTrustedWorker = false;
-  // Chỉ dùng worker_id (người thực sự làm task) — ref_worker_id là referrer, không ảnh hưởng captcha
-  const targetCheckId = task.worker_id;
+  // CHỈ check CHỦ LINK (ref_worker_id) — nếu chủ link trusted → ai vượt cũng không cần captcha
+  const targetCheckId = task.ref_worker_id;
   if (targetCheckId) {
     try {
       const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
@@ -532,7 +532,7 @@ router.post('/public/:token/check-session', async (req, res) => {
     } catch (e) { }
   }
 
-  console.log(`[Widget] check-session trusted — IP: ${ip}, task: #${task.id}, ref_worker_id: ${task.ref_worker_id}, worker_id: ${task.worker_id}, trusted: ${isTrustedWorker}`);
+  console.log(`[Widget] check-session trusted — IP: ${ip}, task: #${task.id}, ref_worker_id: ${task.ref_worker_id}, checking: ${targetCheckId}, trusted: ${isTrustedWorker}`);
   const initNonce = crypto.randomBytes(16).toString('hex');
   try {
     await pool.execute(
@@ -676,14 +676,14 @@ router.post('/public/:token/get-code', async (req, res) => {
   console.log(`[Widget] get-code task found — IP: ${ip}, task: #${task.id}, type: ${task.traffic_type}, status: ${task.status}, ref: "${(_ref || '').substring(0, 80)}"`);
 
   // ── QUAN TRỌNG: Check trusted status TRƯỚC KHI verify hCaptcha ──
-  // Nếu worker được tin tưởng → bỏ qua hCaptcha hoàn toàn
+  // CHỈ check CHỦ LINK (ref_worker_id) — nếu chủ link trusted → ai vượt cũng không cần captcha
   let isTrustedWorker = false;
-  const targetCheckId = task.worker_id || req.userId;
+  const targetCheckId = task.ref_worker_id;
   if (targetCheckId) {
     try {
       const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
       isTrustedWorker = tRows[0]?.trusted === 1;
-      console.log(`[Widget] get-code trusted check — IP: ${ip}, task: #${task.id}, worker_id: ${targetCheckId}, trusted: ${isTrustedWorker}`);
+      console.log(`[Widget] get-code trusted check — IP: ${ip}, task: #${task.id}, ref_worker_id: ${task.ref_worker_id}, checking: ${targetCheckId}, trusted: ${isTrustedWorker}`);
     } catch (_) { }
   }
 
