@@ -292,15 +292,6 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
   const [version, setVersion] = useState(campaign.version || 0);
   const [viewByHour, setViewByHour] = useState(campaign.view_by_hour ? true : false);
 
-  // Device targeting
-  const [selectedDevices, setSelectedDevices] = useState(() => {
-    const dev = (campaign.device || 'desktop,mobile').toLowerCase();
-    return {
-      desktop: dev.includes('desktop'),
-      mobile: dev.includes('mobile'),
-    };
-  });
-  const toggleDevice = (d) => setSelectedDevices(prev => ({ ...prev, [d]: !prev[d] }));
 
   const addItem = (setter) => setter(prev => [...prev, '']);
   const removeItem = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
@@ -426,7 +417,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
         image1_url: allImages.length ? JSON.stringify(allImages) : null,
         image2_url: null,
         version: Number(version),
-        device: [selectedDevices.desktop && 'desktop', selectedDevices.mobile && 'mobile'].filter(Boolean).join(',') || 'desktop,mobile',
+        device: 'desktop,mobile',
         note: note || null,
       });
       toast.success('Cập nhật chiến dịch thành công');
@@ -719,26 +710,6 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
             </select>
           </div>
 
-          {/* Device targeting */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-            <p className="text-sm font-semibold text-slate-700 mb-2">🖥️ Thiết bị mục tiêu</p>
-            <div className="flex gap-6">
-              {[{ key: 'desktop', label: 'Desktop' }, { key: 'mobile', label: 'Mobile / Tablet' }].map(({ key, label }) => (
-                <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={selectedDevices[key]}
-                    onChange={() => toggleDevice(key)}
-                    className="w-4 h-4 rounded accent-indigo-600"
-                  />
-                  <span className="text-sm font-semibold text-slate-700">{label}</span>
-                </label>
-              ))}
-            </div>
-            {!selectedDevices.desktop && !selectedDevices.mobile && (
-              <p className="mt-1.5 text-xs text-red-500 font-medium">⚠️ Chọn ít nhất 1 thiết bị</p>
-            )}
-          </div>
 
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1 block">Ghi chú (tùy chọn)</label>
