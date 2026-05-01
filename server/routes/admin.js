@@ -3355,5 +3355,110 @@ router.delete('/blog/:id', async (req, res) => {
   }
 });
 
+// GET /admin/check-missing-payments — kiểm tra các task completed nhưng thiếu payment
+router.get('/check-missing-payments', async (req, res) => {
+  const pool = getPool();
+  const hours = parseInt(req.query.hours) || 24;
+
+  try {
+    // 1. Tổng số task có earning
+    const [totalStats] = await pool.execute(
+      `SELECT COUNT(*) as total_tasks, SUM(earning) as total_earning
+       FROM vuot_link_tasks
+       WHERE status = 'completed'
+         AND completed_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+         AND bot_detected = 0
+         AND is_over_limit = 0
+         AND earning > 0`,
+      [hours]
+    );
+
+    // 2. Tìm task thiếu payment (Case 1: Direct worker)
+    const [missingDirect] = await pool.execute(
+      `SELECT t.id, t.worker_id, t.earning, t.completed_at, t.keyword, c.name as campaign_name
+       FROM vuot_link_tasks t
+       JOIN campaigns c ON t.campaign_id = c.id
+       WHERE t.status = 'completed'
+         AND t.completed_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+         AND t.bot_detected = 0
+         AND t.is_over_limit = 0
+         AND t.earning > 0
+         AND t.worker_id IS NOT NULL
+         AND t.worker_link_id IS NULL
+         AND NOT EXISTS (
+             SELECT 1 FROM transactions tx
+             WHERE tx.user_id = t.worker_id
+               AND tx.wallet_type = 'earning'
+               AND tx.note LIKE CONCAT('%#', t.id)
+               AND tx.status = 'completed'
+         )
+       ORDER BY t.completed_at DESC
+       LIMIT 50`,
+      [hours]
+    );
+
+    // 3. Tìm task thiếu payment (Case 2: Gateway link)
+    const [missingGateway] = await pool.execute(
+      `SELECT t.id, t.worker_link_id, wl.worker_id as gateway_owner, wl.slug,
+              t.earning, t.completed_at, t.keyword
+       FROM vuot_link_tasks t
+       JOIN worker_links wl ON t.worker_link_id = wl.id
+       WHERE t.status = 'completed'
+         AND t.completed_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+         AND t.bot_detected = 0
+         AND t.is_over_limit = 0
+         AND t.earning > 0
+         AND t.worker_link_id IS NOT NULL
+         AND NOT EXISTS (
+             SELECT 1 FROM transactions tx
+             WHERE tx.user_id = wl.worker_id
+               AND tx.wallet_type = 'earning'
+               AND tx.note LIKE CONCAT('%#', t.id)
+               AND tx.status = 'completed'
+         )
+       ORDER BY t.completed_at DESC
+       LIMIT 50`,
+      [hours]
+    );
+
+    // 4. Tìm task có earning = 0 (có thể do thiếu pricing group)
+    const [zeroEarning] = await pool.execute(
+      `SELECT t.id, t.worker_id, t.worker_link_id, t.ref_worker_id,
+              t.completed_at, t.keyword, c.name as campaign_name,
+              c.traffic_type, c.time_on_site, u.pricing_group_id
+       FROM vuot_link_tasks t
+       JOIN campaigns c ON t.campaign_id = c.id
+       LEFT JOIN users u ON u.id = COALESCE(t.worker_id, t.ref_worker_id)
+       WHERE t.status = 'completed'
+         AND t.completed_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+         AND t.bot_detected = 0
+         AND t.is_over_limit = 0
+         AND t.earning = 0
+         AND (t.worker_id IS NOT NULL OR t.worker_link_id IS NOT NULL OR t.ref_worker_id IS NOT NULL)
+       LIMIT 50`,
+      [hours]
+    );
+
+    res.json({
+      summary: {
+        hours,
+        total_tasks: totalStats[0].total_tasks,
+        total_earning: totalStats[0].total_earning,
+        missing_direct: missingDirect.length,
+        missing_gateway: missingGateway.length,
+        zero_earning: zeroEarning.length,
+        total_missing_amount: missingDirect.reduce((sum, t) => sum + Number(t.earning), 0) +
+                              missingGateway.reduce((sum, t) => sum + Number(t.earning), 0)
+      },
+      missing_direct: missingDirect,
+      missing_gateway: missingGateway,
+      zero_earning: zeroEarning
+    });
+  } catch (err) {
+    console.error('[Admin] Check missing payments error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 

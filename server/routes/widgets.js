@@ -1099,9 +1099,15 @@ router.post('/public/:token/get-code', async (req, res) => {
     await pool.execute("UPDATE vuot_link_tasks SET status = 'step3' WHERE id = ?", [task.id]);
   }
 
-  console.log(`[Widget] Code given — IP: ${ip}, task: #${task.id}, code: ${task.code_given}, elapsed: ${elapsedSeconds}s, botDetected=${botDetected}`);
+  const codeGiven = String(task.code_given || '').trim();
+  if (!codeGiven) {
+    console.log(`[Widget] ERR: missing code_given — IP: ${ip}, task: #${task.id}, elapsed: ${elapsedSeconds}s`);
+    return res.status(409).json({ error: 'Mã xác nhận chưa sẵn sàng. Vui lòng thử lại.' });
+  }
 
-  res.json({ success: true, code: task.code_given });
+  console.log(`[Widget] Code given — IP: ${ip}, task: #${task.id}, code: ${codeGiven}, elapsed: ${elapsedSeconds}s, botDetected=${botDetected}`);
+
+  res.json({ success: true, code: codeGiven });
 });
 
 router.use(authMiddleware);

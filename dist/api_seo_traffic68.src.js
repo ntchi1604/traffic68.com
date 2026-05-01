@@ -1202,7 +1202,7 @@
     if (!_isPageVisible) {
       // Tab hidden → stop timer and record pause time
       if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-      pausedTime = Date.now();
+      if (!pausedTime) pausedTime = Date.now();
     } else if (!challengeActive) {
       // Tab visible again → add paused duration and resume
       if (pausedTime > 0) {
@@ -1217,7 +1217,7 @@
     _isPageVisible = false;
     if (!countdownRunning || revealed) return;
     if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-    pausedTime = Date.now();
+    if (!pausedTime) pausedTime = Date.now();
   }
 
   function _onWindowFocus() {
@@ -1801,7 +1801,7 @@
             showV1Step2(resp.targetPage || '', resp.v1Wait || 25);
             return;
           }
-          sessionCode = resp.code || '';
+          sessionCode = resp.success && resp.code ? String(resp.code) : 'ERR';
           _fetchRetryCount = 0; // reset
         } catch (e) {
           sessionCode = 'ERR';
@@ -2155,7 +2155,7 @@
       if (xhr.status === 200) {
         try {
           var resp = JSON.parse(xhr.responseText);
-          sessionCode = resp.code || '';
+          sessionCode = resp.success && resp.code ? String(resp.code) : 'ERR';
         } catch (e) { sessionCode = 'ERR'; _clearV1Phase(); }
       } else { sessionCode = 'ERR'; _clearV1Phase(); }
       if (callback) callback();

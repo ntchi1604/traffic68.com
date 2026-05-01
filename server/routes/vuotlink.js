@@ -1607,14 +1607,30 @@ async function _handleVerifyPost(req, res) {
 
     if (task.worker_id && !task.worker_link_id && earning > 0) {
       // Case 1: Task trực tiếp từ worker
-      paidWorkerId = task.worker_id;
-      await ensureWalletCredit(pool, task.worker_id, 'earning', earning);
-      const refCode = genRef('VL-');
-      await pool.execute(
-        `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
-       VALUES (?, 'earning', 'earning', 'system', ?, 'completed', ?, ?)`,
-        [task.worker_id, earning, refCode, `${task.keyword || 'Vượt link'} - ${campaign.name} #${task.id}`]
-      );
+      try {
+        paidWorkerId = task.worker_id;
+        await ensureWalletCredit(pool, task.worker_id, 'earning', earning);
+        const refCode = genRef('VL-');
+        await pool.execute(
+          `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+         VALUES (?, 'earning', 'earning', 'system', ?, 'completed', ?, ?)`,
+          [task.worker_id, earning, refCode, `${task.keyword || 'Vượt link'} - ${campaign.name} #${task.id}`]
+        );
+        console.log(`[VuotLink] ✓ Paid ${earning} to worker_id=${task.worker_id}, task=${task.id}`);
+      } catch (payErr) {
+        console.error(`[VuotLink] ✗ CRITICAL: Failed to pay worker_id=${task.worker_id}, task=${task.id}, earning=${earning}:`, payErr.message);
+        // Log vào bảng riêng để admin có thể bù sau
+        try {
+          await pool.execute(
+            `INSERT INTO payment_failures (task_id, user_id, amount, error_message, created_at)
+             VALUES (?, ?, ?, ?, NOW())
+             ON DUPLICATE KEY UPDATE error_message = VALUES(error_message), created_at = NOW()`,
+            [task.id, task.worker_id, earning, payErr.message]
+          );
+        } catch (logErr) {
+          console.error('[VuotLink] Failed to log payment failure:', logErr.message);
+        }
+      }
     }
 
     // Pay gateway link creator
@@ -1630,22 +1646,42 @@ async function _handleVerifyPost(req, res) {
           paidWorkerId = wl.worker_id; // Case 2: Gateway link
 
           if (earning > 0) {
-            await ensureWalletCredit(pool, wl.worker_id, 'earning', earning);
-            await pool.execute(
-              'UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?',
-              [earning, wl.id]
-            );
-            const refCode = genRef('GL-');
-            await pool.execute(
-              `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
-             VALUES (?, 'earning', 'earning', 'gateway_link', ?, 'completed', ?, ?)`,
-              [wl.worker_id, earning, refCode, `${task.keyword || 'Gateway link'} - ${campaign.name} #${task.id}`]
-            );
+            try {
+              await ensureWalletCredit(pool, wl.worker_id, 'earning', earning);
+              await pool.execute(
+                'UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?',
+                [earning, wl.id]
+              );
+              const refCode = genRef('GL-');
+              await pool.execute(
+                `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+               VALUES (?, 'earning', 'earning', 'gateway_link', ?, 'completed', ?, ?)`,
+                [wl.worker_id, earning, refCode, `${task.keyword || 'Gateway link'} - ${campaign.name} #${task.id}`]
+              );
+              console.log(`[VuotLink] ✓ Paid ${earning} to gateway owner=${wl.worker_id}, link=${wl.id}, task=${task.id}`);
+            } catch (payErr) {
+              console.error(`[VuotLink] ✗ CRITICAL: Failed to pay gateway owner=${wl.worker_id}, link=${wl.id}, task=${task.id}, earning=${earning}:`, payErr.message);
+              // Log payment failure
+              try {
+                await pool.execute(
+                  `INSERT INTO payment_failures (task_id, user_id, amount, error_message, created_at)
+                   VALUES (?, ?, ?, ?, NOW())
+                   ON DUPLICATE KEY UPDATE error_message = VALUES(error_message), created_at = NOW()`,
+                  [task.id, wl.worker_id, earning, `Gateway link payment failed: ${payErr.message}`]
+                );
+              } catch (logErr) {
+                console.error('[VuotLink] Failed to log payment failure:', logErr.message);
+              }
+            }
           } else {
             await pool.execute('UPDATE worker_links SET completed_count = completed_count + 1 WHERE id = ?', [wl.id]);
           }
+        } else {
+          console.warn(`[VuotLink] ⚠️ Gateway link not found: worker_link_id=${task.worker_link_id}, task=${task.id}`);
         }
-      } catch (e) { console.error('[VuotLink] Gateway link pay error:', e.message); }
+      } catch (e) {
+        console.error('[VuotLink] Gateway link pay error:', e.message);
+      }
     }
 
     // ── Ref link mode: cộng % earning cho worker ref ──
@@ -1658,15 +1694,30 @@ async function _handleVerifyPost(req, res) {
         const refCommPct = Number(refCommSetting[0]?.setting_value || 0);
         const refEarning = refCommPct > 0 ? Math.floor(earning * refCommPct / 100) : 0;
         if (refEarning > 0) {
-          await ensureWalletCredit(pool, task.ref_worker_id, 'earning', refEarning);
-          const refTxCode = genRef('RL-');
-          await pool.execute(
-            `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
-           VALUES (?, 'earning', 'earning', 'ref_link', ?, 'completed', ?, ?)`,
-            [task.ref_worker_id, refEarning, refTxCode,
-            `Hoa hong ref ${refCommPct}% - ${task.keyword || 'Vượt link'} #${task.id} (${earning} đ)`]
-          );
-          console.log(`[VuotLink] Ref earning: paid ${refEarning} to ref_worker_id=${task.ref_worker_id} (${refCommPct}% of ${earning})`);
+          try {
+            await ensureWalletCredit(pool, task.ref_worker_id, 'earning', refEarning);
+            const refTxCode = genRef('RL-');
+            await pool.execute(
+              `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+             VALUES (?, 'earning', 'earning', 'ref_link', ?, 'completed', ?, ?)`,
+              [task.ref_worker_id, refEarning, refTxCode,
+              `Hoa hong ref ${refCommPct}% - ${task.keyword || 'Vượt link'} #${task.id} (${earning} đ)`]
+            );
+            console.log(`[VuotLink] ✓ Ref earning: paid ${refEarning} to ref_worker_id=${task.ref_worker_id} (${refCommPct}% of ${earning}), task=${task.id}`);
+          } catch (payErr) {
+            console.error(`[VuotLink] ✗ CRITICAL: Failed to pay ref_worker_id=${task.ref_worker_id}, task=${task.id}, earning=${refEarning}:`, payErr.message);
+            // Log payment failure
+            try {
+              await pool.execute(
+                `INSERT INTO payment_failures (task_id, user_id, amount, error_message, created_at)
+                 VALUES (?, ?, ?, ?, NOW())
+                 ON DUPLICATE KEY UPDATE error_message = VALUES(error_message), created_at = NOW()`,
+                [task.id, task.ref_worker_id, refEarning, `Ref link payment failed: ${payErr.message}`]
+              );
+            } catch (logErr) {
+              console.error('[VuotLink] Failed to log payment failure:', logErr.message);
+            }
+          }
           // Ref link không trigger hoa hồng referral thêm lần nữa
         }
       } catch (e) { console.error('[VuotLink] Ref link earning error:', e.message); }
