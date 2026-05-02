@@ -108,7 +108,7 @@ app.get('/api/worker-pricing/my', async (req, res) => {
 
     // Check if worker has a pricing group
     const [userRows] = await pool.execute('SELECT pricing_group_id FROM users WHERE id = ?', [userId]);
-    const groupId = userRows[0]?.pricing_group_id;
+    const groupId = userRows[0] ? userRows[0].pricing_group_id : null;
 
     if (!groupId) {
       const [tiers] = await pool.execute('SELECT * FROM worker_pricing_tiers ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)');
@@ -117,7 +117,7 @@ app.get('/api/worker-pricing/my', async (req, res) => {
 
     // Get group name + rates
     const [groupRows] = await pool.execute('SELECT name FROM worker_pricing_groups WHERE id = ?', [groupId]).catch(() => [[]]);
-    const groupName = groupRows[0]?.name || null;
+    const groupName = groupRows[0] ? groupRows[0].name : null;
     const [rates] = await pool.execute(
       'SELECT traffic_type, duration, v1_price, v2_price FROM worker_pricing_group_rates WHERE group_id = ? ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)',
       [groupId]
@@ -144,7 +144,7 @@ app.get('/api/worker/source', async (req, res) => {
     try { const d = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret'); userId = d.userId || d.id; } catch {}
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     const [rows] = await pool.execute('SELECT source_status, source_url, source_note FROM users WHERE id = ?', [userId]);
-    res.json({ source_status: rows[0]?.source_status || 'pending', source_url: rows[0]?.source_url || '', source_note: rows[0]?.source_note || '' });
+    res.json({ source_status: rows[0] ? rows[0].source_status || 'pending' : 'pending', source_url: rows[0] ? rows[0].source_url || '' : '', source_note: rows[0] ? rows[0].source_note || '' : '' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

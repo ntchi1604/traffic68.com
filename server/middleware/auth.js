@@ -43,7 +43,7 @@ async function authMiddleware(req, res, next) {
     if (!cached) {
       const pool = getPool();
       const [rows] = await pool.execute('SELECT status, password_changed_at FROM users WHERE id = ?', [payload.userId]);
-      if (rows[0]?.status) setCachedEntry(payload.userId, rows[0].status, rows[0].password_changed_at || null);
+      if (rows[0] && rows[0].status) setCachedEntry(payload.userId, rows[0].status, rows[0].password_changed_at || null);
       cached = getCachedEntry(payload.userId);
     }
 

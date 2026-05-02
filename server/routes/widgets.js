@@ -132,7 +132,7 @@ function stripDefaults(config) {
 
 router.get('/public/:token', async (req, res) => {
   const pool = getPool();
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const ip = (req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress);
   const normIp = normalizeIp(ip);
   const ua = req.headers['user-agent'] || '';
 
@@ -337,7 +337,7 @@ router.get('/public/:token', async (req, res) => {
 
 router.post('/public/:token/check-session', async (req, res) => {
   const pool = getPool();
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const ip = (req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress);
   const ua = req.headers['user-agent'] || '';
 
   if (!checkWidgetRateLimit(ip, 'check-session', 10)) {
@@ -581,7 +581,7 @@ router.post('/public/:token/check-session', async (req, res) => {
 router.get('/public/:token/challenge', (req, res) => {
   const ua = req.headers['user-agent'] || '';
   if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const ip = (req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress);
 
   if (!checkWidgetRateLimit(ip, 'challenge', 10)) {
     return res.status(429).json({ error: 'Too many requests' });
@@ -609,7 +609,7 @@ router.get('/public/:token/challenge', (req, res) => {
 
 const HB_INTERVAL_S = 10;
 router.post('/public/:token/heartbeat', async (req, res) => {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const ip = (req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress);
   const ua = req.headers['user-agent'] || '';
   if (BOT_UA.test(ua)) return res.status(403).json({ ok: false });
   if (!checkWidgetRateLimit(ip, 'heartbeat', 30)) return res.status(429).json({ ok: false });
@@ -668,7 +668,7 @@ router.post('/public/:token/heartbeat', async (req, res) => {
 router.post('/public/:token/get-code', async (req, res) => {
   const ERR = { error: 'Yêu cầu không hợp lệ' };
   const pool = getPool();
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const ip = (req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress);
   const ua = req.headers['user-agent'] || '';
 
   if (!checkWidgetRateLimit(ip, 'get-code', 10)) {
@@ -714,7 +714,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   if (targetCheckId) {
     try {
       const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
-      isTrustedWorker = tRows[0]?.trusted === 1;
+      isTrustedWorker = tRows[0] ? tRows[0].trusted === 1 : false;
       console.log(`[Widget] get-code trusted check — IP: ${ip}, task: #${task.id}, ref_worker_id: ${task.ref_worker_id}, checking: ${targetCheckId}, trusted: ${isTrustedWorker}`);
     } catch (_) { }
   }
@@ -757,7 +757,7 @@ router.post('/public/:token/get-code', async (req, res) => {
 
   // Buoc 2: _cvh check TRUOC hCaptcha - neu sai, token chua bi consume, client co the retry
   if (!isTrustedWorker && ch && ch.expectedCanvasHash) {
-    const submittedHash = req.body?._cvh || '';
+    const submittedHash = req.body && req.body._cvh ? req.body._cvh : '';
     if (!submittedHash) {
       console.log('[Widget] _cvh missing — fail-open, task=#' + task.id);
     } else if (submittedHash !== ch.expectedCanvasHash) {
@@ -805,13 +805,13 @@ router.post('/public/:token/get-code', async (req, res) => {
     }
   }
 
-  const v1Phase = req.body?.v1Phase || 0;
+  const v1Phase = req.body && req.body.v1Phase ? req.body.v1Phase : 0;
   // Mark challenge as used (nếu tồn tại)
   if (ch) ch.used = true;
 
 
   if (_dd) {
-    if (req.body?._bv?.probes?.eventTampered === true) {
+    if (req.body && req.body._bv && req.body._bv.probes && req.body._bv.probes.eventTampered === true) {
       _dd.automation = _dd.automation || {};
       _dd.automation.eventTampered = true;
     }
@@ -831,11 +831,11 @@ router.post('/public/:token/get-code', async (req, res) => {
 
     logSecurityEvent('Phát hiện Bot (widget)', ip, ua, visitorId || null, {
       detectionLog,
-      _cvh: botDetection?._cvh || null,
-      audioHash: botDetection?.audioHash || null,
-      webglRenderer: botDetection?.webglRenderer || null,
-      totalLies: botDetection?.totalLies || 0,
-      lieNames: (botDetection?.lieNames || []).slice(0, 5),
+      _cvh: botDetection ? botDetection._cvh || null : null,
+      audioHash: botDetection ? botDetection.audioHash || null : null,
+      webglRenderer: botDetection ? botDetection.webglRenderer || null : null,
+      totalLies: botDetection ? botDetection.totalLies || 0 : 0,
+      lieNames: (botDetection && botDetection.lieNames ? botDetection.lieNames : []).slice(0, 5),
     });
 
     try {
@@ -1043,7 +1043,7 @@ router.post('/public/:token/get-code', async (req, res) => {
   // Fail-open (không block) nếu bhv=null (client cũ không gửi), isTrustedWorker, hoặc requiredSeconds < 15.
   if (!isTrustedWorker && requiredSeconds >= 15) {
     try {
-      const bhv = req.body?._bv || null;
+      const bhv = req.body && req.body._bv ? req.body._bv : null;
       if (bhv !== null) {
         const mousePoints = Number(bhv.mousePoints) || 0;
         const scrollCount = Array.isArray(bhv.scrollEvents) ? bhv.scrollEvents.length : (Number(bhv.scrollEvents) || 0);

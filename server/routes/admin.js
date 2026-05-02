@@ -48,7 +48,7 @@ router.use(async (req, res, next) => {
   if (!role) {
     const pool = getPool();
     const [users] = await pool.execute('SELECT role FROM users WHERE id = ?', [req.userId]);
-    role = users[0]?.role;
+    role = users[0] ? users[0].role : null;
     if (role) setCachedAdminRole(req.userId, role);
   }
   if (role !== 'admin') {
@@ -864,7 +864,7 @@ router.post('/campaigns/:id/sync-views', async (req, res) => {
     );
     const realViews = rows[0].real_views;
     const [camp] = await pool.execute('SELECT views_done FROM campaigns WHERE id = ?', [cid]);
-    const oldViews = camp[0]?.views_done || 0;
+    const oldViews = camp[0] ? camp[0].views_done || 0 : 0;
 
     await pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, cid]);
     res.json({ message: `Đã đồng bộ: ${oldViews} → ${realViews}`, oldViews, newViews: realViews });
@@ -975,7 +975,7 @@ router.get('/campaigns/:id/tasks-export', async (req, res) => {
 
     // Lấy cpc để tính chi tiêu buyer
     const [campRows] = await pool.execute('SELECT cpc FROM campaigns WHERE id = ?', [cid]);
-    const cpc = Number(campRows[0]?.cpc) || 0;
+    const cpc = Number(campRows[0] ? campRows[0].cpc : 0) || 0;
 
     // ── Geo lookup: batch via ip-api.com ──
     const geoip = require('geoip-lite');
@@ -1136,7 +1136,7 @@ router.put('/transactions/:id/approve', async (req, res) => {
         'SELECT referred_by FROM users WHERE id = ?',
         [tx.user_id]
       );
-      const referrerId = depositorRows[0]?.referred_by;
+      const referrerId = depositorRows[0] ? depositorRows[0].referred_by : null;
 
       if (referrerId) {
 
@@ -1144,7 +1144,7 @@ router.put('/transactions/:id/approve', async (req, res) => {
           "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_buyer'",
           []
         );
-        const commPct = Number(settingRows[0]?.setting_value || 0);
+        const commPct = Number(settingRows[0] ? settingRows[0].setting_value || 0 : 0);
 
         if (commPct > 0) {
           const commAmount = Math.floor(tx.amount * commPct / 100);
@@ -2675,7 +2675,7 @@ router.get('/withdrawal-addresses', async (req, res) => {
         const match = note.match(/^\[Bank\]\s*(.+?)\s*\|/);
         if (match) {
           const parts = match[1].split(' - ');
-          address = parts[1]?.trim(); // account number
+          address = parts[1] ? parts[1].trim() : ''; // account number
           displayInfo = match[1].trim();
         }
       } else if (note.startsWith('[Crypto]')) {
@@ -2683,7 +2683,7 @@ router.get('/withdrawal-addresses', async (req, res) => {
         const match = note.match(/^\[Crypto\]\s*(.+?)\s*\|/);
         if (match) {
           const parts = match[1].split(' - ');
-          address = parts[1]?.trim(); // wallet address
+          address = parts[1] ? parts[1].trim() : ''; // wallet address
           displayInfo = match[1].trim();
         }
       }
@@ -2716,7 +2716,7 @@ router.get('/withdrawal-addresses', async (req, res) => {
       users,
       count: users.length,
       is_duplicate: users.length > 1,
-      method: users[0]?.method,
+      method: users[0] ? users[0].method : undefined,
     }));
 
     const result = duplicates_only === '1'
@@ -3029,7 +3029,7 @@ router.get('/pricing-groups', async (req, res) => {
 router.post('/pricing-groups', async (req, res) => {
   const pool = getPool();
   const { name, description } = req.body;
-  if (!name?.trim()) return res.status(400).json({ error: 'Tên nhóm không được để trống' });
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Tên nhóm không được để trống' });
   try {
     await ensurePgTables(pool);
     const [r] = await pool.execute(

@@ -21,8 +21,8 @@ router.get('/', async (req, res) => {
   const cleanObj = (obj) => {
     return {
       ...obj,
-      title: obj.title?.replace(/[✅🎉]/g, '')?.replace(/\s+/g, ' ')?.trim(),
-      message: obj.message?.replace(/[✅🎉]/g, '')?.replace(/\s+/g, ' ')?.trim()
+      title: obj.title ? obj.title.replace(/[✅🎉]/g, '').replace(/\s+/g, ' ').trim() : '',
+      message: obj.message ? obj.message.replace(/[✅🎉]/g, '').replace(/\s+/g, ' ').trim() : ''
     };
   };
 

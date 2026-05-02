@@ -17,7 +17,8 @@ class AppCache {
     this._inflight = new Map(); // key → Promise (request coalescing)
 
     // Dọn TTL-expired entries mỗi 5 phút
-    setInterval(() => this._prune(), 5 * 60 * 1000).unref?.();
+    const pruneTimer = setInterval(() => this._prune(), 5 * 60 * 1000);
+    if (pruneTimer.unref) pruneTimer.unref();
   }
 
   /**

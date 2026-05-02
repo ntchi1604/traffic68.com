@@ -40,7 +40,7 @@ router.post('/create', authMiddleware, async (req, res) => {
 
     // Kiểm tra nguồn đã được duyệt chưa
     const [userRows] = await pool.execute('SELECT source_status FROM users WHERE id = ?', [req.userId]);
-    if ((userRows[0]?.source_status || '') !== 'approved') {
+    if (((userRows[0] && userRows[0].source_status) || '') !== 'approved') {
       return res.status(403).json({ error: 'Tài khoản chưa được duyệt nguồn. Vui lòng điến Hồ sơ → Xét duyệt nguồn để gửi yêu cầu.' });
     }
 

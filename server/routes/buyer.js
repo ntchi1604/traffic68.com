@@ -138,8 +138,8 @@ router.get('/v1/campaigns', async (req, res) => {
       campaigns: campaigns.map(c => ({
         ...c,
         version: c.version === 2 ? 'v2' : 'v1',
-        completed_views: Number(statsMap[c.id]?.completed_views || 0),
-        cost_spent:      Number(statsMap[c.id]?.cost_spent || 0),
+        completed_views: Number(statsMap[c.id] ? statsMap[c.id].completed_views || 0 : 0),
+        cost_spent:      Number(statsMap[c.id] ? statsMap[c.id].cost_spent || 0 : 0),
         budget:          Number(c.budget),
         cpc:             Number(c.cpc),
       })),
@@ -198,7 +198,7 @@ router.post('/v1/campaigns', async (req, res) => {
       'SELECT balance FROM wallets WHERE user_id = ? AND type = ?',
       [req.userId, 'main']
     );
-    const balance = Number(wallets[0]?.balance || 0);
+    const balance = Number(wallets[0] ? wallets[0].balance || 0 : 0);
     if (balance < budget) {
       return res.status(402).json({
         error: 'Insufficient balance',

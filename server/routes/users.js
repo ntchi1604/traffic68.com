@@ -41,7 +41,7 @@ router.post('/avatar', upload.single('avatar'), async (req, res) => {
     
     const pool = getPool();
     const [users] = await pool.execute('SELECT avatar_url FROM users WHERE id = ?', [req.userId]);
-    if (users[0]?.avatar_url && users[0].avatar_url.startsWith('/uploads/avatars/')) {
+    if (users[0] && users[0].avatar_url && users[0].avatar_url.startsWith('/uploads/avatars/')) {
       const oldPath = path.join(__dirname, '..', '..', users[0].avatar_url);
       if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
     }
@@ -90,7 +90,7 @@ router.get('/withdraw-wallet', async (req, res) => {
   try {
     const pool = getPool();
     const [rows] = await pool.execute('SELECT withdraw_wallet FROM users WHERE id = ?', [req.userId]);
-    let wallet = rows[0]?.withdraw_wallet || null;
+    let wallet = rows[0] ? rows[0].withdraw_wallet || null : null;
     if (wallet && typeof wallet === 'string') {
       try { wallet = JSON.parse(wallet); } catch { wallet = null; }
     }
@@ -109,10 +109,10 @@ router.put('/withdraw-wallet', async (req, res) => {
     if (!['bank', 'crypto'].includes(method)) {
       return res.status(400).json({ error: 'Phương thức không hợp lệ' });
     }
-    if (method === 'bank' && (!bankName?.trim() || !accountNumber?.trim() || !accountName?.trim())) {
+    if (method === 'bank' && (!bankName || !bankName.trim() || !accountNumber || !accountNumber.trim() || !accountName || !accountName.trim())) {
       return res.status(400).json({ error: 'Vui lòng điền đầy đủ thông tin ngân hàng' });
     }
-    if (method === 'crypto' && (!cryptoNetwork?.trim() || !cryptoAddress?.trim())) {
+    if (method === 'crypto' && (!cryptoNetwork || !cryptoNetwork.trim() || !cryptoAddress || !cryptoAddress.trim())) {
       return res.status(400).json({ error: 'Vui lòng điền đầy đủ thông tin ví crypto' });
     }
     const walletData = method === 'bank'
@@ -173,7 +173,7 @@ router.get('/referrals', async (req, res) => {
     );
     const commKey = context === 'worker' ? 'referral_commission_worker' : 'referral_commission_buyer';
     const [commRows] = await pool.execute('SELECT setting_value FROM site_settings WHERE setting_key = ?', [commKey]);
-    const commissionPercent = commRows[0]?.setting_value || '5';
+    const commissionPercent = commRows[0] ? commRows[0].setting_value || '5' : '5';
 
     
     const [commTotal] = await pool.execute(
@@ -181,7 +181,7 @@ router.get('/referrals', async (req, res) => {
        WHERE user_id = ? AND wallet_type = 'commission' AND method = 'referral' AND status = 'completed'`,
       [req.userId]
     );
-    const totalCommission = Number(commTotal[0]?.total || 0);
+    const totalCommission = Number(commTotal[0] ? commTotal[0].total || 0 : 0);
 
     
     
@@ -221,7 +221,7 @@ router.get('/referrals', async (req, res) => {
     
     const referrals = refs.map(r => ({ ...r, commissionEarned: commByRef[r.id] || 0 }));
 
-    res.json({ referralCode: me[0]?.referral_code || '', referrals, commissionPercent, totalCommission });
+    res.json({ referralCode: me[0] ? me[0].referral_code || '' : '', referrals, commissionPercent, totalCommission });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

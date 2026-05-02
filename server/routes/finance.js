@@ -380,7 +380,7 @@ router.post('/withdraw', async (req, res) => {
 
   // Lấy ví đã lưu từ DB
   const [userRows] = await pool.execute('SELECT withdraw_wallet FROM users WHERE id = ?', [req.userId]);
-  let savedWallet = userRows[0]?.withdraw_wallet || null;
+  let savedWallet = userRows[0] ? userRows[0].withdraw_wallet || null : null;
   if (savedWallet && typeof savedWallet === 'string') {
     try { savedWallet = JSON.parse(savedWallet); } catch { savedWallet = null; }
   }

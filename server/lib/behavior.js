@@ -72,7 +72,7 @@ function checkClickLatency(deviceData, userAgent) {
   const ua = (userAgent || '').toLowerCase();
   const isMobile = /mobi|android|iphone|ipad/i.test(ua);
 
-  const clicks = deviceData?.behavior?.clicks;
+  const clicks = deviceData && deviceData.behavior ? deviceData.behavior.clicks : undefined;
   if (!Array.isArray(clicks) || clicks.length < 3) return null;
 
   const latencies = clicks.map(c => c.duration).filter(d => typeof d === 'number' && d >= 0);

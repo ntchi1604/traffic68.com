@@ -321,7 +321,7 @@ router.post('/', async (req, res) => {
 
     const [wallets] = await pool.execute('SELECT balance FROM wallets WHERE user_id = ? AND type = ?', [req.userId, 'main']);
     if (!wallets[0] || wallets[0].balance < realBudget) {
-      return res.status(400).json({ error: `Số dư ví không đủ. Cần ${realBudget} VNĐ, hiện có ${wallets[0]?.balance || 0} VNĐ` });
+      return res.status(400).json({ error: `Số dư ví không đủ. Cần ${realBudget} VNĐ, hiện có ${(wallets[0] ? wallets[0].balance : 0) || 0} VNĐ` });
     }
 
 
@@ -488,7 +488,7 @@ router.put('/:id/status', async (req, res) => {
 
   if (status === 'completed') {
     const [rows] = await pool.execute('SELECT image1_url FROM campaigns WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
-    if (rows[0]?.image1_url) {
+    if (rows[0] && rows[0].image1_url) {
       await pool.execute('UPDATE campaigns SET image1_url = NULL WHERE id = ?', [req.params.id]);
     }
   }
@@ -547,7 +547,7 @@ router.post('/:id/renew', async (req, res) => {
         await conn.rollback();
         conn.release();
         const [wCheck] = await pool.execute("SELECT balance FROM wallets WHERE user_id = ? AND type = 'main'", [req.userId]);
-        const currentBal = Number(wCheck[0]?.balance || 0);
+        const currentBal = Number(wCheck[0] ? wCheck[0].balance || 0 : 0);
         return res.status(400).json({
           error: `Số dư ví không đủ. Cần ${cost.toLocaleString('vi-VN')} đ, hiện có ${currentBal.toLocaleString('vi-VN')} đ`
         });

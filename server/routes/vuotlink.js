@@ -186,7 +186,7 @@ router.get('/challenge', async (req, res) => {
 
   const ua = req.headers['user-agent'] || '';
   if (!ua || BOT_UA.test(ua)) return res.status(403).json({ error: 'Blocked' });
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const ip = (req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress);
 
   let workerLinkId = null;
   let refWorkerId = null;
@@ -276,7 +276,7 @@ async function _handleTaskPost(req, res) {
   const ua = req.headers['user-agent'] || '';
   if (!ua || BOT_UA.test(ua)) return res.status(403).json(ERR);
 
-  const ip = normalizeIp(req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress);
+  const ip = normalizeIp((req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress));
 
   const { challengeId, powNonce, visitorId, deviceData, botDetection, excludeCampaigns } = req.body || {};
 
@@ -439,7 +439,7 @@ async function _handleTaskPost(req, res) {
   const viewsUsed = Math.max(deviceViewsToday, ipViewsToday);
   const viewsRemaining = ipLimitReached ? 0 : maxViewsPerIp - viewsUsed;
   if (!ipLimitReached) {
-    console.log(`[VuotLink] ✅ VN_DATE=${todayVn} | PASS: IP=${ip}, visitor=${visitorId?.substring(0, 8) || '?'}, views=${viewsUsed}/${maxViewsPerIp}`);
+    console.log(`[VuotLink] ✅ VN_DATE=${todayVn} | PASS: IP=${ip}, visitor=${visitorId ? visitorId.substring(0, 8) : '?'}, views=${viewsUsed}/${maxViewsPerIp}`);
   }
 
   pool.execute(
@@ -979,9 +979,9 @@ async function _handleTaskPost(req, res) {
     reasons: devResult.reasons,
     detail: devResult.detail,
 
-    canvasHash: botDetection?.canvasHash || devResult.detail?.canvasHash || null,
-    audioHash: botDetection?.audioHash || devResult.detail?.audioHash || null,
-    canvas: { hash1: botDetection?.canvas?.hash1, hash2: botDetection?.canvas?.hash2, noisy: botDetection?.canvas?.noisy },
+    canvasHash: (botDetection && botDetection.canvasHash) || (devResult.detail && devResult.detail.canvasHash) || null,
+    audioHash: (botDetection && botDetection.audioHash) || (devResult.detail && devResult.detail.audioHash) || null,
+    canvas: { hash1: botDetection && botDetection.canvas ? botDetection.canvas.hash1 : undefined, hash2: botDetection && botDetection.canvas ? botDetection.canvas.hash2 : undefined, noisy: botDetection && botDetection.canvas ? botDetection.canvas.noisy : undefined },
 
     creepSummary: botDetection ? {
       totalLies: botDetection.totalLies || 0,
@@ -1141,7 +1141,7 @@ async function _handleTaskPost(req, res) {
 
 router.put('/task/:id/step', optionalAuth, (req, res) => res.json({ ok: true }));
 router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
-  const ip = normalizeIp(req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress);
+  const ip = normalizeIp((req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress));
   const ua = req.headers['user-agent'] || '';
   const { _tk, shakeLog } = req.body || {};
 
@@ -1162,7 +1162,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     if (task.status === 'completed') return res.status(400).json({ error: 'Task đã hoàn thành' });
     if (task.status === 'expired') return res.status(410).json({ error: 'Task đã hết hạn' });
     const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
-    if (expCheck[0]?.expired) return res.status(410).json({ error: 'Task đã hết hạn' });
+    if (expCheck[0] && expCheck[0].expired) return res.status(410).json({ error: 'Task đã hết hạn' });
     dbTaskVisitorId = task.visitor_id;
   } catch (e) {
     console.error('[VuotLink] challenge-passed DB error:', e.message);
@@ -1179,7 +1179,7 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     );
     if (taskDetail.length > 0 && taskDetail[0].ref_worker_id) {
       const [uRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [taskDetail[0].ref_worker_id]);
-      if (uRows[0]?.trusted === 1) {
+      if (uRows[0] && uRows[0].trusted === 1) {
         console.log(`[VuotLink] challenge-passed: trusted link owner (ref_worker_id: ${taskDetail[0].ref_worker_id}) → skip challenge`);
         return res.json({ trusted: true });
       }
@@ -1213,8 +1213,8 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
 
     // ── [SERVER] Timestamp validation — không tin client time nhưng dùng để phát hiện replay ──
     const serverNow = Date.now();
-    const logStart = Number(shakeLog[0]?.t || 0);
-    const logEnd = Number(shakeLog[shakeLog.length - 1]?.t || 0);
+    const logStart = Number(shakeLog[0] ? shakeLog[0].t || 0 : 0);
+    const logEnd = Number(shakeLog[shakeLog.length - 1] ? shakeLog[shakeLog.length - 1].t || 0 : 0);
     const logSpan = logEnd - logStart;
 
     if (logSpan < 500) {
@@ -1345,7 +1345,7 @@ router.post('/task/:id/verify', optionalAuth, (req, res) => {
 async function _handleVerifyPost(req, res) {
   const pool = getPool();
   const { code, _tk } = req.body;
-  const ip = normalizeIp(req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress);
+  const ip = normalizeIp((req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket.remoteAddress));
   if (!_tk || !verifyTaskToken(_tk, req.params.id, ip)) {
     return res.status(403).json({ error: 'Invalid token' });
   }
@@ -1365,7 +1365,7 @@ async function _handleVerifyPost(req, res) {
     if (targetCheckId) {
       try {
         const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
-        isTrustedWorker = tRows[0]?.trusted === 1;
+        isTrustedWorker = tRows[0] ? tRows[0].trusted === 1 : false;
       } catch (_) { }
     }
 
@@ -1393,7 +1393,7 @@ async function _handleVerifyPost(req, res) {
 
     if (task.expires_at) {
       const [expCheck] = await pool.execute('SELECT NOW() > ? as expired', [task.expires_at]);
-      if (expCheck[0]?.expired) {
+      if (expCheck[0] && expCheck[0].expired) {
         await pool.execute("UPDATE vuot_link_tasks SET status = 'expired' WHERE id = ?", [task.id]);
         return res.status(410).json({ error: 'Task đã hết hạn' });
       }
@@ -1519,7 +1519,7 @@ async function _handleVerifyPost(req, res) {
            AND completed_at >= ? AND completed_at <= ?`,
         [task.campaign_id, vnDayStartVerify, vnDayEndVerify]
       );
-      const todayDone = Number(countRows[0]?.cnt || 0);
+      const todayDone = Number(countRows[0] ? countRows[0].cnt || 0 : 0);
 
       if (todayDone >= campDailyViews) {
         await pool.execute(
@@ -1691,7 +1691,7 @@ async function _handleVerifyPost(req, res) {
         const [refCommSetting] = await pool.execute(
           "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_worker'"
         );
-        const refCommPct = Number(refCommSetting[0]?.setting_value || 0);
+        const refCommPct = Number(refCommSetting[0] ? refCommSetting[0].setting_value || 0 : 0);
         const refEarning = refCommPct > 0 ? Math.floor(earning * refCommPct / 100) : 0;
         if (refEarning > 0) {
           try {
@@ -1729,12 +1729,12 @@ async function _handleVerifyPost(req, res) {
     if (paidWorkerId && earning > 0) {
       try {
         const [refRows] = await pool.execute('SELECT referred_by FROM users WHERE id = ?', [paidWorkerId]);
-        const referrerId = refRows[0]?.referred_by;
+        const referrerId = refRows[0] ? refRows[0].referred_by : null;
         if (referrerId) {
           const [commSetting] = await pool.execute(
             "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_worker'"
           );
-          const commPct = Number(commSetting[0]?.setting_value || 0);
+          const commPct = Number(commSetting[0] ? commSetting[0].setting_value || 0 : 0);
           if (commPct > 0) {
             const commAmount = Math.floor(earning * commPct / 100);
             if (commAmount > 0) {
@@ -1865,7 +1865,7 @@ async function _handleVerifyPost(req, res) {
       cache.invalidatePrefix('admin:overview:');
     } catch (e) { }
   } catch (err) {
-    console.error('[VuotLink] _handleVerifyPost ERROR:', err?.message, err?.stack?.split('\n')[1]);
+    console.error('[VuotLink] _handleVerifyPost ERROR:', err && err.message, err && err.stack ? err.stack.split('\n')[1] : undefined);
     throw err;
   }
 }
