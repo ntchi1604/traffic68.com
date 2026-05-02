@@ -15,6 +15,13 @@ const initialFormData = {
   read_time: '5 phút đọc',
   gradient: 'from-blue-500 to-blue-700',
   status: 'draft',
+  seo_title: '',
+  seo_description: '',
+  focus_keyword: '',
+  cover_alt: '',
+  category: 'SEO',
+  content_assets: '[]',
+  scheduled_at: '',
 };
 
 export default function AdminBlog() {
@@ -119,6 +126,13 @@ export default function AdminBlog() {
         read_time: post.read_time,
         gradient: post.gradient,
         status: post.status,
+        seo_title: post.seo_title || '',
+        seo_description: post.seo_description || '',
+        focus_keyword: post.focus_keyword || '',
+        cover_alt: post.cover_alt || '',
+        category: post.category || post.tag || 'SEO',
+        content_assets: post.content_assets || '[]',
+        scheduled_at: post.scheduled_at ? String(post.scheduled_at).slice(0, 16) : '',
       });
     } else {
       setEditingPost(null);
@@ -158,42 +172,35 @@ export default function AdminBlog() {
     });
   };
 
+  const uploadBlogImage = async (file, alt = '') => {
+    if (!file) return null;
+    if (!file.type.startsWith('image/')) throw new Error('Vui lòng chọn file ảnh');
+    if (file.size > 8 * 1024 * 1024) throw new Error('Kích thước ảnh không được vượt quá 8MB');
+
+    const formDataUpload = new FormData();
+    formDataUpload.append('image', file);
+    const response = await fetch('/api/admin/upload-image', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      body: formDataUpload,
+    });
+    const data = await response.json();
+    if (!response.ok || !data.url) throw new Error(data.error || 'Lỗi khi upload ảnh');
+    const asset = { ...(data.asset || {}), url: data.url, alt };
+    const currentAssets = JSON.parse(formData.content_assets || '[]');
+    setFormData(prev => ({ ...prev, content_assets: JSON.stringify([asset, ...currentAssets].slice(0, 40)) }));
+    return asset;
+  };
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Vui lòng chọn file ảnh');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Kích thước ảnh không được vượt quá 5MB');
-      return;
-    }
-
     setUploading(true);
-    const formDataUpload = new FormData();
-    formDataUpload.append('image', file);
-
     try {
-      const response = await fetch('/api/admin/upload-image', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: formDataUpload,
-      });
-
-      const data = await response.json();
-      if (data.url) {
-        setFormData({ ...formData, cover: data.url });
-      } else {
-        alert('Lỗi khi upload ảnh');
-      }
+      const asset = await uploadBlogImage(file, formData.cover_alt || formData.title || 'Ảnh bài viết');
+      if (asset) setFormData(prev => ({ ...prev, cover: asset.url, cover_alt: prev.cover_alt || prev.title }));
     } catch (error) {
-      console.error('Error uploading image:', error);
-      alert('Lỗi khi upload ảnh');
+      alert(error.message || 'Lỗi khi upload ảnh');
     } finally {
       setUploading(false);
     }
@@ -250,7 +257,6 @@ export default function AdminBlog() {
               <Plus size={15} /> Thêm bài viết mới
             </button>
           </div>
-          <p className="mt-1 text-sm text-slate-500">Quản trị nội dung blog theo phong cách WordPress.</p>
         </div>
         <div className="rounded border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
           {selectedIds.length > 0 ? `${selectedIds.length} bài viết được chọn` : `${filtered.length} bài viết hiển thị`}

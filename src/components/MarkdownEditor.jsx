@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
-import { Bold, Italic, List, ListOrdered, Link2, Image, Code, Quote, Heading1, Heading2, Eye, EyeOff } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, Link2, Image, Code, Quote, Heading1, Heading2, Eye, EyeOff, Upload } from 'lucide-react';
 
-export default function MarkdownEditor({ value, onChange, placeholder = 'Nhập nội dung...' }) {
+export default function MarkdownEditor({ value, onChange, placeholder = 'Nhập nội dung...', onUploadImage }) {
   const [showPreview, setShowPreview] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const textareaRef = useRef(null);
 
   const insertMarkdown = (before, after = '', placeholder = '') => {
@@ -17,7 +18,6 @@ export default function MarkdownEditor({ value, onChange, placeholder = 'Nhập 
     const newText = value.substring(0, start) + before + textToInsert + after + value.substring(end);
     onChange({ target: { value: newText } });
 
-    // Set cursor position
     setTimeout(() => {
       const newCursorPos = start + before.length + textToInsert.length;
       textarea.focus();
@@ -39,8 +39,22 @@ export default function MarkdownEditor({ value, onChange, placeholder = 'Nhập 
   const insertList = () => insertMarkdown('- ', '', 'mục danh sách');
   const insertOrderedList = () => insertMarkdown('1. ', '', 'mục danh sách');
 
+  const handleUploadImage = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file || !onUploadImage) return;
+    setUploading(true);
+    try {
+      const asset = await onUploadImage(file);
+      if (asset && asset.url) insertMarkdown('![', `](${asset.url})`, asset.alt || 'alt text');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const renderPreview = (md) => {
     return md
+      .replace(/!\[(.+?)\]\((.+?)\)/g, '<figure class="my-4"><img src="$2" alt="$1" class="max-w-full rounded-lg shadow-sm" /><figcaption class="text-xs text-slate-500 mt-2">$1</figcaption></figure>')
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
       .replace(/`(.+?)`/g, '<code class="bg-gray-100 text-indigo-600 px-1.5 py-0.5 rounded text-sm font-mono">$1</code>')
@@ -50,7 +64,6 @@ export default function MarkdownEditor({ value, onChange, placeholder = 'Nhập 
       .replace(/^- (.+)$/gm, '<li class="ml-4 mb-1">• $1</li>')
       .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 mb-1">$1</li>')
       .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" class="text-indigo-600 underline">$1</a>')
-      .replace(/!\[(.+?)\]\((.+?)\)/g, '<img src="$2" alt="$1" class="max-w-full rounded-lg my-3" />')
       .replace(/\n\n/g, '<br/><br/>');
   };
 
@@ -125,6 +138,10 @@ export default function MarkdownEditor({ value, onChange, placeholder = 'Nhập 
         >
           <Image size={16} />
         </button>
+        <label className="p-2 hover:bg-slate-200 rounded-lg transition cursor-pointer" title="Upload Image">
+          <Upload size={16} />
+          <input type="file" accept="image/*" onChange={handleUploadImage} className="hidden" disabled={uploading} />
+        </label>
         <button
           type="button"
           onClick={insertCode}
@@ -174,7 +191,7 @@ export default function MarkdownEditor({ value, onChange, placeholder = 'Nhập 
 
       {/* Footer */}
       <div className="bg-slate-50 border-t border-slate-200 px-3 py-2 text-xs text-slate-500">
-        {value.length} ký tự • Hỗ trợ Markdown
+        {value.length} ký tự • Hỗ trợ Markdown {uploading ? '• Đang upload ảnh...' : ''}
       </div>
     </div>
   );

@@ -3183,49 +3183,76 @@ router.get('/pricing-groups-all-workers', async (req, res) => {
 // Blog Management
 // ═══════════════════════════════════════════════════════
 
-// POST /admin/upload-image — upload blog cover image
+async function ensureBlogCmsColumns(pool) {
+  const columns = [
+    ['seo_title', 'TEXT DEFAULT NULL'],
+    ['seo_description', 'TEXT DEFAULT NULL'],
+    ['focus_keyword', 'VARCHAR(255) DEFAULT NULL'],
+    ['cover_alt', 'VARCHAR(500) DEFAULT NULL'],
+    ['category', 'VARCHAR(100) DEFAULT NULL'],
+    ['content_assets', 'LONGTEXT DEFAULT NULL'],
+    ['scheduled_at', 'DATETIME DEFAULT NULL'],
+  ];
+  for (const [name, definition] of columns) {
+    try { await pool.execute(`ALTER TABLE blog_posts ADD COLUMN ${name} ${definition}`); } catch (_) { }
+  }
+}
+
+function getBlogUploadTools() {
+  const multer = require('multer');
+  const path = require('path');
+  const fs = require('fs');
+  const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'blog');
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => {
+      const safeName = path.basename(file.originalname, path.extname(file.originalname)).replace(/[^a-z0-9_-]+/gi, '-').slice(0, 50) || 'image';
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, 'blog-' + safeName + '-' + uniqueSuffix + path.extname(file.originalname).toLowerCase());
+    }
+  });
+  return {
+    fs,
+    uploadsDir,
+    upload: multer({
+      storage,
+      limits: { fileSize: 8 * 1024 * 1024 },
+      fileFilter: (req, file, cb) => file.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error('Chỉ chấp nhận file ảnh')),
+    })
+  };
+}
+
+// POST /admin/upload-image — upload blog/media image
 router.post('/upload-image', async (req, res) => {
   try {
-    const multer = require('multer');
-    const path = require('path');
-    const fs = require('fs');
-
-    // Ensure uploads directory exists
-    const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'blog');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
-    const storage = multer.diskStorage({
-      destination: (req, file, cb) => cb(null, uploadsDir),
-      filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'blog-' + uniqueSuffix + path.extname(file.originalname));
-      }
-    });
-
-    const upload = multer({
-      storage,
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-      fileFilter: (req, file, cb) => {
-        if (file.mimetype.startsWith('image/')) {
-          cb(null, true);
-        } else {
-          cb(new Error('Chỉ chấp nhận file ảnh'));
-        }
-      }
-    }).single('image');
-
-    upload(req, res, (err) => {
-      if (err) {
-        return res.status(400).json({ error: err.message });
-      }
-      if (!req.file) {
-        return res.status(400).json({ error: 'Không có file được upload' });
-      }
+    const { upload } = getBlogUploadTools();
+    upload.single('image')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message });
+      if (!req.file) return res.status(400).json({ error: 'Không có file được upload' });
       const url = '/uploads/blog/' + req.file.filename;
-      res.json({ url });
+      res.json({
+        url,
+        asset: { url, filename: req.file.filename, originalName: req.file.originalname, size: req.file.size, type: req.file.mimetype }
+      });
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/media/blog', async (req, res) => {
+  try {
+    const { fs, uploadsDir } = getBlogUploadTools();
+    const files = fs.readdirSync(uploadsDir)
+      .filter(name => /\.(png|jpe?g|gif|webp|svg)$/i.test(name))
+      .map(name => {
+        const stat = fs.statSync(require('path').join(uploadsDir, name));
+        return { filename: name, url: '/uploads/blog/' + name, size: stat.size, createdAt: stat.mtime };
+      })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 80);
+    res.json({ assets: files });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3235,6 +3262,7 @@ router.post('/upload-image', async (req, res) => {
 router.get('/blog', async (req, res) => {
   const pool = getPool();
   try {
+    await ensureBlogCmsColumns(pool);
     const [posts] = await pool.execute(
       'SELECT * FROM blog_posts ORDER BY created_at DESC'
     );
@@ -3248,6 +3276,7 @@ router.get('/blog', async (req, res) => {
 router.get('/blog/:id', async (req, res) => {
   const pool = getPool();
   try {
+    await ensureBlogCmsColumns(pool);
     const [posts] = await pool.execute(
       'SELECT * FROM blog_posts WHERE id = ?',
       [req.params.id]
@@ -3266,10 +3295,13 @@ router.post('/blog', async (req, res) => {
   const pool = getPool();
   const {
     title, slug, excerpt, content, cover, tag, tag_color,
-    author, read_time, gradient, status
+    author, read_time, gradient, status,
+    seo_title, seo_description, focus_keyword, cover_alt,
+    category, content_assets, scheduled_at
   } = req.body;
 
   try {
+    await ensureBlogCmsColumns(pool);
     // Check if slug already exists
     const [existing] = await pool.execute(
       'SELECT id FROM blog_posts WHERE slug = ?',
@@ -3280,12 +3312,13 @@ router.post('/blog', async (req, res) => {
     }
 
     const published_at = status === 'published' ? new Date() : null;
+    const scheduledAt = scheduled_at || null;
 
     const [result] = await pool.execute(
       `INSERT INTO blog_posts
-       (title, slug, excerpt, content, cover, tag, tag_color, author, read_time, gradient, status, published_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [title, slug, excerpt, content, cover || null, tag, tag_color, author, read_time, gradient, status, published_at]
+       (title, slug, excerpt, content, cover, tag, tag_color, author, read_time, gradient, status, published_at, seo_title, seo_description, focus_keyword, cover_alt, category, content_assets, scheduled_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [title, slug, excerpt, content, cover || null, tag, tag_color, author, read_time, gradient, status, published_at, seo_title || null, seo_description || null, focus_keyword || null, cover_alt || null, category || null, content_assets || null, scheduledAt]
     );
 
     res.json({ ok: true, id: result.insertId });
@@ -3299,10 +3332,13 @@ router.put('/blog/:id', async (req, res) => {
   const pool = getPool();
   const {
     title, slug, excerpt, content, cover, tag, tag_color,
-    author, read_time, gradient, status
+    author, read_time, gradient, status,
+    seo_title, seo_description, focus_keyword, cover_alt,
+    category, content_assets, scheduled_at
   } = req.body;
 
   try {
+    await ensureBlogCmsColumns(pool);
     // Check if slug exists for other posts
     const [existing] = await pool.execute(
       'SELECT id FROM blog_posts WHERE slug = ? AND id != ?',
@@ -3329,13 +3365,15 @@ router.put('/blog/:id', async (req, res) => {
       published_at = null;
     }
 
+    const scheduledAt = scheduled_at || null;
+
     await pool.execute(
       `UPDATE blog_posts SET
        title = ?, slug = ?, excerpt = ?, content = ?, cover = ?,
        tag = ?, tag_color = ?, author = ?, read_time = ?, gradient = ?,
-       status = ?, published_at = ?
+       status = ?, published_at = ?, seo_title = ?, seo_description = ?, focus_keyword = ?, cover_alt = ?, category = ?, content_assets = ?, scheduled_at = ?
        WHERE id = ?`,
-      [title, slug, excerpt, content, cover || null, tag, tag_color, author, read_time, gradient, status, published_at, req.params.id]
+      [title, slug, excerpt, content, cover || null, tag, tag_color, author, read_time, gradient, status, published_at, seo_title || null, seo_description || null, focus_keyword || null, cover_alt || null, category || null, content_assets || null, scheduledAt, req.params.id]
     );
 
     res.json({ ok: true });
