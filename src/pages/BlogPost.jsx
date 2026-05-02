@@ -72,6 +72,18 @@ function renderContent(content = '') {
     const trimmed = lines[i].trim();
     if (!trimmed) { i++; continue; }
 
+    if (/^!\[([^\]]*)\]\(([^)]+)\)$/.test(trimmed)) {
+      const match = trimmed.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+      elements.push(
+        <figure key={`img-${i}`} className="my-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <img src={match[2]} alt={match[1] || 'Ảnh bài viết'} className="w-full object-cover" />
+          {match[1] ? <figcaption className="px-4 py-3 text-center text-xs text-slate-500">{match[1]}</figcaption> : null}
+        </figure>
+      );
+      i++;
+      continue;
+    }
+
     if (trimmed.startsWith('## ') || trimmed.startsWith('### ')) {
       const depth = trimmed.startsWith('### ') ? 3 : 2;
       const title = trimmed.slice(depth + 1).trim();

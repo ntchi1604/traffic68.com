@@ -187,8 +187,10 @@ export default function AdminBlog() {
     const data = await response.json();
     if (!response.ok || !data.url) throw new Error(data.error || 'Lỗi khi upload ảnh');
     const asset = { ...(data.asset || {}), url: data.url, alt };
-    const currentAssets = JSON.parse(formData.content_assets || '[]');
-    setFormData(prev => ({ ...prev, content_assets: JSON.stringify([asset, ...currentAssets].slice(0, 40)) }));
+    setFormData(prev => {
+      const currentAssets = JSON.parse(prev.content_assets || '[]');
+      return { ...prev, content_assets: JSON.stringify([asset, ...currentAssets].slice(0, 40)) };
+    });
     return asset;
   };
 
@@ -432,12 +434,29 @@ export default function AdminBlog() {
                   />
                 </div>
 
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded border border-slate-300 bg-white p-4">
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">SEO title</label>
+                    <input value={formData.seo_title} onChange={(e) => setFormData({ ...formData, seo_title: e.target.value })} className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none" placeholder="Tiêu đề SEO" />
+                  </div>
+                  <div className="rounded border border-slate-300 bg-white p-4">
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">Từ khóa chính</label>
+                    <input value={formData.focus_keyword} onChange={(e) => setFormData({ ...formData, focus_keyword: e.target.value })} className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none" placeholder="focus keyword" />
+                  </div>
+                </div>
+
+                <div className="rounded border border-slate-300 bg-white p-4">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">SEO description</label>
+                  <textarea value={formData.seo_description} onChange={(e) => setFormData({ ...formData, seo_description: e.target.value })} rows={3} className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none" placeholder="Mô tả meta" />
+                </div>
+
                 <div className="rounded border border-slate-300 bg-white p-4">
                   <label className="mb-3 block text-sm font-semibold text-slate-700">Nội dung</label>
                   <MarkdownEditor
                     value={formData.content}
                     onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                     placeholder="Viết nội dung bài viết..."
+                    onUploadImage={(file) => uploadBlogImage(file, formData.cover_alt || formData.title || 'Ảnh bài viết')}
                   />
                 </div>
               </div>
@@ -508,6 +527,25 @@ export default function AdminBlog() {
                         placeholder="5 phút đọc"
                       />
                     </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">Chuyên mục</label>
+                      <input
+                        type="text"
+                        value={formData.category}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none"
+                        placeholder="SEO, Traffic, CRO..."
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">Lên lịch xuất bản</label>
+                      <input
+                        type="datetime-local"
+                        value={formData.scheduled_at}
+                        onChange={(e) => setFormData({ ...formData, scheduled_at: e.target.value })}
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -523,6 +561,13 @@ export default function AdminBlog() {
                       onChange={(e) => setFormData({ ...formData, cover: e.target.value })}
                       className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none"
                       placeholder="/blog_1.png hoặc https://..."
+                    />
+                    <input
+                      type="text"
+                      value={formData.cover_alt}
+                      onChange={(e) => setFormData({ ...formData, cover_alt: e.target.value })}
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none"
+                      placeholder="Alt ảnh đại diện cho SEO"
                     />
                     <label className="block cursor-pointer">
                       <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
