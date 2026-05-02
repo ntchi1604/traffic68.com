@@ -1,63 +1,296 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import usePageTitle from '../hooks/usePageTitle';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Clock, Tag, User, Calendar, ChevronRight, BookOpen, Share2, MessageCircle, Send } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Calendar, Check, Clock, Copy, Facebook, Linkedin, ListTree, Send, Share2, Tag, User } from 'lucide-react';
 import Footer from '../components/Footer';
 import api from '../lib/api';
 import { posts as fallbackPosts } from '../data/blogPosts';
+import { buildArticleJsonLd, getPublishedPosts, getRelatedPosts, normalizePost, stripMarkdown } from '../lib/blog';
 
-/* Social share buttons */
-const socials = [
-  { label: 'Share', bg: 'bg-gray-600', icon: '🔗' },
-  { label: 'Tweet', bg: 'bg-[#1DA1F2]', icon: '𝕏' },
-  { label: 'Facebook', bg: 'bg-[#1877F2]', icon: 'f' },
-  { label: 'WhatsApp', bg: 'bg-[#25D366]', icon: '📱' },
-  { label: 'Pinterest', bg: 'bg-[#E60023]', icon: '📌' },
-  { label: 'Telegram', bg: 'bg-[#0088cc]', icon: '✈' },
-  { label: 'LinkedIn', bg: 'bg-[#0A66C2]', icon: 'in' },
-];
+function slugify(value = '') {
+  return stripMarkdown(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function formatInline(text = '') {
+  const parts = [];
+  const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    const token = match[0];
+    const key = `${match.index}-${token}`;
+    if (token.startsWith('**')) parts.push(<strong key={key} className="text-[#10245c] font-black">{token.slice(2, -2)}</strong>);
+    else if (token.startsWith('`')) parts.push(<code key={key} className="rounded-md bg-orange-50 px-1.5 py-0.5 text-sm font-mono text-[#c2410c]">{token.slice(1, -1)}</code>);
+    else parts.push(<em key={key}>{token.slice(1, -1)}</em>);
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
+function extractToc(content = '') {
+  return content
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('## ') || line.startsWith('### '))
+    .map((line) => {
+      const depth = line.startsWith('### ') ? 3 : 2;
+      const title = line.slice(depth + 1).trim();
+      return { id: slugify(title), title, depth };
+    });
+}
+
+function renderTable(lines, startIndex) {
+  const rows = [];
+  let index = startIndex;
+  while (index < lines.length) {
+    const trimmed = lines[index].trim();
+    if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) break;
+    if (!/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(trimmed)) {
+      rows.push(trimmed.split('|').slice(1, -1).map((cell) => cell.trim()));
+    }
+    index++;
+  }
+  return { rows, nextIndex: index };
+}
+
+function renderContent(content = '') {
+  const lines = content.split('\n');
+  const elements = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const trimmed = lines[i].trim();
+    if (!trimmed) { i++; continue; }
+
+    if (trimmed.startsWith('## ') || trimmed.startsWith('### ')) {
+      const depth = trimmed.startsWith('### ') ? 3 : 2;
+      const title = trimmed.slice(depth + 1).trim();
+      const TagName = depth === 2 ? 'h2' : 'h3';
+      elements.push(
+        <TagName
+          key={`h-${i}`}
+          id={slugify(title)}
+          className={depth === 2 ? 'scroll-mt-24 text-2xl sm:text-3xl font-black text-[#10245c] mt-12 mb-5 border-l-4 border-[#f97316] pl-5' : 'scroll-mt-24 text-xl font-black text-[#17346f] mt-8 mb-3'}
+        >
+          {title}
+        </TagName>
+      );
+      i++;
+      continue;
+    }
+
+    if (trimmed.startsWith('> ')) {
+      elements.push(
+        <blockquote key={`q-${i}`} className="my-6 rounded-2xl border-l-4 border-[#f97316] bg-orange-50 px-6 py-5 text-[#10245c] font-semibold leading-relaxed">
+          {formatInline(trimmed.slice(2))}
+        </blockquote>
+      );
+      i++;
+      continue;
+    }
+
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      const { rows, nextIndex } = renderTable(lines, i);
+      if (rows.length > 0) {
+        const [head, ...body] = rows;
+        elements.push(
+          <div key={`table-${i}`} className="my-8 overflow-x-auto rounded-2xl border border-slate-200">
+            <table className="w-full text-sm">
+              <thead className="bg-[#10245c] text-white">
+                <tr>{head.map((cell) => <th key={cell} className="px-4 py-3 text-left font-black">{formatInline(cell)}</th>)}</tr>
+              </thead>
+              <tbody>
+                {body.map((row, rowIndex) => (
+                  <tr key={rowIndex} className="border-t border-slate-100 odd:bg-slate-50/70">
+                    {row.map((cell, cellIndex) => <td key={`${rowIndex}-${cellIndex}`} className="px-4 py-3 text-slate-600">{formatInline(cell)}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+      i = nextIndex;
+      continue;
+    }
+
+    if (trimmed.startsWith('- ')) {
+      const items = [];
+      while (i < lines.length && lines[i].trim().startsWith('- ')) {
+        items.push(lines[i].trim().slice(2));
+        i++;
+      }
+      elements.push(
+        <ul key={`ul-${i}`} className="my-5 space-y-3">
+          {items.map((item, idx) => (
+            <li key={idx} className="flex gap-3 text-slate-700 leading-relaxed">
+              <span className="mt-2 h-2 w-2 rounded-full bg-[#f97316] shrink-0" />
+              <span>{formatInline(item)}</span>
+            </li>
+          ))}
+        </ul>
+      );
+      continue;
+    }
+
+    const numbered = trimmed.match(/^(\d+)\.\s(.+)/);
+    if (numbered) {
+      const items = [];
+      while (i < lines.length) {
+        const match = lines[i].trim().match(/^(\d+)\.\s(.+)/);
+        if (!match) break;
+        items.push(match[2]);
+        i++;
+      }
+      elements.push(
+        <ol key={`ol-${i}`} className="my-5 space-y-3 counter-reset-list">
+          {items.map((item, idx) => (
+            <li key={idx} className="flex gap-3 text-slate-700 leading-relaxed">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#10245c] text-white text-xs font-black shrink-0">{idx + 1}</span>
+              <span>{formatInline(item)}</span>
+            </li>
+          ))}
+        </ol>
+      );
+      continue;
+    }
+
+    elements.push(<p key={`p-${i}`} className="text-[17px] leading-8 text-slate-700 mb-5">{formatInline(trimmed)}</p>);
+    i++;
+  }
+
+  return elements;
+}
+
+function ShareButtons({ post }) {
+  const [copied, setCopied] = useState(false);
+  const encodedUrl = encodeURIComponent(post.url);
+  const encodedTitle = encodeURIComponent(post.title);
+  const links = [
+    { label: 'Facebook', icon: Facebook, href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}` },
+    { label: 'LinkedIn', icon: Linkedin, href: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}` },
+    { label: 'Telegram', icon: Send, href: `https://t.me/share/url?url=${encodedUrl}&text=${encodedTitle}` },
+  ];
+
+  const shareNative = async () => {
+    if (navigator.share) {
+      await navigator.share({ title: post.title, text: post.description, url: post.url });
+      return;
+    }
+    await navigator.clipboard.writeText(post.url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  const copyLink = async () => {
+    await navigator.clipboard.writeText(post.url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button onClick={shareNative} className="inline-flex items-center gap-2 rounded-full bg-[#10245c] px-4 py-2 text-sm font-bold text-white hover:bg-[#f97316] transition">
+        <Share2 className="w-4 h-4" /> Chia sẻ
+      </button>
+      {links.map((link) => {
+        const LinkIcon = link.icon;
+        return (
+        <a key={link.label} href={link.href} target="_blank" rel="noreferrer" aria-label={`Chia sẻ lên ${link.label}`} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-[#f97316] hover:text-[#f97316] transition">
+          <LinkIcon className="w-4 h-4" />
+        </a>
+        );
+      })}
+      <button onClick={copyLink} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-[#f97316] hover:text-[#f97316] transition" aria-label="Sao chép liên kết">
+        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+      </button>
+    </div>
+  );
+}
 
 export default function BlogPost() {
   const { slug } = useParams();
   const [post, setPost] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [comment, setComment] = useState('');
-
-  usePageTitle(post ? post.title : 'Blog');
 
   useEffect(() => {
-    fetchPosts();
+    let mounted = true;
+
+    const fetchPost = async () => {
+      setLoading(true);
+      try {
+        const [detail, list] = await Promise.allSettled([
+          api.get(`/blog/${slug}`),
+          api.get('/blog'),
+        ]);
+
+        const sourcePosts = list.status === 'fulfilled' && list.value.posts?.length ? list.value.posts : fallbackPosts;
+        const normalizedPosts = getPublishedPosts(sourcePosts);
+        const current = detail.status === 'fulfilled' && detail.value.post
+          ? normalizePost(detail.value.post)
+          : normalizedPosts.find((item) => item.slug === slug) || getPublishedPosts(fallbackPosts).find((item) => item.slug === slug);
+
+        if (mounted) {
+          setPost(current || null);
+          setPosts(normalizedPosts.length ? normalizedPosts : getPublishedPosts(fallbackPosts));
+        }
+      } catch {
+        const fallback = getPublishedPosts(fallbackPosts);
+        if (mounted) {
+          setPost(fallback.find((item) => item.slug === slug) || null);
+          setPosts(fallback);
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    fetchPost();
+    return () => { mounted = false; };
   }, [slug]);
 
-  const fetchPosts = async () => {
-    try {
-      console.log('Fetching blog posts for slug:', slug);
-      const data = await api.get('/blog');
-      console.log('API response:', data);
-      const allPosts = (data.posts && data.posts.length > 0) ? data.posts : fallbackPosts;
-      console.log('All posts:', allPosts);
-      const currentPost = allPosts.find(p => p.slug === slug && (p.status === 'published' || !p.status));
-      console.log('Current post found:', currentPost);
-      setPost(currentPost);
-      setPosts(allPosts.filter(p => p.status === 'published' || !p.status));
-    } catch (error) {
-      console.error('Error fetching posts:', error);
-      // Nếu API lỗi, dùng fallback data
-      const currentPost = fallbackPosts.find(p => p.slug === slug);
-      console.log('Fallback post:', currentPost);
-      setPost(currentPost);
-      setPosts(fallbackPosts);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const toc = useMemo(() => extractToc(post?.content || ''), [post]);
+  const related = useMemo(() => getRelatedPosts(posts, post, 3), [posts, post]);
+
+  usePageTitle(post ? {
+    title: post.title,
+    description: post.description,
+    keywords: post.keywords,
+    canonicalPath: `/blog/${post.slug}`,
+    image: post.cover,
+    type: 'article',
+    publishedTime: post.publishedIso,
+    modifiedTime: post.updatedIso,
+    jsonLd: buildArticleJsonLd(post),
+  } : {
+    title: 'Blog',
+    description: 'Bài viết Traffic68 về SEO, traffic user thật và tăng trưởng website.',
+    canonicalPath: `/blog/${slug}`,
+  });
 
   if (loading) {
     return (
       <>
-        <div className="min-h-[60vh] flex items-center justify-center bg-gray-50">
-          <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className="min-h-[70vh] bg-[#f6f8fc] px-4 py-16">
+          <div className="max-w-5xl mx-auto space-y-6 animate-pulse">
+            <div className="h-12 w-2/3 rounded-2xl bg-white" />
+            <div className="h-72 rounded-[2rem] bg-white" />
+            <div className="grid lg:grid-cols-[1fr_280px] gap-8">
+              <div className="h-96 rounded-3xl bg-white" />
+              <div className="h-72 rounded-3xl bg-white" />
+            </div>
+          </div>
         </div>
         <Footer />
       </>
@@ -67,12 +300,12 @@ export default function BlogPost() {
   if (!post) {
     return (
       <>
-        <div className="min-h-[60vh] flex items-center justify-center bg-gray-50">
-          <div className="text-center">
-            <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h1 className="text-2xl font-black text-[#1e3a8a] mb-2">Bài viết không tồn tại</h1>
-            <p className="text-gray-400 mb-6">Bài viết bạn tìm kiếm không tồn tại hoặc đã bị xóa.</p>
-            <Link to="/blog" className="inline-flex items-center gap-2 text-[#f97316] font-bold hover:underline">
+        <div className="min-h-[70vh] flex items-center justify-center bg-[#f6f8fc] px-4">
+          <div className="text-center bg-white rounded-[2rem] border border-slate-200 p-10 max-w-lg">
+            <BookOpen className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <h1 className="text-2xl font-black text-[#10245c] mb-2">Bài viết không tồn tại</h1>
+            <p className="text-slate-500 mb-6">Bài viết bạn tìm kiếm không tồn tại hoặc đã bị xóa.</p>
+            <Link to="/blog" className="inline-flex items-center gap-2 text-[#f97316] font-black hover:underline">
               <ArrowLeft size={16} /> Quay lại Blog
             </Link>
           </div>
@@ -82,288 +315,97 @@ export default function BlogPost() {
     );
   }
 
-  const inlineFormat = (text) => {
-    return text
-      .replace(/\*\*(.+?)\*\*/g, '<strong class="text-gray-800">$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`(.+?)`/g, '<code class="bg-gray-100 text-[#1e3a8a] px-1.5 py-0.5 rounded text-sm font-mono">$1</code>');
-  };
-
-  const renderContent = (md) => {
-    if (!md) return [];
-
-    try {
-      const lines = md.split('\n');
-      const elements = [];
-      let firstH2Found = false;
-      let topicClusterInserted = false;
-      let h2Count = 0;
-
-      for (let i = 0; i < lines.length; i++) {
-        const trimmed = lines[i].trim();
-        if (!trimmed) { elements.push(<br key={i} />); continue; }
-
-      // H2
-      if (trimmed.startsWith('## ')) {
-        h2Count++;
-        const heading = trimmed.slice(3);
-        elements.push(
-          <h2 key={i} className="text-xl sm:text-2xl font-black text-[#1e3a8a] mt-10 mb-4 border-l-4 border-[#f97316] pl-4">
-            {heading}
-          </h2>
-        );
-
-        // Insert social share after first H2
-        if (!firstH2Found) {
-          firstH2Found = true;
-          elements.push(
-            <div key={`share-${i}`} className="mb-6">
-              <p className="text-xs text-gray-400 mb-2">Chia sẻ mạng xã hội:</p>
-              <div className="flex flex-wrap gap-2">
-                {socials.map(s => (
-                  <button
-                    key={s.label}
-                    className={`${s.bg} text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:opacity-80 transition flex items-center gap-1.5`}
-                  >
-                    <span>{s.icon}</span> {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        }
-
-        // Insert topic cluster image after H2 #4 (or wherever relevant)
-        if (h2Count === 4 && !topicClusterInserted) {
-          topicClusterInserted = true;
-          elements.push(
-            <div key={`topic-${i}`} className="my-6 rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
-              <img src="/blog_topic_clusters.png" alt="Topic Clusters & Sơ Đồ Nội Dung" className="w-full" />
-            </div>
-          );
-        }
-        continue;
-      }
-      // H3
-      if (trimmed.startsWith('### ')) {
-        elements.push(
-          <h3 key={i} className="text-lg font-bold text-[#1e3a5f] mt-6 mb-3">{trimmed.slice(4)}</h3>
-        );
-        continue;
-      }
-      // Blockquote
-      if (trimmed.startsWith('> ')) {
-        elements.push(
-          <blockquote key={i} className="border-l-4 border-[#f97316] bg-orange-50 px-5 py-3 my-4 rounded-r-xl">
-            <p className="text-sm text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: inlineFormat(trimmed.slice(2)) }} />
-          </blockquote>
-        );
-        continue;
-      }
-      // Table row
-      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-        continue;
-      }
-      // Unordered list
-      if (trimmed.startsWith('- ')) {
-        elements.push(
-          <li key={i} className="flex items-start gap-2 text-gray-600 text-[15px] leading-relaxed ml-4 mb-1.5">
-            <span className="text-[#f97316] mt-1.5 shrink-0">•</span>
-            <span dangerouslySetInnerHTML={{ __html: inlineFormat(trimmed.slice(2)) }} />
-          </li>
-        );
-        continue;
-      }
-      // Numbered list
-      const numMatch = trimmed.match(/^(\d+)\.\s(.+)/);
-      if (numMatch) {
-        elements.push(
-          <li key={i} className="flex items-start gap-2 text-gray-600 text-[15px] leading-relaxed ml-4 mb-1.5">
-            <span className="text-[#1e3a8a] font-bold shrink-0">{numMatch[1]}.</span>
-            <span dangerouslySetInnerHTML={{ __html: inlineFormat(numMatch[2]) }} />
-          </li>
-        );
-        continue;
-      }
-      // Paragraph
-      elements.push(
-        <p key={i} className="text-gray-600 text-[15px] leading-relaxed mb-2" dangerouslySetInnerHTML={{ __html: inlineFormat(trimmed) }} />
-      );
-    }
-    return elements;
-    } catch (error) {
-      console.error('Error rendering content:', error);
-      return [<p key="error" className="text-red-500">Lỗi khi hiển thị nội dung</p>];
-    }
-  };
-
-  if (!post) {
-    console.log('Post is null, showing 404');
-  }
-
-  const related = post ? posts.filter(p => p.id !== post.id).slice(0, 4) : [];
-  const allTags = post ? [...new Set(posts.map(p => p.tag))] : [];
-
   return (
     <>
-      {console.log('Rendering BlogPost, post:', post)}
-      <section className="bg-white py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+      <section className="blog-hero relative overflow-hidden bg-[#071633] py-14 sm:py-20">
+        <div className="absolute inset-0 blog-grid opacity-70" />
+        <div className="absolute -right-24 top-10 h-96 w-96 rounded-full bg-[#f97316]/20 blur-3xl" />
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="mb-8 flex flex-wrap items-center gap-2 text-sm text-blue-100/70">
+            <Link to="/" className="hover:text-white">Trang chủ</Link>
+            <span>/</span>
+            <Link to="/blog" className="hover:text-white">Blog</Link>
+            <span>/</span>
+            <span className="text-orange-200">{post.tag}</span>
+          </nav>
 
-            {/* ── Main Content (Left) ── */}
-            <div className="lg:col-span-2">
-              {console.log('Rendering main content')}
-              {/* Post meta above title */}
-              <div className="flex items-center gap-3 mb-4">
-                <span className={`text-xs font-bold px-3 py-1 rounded-full ${post.tag_color || post.tagColor} flex items-center gap-1`}>
-                  <Tag size={12} /> {post.tag}
-                </span>
-                <span className="text-xs text-gray-400 flex items-center gap-1">
-                  <Clock size={12} /> {post.read_time || post.readTime}
-                </span>
-              </div>
+          <div className="max-w-4xl">
+            <div className="flex flex-wrap items-center gap-3 mb-5">
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ${post.tagColor}`}><Tag className="w-3 h-3" /> {post.tag}</span>
+              <span className="inline-flex items-center gap-1.5 text-blue-100/80 text-sm"><Clock className="w-4 h-4" /> {post.readTime}</span>
+              <span className="inline-flex items-center gap-1.5 text-blue-100/80 text-sm"><Calendar className="w-4 h-4" /> {post.dateLabel}</span>
+            </div>
+            <h1 className="text-4xl sm:text-6xl font-black text-white leading-tight tracking-tight mb-6">{post.title}</h1>
+            <p className="text-lg sm:text-xl text-blue-100/85 leading-relaxed max-w-3xl mb-8">{post.description}</p>
+            <div className="flex flex-wrap items-center gap-5 text-blue-100/80">
+              <span className="inline-flex items-center gap-2"><User className="w-4 h-4 text-[#f97316]" /> {post.author}</span>
+              <ShareButtons post={post} />
+            </div>
+          </div>
+        </div>
+      </section>
 
-              {/* Title */}
-              <h1 className="text-2xl sm:text-3xl font-black text-[#1e3a5f] leading-tight mb-4">
-                {post.title}
-              </h1>
+      <section className="bg-[#f6f8fc] pb-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="-mt-10 relative rounded-[2rem] overflow-hidden border border-white shadow-2xl bg-slate-900 mb-12">
+            <img src={post.cover} alt={post.title} className="w-full max-h-[520px] object-cover" loading="eager" />
+          </div>
 
-              {/* Author / Date / Tags */}
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-gray-500 mb-6 pb-6 border-b border-gray-100">
-                <span className="flex items-center gap-1.5">
-                  <User size={14} className="text-gray-400" /> Tác giả: <strong className="text-gray-700">{post.author}</strong>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Calendar size={14} className="text-gray-400" /> Ngày đăng: <strong className="text-gray-700">{post.date || new Date(post.created_at || post.published_at).toLocaleDateString('vi-VN')}</strong>
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span>Tag:</span>
-                  {allTags.slice(0, 3).map(t => {
-                    const colors = { SEO: 'bg-blue-100 text-blue-700', Traffic: 'bg-orange-100 text-orange-700', CRO: 'bg-green-100 text-green-700' };
-                    return (
-                      <span key={t} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${colors[t] || 'bg-gray-100 text-gray-600'}`}>{t}</span>
-                    );
-                  })}
-                </div>
-                <span className="flex items-center gap-1.5">
-                  <Clock size={14} className="text-gray-400" /> Thời gian đọc: <strong className="text-gray-700">{post.read_time || post.readTime}</strong>
-                </span>
-              </div>
-
-              {/* Featured Image */}
-              <div className="rounded-2xl overflow-hidden mb-8 border border-gray-100 shadow-sm">
-                <img
-                  src={post.cover || '/blog_featured_seo.png'}
-                  alt={post.title}
-                  className="w-full object-cover"
-                />
-              </div>
-
-              {/* Article content */}
-              <article className="prose-custom">
-                {post.content ? (
-                  <>
-                    {console.log('Rendering content:', post.content)}
-                    {renderContent(post.content)}
-                  </>
-                ) : (
-                  <p className="text-gray-500">Nội dung đang được cập nhật...</p>
-                )}
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-10 items-start">
+            <main className="bg-white rounded-[2rem] border border-slate-200 p-6 sm:p-10 shadow-sm">
+              <article className="blog-prose">
+                {post.content ? renderContent(post.content) : <p className="text-slate-500">Nội dung đang được cập nhật...</p>}
               </article>
 
-              {/* Comment section */}
-              <div className="mt-12 pt-8 border-t border-gray-100">
-                <h3 className="text-lg font-black text-[#1e3a8a] mb-5 flex items-center gap-2">
-                  <MessageCircle size={20} className="text-[#f97316]" /> Bình luận
-                </h3>
-
-                <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center shrink-0">
-                      <User size={18} className="text-gray-400" />
-                    </div>
-                    <div className="flex-1">
-                      <textarea
-                        value={comment}
-                        onChange={(e) => setComment(e.target.value)}
-                        placeholder="Thân bình luận..."
-                        rows={3}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a8a] resize-none bg-white"
-                      />
-                      <button className="mt-3 inline-flex items-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all">
-                        <Send size={14} /> Chia sẻ bình luận của bạn
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Back link */}
-              <div className="mt-8">
-                <Link
-                  to="/blog"
-                  className="inline-flex items-center gap-2 text-[#1e3a8a] font-bold hover:text-[#f97316] transition text-sm"
-                >
+              <div className="mt-12 pt-8 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
+                <Link to="/blog" className="inline-flex items-center gap-2 text-[#10245c] font-black hover:text-[#f97316] transition">
                   <ArrowLeft size={16} /> Quay lại Blog
                 </Link>
+                <ShareButtons post={post} />
               </div>
-            </div>
+            </main>
 
-            {/* ── Sidebar (Right) ── */}
-            <div className="lg:col-span-1">
-              <div className="sticky top-20 space-y-6">
-                <h3 className="text-base font-black text-[#1e3a8a] uppercase tracking-wider flex items-center gap-2 border-b border-gray-100 pb-3">
-                  <BookOpen size={16} className="text-[#f97316]" /> Bài viết liên quan
-                </h3>
+            <aside className="lg:sticky lg:top-24 space-y-6">
+              {toc.length > 0 && (
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+                  <h2 className="flex items-center gap-2 text-[#10245c] font-black mb-4"><ListTree className="w-5 h-5 text-[#f97316]" /> Mục lục</h2>
+                  <div className="space-y-2">
+                    {toc.map((item) => (
+                      <a key={item.id} href={`#${item.id}`} className={`block text-sm leading-snug hover:text-[#f97316] transition ${item.depth === 3 ? 'pl-4 text-slate-500' : 'text-slate-700 font-bold'}`}>
+                        {item.title}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                {/* Related post cards */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+                <h2 className="flex items-center gap-2 text-[#10245c] font-black mb-4"><BookOpen className="w-5 h-5 text-[#f97316]" /> Đọc tiếp</h2>
                 <div className="space-y-4">
-                  {related.map(p => (
-                    <Link
-                      key={p.id}
-                      to={`/blog/${p.slug}`}
-                      className="group flex gap-3 bg-white rounded-xl border border-gray-100 p-3 hover:shadow-md transition-all hover:-translate-y-0.5"
-                    >
-                      <div className="w-20 h-20 rounded-lg overflow-hidden shrink-0">
-                        <img src={p.cover} alt={p.title} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${p.tag_color || p.tagColor}`}>{p.tag}</span>
-                          <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-                            <Clock size={9} /> {p.read_time || p.readTime}
-                          </span>
-                        </div>
-                        <h4 className="text-xs font-bold text-[#1e3a5f] leading-snug mb-1 line-clamp-2 group-hover:text-[#f97316] transition">
-                          {p.title}
-                        </h4>
-                        <span className="text-[10px] text-[#f97316] font-bold">
-                          Đọc thêm →
-                        </span>
+                  {related.map((item) => (
+                    <Link key={item.slug} to={`/blog/${item.slug}`} className="group grid grid-cols-[84px_1fr] gap-3">
+                      <img src={item.cover} alt={item.title} className="h-20 w-20 rounded-2xl object-cover" loading="lazy" />
+                      <div>
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black ${item.tagColor}`}>{item.tag}</span>
+                        <h3 className="mt-2 line-clamp-2 text-sm font-black text-[#10245c] group-hover:text-[#f97316] transition">{item.title}</h3>
                       </div>
                     </Link>
                   ))}
                 </div>
+              </div>
 
-                {/* CTA Sidebar */}
-                <div className="bg-gradient-to-br from-[#f97316] to-[#ea580c] rounded-2xl p-6 text-center">
-                  <p className="text-white font-black text-base mb-2 leading-snug">
-                    Bắt đầu Chiến dịch SEO bền vững của bạn.
-                  </p>
-                  <p className="text-white/80 text-xs mb-4">
-                    Liên hệ ngay để nhận tư vấn miễn phí!
-                  </p>
-                  <Link
-                    to="/lien-he"
-                    className="inline-block bg-white text-[#f97316] font-bold text-sm px-6 py-2.5 rounded-xl hover:bg-orange-50 transition shadow-md"
-                  >
-                    Liên hệ ngay!
+              <div className="overflow-hidden rounded-3xl bg-[#10245c] p-6 text-white shadow-sm relative">
+                <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[#f97316]/30 blur-2xl" />
+                <div className="relative">
+                  <p className="text-orange-200 font-black text-xs uppercase tracking-[0.2em] mb-3">Traffic audit</p>
+                  <h2 className="text-2xl font-black leading-tight mb-3">Cần user thật cho website?</h2>
+                  <p className="text-blue-100/80 text-sm leading-relaxed mb-5">Nhận tư vấn cách tăng traffic an toàn, giữ tín hiệu SEO sạch và đo được hiệu quả.</p>
+                  <Link to="/lien-he" className="orange-btn inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black text-white">
+                    Liên hệ ngay <ArrowRight className="w-4 h-4" />
                   </Link>
                 </div>
               </div>
-            </div>
-
+            </aside>
           </div>
         </div>
       </section>

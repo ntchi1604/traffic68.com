@@ -1,30 +1,33 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Eye, EyeOff, Search, Tag, Calendar, Clock } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, EyeOff, Search, Clock, Upload, X, FileText } from 'lucide-react';
 import api from '../../lib/api';
 import MarkdownEditor from '../../components/MarkdownEditor';
+
+const initialFormData = {
+  title: '',
+  slug: '',
+  excerpt: '',
+  content: '',
+  cover: '',
+  tag: 'SEO',
+  tag_color: 'bg-blue-100 text-blue-700',
+  author: 'Admin',
+  read_time: '5 phút đọc',
+  gradient: 'from-blue-500 to-blue-700',
+  status: 'draft',
+};
 
 export default function AdminBlog() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterTag, setFilterTag] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkAction, setBulkAction] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
-
-  const [formData, setFormData] = useState({
-    title: '',
-    slug: '',
-    excerpt: '',
-    content: '',
-    cover: '',
-    tag: 'SEO',
-    tag_color: 'bg-blue-100 text-blue-700',
-    author: 'Admin',
-    read_time: '5 phút đọc',
-    gradient: 'from-blue-500 to-blue-700',
-    status: 'draft',
-  });
-
+  const [formData, setFormData] = useState(initialFormData);
   const [uploading, setUploading] = useState(false);
 
   const tags = [
@@ -43,6 +46,7 @@ export default function AdminBlog() {
     try {
       const data = await api.get('/admin/blog');
       setPosts(data.posts || []);
+      setSelectedIds([]);
     } catch (error) {
       console.error('Error fetching posts:', error);
     } finally {
@@ -87,6 +91,19 @@ export default function AdminBlog() {
     }
   };
 
+  const applyBulkAction = async () => {
+    if (!bulkAction || selectedIds.length === 0) return;
+    const status = bulkAction === 'publish' ? 'published' : 'draft';
+    try {
+      await Promise.all(selectedIds.map(id => api.put(`/admin/blog/${id}`, { status })));
+      setBulkAction('');
+      fetchPosts();
+    } catch (error) {
+      console.error('Error applying bulk action:', error);
+      alert('Lỗi khi cập nhật hàng loạt');
+    }
+  };
+
   const openModal = (post = null) => {
     if (post) {
       setEditingPost(post);
@@ -105,19 +122,7 @@ export default function AdminBlog() {
       });
     } else {
       setEditingPost(null);
-      setFormData({
-        title: '',
-        slug: '',
-        excerpt: '',
-        content: '',
-        cover: '',
-        tag: 'SEO',
-        tag_color: 'bg-blue-100 text-blue-700',
-        author: 'Admin',
-        read_time: '5 phút đọc',
-        gradient: 'from-blue-500 to-blue-700',
-        status: 'draft',
-      });
+      setFormData(initialFormData);
     }
     setShowModal(true);
   };
@@ -157,13 +162,11 @@ export default function AdminBlog() {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       alert('Vui lòng chọn file ảnh');
       return;
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       alert('Kích thước ảnh không được vượt quá 5MB');
       return;
@@ -196,11 +199,35 @@ export default function AdminBlog() {
     }
   };
 
+  const counts = {
+    all: posts.length,
+    published: posts.filter(p => p.status === 'published').length,
+    draft: posts.filter(p => p.status !== 'published').length,
+  };
+
   const filtered = posts.filter(p => {
     const matchSearch = p.title.toLowerCase().includes(search.toLowerCase());
     const matchTag = filterTag === 'all' || p.tag === filterTag;
-    return matchSearch && matchTag;
+    const matchStatus = filterStatus === 'all' || (filterStatus === 'published' ? p.status === 'published' : p.status !== 'published');
+    return matchSearch && matchTag && matchStatus;
   });
+
+  const filteredIds = filtered.map(post => post.id);
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.includes(id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allFilteredSelected ? selectedIds.filter(id => !filteredIds.includes(id)) : Array.from(new Set([...selectedIds, ...filteredIds])));
+  };
+
+  const toggleSelected = (id) => {
+    setSelectedIds(selectedIds.includes(id) ? selectedIds.filter(item => item !== id) : [...selectedIds, id]);
+  };
+
+  const statusTabs = [
+    { key: 'all', label: 'Tất cả', count: counts.all },
+    { key: 'published', label: 'Đã xuất bản', count: counts.published },
+    { key: 'draft', label: 'Nháp', count: counts.draft },
+  ];
 
   if (loading) {
     return (
@@ -211,123 +238,145 @@ export default function AdminBlog() {
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="text-slate-900">
+      <div className="mb-5 flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-black text-slate-800">Quản lý Blog</h1>
-          <p className="text-sm text-slate-500 mt-1">Quản lý bài viết blog của website</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Bài viết</h1>
+            <button
+              onClick={() => openModal()}
+              className="inline-flex items-center gap-1 rounded border border-[#2271b1] bg-[#2271b1] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#135e96]"
+            >
+              <Plus size={15} /> Thêm bài viết mới
+            </button>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">Quản trị nội dung blog theo phong cách WordPress.</p>
         </div>
-        <button
-          onClick={() => openModal()}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-semibold text-sm transition"
-        >
-          <Plus size={16} /> Tạo bài viết
-        </button>
+        <div className="rounded border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+          {selectedIds.length > 0 ? `${selectedIds.length} bài viết được chọn` : `${filtered.length} bài viết hiển thị`}
+        </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm bài viết..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+        {statusTabs.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setFilterStatus(tab.key)}
+            className={`border-r border-slate-300 pr-3 last:border-r-0 ${filterStatus === tab.key ? 'font-semibold text-[#2271b1]' : 'text-[#2271b1] hover:text-[#135e96]'}`}
+          >
+            {tab.label} <span className="text-slate-500">({tab.count})</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-3 flex flex-col gap-3 rounded border border-slate-200 bg-white p-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <select
+            value={bulkAction}
+            onChange={(e) => setBulkAction(e.target.value)}
+            className="h-9 rounded border border-slate-300 bg-white px-3 text-sm focus:border-[#2271b1] focus:outline-none"
+          >
+            <option value="">Tác vụ hàng loạt</option>
+            <option value="publish">Đặt thành đã xuất bản</option>
+            <option value="draft">Chuyển về nháp</option>
+          </select>
+          <button
+            onClick={applyBulkAction}
+            disabled={!bulkAction || selectedIds.length === 0}
+            className="h-9 rounded border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Áp dụng
+          </button>
           <select
             value={filterTag}
             onChange={(e) => setFilterTag(e.target.value)}
-            className="px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="h-9 rounded border border-slate-300 bg-white px-3 text-sm focus:border-[#2271b1] focus:outline-none"
           >
-            <option value="all">Tất cả tags</option>
+            <option value="all">Tất cả tag</option>
             {tags.map(t => <option key={t.value} value={t.value}>{t.value}</option>)}
           </select>
         </div>
+        <div className="relative w-full lg:w-80">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Tìm bài viết..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 w-full rounded border border-slate-300 pl-9 pr-3 text-sm focus:border-[#2271b1] focus:outline-none"
+          />
+        </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">Bài viết</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">Tag</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">Tác giả</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">Trạng thái</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">Ngày tạo</th>
-                <th className="px-6 py-3 text-right text-xs font-bold text-slate-600 uppercase">Thao tác</th>
+          <table className="w-full min-w-[900px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-[#f6f7f7] text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <th className="w-10 px-4 py-3">
+                  <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll} className="rounded border-slate-300" />
+                </th>
+                <th className="px-4 py-3">Tiêu đề</th>
+                <th className="px-4 py-3">Tác giả</th>
+                <th className="px-4 py-3">Tag</th>
+                <th className="px-4 py-3">Trạng thái</th>
+                <th className="px-4 py-3">Ngày</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan="6" className="px-4 py-16 text-center text-slate-400">
+                    <FileText className="mx-auto mb-3 h-10 w-10 text-slate-300" />
                     Không có bài viết nào
                   </td>
                 </tr>
               ) : (
                 filtered.map(post => (
-                  <tr key={post.id} className="hover:bg-slate-50 transition">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        {post.cover && (
-                          <img src={post.cover} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                  <tr key={post.id} className="group hover:bg-[#f6f7f7]">
+                    <td className="px-4 py-4 align-top">
+                      <input type="checkbox" checked={selectedIds.includes(post.id)} onChange={() => toggleSelected(post.id)} className="rounded border-slate-300" />
+                    </td>
+                    <td className="px-4 py-4 align-top">
+                      <div className="flex gap-3">
+                        {post.cover ? (
+                          <img src={post.cover} alt="" className="h-14 w-20 rounded border border-slate-200 object-cover" />
+                        ) : (
+                          <div className="flex h-14 w-20 items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-slate-300">
+                            <FileText size={18} />
+                          </div>
                         )}
-                        <div>
-                          <p className="font-semibold text-slate-800 text-sm">{post.title}</p>
-                          <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                            <Clock size={10} /> {post.read_time}
-                          </p>
+                        <div className="min-w-0">
+                          <button onClick={() => openModal(post)} className="text-left text-[15px] font-semibold text-[#2271b1] hover:text-[#135e96] hover:underline">
+                            {post.title}
+                          </button>
+                          <p className="mt-1 max-w-xl truncate text-xs text-slate-500">/{post.slug}</p>
+                          <p className="mt-1 max-w-xl truncate text-xs text-slate-500">{post.excerpt}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                            <button onClick={() => openModal(post)} className="text-[#2271b1] hover:text-[#135e96]">Sửa</button>
+                            <span className="text-slate-300">|</span>
+                            <button onClick={() => toggleStatus(post)} className="text-[#2271b1] hover:text-[#135e96]">
+                              {post.status === 'published' ? 'Chuyển về nháp' : 'Xuất bản'}
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button onClick={() => handleDelete(post.id)} className="text-red-600 hover:text-red-700">Xóa</button>
+                          </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${post.tag_color}`}>
-                        {post.tag}
-                      </span>
+                    <td className="px-4 py-4 align-top text-slate-600">{post.author}</td>
+                    <td className="px-4 py-4 align-top">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${post.tag_color}`}>{post.tag}</span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{post.author}</td>
-                    <td className="px-6 py-4">
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                        post.status === 'published'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}>
+                    <td className="px-4 py-4 align-top">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${post.status === 'published' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                        {post.status === 'published' ? <Eye size={12} /> : <EyeOff size={12} />}
                         {post.status === 'published' ? 'Đã xuất bản' : 'Nháp'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {new Date(post.created_at).toLocaleDateString('vi-VN')}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => toggleStatus(post)}
-                          className="p-2 hover:bg-slate-100 rounded-lg transition"
-                          title={post.status === 'published' ? 'Chuyển về nháp' : 'Xuất bản'}
-                        >
-                          {post.status === 'published' ? (
-                            <EyeOff size={16} className="text-slate-600" />
-                          ) : (
-                            <Eye size={16} className="text-green-600" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => openModal(post)}
-                          className="p-2 hover:bg-slate-100 rounded-lg transition"
-                        >
-                          <Edit2 size={16} className="text-indigo-600" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(post.id)}
-                          className="p-2 hover:bg-red-50 rounded-lg transition"
-                        >
-                          <Trash2 size={16} className="text-red-600" />
-                        </button>
-                      </div>
+                    <td className="px-4 py-4 align-top text-slate-600">
+                      <div>{new Date(post.created_at).toLocaleDateString('vi-VN')}</div>
+                      <div className="mt-1 flex items-center gap-1 text-xs text-slate-400"><Clock size={12} /> {post.read_time}</div>
                     </td>
                   </tr>
                 ))
@@ -337,169 +386,148 @@ export default function AdminBlog() {
         </div>
       </div>
 
-      {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-black text-slate-800">
-                {editingPost ? 'Chỉnh sửa bài viết' : 'Tạo bài viết mới'}
-              </h2>
-              <button onClick={closeModal} className="p-2 hover:bg-slate-100 rounded-lg transition">
-                <Plus size={20} className="rotate-45 text-slate-600" />
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-3 backdrop-blur-sm lg:p-6">
+          <div className="w-full max-w-7xl rounded bg-[#f0f0f1] shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-300 bg-white px-4 py-3">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">{editingPost ? 'Chỉnh sửa bài viết' : 'Thêm bài viết mới'}</h2>
+                <p className="text-xs text-slate-500">Editor kiểu WordPress, dữ liệu giữ nguyên.</p>
+              </div>
+              <button onClick={closeModal} className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+                <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Tiêu đề</label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Slug (URL)</label>
-                <input
-                  type="text"
-                  value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Tag</label>
-                  <select
-                    value={formData.tag}
-                    onChange={(e) => handleTagChange(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    {tags.map(t => <option key={t.value} value={t.value}>{t.value}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Thời gian đọc</label>
+            <form onSubmit={handleSubmit} className="grid gap-4 p-4 lg:grid-cols-[1fr_320px]">
+              <div className="space-y-4">
+                <div className="rounded border border-slate-300 bg-white p-4">
                   <input
                     type="text"
-                    value={formData.read_time}
-                    onChange={(e) => setFormData({ ...formData, read_time: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="5 phút đọc"
+                    value={formData.title}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    className="w-full border-0 border-b border-slate-200 px-0 pb-3 text-3xl font-semibold tracking-tight text-slate-900 focus:border-[#2271b1] focus:outline-none"
+                    placeholder="Thêm tiêu đề"
+                    required
+                  />
+                  <div className="mt-3 text-sm text-slate-500">
+                    Đường dẫn: <span className="text-[#2271b1]">/blog/{formData.slug || 'duong-dan-bai-viet'}</span>
+                  </div>
+                </div>
+
+                <div className="rounded border border-slate-300 bg-white p-4">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">Mô tả ngắn</label>
+                  <textarea
+                    value={formData.excerpt}
+                    onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
+                    rows={3}
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div className="rounded border border-slate-300 bg-white p-4">
+                  <label className="mb-3 block text-sm font-semibold text-slate-700">Nội dung</label>
+                  <MarkdownEditor
+                    value={formData.content}
+                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                    placeholder="Viết nội dung bài viết..."
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Tác giả</label>
-                  <input
-                    type="text"
-                    value={formData.author}
-                    onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+              <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+                <div className="rounded border border-slate-300 bg-white">
+                  <div className="border-b border-slate-200 px-4 py-3 font-semibold text-slate-800">Xuất bản</div>
+                  <div className="space-y-3 p-4">
+                    <label className="block text-sm font-medium text-slate-700">Trạng thái</label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none"
+                    >
+                      <option value="draft">Nháp</option>
+                      <option value="published">Xuất bản</option>
+                    </select>
+                    <div className="flex gap-2 pt-2">
+                      <button type="submit" className="flex-1 rounded bg-[#2271b1] px-4 py-2 text-sm font-semibold text-white hover:bg-[#135e96]">
+                        {editingPost ? 'Cập nhật' : 'Tạo bài viết'}
+                      </button>
+                      <button type="button" onClick={closeModal} className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                        Hủy
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Trạng thái</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="draft">Nháp</option>
-                    <option value="published">Xuất bản</option>
-                  </select>
+                <div className="rounded border border-slate-300 bg-white">
+                  <div className="border-b border-slate-200 px-4 py-3 font-semibold text-slate-800">Thông tin bài viết</div>
+                  <div className="space-y-3 p-4">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">Tác giả</label>
+                      <input
+                        type="text"
+                        value={formData.author}
+                        onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">Tag</label>
+                      <select
+                        value={formData.tag}
+                        onChange={(e) => handleTagChange(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none"
+                      >
+                        {tags.map(t => <option key={t.value} value={t.value}>{t.value}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">Slug</label>
+                      <input
+                        type="text"
+                        value={formData.slug}
+                        onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">Thời gian đọc</label>
+                      <input
+                        type="text"
+                        value={formData.read_time}
+                        onChange={(e) => setFormData({ ...formData, read_time: e.target.value })}
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none"
+                        placeholder="5 phút đọc"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Ảnh bìa</label>
-                <div className="space-y-3">
-                  <div className="flex gap-2">
+                <div className="rounded border border-slate-300 bg-white">
+                  <div className="border-b border-slate-200 px-4 py-3 font-semibold text-slate-800">Ảnh đại diện</div>
+                  <div className="space-y-3 p-4">
+                    {formData.cover && (
+                      <img src={formData.cover} alt="Preview" className="h-40 w-full rounded border border-slate-200 object-cover" />
+                    )}
                     <input
                       type="text"
                       value={formData.cover}
                       onChange={(e) => setFormData({ ...formData, cover: e.target.value })}
-                      className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-[#2271b1] focus:outline-none"
                       placeholder="/blog_1.png hoặc https://..."
                     />
-                    <label className="relative cursor-pointer">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                        disabled={uploading}
-                      />
-                      <div className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl font-semibold text-sm transition flex items-center gap-2">
-                        {uploading ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                            Đang tải...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            Upload
-                          </>
-                        )}
+                    <label className="block cursor-pointer">
+                      <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+                      <div className="flex items-center justify-center gap-2 rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                        {uploading ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" /> : <Upload size={15} />}
+                        {uploading ? 'Đang tải...' : 'Tải ảnh lên'}
                       </div>
                     </label>
                   </div>
-                  {formData.cover && (
-                    <div className="relative w-full h-32 rounded-xl overflow-hidden border border-slate-200">
-                      <img src={formData.cover} alt="Preview" className="w-full h-full object-cover" />
-                    </div>
-                  )}
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Mô tả ngắn</label>
-                <textarea
-                  value={formData.excerpt}
-                  onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Nội dung (Markdown)</label>
-                <MarkdownEditor
-                  value={formData.content}
-                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                  placeholder="Nhập nội dung bài viết..."
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-semibold transition"
-                >
-                  {editingPost ? 'Cập nhật' : 'Tạo bài viết'}
-                </button>
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="px-6 py-3 border border-slate-200 hover:bg-slate-50 rounded-xl font-semibold transition"
-                >
-                  Hủy
-                </button>
-              </div>
+              </aside>
             </form>
           </div>
         </div>

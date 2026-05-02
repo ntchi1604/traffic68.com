@@ -1,8 +1,19 @@
 import { MapPin, Mail, Phone, Facebook, Linkedin, Star } from 'lucide-react';
 
-const services = ['Traffic SEO', 'Traffic Ads', 'Traffic CRO'];
-const resources = ['Blog', 'Hướng dẫn', 'FAQ'];
-const legal = ['Điều khoản', 'Bảo mật'];
+const services = [
+  { label: 'Traffic SEO', href: '/dich-vu' },
+  { label: 'Bảng giá', href: '/bang-gia' },
+  { label: 'Tư vấn Traffic', href: '/lien-he' },
+];
+const resources = [
+  { label: 'Blog', href: '/blog' },
+  { label: 'Hướng dẫn', href: '/blog' },
+  { label: 'FAQ', href: '/faq' },
+];
+const legal = [
+  { label: 'Điều khoản', href: '/faq' },
+  { label: 'Bảo mật', href: '/lien-he' },
+];
 
 const contact = [
   { icon: MapPin, text: 'Địa chỉ cụ thể tại Hà Nội' },
@@ -28,7 +39,7 @@ export default function Footer() {
 
           {/* Col 1 — Brand */}
           <div className="md:col-span-1">
-            <a href="#" className="flex items-center gap-2 mb-4">
+            <a href="/" className="flex items-center gap-2 mb-4">
               <img src="/traffic68_com.gif" alt="traffic68.com" className="h-10 sm:h-12 w-auto object-contain" style={{ maxWidth: '160px' }} />
             </a>
             <p className="text-gray-300 text-xs leading-relaxed">
@@ -41,8 +52,8 @@ export default function Footer() {
             <h4 className="text-[#f97316] font-bold text-sm uppercase tracking-wider mb-4">Dịch Vụ</h4>
             <ul className="space-y-2.5">
               {services.map((s) => (
-                <li key={s}>
-                  <a href="#" className="text-gray-300 hover:text-white text-sm transition-colors">{s}</a>
+                <li key={s.label}>
+                  <a href={s.href} className="text-gray-300 hover:text-white text-sm transition-colors">{s.label}</a>
                 </li>
               ))}
             </ul>
@@ -53,8 +64,8 @@ export default function Footer() {
             <h4 className="text-[#f97316] font-bold text-sm uppercase tracking-wider mb-4">Tài Nguyên</h4>
             <ul className="space-y-2.5">
               {resources.map((r) => (
-                <li key={r}>
-                  <a href="#" className="text-gray-300 hover:text-white text-sm transition-colors">{r}</a>
+                <li key={r.label}>
+                  <a href={r.href} className="text-gray-300 hover:text-white text-sm transition-colors">{r.label}</a>
                 </li>
               ))}
             </ul>
@@ -64,12 +75,15 @@ export default function Footer() {
           <div>
             <h4 className="text-[#f97316] font-bold text-sm uppercase tracking-wider mb-4">Liên Hệ</h4>
             <ul className="space-y-2.5">
-              {contact.map(({ icon: Icon, text }) => (
-                <li key={text} className="flex items-start gap-2">
-                  <Icon className="w-3.5 h-3.5 text-[#f97316] shrink-0 mt-0.5" />
-                  <span className="text-gray-300 text-xs leading-snug">{text}</span>
+              {contact.map((item) => {
+                const ContactIcon = item.icon;
+                return (
+                <li key={item.text} className="flex items-start gap-2">
+                  <ContactIcon className="w-3.5 h-3.5 text-[#f97316] shrink-0 mt-0.5" />
+                  <span className="text-gray-300 text-xs leading-snug">{item.text}</span>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </div>
 
@@ -78,26 +92,29 @@ export default function Footer() {
             <h4 className="text-[#f97316] font-bold text-sm uppercase tracking-wider mb-4">Pháp Lý</h4>
             <ul className="space-y-2.5 mb-6">
               {legal.map((l) => (
-                <li key={l}>
-                  <a href="#" className="text-gray-300 hover:text-white text-sm transition-colors">{l}</a>
+                <li key={l.label}>
+                  <a href={l.href} className="text-gray-300 hover:text-white text-sm transition-colors">{l.label}</a>
                 </li>
               ))}
             </ul>
             <div className="flex gap-2.5">
               {[
-                { Icon: Facebook, href: '#', label: 'Facebook' },
-                { Icon: ZaloIcon, href: '#', label: 'Zalo' },
-                { Icon: Linkedin, href: '#', label: 'LinkedIn' },
-              ].map(({ Icon, href, label }) => (
+                { icon: Facebook, href: '#', label: 'Facebook' },
+                { icon: ZaloIcon, href: '#', label: 'Zalo' },
+                { icon: Linkedin, href: '#', label: 'LinkedIn' },
+              ].map((item) => {
+                const SocialIcon = item.icon;
+                return (
                 <a
-                  key={label}
-                  href={href}
-                  aria-label={label}
+                  key={item.label}
+                  href={item.href}
+                  aria-label={item.label}
                   className="w-9 h-9 rounded-full bg-white/15 hover:bg-[#f97316] text-white flex items-center justify-center transition-colors"
                 >
-                  <Icon />
+                  <SocialIcon />
                 </a>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
