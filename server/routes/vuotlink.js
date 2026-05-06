@@ -2053,14 +2053,11 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
 
         const [todayR, totalR, pendingR, walletR, chartR, recentR, remR] = await Promise.all([
           pool.execute('SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ?", [...wlParams, todayStart, todayEnd]),
-          pool.execute('SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= DATE_SUB(NOW(), INTERVAL 365 DAY)", wlParams),
+          pool.execute('SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0", wlParams),
           pool.execute('SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ' + wlCond + " AND status IN ('pending','step1','step2','step3')", wlParams),
           pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
           pool.execute('SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ? GROUP BY DATE(completed_at) ORDER BY day", [...wlParams, sevenAgo, todayEnd]),
-          pool.execute('SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id WHERE ' + wlCondT + " AND (t.bot_detected = 0 OR t.status != 'completed') ORDER BY t.created_at DESC LIMIT 10", wlParams),
-          // Fix: Tính view khả dụng cho CẢ daily_views=0 (không giới hạn ngày) VÀ daily_views>0
-          // - Nếu daily_views > 0: dùng (daily_views - today_done)
-          // - Nếu daily_views = 0: dùng (total_views - views_done) — giới hạn tổng
+          pool.execute('SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id WHERE ' + wlCondT + " ORDER BY t.created_at DESC LIMIT 10", wlParams),
           pool.execute(`
             SELECT
               COALESCE(SUM(
@@ -2078,6 +2075,7 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
               GROUP BY campaign_id
             ) td ON td.campaign_id = c.id
             WHERE c.status = 'running' AND c.views_done < c.total_views
+            LIMIT 500
           `, [todayStart, todayEnd]),
         ]);
 
@@ -2094,8 +2092,8 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
           recent: recentR[0],
         };
       },
-      30 * 1000,  // 30s TTL — đủ real-time cho dashboard
-      20 * 1000   // stale-while-revalidate: refresh background sau 20s
+      60 * 1000,  // 60s TTL — đủ real-time cho dashboard, giảm tải DB
+      45 * 1000   // stale-while-revalidate: refresh background sau 45s
     );
     res.json(data);
   } catch (err) {
