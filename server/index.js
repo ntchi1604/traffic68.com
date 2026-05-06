@@ -3,9 +3,19 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const jwt = require('jsonwebtoken');
 
 const { initDb, getPool } = require('./db');
 const { seed } = require('./db/seed');
+
+// Helper: lấy userId từ JWT token trong header Authorization
+function extractUid(req) {
+  try {
+    const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+    const d = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+    return d.userId || d.id || null;
+  } catch { return null; }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -61,7 +71,6 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/pricing', async (req, res) => {
   try {
-    const { getPool } = require('./db');
     const pool = getPool();
     const [tiers] = await pool.execute('SELECT * FROM pricing_tiers ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)');
     const [settings] = await pool.execute("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('discount_code','discount_percent','discount_label','discount_enabled','worker_cpc')");
@@ -75,7 +84,6 @@ app.get('/api/pricing', async (req, res) => {
 
 app.get('/api/worker-pricing', async (req, res) => {
   try {
-    const { getPool } = require('./db');
     const pool = getPool();
     const [tiers] = await pool.execute('SELECT * FROM worker_pricing_tiers ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)');
     res.json({ tiers });
@@ -87,26 +95,14 @@ app.get('/api/worker-pricing', async (req, res) => {
 // ── Authenticated: worker gets their own pricing (group or default) ──
 app.get('/api/worker-pricing/my', async (req, res) => {
   try {
-    const { getPool } = require('./db');
-    const { authMiddleware } = require('./middleware/auth');
     const pool = getPool();
-
-    // Manually run auth to get userId
-    const token = (req.headers['authorization'] || '').replace('Bearer ', '');
-    const jwt = require('jsonwebtoken');
-    let userId = null;
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
-      userId = decoded.userId || decoded.id;
-    } catch { }
+    const userId = extractUid(req);
 
     if (!userId) {
-      // Fallback: return default pricing
       const [tiers] = await pool.execute('SELECT * FROM worker_pricing_tiers ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)');
       return res.json({ tiers, groupName: null });
     }
 
-    // Check if worker has a pricing group
     const [userRows] = await pool.execute('SELECT pricing_group_id FROM users WHERE id = ?', [userId]);
     const groupId = userRows[0] ? userRows[0].pricing_group_id : null;
 
@@ -138,10 +134,7 @@ app.get('/api/worker-pricing/my', async (req, res) => {
 app.get('/api/worker/source', async (req, res) => {
   try {
     const pool = getPool();
-    const token = (req.headers['authorization'] || '').replace('Bearer ', '');
-    const jwt = require('jsonwebtoken');
-    let userId = null;
-    try { const d = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret'); userId = d.userId || d.id; } catch {}
+    const userId = extractUid(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     const [rows] = await pool.execute('SELECT source_status, source_url, source_note FROM users WHERE id = ?', [userId]);
     res.json({ source_status: rows[0] ? rows[0].source_status || 'pending' : 'pending', source_url: rows[0] ? rows[0].source_url || '' : '', source_note: rows[0] ? rows[0].source_note || '' : '' });
@@ -151,10 +144,7 @@ app.get('/api/worker/source', async (req, res) => {
 app.put('/api/worker/source', async (req, res) => {
   try {
     const pool = getPool();
-    const token = (req.headers['authorization'] || '').replace('Bearer ', '');
-    const jwt = require('jsonwebtoken');
-    let userId = null;
-    try { const d = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret'); userId = d.userId || d.id; } catch {}
+    const userId = extractUid(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     const { source_url } = req.body || {};
     if (!source_url) return res.status(400).json({ error: 'Vui lòng nhập URL nguồn' });
@@ -297,6 +287,7 @@ app.use((err, req, res, next) => {
         slug            VARCHAR(20) NOT NULL UNIQUE,
         title           VARCHAR(255),
         destination_url VARCHAR(2048) NOT NULL,
+        hidden          TINYINT(1) NOT NULL DEFAULT 0,
         click_count     INT NOT NULL DEFAULT 0,
         completed_count INT NOT NULL DEFAULT 0,
         earning         DECIMAL(15,2) NOT NULL DEFAULT 0,
@@ -306,17 +297,9 @@ app.use((err, req, res, next) => {
       console.log('  ✅ worker_links table ready');
     } catch (e) { console.error('  ⚠ worker_links:', e.message); }
 
-    
-    try {
-      await pool.execute(`ALTER TABLE vuot_link_tasks ADD COLUMN worker_link_id INT DEFAULT NULL`);
-    } catch (e) { }
-
-    
-    try {
-      await pool.execute(`ALTER TABLE worker_links ADD COLUMN hidden TINYINT(1) NOT NULL DEFAULT 0`);
-    } catch (e) { }
-
-    
+    // Migrations cho DB cũ chưa có các cột mới
+    try { await pool.execute(`ALTER TABLE vuot_link_tasks ADD COLUMN worker_link_id INT DEFAULT NULL`); } catch (e) { }
+    try { await pool.execute(`ALTER TABLE worker_links ADD COLUMN hidden TINYINT(1) NOT NULL DEFAULT 0`); } catch (e) { }
     try {
       await pool.execute(`ALTER TABLE campaigns ADD COLUMN version TINYINT NOT NULL DEFAULT 0`);
     } catch (e) { }
@@ -532,7 +515,6 @@ app.use((err, req, res, next) => {
       
       setInterval(async () => {
         try {
-          const { getPool } = require('./db');
           const pool = getPool();
           const [result] = await pool.execute(
             `UPDATE vuot_link_tasks SET status = 'expired'
