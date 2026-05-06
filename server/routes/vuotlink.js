@@ -2096,7 +2096,13 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
           pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
           mkChart(completedChart, [sevenAgo, todayEnd]),
           mkRecent(),
-          pool.execute(`SELECT COALESCE(SUM(GREATEST(0, total_views - views_done)), 0) as remaining_views
+          // View khả dụng: ưu tiên daily_views nếu có, nếu không dùng total còn lại
+          pool.execute(`SELECT COALESCE(SUM(
+              CASE WHEN daily_views > 0
+                THEN GREATEST(0, daily_views)
+                ELSE GREATEST(0, total_views - views_done)
+              END
+            ), 0) as remaining_views
             FROM campaigns WHERE status = 'running' AND views_done < total_views LIMIT 500`),
         ]);
 
