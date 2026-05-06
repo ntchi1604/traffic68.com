@@ -2039,56 +2039,80 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
         const pool = getPool();
         const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
         const wlIds = wLinks.map(w => w.id);
-        const wlCond = wlIds.length > 0
-          ? '(worker_id = ? OR worker_link_id IN (' + wlIds.map(() => '?').join(',') + '))'
-          : 'worker_id = ?';
-        const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
-        const wlCondT = wlCond.replace(/worker_id/g, 't.worker_id').replace(/worker_link_id/g, 't.worker_link_id');
+        const hasGateway = wlIds.length > 0;
+        const inList = hasGateway ? wlIds.map(() => '?').join(',') : '';
 
         const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
         const todayStart = vnToday + ' 00:00:00';
-        const todayEnd = vnToday + ' 23:59:59';
+        const todayEnd   = vnToday + ' 23:59:59';
         const d7 = new Date(); d7.setDate(d7.getDate() - 7);
         const sevenAgo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(d7) + ' 00:00:00';
 
+        // ── Dùng UNION ALL thay OR để MySQL dùng riêng index worker_id và worker_link_id ──
+        // Nếu không có gateway link → chỉ query theo worker_id (single index, nhanh nhất)
+        const mkCountEarn = (where, p) => hasGateway
+          ? pool.execute(`SELECT SUM(cnt) as cnt, SUM(earn) as earn FROM (
+              SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? ${where}
+              UNION ALL
+              SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_link_id IN (${inList}) ${where}
+            ) _u`, [uid, ...p, ...wlIds, ...p])
+          : pool.execute(`SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? ${where}`, [uid, ...p]);
+
+        const mkCount = (where, p) => hasGateway
+          ? pool.execute(`SELECT SUM(cnt) as cnt FROM (
+              SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE worker_id = ? ${where}
+              UNION ALL
+              SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE worker_link_id IN (${inList}) ${where}
+            ) _u`, [uid, ...p, ...wlIds, ...p])
+          : pool.execute(`SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE worker_id = ? ${where}`, [uid, ...p]);
+
+        const mkChart = (where, p) => hasGateway
+          ? pool.execute(`SELECT day, SUM(tasks) as tasks, SUM(earn) as earn FROM (
+              SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn
+                FROM vuot_link_tasks WHERE worker_id = ? ${where} GROUP BY DATE(completed_at)
+              UNION ALL
+              SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn
+                FROM vuot_link_tasks WHERE worker_link_id IN (${inList}) ${where} GROUP BY DATE(completed_at)
+            ) _u GROUP BY day ORDER BY day`, [uid, ...p, ...wlIds, ...p])
+          : pool.execute(`SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn
+              FROM vuot_link_tasks WHERE worker_id = ? ${where} GROUP BY DATE(completed_at) ORDER BY day`, [uid, ...p]);
+
+        const mkRecent = () => hasGateway
+          ? pool.execute(`SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at
+              FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id
+              WHERE t.worker_id = ? OR t.worker_link_id IN (${inList})
+              ORDER BY t.created_at DESC LIMIT 10`, [uid, ...wlIds])
+          : pool.execute(`SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at
+              FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id
+              WHERE t.worker_id = ? ORDER BY t.created_at DESC LIMIT 10`, [uid]);
+
+        const completedWhere  = "AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0";
+        const completedToday  = completedWhere + ' AND completed_at >= ? AND completed_at <= ?';
+        const completedChart  = "AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ?";
+        const pendingWhere    = "AND status IN ('pending','step1','step2','step3')";
+
         const [todayR, totalR, pendingR, walletR, chartR, recentR, remR] = await Promise.all([
-          pool.execute('SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ?", [...wlParams, todayStart, todayEnd]),
-          pool.execute('SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0", wlParams),
-          pool.execute('SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ' + wlCond + " AND status IN ('pending','step1','step2','step3')", wlParams),
+          mkCountEarn(completedToday,  [todayStart, todayEnd]),
+          mkCountEarn(completedWhere,  []),
+          mkCount(pendingWhere, []),
           pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
-          pool.execute('SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ? GROUP BY DATE(completed_at) ORDER BY day", [...wlParams, sevenAgo, todayEnd]),
-          pool.execute('SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id WHERE ' + wlCondT + " ORDER BY t.created_at DESC LIMIT 10", wlParams),
-          pool.execute(`
-            SELECT
-              COALESCE(SUM(
-                CASE
-                  WHEN c.daily_views > 0 THEN GREATEST(0, c.daily_views - COALESCE(td.done, 0))
-                  ELSE GREATEST(0, c.total_views - c.views_done)
-                END
-              ), 0) as remaining_views
-            FROM campaigns c
-            LEFT JOIN (
-              SELECT campaign_id, COUNT(*) as done
-              FROM vuot_link_tasks
-              WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
-                AND completed_at >= ? AND completed_at <= ?
-              GROUP BY campaign_id
-            ) td ON td.campaign_id = c.id
-            WHERE c.status = 'running' AND c.views_done < c.total_views
-            LIMIT 500
-          `, [todayStart, todayEnd]),
+          mkChart(completedChart, [sevenAgo, todayEnd]),
+          mkRecent(),
+          // remainingDailyViews: chỉ đọc từ campaigns table (không scan vuot_link_tasks toàn bảng)
+          pool.execute(`SELECT COALESCE(SUM(GREATEST(0, total_views - views_done)), 0) as remaining_views
+            FROM campaigns WHERE status = 'running' AND views_done < total_views LIMIT 500`),
         ]);
 
         const walletMap = {};
         walletR[0].forEach(w => { walletMap[w.type] = Number(w.balance); });
         return {
-          today: { tasks: todayR[0][0].cnt, earnings: Number(todayR[0][0].earn) },
-          total: { tasks: totalR[0][0].cnt, earnings: Number(totalR[0][0].earn) },
-          pending: pendingR[0][0].cnt,
-          remainingDailyViews: Number(remR[0][0].remaining_views) || 0,
+          today:  { tasks: Number(todayR[0][0].cnt || 0), earnings: Number(todayR[0][0].earn || 0) },
+          total:  { tasks: Number(totalR[0][0].cnt || 0), earnings: Number(totalR[0][0].earn || 0) },
+          pending: Number(pendingR[0][0].cnt || 0),
+          remainingDailyViews: Number(remR[0][0].remaining_views || 0),
           balance: walletMap.earning || 0,
           commissionBalance: walletMap.commission || 0,
-          chart: chartR[0],
+          chart:  chartR[0],
           recent: recentR[0],
         };
       },
