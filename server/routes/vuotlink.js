@@ -1169,26 +1169,25 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     return res.status(500).json({ error: 'Lỗi server' });
   }
 
-  // ── Check trusted: CHỈ check CHỦ LINK (ref_worker_id) ──
-  // Nếu chủ link trusted → bất kỳ ai vượt link đều bỏ qua challenge
   try {
     const pool = getPool();
     const [taskDetail] = await pool.execute(
-      'SELECT ref_worker_id FROM vuot_link_tasks WHERE id = ?',
+      'SELECT ref_worker_id, worker_id FROM vuot_link_tasks WHERE id = ?',
       [req.params.id]
     );
-    if (taskDetail.length > 0 && taskDetail[0].ref_worker_id) {
-      const [uRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [taskDetail[0].ref_worker_id]);
-      if (uRows[0] && uRows[0].trusted === 1) {
-        console.log(`[VuotLink] challenge-passed: trusted link owner (ref_worker_id: ${taskDetail[0].ref_worker_id}) → skip challenge`);
-        return res.json({ trusted: true });
+    if (taskDetail.length > 0) {
+      const targetCheckId = taskDetail[0].ref_worker_id || taskDetail[0].worker_id;
+      if (targetCheckId) {
+        const [uRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
+        if (uRows[0] && uRows[0].trusted === 1) {
+          console.log(`[VuotLink] challenge-passed: trusted (id: ${targetCheckId}, ref_worker_id=${taskDetail[0].ref_worker_id}, worker_id=${taskDetail[0].worker_id}) → skip all bot checks`);
+          await pool.execute("UPDATE vuot_link_tasks SET status = 'step1' WHERE id = ? AND status = 'pending'", [req.params.id]);
+          return res.json({ ok: true, trusted: true });
+        }
       }
     }
   } catch (_) { }
 
-  // ── [SERVER-SIDE] Time gate: task phải tồn tại ít nhất 3 giây ──
-  // Không tin client — dùng created_at từ DB (server timestamp, không ai thay đổi được)
-  // Bot script gọi ngay lập tức sau khi lấy task → age < 3s → bị chặn
   if (task.created_at) {
     const ageMs = Date.now() - new Date(task.created_at).getTime();
     if (ageMs < 3000) {
@@ -1197,15 +1196,9 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
     }
   }
 
-  // console.log('[DEBUG ADB SHAKE] shakeLog received:', JSON.stringify(shakeLog));
-
-
   let detectedBotReason = null;
-  // ── [SERVER-SIDE] Không tin UA — dùng sự hiện diện của shakeLog ──
-  // Nếu client gửi shakeLog → mobile (lắc). Không có shakeLog → desktop (curve).
-  // Trường hợp: UA=mobile nhưng shakeLog rỗng/thiếu → bị chặn
   const clientClaimsMobile = /mobi|android|iphone|ipad|ipod/i.test(ua);
-  const isMobile = clientClaimsMobile; // giữ để tương thích log
+  const isMobile = clientClaimsMobile;
   if (clientClaimsMobile) {
     if (!Array.isArray(shakeLog) || shakeLog.length < 5) {
       return res.status(403).json({ error: 'Thiếu dữ liệu xác minh cảm biến.' });
@@ -1483,27 +1476,16 @@ async function _handleVerifyPost(req, res) {
       if (geo && geo.country) ipCountry = geo.country;
     } catch (_) { }
 
-    // Kiểm tra bot: chỉ dùng bot_detected flag (set bởi challenge-passed route).
-    // KHÔNG dùng security_detail.includes('flagged') vì JSON string luôn chứa key "flagged"
-    // ngay cả khi value là false → false positive làm buyer không bị trừ tiền nhưng view cũng không đếm.
-    const isBotUser = task.bot_detected === 1;
+    const isBotUser = !isTrustedWorker && task.bot_detected === 1;
     if (isBotUser) {
       buyerCpc = 0;
       earning = 0;
     }
 
-    // View vượt giới hạn (bonus mode): buyer VẪN bị trừ tiền bình thường, chỉ worker không được trả
-    // View hợp lệ (is_over_limit = 0): cộng tiền bình thường dù worker có bonus_mode
     if (task.is_over_limit === 1 && !isBotUser) {
       console.log(`[VuotLink] OVER LIMIT VIEW: worker=${workerIdForBonus}, task=${task.id} — buyer CHARGED normally, worker NOT paid (bonus mode over-limit)`);
-      earning = 0; // Worker không được trả vì view vượt giới hạn
-      // buyerCpc giữ nguyên — buyer vẫn bị trừ tiền
+      earning = 0;
     }
-
-    // ── Atomic daily limit guard ──
-    // Nếu camp có daily_views và worker KHÔNG phải bonus/over_limit:
-    //   Chỉ mark completed khi today_done < daily_views (đếm ngay tại thời điểm UPDATE)
-    //   → MySQL đảm bảo atomic: không bao giờ vượt daily limit dù 100 worker cùng lúc
     const campDailyViews = Number(campaign.daily_views) || 0;
     const needsDailyGuard = campDailyViews > 0 && task.is_over_limit !== 1 && !isBotUser;
 
