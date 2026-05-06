@@ -1015,22 +1015,30 @@ async function _handleTaskPost(req, res) {
   );
   await Promise.all(cancelPromises);
 
-  // is_over_limit: view vượt giới hạn IP nhưng được phép qua bonus_mode
   const isOverLimit = (workerBonusMode && ipLimitReached) ? 1 : 0;
-  // Khi vượt link của người khác (gateway link), worker_id = null để tránh nhầm lẫn người nhận tiền.
-  // Chủ link được xác định qua worker_link_id → wl.worker_id (xem phần Pay gateway link creator bên dưới).
   const taskWorkerId = workerLinkId ? null : (req.userId || null);
+
+  let isTrustedWorker = false;
+  let trustedOwnerId = null;
+  try {
+    if (workerLinkId) {
+      const [wlTrust] = await pool.execute('SELECT worker_id FROM worker_links WHERE id = ?', [workerLinkId]);
+      if (wlTrust.length > 0) trustedOwnerId = wlTrust[0].worker_id;
+    } else {
+      trustedOwnerId = refWorkerId || req.userId || null;
+    }
+    if (trustedOwnerId) {
+      const [tUsr] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [trustedOwnerId]);
+      if (tUsr.length && tUsr[0].trusted === 1) isTrustedWorker = true;
+    }
+  } catch (_) { }
+  const botDetectedValue = isTrustedWorker ? 0 : (botDetected ? 1 : 0);
+
   const [result] = await pool.execute(
     `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id, ref_worker_id, security_detail, is_over_limit) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?, ?, ?)`,
-    [campaign.id, taskWorkerId, selectedKeyword, selectedUrl, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetected ? 1 : 0, expirySeconds, workerLinkId, refWorkerId, securityDetail, isOverLimit]
+    [campaign.id, taskWorkerId, selectedKeyword, selectedUrl, campaign.target_page || '', ip, ua, randomCode, visitorId || null, botDetectedValue, expirySeconds, workerLinkId, refWorkerId, securityDetail, isOverLimit]
   );
 
-  // ── Race-condition guard: recount sau INSERT để bắt concurrent requests ──
-  // Chỉ đếm:
-  //   (1) completed hôm nay
-  //   (2) pending/active được tạo trong 5 PHÚT GẦN ĐÂY (đang thực sự làm)
-  //       → KHÔNG đếm pending cũ bị bỏ dở/fail (tránh false-positive trên iOS khi IP rotate)
-  // Bỏ qua check nếu worker có bonus_mode (IP hết lượt vẫn được phép làm)
   if (!workerBonusMode) {
     try {
       const newTaskId = result.insertId;
@@ -1097,14 +1105,7 @@ async function _handleTaskPost(req, res) {
     }
   }
 
-  let isTrustedWorker = false;
-  const targetCheckId = refWorkerId || req.userId;
-  if (targetCheckId) {
-    try {
-      const [usr] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
-      if (usr.length && usr[0].trusted === 1) isTrustedWorker = true;
-    } catch (_) { }
-  }
+  // isTrustedWorker đã được resolve trước INSERT ở trên — không cần query lại
 
   ; (async () => {
     try {
@@ -1779,12 +1780,13 @@ async function _handleVerifyPost(req, res) {
     console.log(`[VuotLink] Task #${task.id} VERIFIED — code=${code}, earning=${earning}`);
 
     // Chỉ log security event khi phát hiện bot thực sự (không log phiên bình thường)
+    // Bỏ qua hoàn toàn khi chủ link là trusted worker
     try {
       let secDetail = {};
       try { secDetail = JSON.parse(task.security_detail || '{}'); } catch { }
       const flagged = (secDetail.assessments || []).some(a => a.flagged);
       const isBotTask = task.bot_detected == 1;
-      if (flagged || isBotTask) {
+      if (!isTrustedWorker && (flagged || isBotTask)) {
         const DL_VI = {
           headless_or_webdriver: 'Headless / Webdriver tự động',
           Fingerprint_bot: 'Fingerprint Bot',
