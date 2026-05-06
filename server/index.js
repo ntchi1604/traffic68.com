@@ -263,6 +263,31 @@ app.use((err, req, res, next) => {
       console.log('  ✅ Added security_detail column');
     } catch (e) { }
 
+    // ── Critical performance indexes for vuot_link_tasks ──
+    // Không có index → mọi query đều full scan → lag nặng
+    const vltIndexes = [
+      // Worker dashboard stats: lọc theo worker_id + status + completed_at
+      [`CREATE INDEX idx_vlt_worker_completed ON vuot_link_tasks (worker_id, status, completed_at)`, 'idx_vlt_worker_completed'],
+      // Gateway link tasks: lọc theo worker_link_id + status + completed_at
+      [`CREATE INDEX idx_vlt_wlink_completed ON vuot_link_tasks (worker_link_id, status, completed_at)`, 'idx_vlt_wlink_completed'],
+      // Recent tasks: ORDER BY created_at DESC LIMIT 10 theo worker_id
+      [`CREATE INDEX idx_vlt_worker_created ON vuot_link_tasks (worker_id, created_at)`, 'idx_vlt_worker_created'],
+      // Campaign daily count: WHERE campaign_id + status + completed_at (verify flow)
+      [`CREATE INDEX idx_vlt_camp_completed ON vuot_link_tasks (campaign_id, status, completed_at)`, 'idx_vlt_camp_completed'],
+      // IP rate limit check: WHERE ip_address + completed_at (đã có idx_ip_status nhưng cần thêm completed_at)
+      [`CREATE INDEX idx_vlt_ip_completed ON vuot_link_tasks (ip_address(45), status, completed_at)`, 'idx_vlt_ip_completed'],
+      // visitor_id rate limit: WHERE visitor_id + completed_at
+      [`CREATE INDEX idx_vlt_vid_completed ON vuot_link_tasks (visitor_id(100), status, completed_at)`, 'idx_vlt_vid_completed'],
+    ];
+    for (const [sql, name] of vltIndexes) {
+      try {
+        await pool.execute(sql);
+        console.log(`  ✅ Created index ${name}`);
+      } catch (e) {
+        if (e.code !== 'ER_DUP_KEYNAME') console.log(`  ℹ️ Index ${name}: ${e.message.substring(0, 60)}`);
+      }
+    }
+
     
     
     try {
