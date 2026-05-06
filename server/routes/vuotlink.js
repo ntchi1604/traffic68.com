@@ -2044,12 +2044,10 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
 
         const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
         const todayStart = vnToday + ' 00:00:00';
-        const todayEnd   = vnToday + ' 23:59:59';
+        const todayEnd = vnToday + ' 23:59:59';
         const d7 = new Date(); d7.setDate(d7.getDate() - 7);
         const sevenAgo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(d7) + ' 00:00:00';
 
-        // ── Dùng UNION ALL thay OR để MySQL dùng riêng index worker_id và worker_link_id ──
-        // Nếu không có gateway link → chỉ query theo worker_id (single index, nhanh nhất)
         const mkCountEarn = (where, p) => hasGateway
           ? pool.execute(`SELECT SUM(cnt) as cnt, SUM(earn) as earn FROM (
               SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? ${where}
@@ -2086,19 +2084,18 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
               FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id
               WHERE t.worker_id = ? ORDER BY t.created_at DESC LIMIT 10`, [uid]);
 
-        const completedWhere  = "AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0";
-        const completedToday  = completedWhere + ' AND completed_at >= ? AND completed_at <= ?';
-        const completedChart  = "AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ?";
-        const pendingWhere    = "AND status IN ('pending','step1','step2','step3')";
+        const completedWhere = "AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0";
+        const completedToday = completedWhere + ' AND completed_at >= ? AND completed_at <= ?';
+        const completedChart = "AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ?";
+        const pendingWhere = "AND status IN ('pending','step1','step2','step3')";
 
         const [todayR, totalR, pendingR, walletR, chartR, recentR, remR] = await Promise.all([
-          mkCountEarn(completedToday,  [todayStart, todayEnd]),
-          mkCountEarn(completedWhere,  []),
+          mkCountEarn(completedToday, [todayStart, todayEnd]),
+          mkCountEarn(completedWhere, []),
           mkCount(pendingWhere, []),
           pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
           mkChart(completedChart, [sevenAgo, todayEnd]),
           mkRecent(),
-          // remainingDailyViews: chỉ đọc từ campaigns table (không scan vuot_link_tasks toàn bảng)
           pool.execute(`SELECT COALESCE(SUM(GREATEST(0, total_views - views_done)), 0) as remaining_views
             FROM campaigns WHERE status = 'running' AND views_done < total_views LIMIT 500`),
         ]);
@@ -2106,18 +2103,18 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
         const walletMap = {};
         walletR[0].forEach(w => { walletMap[w.type] = Number(w.balance); });
         return {
-          today:  { tasks: Number(todayR[0][0].cnt || 0), earnings: Number(todayR[0][0].earn || 0) },
-          total:  { tasks: Number(totalR[0][0].cnt || 0), earnings: Number(totalR[0][0].earn || 0) },
+          today: { tasks: Number(todayR[0][0].cnt || 0), earnings: Number(todayR[0][0].earn || 0) },
+          total: { tasks: Number(totalR[0][0].cnt || 0), earnings: Number(totalR[0][0].earn || 0) },
           pending: Number(pendingR[0][0].cnt || 0),
           remainingDailyViews: Number(remR[0][0].remaining_views || 0),
           balance: walletMap.earning || 0,
           commissionBalance: walletMap.commission || 0,
-          chart:  chartR[0],
+          chart: chartR[0],
           recent: recentR[0],
         };
       },
-      60 * 1000,  // 60s TTL — đủ real-time cho dashboard, giảm tải DB
-      45 * 1000   // stale-while-revalidate: refresh background sau 45s
+      60 * 1000,
+      45 * 1000
     );
     res.json(data);
   } catch (err) {
