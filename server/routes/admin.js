@@ -676,18 +676,23 @@ router.get('/campaigns', async (req, res) => {
   const { search, status, page = 1, limit = 20, sync } = req.query;
   const offset = (page - 1) * limit;
   const todayVnAdmin = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+  const todayStartAdmin = todayVnAdmin + ' 00:00:00';
+  const todayEndAdmin   = todayVnAdmin + ' 23:59:59';
+
+  // Dùng LEFT JOIN aggregate thay correlated subquery → 1 query thay N queries
   let sql = `SELECT c.*, u.name as user_name, u.email as user_email,
-    COALESCE((
-      SELECT COUNT(*) FROM vuot_link_tasks vlt_today
-      WHERE vlt_today.campaign_id = c.id
-        AND vlt_today.status = 'completed'
-        AND vlt_today.bot_detected = 0
-        AND DATE(vlt_today.created_at) = '${todayVnAdmin}'
-    ), 0) as views_today
+    COALESCE(vt.views_today, 0) as views_today
     FROM campaigns c
     LEFT JOIN users u ON c.user_id = u.id
+    LEFT JOIN (
+      SELECT campaign_id, COUNT(*) as views_today
+      FROM vuot_link_tasks
+      WHERE status = 'completed' AND bot_detected = 0
+        AND completed_at >= ? AND completed_at <= ?
+      GROUP BY campaign_id
+    ) vt ON vt.campaign_id = c.id
     WHERE 1=1`;
-  const params = [];
+  const params = [todayStartAdmin, todayEndAdmin];
   if (search) { sql += ' AND (c.name LIKE ? OR c.url LIKE ? OR u.email LIKE ? OR c.keyword LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`); }
   if (status && status !== 'all') { sql += ' AND c.status = ?'; params.push(status); }
   sql += ' ORDER BY c.created_at DESC LIMIT ? OFFSET ?';
