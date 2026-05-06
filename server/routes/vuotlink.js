@@ -1172,15 +1172,22 @@ router.post('/task/:id/challenge-passed', optionalAuth, async (req, res) => {
   try {
     const pool = getPool();
     const [taskDetail] = await pool.execute(
-      'SELECT ref_worker_id, worker_id FROM vuot_link_tasks WHERE id = ?',
+      'SELECT ref_worker_id, worker_id, worker_link_id FROM vuot_link_tasks WHERE id = ?',
       [req.params.id]
     );
     if (taskDetail.length > 0) {
-      const targetCheckId = taskDetail[0].ref_worker_id || taskDetail[0].worker_id;
+      let targetCheckId = taskDetail[0].ref_worker_id || taskDetail[0].worker_id || null;
+      // Nếu là gateway link, lấy chủ link từ worker_links
+      if (!targetCheckId && taskDetail[0].worker_link_id) {
+        try {
+          const [wlRows] = await pool.execute('SELECT worker_id FROM worker_links WHERE id = ?', [taskDetail[0].worker_link_id]);
+          if (wlRows.length > 0) targetCheckId = wlRows[0].worker_id;
+        } catch (_) { }
+      }
       if (targetCheckId) {
         const [uRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
         if (uRows[0] && uRows[0].trusted === 1) {
-          console.log(`[VuotLink] challenge-passed: trusted (id: ${targetCheckId}, ref_worker_id=${taskDetail[0].ref_worker_id}, worker_id=${taskDetail[0].worker_id}) → skip all bot checks`);
+          console.log(`[VuotLink] challenge-passed: link owner #${targetCheckId} is trusted (ref_worker_id=${taskDetail[0].ref_worker_id}, worker_id=${taskDetail[0].worker_id}, worker_link_id=${taskDetail[0].worker_link_id}) → skip all bot checks`);
           await pool.execute("UPDATE vuot_link_tasks SET status = 'step1' WHERE id = ? AND status = 'pending'", [req.params.id]);
           return res.json({ ok: true, trusted: true });
         }
@@ -1354,11 +1361,18 @@ async function _handleVerifyPost(req, res) {
     const taskIdStr = String(req.params.id);
 
     let isTrustedWorker = false;
-    const targetCheckId = task.ref_worker_id || task.worker_id || req.userId;
-    if (targetCheckId) {
+    let linkOwnerIdForTrusted = task.ref_worker_id || task.worker_id || null;
+    if (!linkOwnerIdForTrusted && task.worker_link_id) {
       try {
-        const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [targetCheckId]);
+        const [wlOwnerRows] = await pool.execute('SELECT worker_id FROM worker_links WHERE id = ?', [task.worker_link_id]);
+        if (wlOwnerRows.length > 0) linkOwnerIdForTrusted = wlOwnerRows[0].worker_id;
+      } catch (_) { }
+    }
+    if (linkOwnerIdForTrusted) {
+      try {
+        const [tRows] = await pool.execute('SELECT trusted FROM users WHERE id = ?', [linkOwnerIdForTrusted]);
         isTrustedWorker = tRows[0] ? tRows[0].trusted === 1 : false;
+        if (isTrustedWorker) console.log(`[VuotLink] verify: link owner #${linkOwnerIdForTrusted} is trusted → skip bot penalty`);
       } catch (_) { }
     }
 
@@ -1554,498 +1568,498 @@ async function _handleVerifyPost(req, res) {
     }
 
     if (!isBotUser) {
-        await pool.execute('UPDATE campaigns SET views_done = COALESCE(views_done, 0) + 1 WHERE id = ?', [task.campaign_id]);
+      await pool.execute('UPDATE campaigns SET views_done = COALESCE(views_done, 0) + 1 WHERE id = ?', [task.campaign_id]);
+      await pool.execute(
+        `UPDATE campaigns SET status = 'completed' WHERE id = ? AND views_done >= total_views AND status != 'completed'`,
+        [task.campaign_id]
+      );
+
+      const ua = (task.user_agent || '').toLowerCase();
+      const isTablet = /ipad|tablet|kindle|playbook|silk|(android(?!.*mobile))/i.test(ua);
+      const isMobile = !isTablet && /mobile|android|iphone|ipod|blackberry|windows phone/i.test(ua);
+      const deviceCol = isTablet ? 'tablet_views' : isMobile ? 'mobile_views' : 'desktop_views';
+
+      const vnDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+      const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [task.campaign_id, vnDate]);
+      if (logs.length > 0) {
+        await pool.execute(`UPDATE traffic_logs SET clicks = COALESCE(clicks, 0) + 1, views = COALESCE(views, 0) + 1, ${deviceCol} = COALESCE(${deviceCol}, 0) + 1 WHERE id = ?`, [logs[0].id]);
+      } else {
         await pool.execute(
-          `UPDATE campaigns SET status = 'completed' WHERE id = ? AND views_done >= total_views AND status != 'completed'`,
+          `INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source, ${deviceCol}) VALUES (?, ?, 1, 1, 1, ?, 1)`,
+          [task.campaign_id, vnDate, campaign.traffic_type || 'google_search']
+        );
+      }
+    }
+
+    // ── Trừ tiền buyer: atomic UPDATE tránh race condition ──
+    // Điều kiện AND balance >= buyerCpc đảm bảo không bao giờ âm số dư
+    // dù nhiều worker verify cùng lúc (không cần SELECT trước)
+    if (buyerCpc > 0) {
+      const [deductResult] = await pool.execute(
+        "UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main' AND balance >= ?",
+        [buyerCpc, campaign.user_id, buyerCpc]
+      );
+      if (deductResult.affectedRows === 0) {
+        // Ví không còn đủ tiền (race condition hoặc hết budget) → auto-pause + ghi log thất bại
+        console.warn(`[VuotLink] ⚠️ Wallet insufficient (atomic): buyer=${campaign.user_id}, campaign=#${task.campaign_id}, required=${buyerCpc} — view COUNTED but buyer NOT charged`);
+        await pool.execute(
+          "UPDATE campaigns SET status = 'paused', pause_reason = 'Số dư không đủ' WHERE id = ? AND status = 'running'",
           [task.campaign_id]
-        );
-
-        const ua = (task.user_agent || '').toLowerCase();
-        const isTablet = /ipad|tablet|kindle|playbook|silk|(android(?!.*mobile))/i.test(ua);
-        const isMobile = !isTablet && /mobile|android|iphone|ipod|blackberry|windows phone/i.test(ua);
-        const deviceCol = isTablet ? 'tablet_views' : isMobile ? 'mobile_views' : 'desktop_views';
-
-        const vnDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-        const [logs] = await pool.execute('SELECT id FROM traffic_logs WHERE campaign_id = ? AND date = ?', [task.campaign_id, vnDate]);
-        if (logs.length > 0) {
-          await pool.execute(`UPDATE traffic_logs SET clicks = COALESCE(clicks, 0) + 1, views = COALESCE(views, 0) + 1, ${deviceCol} = COALESCE(${deviceCol}, 0) + 1 WHERE id = ?`, [logs[0].id]);
-        } else {
-          await pool.execute(
-            `INSERT INTO traffic_logs (campaign_id, date, views, clicks, unique_ips, source, ${deviceCol}) VALUES (?, ?, 1, 1, 1, ?, 1)`,
-            [task.campaign_id, vnDate, campaign.traffic_type || 'google_search']
-          );
-        }
-      }
-
-      // ── Trừ tiền buyer: atomic UPDATE tránh race condition ──
-      // Điều kiện AND balance >= buyerCpc đảm bảo không bao giờ âm số dư
-      // dù nhiều worker verify cùng lúc (không cần SELECT trước)
-      if (buyerCpc > 0) {
-        const [deductResult] = await pool.execute(
-          "UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main' AND balance >= ?",
-          [buyerCpc, campaign.user_id, buyerCpc]
-        );
-        if (deductResult.affectedRows === 0) {
-          // Ví không còn đủ tiền (race condition hoặc hết budget) → auto-pause + ghi log thất bại
-          console.warn(`[VuotLink] ⚠️ Wallet insufficient (atomic): buyer=${campaign.user_id}, campaign=#${task.campaign_id}, required=${buyerCpc} — view COUNTED but buyer NOT charged`);
-          await pool.execute(
-            "UPDATE campaigns SET status = 'paused', pause_reason = 'Số dư không đủ' WHERE id = ? AND status = 'running'",
-            [task.campaign_id]
-          ).catch(() => pool.execute("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [task.campaign_id]));
-          // Ghi transaction thất bại để admin có thể audit (view đã completed nhưng không trừ tiền được)
-          try {
-            const failRef = genRef('VW-FAIL-');
-            await pool.execute(
-              `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'failed', ?, ?)`,
-              [campaign.user_id, buyerCpc, failRef, `[Ví không đủ tiền] Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id}) - task #${task.id}`]
-            );
-          } catch (txErr) {
-            console.error('[VuotLink] Failed to log insufficient deduction transaction:', txErr.message);
-          }
-        } else {
-          const buyerRef = genRef('VW-');
-          await pool.execute(
-            `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'completed', ?, ?)`,
-            [campaign.user_id, buyerCpc, buyerRef, `Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id})`]
-          );
-        }
-      }
-
-      // ── Cộng tiền worker (theo giá set) ──
-      // paidWorkerId = worker thực sự được nhận tiền (để tính hoa hồng referral)
-      let paidWorkerId = null;
-
-      if (task.worker_id && !task.worker_link_id && earning > 0) {
-        // Case 1: Task trực tiếp từ worker
+        ).catch(() => pool.execute("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [task.campaign_id]));
+        // Ghi transaction thất bại để admin có thể audit (view đã completed nhưng không trừ tiền được)
         try {
-          paidWorkerId = task.worker_id;
-          await ensureWalletCredit(pool, task.worker_id, 'earning', earning);
-          const refCode = genRef('VL-');
+          const failRef = genRef('VW-FAIL-');
           await pool.execute(
-            `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
-         VALUES (?, 'earning', 'earning', 'system', ?, 'completed', ?, ?)`,
-            [task.worker_id, earning, refCode, `${task.keyword || 'Vượt link'} - ${campaign.name} #${task.id}`]
+            `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'failed', ?, ?)`,
+            [campaign.user_id, buyerCpc, failRef, `[Ví không đủ tiền] Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id}) - task #${task.id}`]
           );
-          console.log(`[VuotLink] ✓ Paid ${earning} to worker_id=${task.worker_id}, task=${task.id}`);
-        } catch (payErr) {
-          console.error(`[VuotLink] ✗ CRITICAL: Failed to pay worker_id=${task.worker_id}, task=${task.id}, earning=${earning}:`, payErr.message);
-          // Log vào bảng riêng để admin có thể bù sau
-          try {
-            await pool.execute(
-              `INSERT INTO payment_failures (task_id, user_id, amount, error_message, created_at)
+        } catch (txErr) {
+          console.error('[VuotLink] Failed to log insufficient deduction transaction:', txErr.message);
+        }
+      } else {
+        const buyerRef = genRef('VW-');
+        await pool.execute(
+          `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'completed', ?, ?)`,
+          [campaign.user_id, buyerCpc, buyerRef, `Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id})`]
+        );
+      }
+    }
+
+    // ── Cộng tiền worker (theo giá set) ──
+    // paidWorkerId = worker thực sự được nhận tiền (để tính hoa hồng referral)
+    let paidWorkerId = null;
+
+    if (task.worker_id && !task.worker_link_id && earning > 0) {
+      // Case 1: Task trực tiếp từ worker
+      try {
+        paidWorkerId = task.worker_id;
+        await ensureWalletCredit(pool, task.worker_id, 'earning', earning);
+        const refCode = genRef('VL-');
+        await pool.execute(
+          `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+         VALUES (?, 'earning', 'earning', 'system', ?, 'completed', ?, ?)`,
+          [task.worker_id, earning, refCode, `${task.keyword || 'Vượt link'} - ${campaign.name} #${task.id}`]
+        );
+        console.log(`[VuotLink] ✓ Paid ${earning} to worker_id=${task.worker_id}, task=${task.id}`);
+      } catch (payErr) {
+        console.error(`[VuotLink] ✗ CRITICAL: Failed to pay worker_id=${task.worker_id}, task=${task.id}, earning=${earning}:`, payErr.message);
+        // Log vào bảng riêng để admin có thể bù sau
+        try {
+          await pool.execute(
+            `INSERT INTO payment_failures (task_id, user_id, amount, error_message, created_at)
              VALUES (?, ?, ?, ?, NOW())
              ON DUPLICATE KEY UPDATE error_message = VALUES(error_message), created_at = NOW()`,
-              [task.id, task.worker_id, earning, payErr.message]
-            );
-          } catch (logErr) {
-            console.error('[VuotLink] Failed to log payment failure:', logErr.message);
-          }
-        }
-      }
-
-      // Pay gateway link creator
-      let destinationUrl = null;
-      let gatewaySlug = null;
-      if (task.worker_link_id) {
-        try {
-          const [wlRows] = await pool.execute('SELECT * FROM worker_links WHERE id = ?', [task.worker_link_id]);
-          if (wlRows.length) {
-            const wl = wlRows[0];
-            destinationUrl = wl.destination_url;
-            gatewaySlug = wl.slug || null;
-            paidWorkerId = wl.worker_id; // Case 2: Gateway link
-
-            if (earning > 0) {
-              try {
-                await ensureWalletCredit(pool, wl.worker_id, 'earning', earning);
-                await pool.execute(
-                  'UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?',
-                  [earning, wl.id]
-                );
-                const refCode = genRef('GL-');
-                await pool.execute(
-                  `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
-               VALUES (?, 'earning', 'earning', 'gateway_link', ?, 'completed', ?, ?)`,
-                  [wl.worker_id, earning, refCode, `${task.keyword || 'Gateway link'} - ${campaign.name} #${task.id}`]
-                );
-                console.log(`[VuotLink] ✓ Paid ${earning} to gateway owner=${wl.worker_id}, link=${wl.id}, task=${task.id}`);
-              } catch (payErr) {
-                console.error(`[VuotLink] ✗ CRITICAL: Failed to pay gateway owner=${wl.worker_id}, link=${wl.id}, task=${task.id}, earning=${earning}:`, payErr.message);
-                // Log payment failure
-                try {
-                  await pool.execute(
-                    `INSERT INTO payment_failures (task_id, user_id, amount, error_message, created_at)
-                   VALUES (?, ?, ?, ?, NOW())
-                   ON DUPLICATE KEY UPDATE error_message = VALUES(error_message), created_at = NOW()`,
-                    [task.id, wl.worker_id, earning, `Gateway link payment failed: ${payErr.message}`]
-                  );
-                } catch (logErr) {
-                  console.error('[VuotLink] Failed to log payment failure:', logErr.message);
-                }
-              }
-            } else {
-              await pool.execute('UPDATE worker_links SET completed_count = completed_count + 1 WHERE id = ?', [wl.id]);
-            }
-          } else {
-            console.warn(`[VuotLink] ⚠️ Gateway link not found: worker_link_id=${task.worker_link_id}, task=${task.id}`);
-          }
-        } catch (e) {
-          console.error('[VuotLink] Gateway link pay error:', e.message);
-        }
-      }
-
-      // ── Ref link mode: cộng % earning cho worker ref ──
-      // KHÔNG set paidWorkerId ở đây để tránh trigger hoa hồng lần 2
-      if (!paidWorkerId && task.ref_worker_id && earning > 0) {
-        try {
-          const [refCommSetting] = await pool.execute(
-            "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_worker'"
+            [task.id, task.worker_id, earning, payErr.message]
           );
-          const refCommPct = Number(refCommSetting[0] ? refCommSetting[0].setting_value || 0 : 0);
-          const refEarning = refCommPct > 0 ? Math.floor(earning * refCommPct / 100) : 0;
-          if (refEarning > 0) {
+        } catch (logErr) {
+          console.error('[VuotLink] Failed to log payment failure:', logErr.message);
+        }
+      }
+    }
+
+    // Pay gateway link creator
+    let destinationUrl = null;
+    let gatewaySlug = null;
+    if (task.worker_link_id) {
+      try {
+        const [wlRows] = await pool.execute('SELECT * FROM worker_links WHERE id = ?', [task.worker_link_id]);
+        if (wlRows.length) {
+          const wl = wlRows[0];
+          destinationUrl = wl.destination_url;
+          gatewaySlug = wl.slug || null;
+          paidWorkerId = wl.worker_id; // Case 2: Gateway link
+
+          if (earning > 0) {
             try {
-              await ensureWalletCredit(pool, task.ref_worker_id, 'earning', refEarning);
-              const refTxCode = genRef('RL-');
+              await ensureWalletCredit(pool, wl.worker_id, 'earning', earning);
+              await pool.execute(
+                'UPDATE worker_links SET completed_count = completed_count + 1, earning = earning + ? WHERE id = ?',
+                [earning, wl.id]
+              );
+              const refCode = genRef('GL-');
               await pool.execute(
                 `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
-             VALUES (?, 'earning', 'earning', 'ref_link', ?, 'completed', ?, ?)`,
-                [task.ref_worker_id, refEarning, refTxCode,
-                `Hoa hong ref ${refCommPct}% - ${task.keyword || 'Vượt link'} #${task.id} (${earning} đ)`]
+               VALUES (?, 'earning', 'earning', 'gateway_link', ?, 'completed', ?, ?)`,
+                [wl.worker_id, earning, refCode, `${task.keyword || 'Gateway link'} - ${campaign.name} #${task.id}`]
               );
-              console.log(`[VuotLink] ✓ Ref earning: paid ${refEarning} to ref_worker_id=${task.ref_worker_id} (${refCommPct}% of ${earning}), task=${task.id}`);
+              console.log(`[VuotLink] ✓ Paid ${earning} to gateway owner=${wl.worker_id}, link=${wl.id}, task=${task.id}`);
             } catch (payErr) {
-              console.error(`[VuotLink] ✗ CRITICAL: Failed to pay ref_worker_id=${task.ref_worker_id}, task=${task.id}, earning=${refEarning}:`, payErr.message);
+              console.error(`[VuotLink] ✗ CRITICAL: Failed to pay gateway owner=${wl.worker_id}, link=${wl.id}, task=${task.id}, earning=${earning}:`, payErr.message);
               // Log payment failure
               try {
                 await pool.execute(
                   `INSERT INTO payment_failures (task_id, user_id, amount, error_message, created_at)
-                 VALUES (?, ?, ?, ?, NOW())
-                 ON DUPLICATE KEY UPDATE error_message = VALUES(error_message), created_at = NOW()`,
-                  [task.id, task.ref_worker_id, refEarning, `Ref link payment failed: ${payErr.message}`]
+                   VALUES (?, ?, ?, ?, NOW())
+                   ON DUPLICATE KEY UPDATE error_message = VALUES(error_message), created_at = NOW()`,
+                  [task.id, wl.worker_id, earning, `Gateway link payment failed: ${payErr.message}`]
                 );
               } catch (logErr) {
                 console.error('[VuotLink] Failed to log payment failure:', logErr.message);
               }
             }
-            // Ref link không trigger hoa hồng referral thêm lần nữa
+          } else {
+            await pool.execute('UPDATE worker_links SET completed_count = completed_count + 1 WHERE id = ?', [wl.id]);
           }
-        } catch (e) { console.error('[VuotLink] Ref link earning error:', e.message); }
+        } else {
+          console.warn(`[VuotLink] ⚠️ Gateway link not found: worker_link_id=${task.worker_link_id}, task=${task.id}`);
+        }
+      } catch (e) {
+        console.error('[VuotLink] Gateway link pay error:', e.message);
       }
+    }
 
-      // ── Hoa hồng referral: cộng % cho người đã ref paidWorker (Case 1 & 2 only) ──
-      // Chỉ chạy khi paidWorkerId được set (task trực tiếp hoặc gateway link)
-      // KHÔNG chạy cho ref_link để tránh double-commission
-      if (paidWorkerId && earning > 0) {
-        try {
-          const [refRows] = await pool.execute('SELECT referred_by FROM users WHERE id = ?', [paidWorkerId]);
-          const referrerId = refRows[0] ? refRows[0].referred_by : null;
-          if (referrerId) {
-            const [commSetting] = await pool.execute(
-              "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_worker'"
+    // ── Ref link mode: cộng % earning cho worker ref ──
+    // KHÔNG set paidWorkerId ở đây để tránh trigger hoa hồng lần 2
+    if (!paidWorkerId && task.ref_worker_id && earning > 0) {
+      try {
+        const [refCommSetting] = await pool.execute(
+          "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_worker'"
+        );
+        const refCommPct = Number(refCommSetting[0] ? refCommSetting[0].setting_value || 0 : 0);
+        const refEarning = refCommPct > 0 ? Math.floor(earning * refCommPct / 100) : 0;
+        if (refEarning > 0) {
+          try {
+            await ensureWalletCredit(pool, task.ref_worker_id, 'earning', refEarning);
+            const refTxCode = genRef('RL-');
+            await pool.execute(
+              `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+             VALUES (?, 'earning', 'earning', 'ref_link', ?, 'completed', ?, ?)`,
+              [task.ref_worker_id, refEarning, refTxCode,
+              `Hoa hong ref ${refCommPct}% - ${task.keyword || 'Vượt link'} #${task.id} (${earning} đ)`]
             );
-            const commPct = Number(commSetting[0] ? commSetting[0].setting_value || 0 : 0);
-            if (commPct > 0) {
-              const commAmount = Math.floor(earning * commPct / 100);
-              if (commAmount > 0) {
-                await ensureWalletCredit(pool, referrerId, 'commission', commAmount);
-                const commRef = genRef('COMM-WORKER-');
-                await pool.execute(
-                  `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
-               VALUES (?, 'commission', 'commission', 'referral', ?, 'completed', ?, ?)`,
-                  [referrerId, commAmount, commRef, `Hoa hong ${commPct}% tu worker #${paidWorkerId} - task #${task.id} (${earning} d)`]
-                );
-                console.log(`[Commission] Paid ${commAmount} to referrer ${referrerId} for worker ${paidWorkerId}`);
-              }
+            console.log(`[VuotLink] ✓ Ref earning: paid ${refEarning} to ref_worker_id=${task.ref_worker_id} (${refCommPct}% of ${earning}), task=${task.id}`);
+          } catch (payErr) {
+            console.error(`[VuotLink] ✗ CRITICAL: Failed to pay ref_worker_id=${task.ref_worker_id}, task=${task.id}, earning=${refEarning}:`, payErr.message);
+            // Log payment failure
+            try {
+              await pool.execute(
+                `INSERT INTO payment_failures (task_id, user_id, amount, error_message, created_at)
+                 VALUES (?, ?, ?, ?, NOW())
+                 ON DUPLICATE KEY UPDATE error_message = VALUES(error_message), created_at = NOW()`,
+                [task.id, task.ref_worker_id, refEarning, `Ref link payment failed: ${payErr.message}`]
+              );
+            } catch (logErr) {
+              console.error('[VuotLink] Failed to log payment failure:', logErr.message);
             }
           }
-        } catch (e) { console.error('[VuotLink] Worker referral commission error:', e.message, e.stack); }
-      }
+          // Ref link không trigger hoa hồng referral thêm lần nữa
+        }
+      } catch (e) { console.error('[VuotLink] Ref link earning error:', e.message); }
+    }
 
-      console.log(`[VuotLink] Task #${task.id} VERIFIED — code=${code}, earning=${earning}`);
-
-      // Chỉ log security event khi phát hiện bot thực sự (không log phiên bình thường)
+    // ── Hoa hồng referral: cộng % cho người đã ref paidWorker (Case 1 & 2 only) ──
+    // Chỉ chạy khi paidWorkerId được set (task trực tiếp hoặc gateway link)
+    // KHÔNG chạy cho ref_link để tránh double-commission
+    if (paidWorkerId && earning > 0) {
       try {
-        let secDetail = {};
-        try { secDetail = JSON.parse(task.security_detail || '{}'); } catch { }
-        const flagged = (secDetail.assessments || []).some(a => a.flagged);
-        const isBotTask = task.bot_detected == 1;
-        if (flagged || isBotTask) {
-          const DL_VI = {
-            headless_or_webdriver: 'Headless / Webdriver tự động',
-            Fingerprint_bot: 'Fingerprint Bot',
-            ip_rate_limit: 'Rate limit IP',
-            bot_ua: 'User-Agent Bot',
-            font_os_mismatch: 'Font/OS không khớp',
-            screen_window_mismatch: 'Screen=Window (Headless)',
-            hardware_inconsistency: 'Phần cứng bất thường',
-            canvas_noise_detected: 'Canvas Noise (Anti-detect browser)',
-            click_latency_anomaly: 'Click bất thường (Bot click)',
-            scroll_speed_bot: 'Cuộn quá nhanh (Bot)',
-            fake_sensor: 'Cảm biến giả (Desktop→Mobile)',
-            canvas_api_lied: 'Canvas API bị giả mạo',
-            audio_api_lied: 'Audio API bị giả mạo',
-            navigator_api_lied: 'Navigator bị giả mạo',
-            webgl_api_lied: 'WebGL bị giả mạo',
-            creepjs_bot: 'CreepJS phát hiện Bot',
-            creepjs_headless: 'CreepJS phát hiện Headless',
-            widget_bot_detected: 'Widget: Bot phát hiện',
-            widget_bot: 'Widget Bot',
-          };
-
-          const specificReasons = [];
-          if (secDetail.reasons && secDetail.reasons.length > 0) {
-            specificReasons.push(...secDetail.reasons.slice(0, 3));
+        const [refRows] = await pool.execute('SELECT referred_by FROM users WHERE id = ?', [paidWorkerId]);
+        const referrerId = refRows[0] ? refRows[0].referred_by : null;
+        if (referrerId) {
+          const [commSetting] = await pool.execute(
+            "SELECT setting_value FROM site_settings WHERE setting_key = 'referral_commission_worker'"
+          );
+          const commPct = Number(commSetting[0] ? commSetting[0].setting_value || 0 : 0);
+          if (commPct > 0) {
+            const commAmount = Math.floor(earning * commPct / 100);
+            if (commAmount > 0) {
+              await ensureWalletCredit(pool, referrerId, 'commission', commAmount);
+              const commRef = genRef('COMM-WORKER-');
+              await pool.execute(
+                `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
+               VALUES (?, 'commission', 'commission', 'referral', ?, 'completed', ?, ?)`,
+                [referrerId, commAmount, commRef, `Hoa hong ${commPct}% tu worker #${paidWorkerId} - task #${task.id} (${earning} d)`]
+              );
+              console.log(`[Commission] Paid ${commAmount} to referrer ${referrerId} for worker ${paidWorkerId}`);
+            }
           }
-          if (secDetail.detectionLog && secDetail.detectionLog.length > 0) {
-            secDetail.detectionLog.slice(0, 3).forEach(key => {
-              const label = DL_VI[key] || key;
-              if (!specificReasons.some(r => r.toLowerCase().includes(label.toLowerCase()))) {
-                specificReasons.push(label);
-              }
-            });
-          }
+        }
+      } catch (e) { console.error('[VuotLink] Worker referral commission error:', e.message, e.stack); }
+    }
 
-          const logReason = specificReasons.length > 0
-            ? specificReasons[0] + (specificReasons.length > 1 ? ' (+' + (specificReasons.length - 1) + ' ly do)' : '')
-            : 'Phat hien Bot';
+    console.log(`[VuotLink] Task #${task.id} VERIFIED — code=${code}, earning=${earning}`);
 
-          logSecurityEvent(logReason, task.ip_address, task.user_agent, task.visitor_id, {
-            taskId: task.id,
-            source: 'vuotlink',
-            campaignId: task.campaign_id,
-            targetUrl: task.target_url || null,
-            workerLinkId: task.worker_link_id || null,
-            gatewaySlug: gatewaySlug,
-            timeOnSite,
-            earning,
-            ipCountry,
-            detectionLog: secDetail.detectionLog || [],
-            reasons: specificReasons,
-            deviceScore: secDetail.deviceScore ?? null,
-            deviceType: secDetail.deviceType || null,
-            automationFlags: secDetail.detail && secDetail.detail.automation || null,
-            canvasHash: secDetail.canvasHash || null,
-            audioHash: secDetail.audioHash || null,
-            creepSummary: secDetail.creepSummary || null,
+    // Chỉ log security event khi phát hiện bot thực sự (không log phiên bình thường)
+    try {
+      let secDetail = {};
+      try { secDetail = JSON.parse(task.security_detail || '{}'); } catch { }
+      const flagged = (secDetail.assessments || []).some(a => a.flagged);
+      const isBotTask = task.bot_detected == 1;
+      if (flagged || isBotTask) {
+        const DL_VI = {
+          headless_or_webdriver: 'Headless / Webdriver tự động',
+          Fingerprint_bot: 'Fingerprint Bot',
+          ip_rate_limit: 'Rate limit IP',
+          bot_ua: 'User-Agent Bot',
+          font_os_mismatch: 'Font/OS không khớp',
+          screen_window_mismatch: 'Screen=Window (Headless)',
+          hardware_inconsistency: 'Phần cứng bất thường',
+          canvas_noise_detected: 'Canvas Noise (Anti-detect browser)',
+          click_latency_anomaly: 'Click bất thường (Bot click)',
+          scroll_speed_bot: 'Cuộn quá nhanh (Bot)',
+          fake_sensor: 'Cảm biến giả (Desktop→Mobile)',
+          canvas_api_lied: 'Canvas API bị giả mạo',
+          audio_api_lied: 'Audio API bị giả mạo',
+          navigator_api_lied: 'Navigator bị giả mạo',
+          webgl_api_lied: 'WebGL bị giả mạo',
+          creepjs_bot: 'CreepJS phát hiện Bot',
+          creepjs_headless: 'CreepJS phát hiện Headless',
+          widget_bot_detected: 'Widget: Bot phát hiện',
+          widget_bot: 'Widget Bot',
+        };
+
+        const specificReasons = [];
+        if (secDetail.reasons && secDetail.reasons.length > 0) {
+          specificReasons.push(...secDetail.reasons.slice(0, 3));
+        }
+        if (secDetail.detectionLog && secDetail.detectionLog.length > 0) {
+          secDetail.detectionLog.slice(0, 3).forEach(key => {
+            const label = DL_VI[key] || key;
+            if (!specificReasons.some(r => r.toLowerCase().includes(label.toLowerCase()))) {
+              specificReasons.push(label);
+            }
           });
         }
-      } catch (e) { }
 
-      let remaining = 0;
-      let maxViews = 2;
-      try {
-        const [limitSetting] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
-        const parsedMax = limitSetting.length > 0 ? parseInt(limitSetting[0].setting_value) : 0;
-        maxViews = parsedMax > 0 ? parsedMax : 5;
+        const logReason = specificReasons.length > 0
+          ? specificReasons[0] + (specificReasons.length > 1 ? ' (+' + (specificReasons.length - 1) + ' ly do)' : '')
+          : 'Phat hien Bot';
 
-        // Dùng VN timezone (nhất quán với phần lấy task) — tránh bug UTC vs VN
-        const vnNow = new Date();
-        const vnDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(vnNow);
-        const vnStart = `${vnDateStr} 00:00:00`;
-        const vnEnd = `${vnDateStr} 23:59:59`;
+        logSecurityEvent(logReason, task.ip_address, task.user_agent, task.visitor_id, {
+          taskId: task.id,
+          source: 'vuotlink',
+          campaignId: task.campaign_id,
+          targetUrl: task.target_url || null,
+          workerLinkId: task.worker_link_id || null,
+          gatewaySlug: gatewaySlug,
+          timeOnSite,
+          earning,
+          ipCountry,
+          detectionLog: secDetail.detectionLog || [],
+          reasons: specificReasons,
+          deviceScore: secDetail.deviceScore ?? null,
+          deviceType: secDetail.deviceType || null,
+          automationFlags: secDetail.detail && secDetail.detail.automation || null,
+          canvasHash: secDetail.canvasHash || null,
+          audioHash: secDetail.audioHash || null,
+          creepSummary: secDetail.creepSummary || null,
+        });
+      }
+    } catch (e) { }
 
-        // Count completed tasks today for this IP
-        const [ipDone] = await pool.execute(
-          `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
-          [ip, vnStart, vnEnd]
+    let remaining = 0;
+    let maxViews = 2;
+    try {
+      const [limitSetting] = await pool.execute("SELECT setting_value FROM site_settings WHERE setting_key = 'views_per_ip'");
+      const parsedMax = limitSetting.length > 0 ? parseInt(limitSetting[0].setting_value) : 0;
+      maxViews = parsedMax > 0 ? parsedMax : 5;
+
+      // Dùng VN timezone (nhất quán với phần lấy task) — tránh bug UTC vs VN
+      const vnNow = new Date();
+      const vnDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(vnNow);
+      const vnStart = `${vnDateStr} 00:00:00`;
+      const vnEnd = `${vnDateStr} 23:59:59`;
+
+      // Count completed tasks today for this IP
+      const [ipDone] = await pool.execute(
+        `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ip_address = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
+        [ip, vnStart, vnEnd]
+      );
+      let vidDone = 0;
+      if (task.visitor_id && task.visitor_id !== 'unknown') {
+        const [vDone] = await pool.execute(
+          `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
+          [task.visitor_id, vnStart, vnEnd]
         );
-        let vidDone = 0;
-        if (task.visitor_id && task.visitor_id !== 'unknown') {
-          const [vDone] = await pool.execute(
-            `SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE visitor_id = ? AND completed_at >= ? AND completed_at <= ? AND status = 'completed' AND bot_detected = 0`,
-            [task.visitor_id, vnStart, vnEnd]
-          );
-          vidDone = vDone[0].cnt;
-        }
-        const usedToday = Math.max(ipDone[0].cnt, vidDone);
-        remaining = Math.max(0, maxViews - usedToday);
-      } catch (e) { console.error('[VuotLink] Remaining calc error:', e.message); }
+        vidDone = vDone[0].cnt;
+      }
+      const usedToday = Math.max(ipDone[0].cnt, vidDone);
+      remaining = Math.max(0, maxViews - usedToday);
+    } catch (e) { console.error('[VuotLink] Remaining calc error:', e.message); }
 
-      res.json({ success: true, earning, remaining, maxViews, destination_url: destinationUrl });
-      // Invalidate cache sau khi task completed — để request tiếp theo lấy pool mới
-      try {
-        const workerIdToInvalidate = task.worker_id || (task.worker_link_id ? paidWorkerId : null);
-        if (workerIdToInvalidate) {
-          cache.invalidate('worker:balance:' + workerIdToInvalidate);
-          cache.invalidatePrefix('worker:stats:' + workerIdToInvalidate);
-          cache.invalidatePrefix('worker:earnings:' + workerIdToInvalidate + ':');
-        }
-        if (campaign && campaign.user_id) cache.invalidate('reports:overview:' + campaign.user_id);
-        cache.invalidatePrefix('admin:overview:');
-      } catch (e) { }
-    } catch (err) {
-      console.error('[VuotLink] _handleVerifyPost ERROR:', err && err.message, err && err.stack ? err.stack.split('\n')[1] : undefined);
-      throw err;
-    }
+    res.json({ success: true, earning, remaining, maxViews, destination_url: destinationUrl });
+    // Invalidate cache sau khi task completed — để request tiếp theo lấy pool mới
+    try {
+      const workerIdToInvalidate = task.worker_id || (task.worker_link_id ? paidWorkerId : null);
+      if (workerIdToInvalidate) {
+        cache.invalidate('worker:balance:' + workerIdToInvalidate);
+        cache.invalidatePrefix('worker:stats:' + workerIdToInvalidate);
+        cache.invalidatePrefix('worker:earnings:' + workerIdToInvalidate + ':');
+      }
+      if (campaign && campaign.user_id) cache.invalidate('reports:overview:' + campaign.user_id);
+      cache.invalidatePrefix('admin:overview:');
+    } catch (e) { }
+  } catch (err) {
+    console.error('[VuotLink] _handleVerifyPost ERROR:', err && err.message, err && err.stack ? err.stack.split('\n')[1] : undefined);
+    throw err;
   }
+}
 
 router.post('/task/:id/complete', optionalAuth, async (req, res) => {
-    req.body.code = req.body.code || '';
-    return res.status(400).json({ error: 'Vui lòng sử dụng flow xác nhận mã mới.' });
-  });
+  req.body.code = req.body.code || '';
+  return res.status(400).json({ error: 'Vui lòng sử dụng flow xác nhận mã mới.' });
+});
 
-  const SECRET_API_KEY = process.env.SECRET_API_KEY || 'CHANGE_ME_IN_ENV';
+const SECRET_API_KEY = process.env.SECRET_API_KEY || 'CHANGE_ME_IN_ENV';
 
-  function secretApiAuth(req, res, next) {
-    const key = req.headers['x-api-key'] || req.query.api_key || '';
-    if (!key || key !== SECRET_API_KEY) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    next();
+function secretApiAuth(req, res, next) {
+  const key = req.headers['x-api-key'] || req.query.api_key || '';
+  if (!key || key !== SECRET_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
+  next();
+}
 
-  async function _secretLookup(req, res) {
-    try {
-      const pool = getPool();
-      const keyword = req.query.keyword || (req.body || {}).keyword || '';
-      let image_url = req.query.image_url || (req.body || {}).image_url || '';
+async function _secretLookup(req, res) {
+  try {
+    const pool = getPool();
+    const keyword = req.query.keyword || (req.body || {}).keyword || '';
+    let image_url = req.query.image_url || (req.body || {}).image_url || '';
 
-      if (image_url && image_url.includes('/uploads')) {
-        image_url = image_url.substring(image_url.indexOf('/uploads'));
-      }
+    if (image_url && image_url.includes('/uploads')) {
+      image_url = image_url.substring(image_url.indexOf('/uploads'));
+    }
 
-      if (!keyword && !image_url) {
-        return res.status(400).json({ error: 'Cần truyền ít nhất keyword hoặc image_url' });
-      }
+    if (!keyword && !image_url) {
+      return res.status(400).json({ error: 'Cần truyền ít nhất keyword hoặc image_url' });
+    }
 
-      // Build dynamic query
-      let conditions = [`c.status IN ('running', 'paused', 'completed')`];
-      let params = [];
+    // Build dynamic query
+    let conditions = [`c.status IN ('running', 'paused', 'completed')`];
+    let params = [];
 
-      if (keyword) {
-        // Search keyword: exact match OR JSON array contains
-        conditions.push(`(c.keyword = ? OR c.keyword LIKE ? OR c.keyword LIKE ?)`);
-        params.push(keyword, `%"${keyword}"%`, `%${keyword}%`);
-      }
+    if (keyword) {
+      // Search keyword: exact match OR JSON array contains
+      conditions.push(`(c.keyword = ? OR c.keyword LIKE ? OR c.keyword LIKE ?)`);
+      params.push(keyword, `%"${keyword}"%`, `%${keyword}%`);
+    }
 
-      if (image_url) {
-        // Search image in image1_url or image2_url
-        conditions.push(`(c.image1_url LIKE ? OR c.image2_url LIKE ? OR c.image1_url = ? OR c.image2_url = ?)`);
-        params.push(`%${image_url}%`, `%${image_url}%`, image_url, image_url);
-      }
+    if (image_url) {
+      // Search image in image1_url or image2_url
+      conditions.push(`(c.image1_url LIKE ? OR c.image2_url LIKE ? OR c.image1_url = ? OR c.image2_url = ?)`);
+      params.push(`%${image_url}%`, `%${image_url}%`, image_url, image_url);
+    }
 
-      const [campaigns] = await pool.execute(
-        `SELECT c.id, c.name, c.url, c.url2, c.keyword, c.keyword_config, c.target_page, c.traffic_type,
+    const [campaigns] = await pool.execute(
+      `SELECT c.id, c.name, c.url, c.url2, c.keyword, c.keyword_config, c.target_page, c.traffic_type,
               c.image1_url, c.image2_url, c.status, c.views_done, c.total_views,
               c.time_on_site, c.version, c.daily_views, c.created_at
        FROM campaigns c
        WHERE ${conditions.join(' AND ')}
        ORDER BY c.created_at DESC
        LIMIT 1`,
-        params
-      );
+      params
+    );
 
-      if (campaigns.length === 0) {
-        return res.type('text').status(404).send('NOT_FOUND');
-      }
+    if (campaigns.length === 0) {
+      return res.type('text').status(404).send('NOT_FOUND');
+    }
 
-      // Collect all URLs from campaign (url + url2 + keyword_config.urls)
-      const c = campaigns[0];
-      const allUrls = [];
-      const parseUrls = (val) => {
-        if (!val) return;
-        try { const a = JSON.parse(val); if (Array.isArray(a)) { allUrls.push(...a.filter(Boolean)); return; } } catch { }
-        allUrls.push(val);
-      };
-      parseUrls(c.url);
-      parseUrls(c.url2);
-      // Also collect URLs from keyword_config.urls arrays
-      if (c.keyword_config) {
-        try {
-          const kwConfig = JSON.parse(c.keyword_config);
-          if (Array.isArray(kwConfig)) {
-            for (const kw of kwConfig) {
-              if (Array.isArray(kw.urls)) {
-                allUrls.push(...kw.urls.filter(u => u && u.trim()));
-              } else if (kw.url) {
-                allUrls.push(kw.url);
-              }
+    // Collect all URLs from campaign (url + url2 + keyword_config.urls)
+    const c = campaigns[0];
+    const allUrls = [];
+    const parseUrls = (val) => {
+      if (!val) return;
+      try { const a = JSON.parse(val); if (Array.isArray(a)) { allUrls.push(...a.filter(Boolean)); return; } } catch { }
+      allUrls.push(val);
+    };
+    parseUrls(c.url);
+    parseUrls(c.url2);
+    // Also collect URLs from keyword_config.urls arrays
+    if (c.keyword_config) {
+      try {
+        const kwConfig = JSON.parse(c.keyword_config);
+        if (Array.isArray(kwConfig)) {
+          for (const kw of kwConfig) {
+            if (Array.isArray(kw.urls)) {
+              allUrls.push(...kw.urls.filter(u => u && u.trim()));
+            } else if (kw.url) {
+              allUrls.push(kw.url);
             }
           }
-        } catch (_) { }
-      }
-      // Deduplicate URLs
-      const uniqueUrls = [...new Set(allUrls)];
-
-      if (uniqueUrls.length === 0) {
-        return res.type('text').status(404).send('NO_URL');
-      }
-
-      // Pick random URL and return as plain text
-      const picked = uniqueUrls[Math.floor(Math.random() * uniqueUrls.length)];
-      res.type('text').send(picked);
-    } catch (err) {
-      console.error('[SecretAPI] Lookup error:', err.message);
-      res.type('text').status(500).send('ERROR');
+        }
+      } catch (_) { }
     }
+    // Deduplicate URLs
+    const uniqueUrls = [...new Set(allUrls)];
+
+    if (uniqueUrls.length === 0) {
+      return res.type('text').status(404).send('NO_URL');
+    }
+
+    // Pick random URL and return as plain text
+    const picked = uniqueUrls[Math.floor(Math.random() * uniqueUrls.length)];
+    res.type('text').send(picked);
+  } catch (err) {
+    console.error('[SecretAPI] Lookup error:', err.message);
+    res.type('text').status(500).send('ERROR');
   }
-  router.get('/secret/lookup', secretApiAuth, _secretLookup);
-  router.get('/secret/campaigns', secretApiAuth, _secretLookup); // alias
+}
+router.get('/secret/lookup', secretApiAuth, _secretLookup);
+router.get('/secret/campaigns', secretApiAuth, _secretLookup); // alias
 
 
-  /* ═════════════════════════════════════════════════════════
-     PROTECTED endpoints
-  ═════════════════════════════════════════════════════════ */
-  router.use(authMiddleware);
+/* ═════════════════════════════════════════════════════════
+   PROTECTED endpoints
+═════════════════════════════════════════════════════════ */
+router.use(authMiddleware);
 
-  router.get('/stats', async (req, res) => {
-    const pool = getPool();
-    const [total] = await pool.execute(
-      `SELECT COUNT(*) as total,
+router.get('/stats', async (req, res) => {
+  const pool = getPool();
+  const [total] = await pool.execute(
+    `SELECT COUNT(*) as total,
       SUM(CASE WHEN vt.status = 'completed' THEN 1 ELSE 0 END) as completed,
       SUM(CASE WHEN vt.status IN ('pending','assigned','step1','step2','step3') THEN 1 ELSE 0 END) as pending,
       SUM(CASE WHEN vt.status = 'expired' THEN 1 ELSE 0 END) as expired,
       SUM(CASE WHEN vt.status = 'completed' THEN vt.earning ELSE 0 END) as totalEarning
     FROM vuot_link_tasks vt JOIN campaigns c ON c.id = vt.campaign_id WHERE c.user_id = ?`,
-      [req.userId]
-    );
+    [req.userId]
+  );
 
-    const [recent] = await pool.execute(
-      `SELECT vt.*, c.name as campaign_name FROM vuot_link_tasks vt JOIN campaigns c ON c.id = vt.campaign_id WHERE c.user_id = ? ORDER BY vt.created_at DESC LIMIT 20`,
-      [req.userId]
-    );
+  const [recent] = await pool.execute(
+    `SELECT vt.*, c.name as campaign_name FROM vuot_link_tasks vt JOIN campaigns c ON c.id = vt.campaign_id WHERE c.user_id = ? ORDER BY vt.created_at DESC LIMIT 20`,
+    [req.userId]
+  );
 
-    res.json({ stats: total[0], recent });
-  });
+  res.json({ stats: total[0], recent });
+});
 
-  /* ═══════════════════════════════════════════════════════════
-     WORKER DASHBOARD APIs (require auth)
-  ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   WORKER DASHBOARD APIs (require auth)
+═══════════════════════════════════════════════════════════ */
 
-  // GET /api/vuot-link/worker/stats
-  router.get('/worker/stats', authMiddleware, async (req, res) => {
-    try {
-      const uid = req.userId;
-      const data = await cache.get(
-        `worker:stats:${uid}`,
-        async () => {
-          const pool = getPool();
-          const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
-          const wlIds = wLinks.map(w => w.id);
-          const wlCond = wlIds.length > 0
-            ? '(worker_id = ? OR worker_link_id IN (' + wlIds.map(() => '?').join(',') + '))'
-            : 'worker_id = ?';
-          const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
-          const wlCondT = wlCond.replace(/worker_id/g, 't.worker_id').replace(/worker_link_id/g, 't.worker_link_id');
+// GET /api/vuot-link/worker/stats
+router.get('/worker/stats', authMiddleware, async (req, res) => {
+  try {
+    const uid = req.userId;
+    const data = await cache.get(
+      `worker:stats:${uid}`,
+      async () => {
+        const pool = getPool();
+        const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
+        const wlIds = wLinks.map(w => w.id);
+        const wlCond = wlIds.length > 0
+          ? '(worker_id = ? OR worker_link_id IN (' + wlIds.map(() => '?').join(',') + '))'
+          : 'worker_id = ?';
+        const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
+        const wlCondT = wlCond.replace(/worker_id/g, 't.worker_id').replace(/worker_link_id/g, 't.worker_link_id');
 
-          const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-          const todayStart = vnToday + ' 00:00:00';
-          const todayEnd = vnToday + ' 23:59:59';
-          const d7 = new Date(); d7.setDate(d7.getDate() - 7);
-          const sevenAgo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(d7) + ' 00:00:00';
+        const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+        const todayStart = vnToday + ' 00:00:00';
+        const todayEnd = vnToday + ' 23:59:59';
+        const d7 = new Date(); d7.setDate(d7.getDate() - 7);
+        const sevenAgo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(d7) + ' 00:00:00';
 
-          const [todayR, totalR, pendingR, walletR, chartR, recentR, remR] = await Promise.all([
-            pool.execute('SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ?", [...wlParams, todayStart, todayEnd]),
-            pool.execute('SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= DATE_SUB(NOW(), INTERVAL 365 DAY)", wlParams),
-            pool.execute('SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ' + wlCond + " AND status IN ('pending','step1','step2','step3')", wlParams),
-            pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
-            pool.execute('SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ? GROUP BY DATE(completed_at) ORDER BY day", [...wlParams, sevenAgo, todayEnd]),
-            pool.execute('SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id WHERE ' + wlCondT + " AND (t.bot_detected = 0 OR t.status != 'completed') ORDER BY t.created_at DESC LIMIT 10", wlParams),
-            // Fix: Tính view khả dụng cho CẢ daily_views=0 (không giới hạn ngày) VÀ daily_views>0
-            // - Nếu daily_views > 0: dùng (daily_views - today_done)
-            // - Nếu daily_views = 0: dùng (total_views - views_done) — giới hạn tổng
-            pool.execute(`
+        const [todayR, totalR, pendingR, walletR, chartR, recentR, remR] = await Promise.all([
+          pool.execute('SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ?", [...wlParams, todayStart, todayEnd]),
+          pool.execute('SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= DATE_SUB(NOW(), INTERVAL 365 DAY)", wlParams),
+          pool.execute('SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE ' + wlCond + " AND status IN ('pending','step1','step2','step3')", wlParams),
+          pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
+          pool.execute('SELECT DATE(completed_at) as day, COUNT(*) as tasks, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE ' + wlCond + " AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ? GROUP BY DATE(completed_at) ORDER BY day", [...wlParams, sevenAgo, todayEnd]),
+          pool.execute('SELECT t.id, c.name as campaign_name, t.status, t.earning, t.completed_at, t.created_at FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id WHERE ' + wlCondT + " AND (t.bot_detected = 0 OR t.status != 'completed') ORDER BY t.created_at DESC LIMIT 10", wlParams),
+          // Fix: Tính view khả dụng cho CẢ daily_views=0 (không giới hạn ngày) VÀ daily_views>0
+          // - Nếu daily_views > 0: dùng (daily_views - today_done)
+          // - Nếu daily_views = 0: dùng (total_views - views_done) — giới hạn tổng
+          pool.execute(`
             SELECT
               COALESCE(SUM(
                 CASE
@@ -2063,161 +2077,161 @@ router.post('/task/:id/complete', optionalAuth, async (req, res) => {
             ) td ON td.campaign_id = c.id
             WHERE c.status = 'running' AND c.views_done < c.total_views
           `, [todayStart, todayEnd]),
-          ]);
+        ]);
 
-          const walletMap = {};
-          walletR[0].forEach(w => { walletMap[w.type] = Number(w.balance); });
-          return {
-            today: { tasks: todayR[0][0].cnt, earnings: Number(todayR[0][0].earn) },
-            total: { tasks: totalR[0][0].cnt, earnings: Number(totalR[0][0].earn) },
-            pending: pendingR[0][0].cnt,
-            remainingDailyViews: Number(remR[0][0].remaining_views) || 0,
-            balance: walletMap.earning || 0,
-            commissionBalance: walletMap.commission || 0,
-            chart: chartR[0],
-            recent: recentR[0],
-          };
-        },
-        30 * 1000,  // 30s TTL — đủ real-time cho dashboard
-        20 * 1000   // stale-while-revalidate: refresh background sau 20s
-      );
-      res.json(data);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+        const walletMap = {};
+        walletR[0].forEach(w => { walletMap[w.type] = Number(w.balance); });
+        return {
+          today: { tasks: todayR[0][0].cnt, earnings: Number(todayR[0][0].earn) },
+          total: { tasks: totalR[0][0].cnt, earnings: Number(totalR[0][0].earn) },
+          pending: pendingR[0][0].cnt,
+          remainingDailyViews: Number(remR[0][0].remaining_views) || 0,
+          balance: walletMap.earning || 0,
+          commissionBalance: walletMap.commission || 0,
+          chart: chartR[0],
+          recent: recentR[0],
+        };
+      },
+      30 * 1000,  // 30s TTL — đủ real-time cho dashboard
+      20 * 1000   // stale-while-revalidate: refresh background sau 20s
+    );
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  // GET /api/vuot-link/worker/tasks?page=1&status=completed
-  router.get('/worker/tasks', authMiddleware, async (req, res) => {
-    try {
-      const pool = getPool();
-      const uid = req.userId;
-      const page = Math.max(1, parseInt(req.query.page) || 1);
-      const limit = 20;
-      const offset = (page - 1) * limit;
-      const status = req.query.status || '';
+// GET /api/vuot-link/worker/tasks?page=1&status=completed
+router.get('/worker/tasks', authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    const uid = req.userId;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = 20;
+    const offset = (page - 1) * limit;
+    const status = req.query.status || '';
 
-      // Get worker's link IDs for gateway tasks
-      const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
-      const wlIds = wLinks.map(w => w.id);
-      const wlBase = wlIds.length > 0
-        ? `(t.worker_id = ? OR t.worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
-        : `t.worker_id = ?`;
-      const baseParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
+    // Get worker's link IDs for gateway tasks
+    const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
+    const wlIds = wLinks.map(w => w.id);
+    const wlBase = wlIds.length > 0
+      ? `(t.worker_id = ? OR t.worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
+      : `t.worker_id = ?`;
+    const baseParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
 
-      let where = wlBase;
-      const params = [...baseParams];
-      if (status && status !== 'all') { where += ' AND t.status = ?'; params.push(status); }
+    let where = wlBase;
+    const params = [...baseParams];
+    if (status && status !== 'all') { where += ' AND t.status = ?'; params.push(status); }
 
-      const [countR] = await pool.execute(`SELECT COUNT(*) as c FROM vuot_link_tasks t WHERE ${where}`, params);
-      const [tasks] = await pool.execute(
-        `SELECT t.id, c.name as campaign_name, c.url as campaign_url, t.keyword, t.status, t.earning, t.code_given, t.completed_at, t.created_at
+    const [countR] = await pool.execute(`SELECT COUNT(*) as c FROM vuot_link_tasks t WHERE ${where}`, params);
+    const [tasks] = await pool.execute(
+      `SELECT t.id, c.name as campaign_name, c.url as campaign_url, t.keyword, t.status, t.earning, t.code_given, t.completed_at, t.created_at
        FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id
        WHERE ${where} ORDER BY t.created_at DESC LIMIT ${limit} OFFSET ${offset}`,
-        params
-      );
+      params
+    );
 
-      const statsWhere = wlIds.length > 0
-        ? `(worker_id = ? OR worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
-        : `worker_id = ?`;
-      const [stats] = await pool.execute(
-        `SELECT COUNT(*) as total, COALESCE(SUM(CASE WHEN status='completed' THEN earning ELSE 0 END),0) as totalEarnings,
+    const statsWhere = wlIds.length > 0
+      ? `(worker_id = ? OR worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
+      : `worker_id = ?`;
+    const [stats] = await pool.execute(
+      `SELECT COUNT(*) as total, COALESCE(SUM(CASE WHEN status='completed' THEN earning ELSE 0 END),0) as totalEarnings,
        SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed
        FROM vuot_link_tasks WHERE ${statsWhere}`,
-        baseParams
-      );
+      baseParams
+    );
 
-      res.json({ tasks, total: countR[0].c, page, limit, stats: stats[0] });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+    res.json({ tasks, total: countR[0].c, page, limit, stats: stats[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  // GET /api/vuot-link/worker/earnings?days=30
-  router.get('/worker/earnings', authMiddleware, async (req, res) => {
-    try {
-      const uid = req.userId;
-      const days = Math.min(90, Math.max(7, parseInt(req.query.days) || 7));
-      const data = await cache.get(
-        `worker:earnings:${uid}:${days}`,
-        async () => {
-          const pool = getPool();
-          const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
-          const wlIds = wLinks.map(w => w.id);
-          const wlCondition = wlIds.length > 0
-            ? `(worker_id = ? OR worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
-            : `worker_id = ?`;
-          const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
+// GET /api/vuot-link/worker/earnings?days=30
+router.get('/worker/earnings', authMiddleware, async (req, res) => {
+  try {
+    const uid = req.userId;
+    const days = Math.min(90, Math.max(7, parseInt(req.query.days) || 7));
+    const data = await cache.get(
+      `worker:earnings:${uid}:${days}`,
+      async () => {
+        const pool = getPool();
+        const [wLinks] = await pool.execute('SELECT id FROM worker_links WHERE worker_id = ?', [uid]);
+        const wlIds = wLinks.map(w => w.id);
+        const wlCondition = wlIds.length > 0
+          ? `(worker_id = ? OR worker_link_id IN (${wlIds.map(() => '?').join(',')}))`
+          : `worker_id = ?`;
+        const wlParams = wlIds.length > 0 ? [uid, ...wlIds] : [uid];
 
-          const vnNow = new Date();
-          const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(vnNow);
-          const startD = new Date(vnNow); startD.setDate(startD.getDate() - days);
-          const startStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(startD) + ' 00:00:00';
-          const todayStart = vnToday + ' 00:00:00';
-          const todayEnd = vnToday + ' 23:59:59';
+        const vnNow = new Date();
+        const vnToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(vnNow);
+        const startD = new Date(vnNow); startD.setDate(startD.getDate() - days);
+        const startStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(startD) + ' 00:00:00';
+        const todayStart = vnToday + ' 00:00:00';
+        const todayEnd = vnToday + ' 23:59:59';
 
-          const [[dailyRows], [todayR]] = await Promise.all([
-            pool.execute(
-              `SELECT DATE(completed_at) as date, COUNT(*) as tasks, COALESCE(SUM(earning), 0) as earnings
+        const [[dailyRows], [todayR]] = await Promise.all([
+          pool.execute(
+            `SELECT DATE(completed_at) as date, COUNT(*) as tasks, COALESCE(SUM(earning), 0) as earnings
              FROM vuot_link_tasks WHERE ${wlCondition} AND status = 'completed'
                AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ?
              GROUP BY DATE(completed_at) ORDER BY date DESC`,
-              [...wlParams, startStr]
-            ),
-            pool.execute(
-              `SELECT COALESCE(SUM(earning), 0) as earn, COUNT(*) as tasks FROM vuot_link_tasks
+            [...wlParams, startStr]
+          ),
+          pool.execute(
+            `SELECT COALESCE(SUM(earning), 0) as earn, COUNT(*) as tasks FROM vuot_link_tasks
              WHERE ${wlCondition} AND status = 'completed'
                AND bot_detected = 0 AND is_over_limit = 0
                AND completed_at >= ? AND completed_at <= ?`,
-              [...wlParams, todayStart, todayEnd]
-            ),
-          ]);
+            [...wlParams, todayStart, todayEnd]
+          ),
+        ]);
 
-          const totalEarnings = dailyRows.reduce((s, d) => s + Number(d.earnings), 0);
-          const totalTasks = dailyRows.reduce((s, d) => s + Number(d.tasks), 0);
-          return {
-            daily: dailyRows,
-            summary: {
-              total: totalEarnings,
-              tasks: totalTasks,
-              avgDaily: dailyRows.length > 0 ? Math.round(totalEarnings / dailyRows.length) : 0,
-            },
-            today: Number(todayR[0].earn),
-            todayTasks: Number(todayR[0].tasks),
-          };
-        },
-        60 * 1000,  // 60s TTL cho biểu đồ lịch sử
-        45 * 1000   // stale-while-revalidate sau 45s
-      );
-      res.json(data);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-
+        const totalEarnings = dailyRows.reduce((s, d) => s + Number(d.earnings), 0);
+        const totalTasks = dailyRows.reduce((s, d) => s + Number(d.tasks), 0);
+        return {
+          daily: dailyRows,
+          summary: {
+            total: totalEarnings,
+            tasks: totalTasks,
+            avgDaily: dailyRows.length > 0 ? Math.round(totalEarnings / dailyRows.length) : 0,
+          },
+          today: Number(todayR[0].earn),
+          todayTasks: Number(todayR[0].tasks),
+        };
+      },
+      60 * 1000,  // 60s TTL cho biểu đồ lịch sử
+      45 * 1000   // stale-while-revalidate sau 45s
+    );
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 
 
-  // GET /api/vuot-link/worker/balance
-  router.get('/worker/balance', authMiddleware, async (req, res) => {
-    try {
-      const uid = req.userId;
-      const data = await cache.get(
-        `worker:balance:${uid}`,
-        async () => {
-          const pool = getPool();
-          const [wallets] = await pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]);
-          const map = {};
-          wallets.forEach(w => { map[w.type] = Number(w.balance); });
-          return { balance: map.earning || 0, main: map.main || 0, commission: map.commission || 0 };
-        },
-        10 * 1000  // 10s TTL — balance cần tương đối real-time
-      );
-      res.json(data);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
 
-  module.exports = router;
+
+// GET /api/vuot-link/worker/balance
+router.get('/worker/balance', authMiddleware, async (req, res) => {
+  try {
+    const uid = req.userId;
+    const data = await cache.get(
+      `worker:balance:${uid}`,
+      async () => {
+        const pool = getPool();
+        const [wallets] = await pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]);
+        const map = {};
+        wallets.forEach(w => { map[w.type] = Number(w.balance); });
+        return { balance: map.earning || 0, main: map.main || 0, commission: map.commission || 0 };
+      },
+      10 * 1000  // 10s TTL — balance cần tương đối real-time
+    );
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
