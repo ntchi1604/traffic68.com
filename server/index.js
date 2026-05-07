@@ -560,8 +560,9 @@ app.use((err, req, res, next) => {
           if (total > 0) console.log(`[Cleanup] Pruned ${del1.affectedRows} old completed + ${del2.affectedRows} stale tasks`);
         } catch (e) { console.error('[Cleanup] Error:', e.message); }
       };
-      setTimeout(runCleanup, 30 * 1000);          // chạy lần đầu sau 30s
-      setInterval(runCleanup, 3 * 60 * 60 * 1000); // mỗi 3 giờ
+      if (process.env.AUTO_DB_CLEANUP === '1') {
+        setInterval(runCleanup, 3 * 60 * 60 * 1000);
+      }
 
       // Start crypto deposit watcher
       try {

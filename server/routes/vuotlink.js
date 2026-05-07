@@ -2107,14 +2107,22 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
           pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
           mkChart(completedChart, [sevenAgo, todayEnd]),
           mkRecent(),
-          // View khả dụng: ưu tiên daily_views nếu có, nếu không dùng total còn lại
+          // View khả dụng: daily_views còn lại hôm nay, fallback tổng còn lại
           pool.execute(`SELECT COALESCE(SUM(
-              CASE WHEN daily_views > 0
-                THEN GREATEST(0, daily_views)
-                ELSE GREATEST(0, total_views - views_done)
+              CASE WHEN c.daily_views > 0
+                THEN LEAST(GREATEST(0, c.total_views - c.views_done), GREATEST(0, c.daily_views - COALESCE(td.today_done, 0)))
+                ELSE GREATEST(0, c.total_views - c.views_done)
               END
             ), 0) as remaining_views
-            FROM campaigns WHERE status = 'running' AND views_done < total_views LIMIT 500`),
+            FROM campaigns c
+            LEFT JOIN (
+              SELECT campaign_id, COUNT(*) as today_done
+              FROM vuot_link_tasks
+              WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
+                AND completed_at >= ? AND completed_at <= ?
+              GROUP BY campaign_id
+            ) td ON td.campaign_id = c.id
+            WHERE c.status = 'running' AND c.views_done < c.total_views`, [todayStart, todayEnd]),
         ]);
 
         const walletMap = {};
