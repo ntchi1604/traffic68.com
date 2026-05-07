@@ -229,7 +229,7 @@ router.get('/finance/summary', async (req, res) => {
 router.get('/finance/top-buyers', async (req, res) => {
   try {
     const pool = getPool();
-    const month = req.query.month || new Date().toISOString().slice(0, 7); // YYYY-MM
+    const month = req.query.month || localDateStr(new Date()).slice(0, 7); // YYYY-MM VN
     const limit = Math.min(Number(req.query.limit) || 10, 50);
     const [rows] = await pool.execute(
       `SELECT u.id, u.name, u.email,
@@ -255,7 +255,7 @@ router.get('/finance/top-buyers', async (req, res) => {
 router.get('/finance/top-workers', async (req, res) => {
   try {
     const pool = getPool();
-    const month = req.query.month || new Date().toISOString().slice(0, 7);
+    const month = req.query.month || localDateStr(new Date()).slice(0, 7);
     const limit = Math.min(Number(req.query.limit) || 10, 50);
 
     // Dùng UNION ALL để gộp cả 2 nguồn earning của worker:

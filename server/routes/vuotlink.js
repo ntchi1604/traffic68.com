@@ -642,24 +642,33 @@ async function _handleTaskPost(req, res) {
     try {
       const kwConfig = picked.keyword_config ? JSON.parse(picked.keyword_config) : null;
       if (Array.isArray(kwConfig) && kwConfig.length > 0) {
-        // ── Merge 3 metrics thành 1 query: total + today_done + hour_done (giảm round-trip DB) ──
         const [kwCombined] = await pool.execute(
           `SELECT keyword,
-                  COUNT(*) as done,
-                  SUM(CASE WHEN completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_done,
-                  SUM(CASE WHEN completed_at >= ? AND completed_at < ? THEN 1 ELSE 0 END) as hour_done
+                  SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as done,
+                  SUM(CASE WHEN status IN ('pending','step1','step2','step3') AND expires_at > NOW() THEN 1 ELSE 0 END) as active,
+                  SUM(CASE WHEN status = 'completed' AND completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_done,
+                  SUM(CASE WHEN status IN ('pending','step1','step2','step3') AND expires_at > NOW() AND created_at >= ? AND created_at <= ? THEN 1 ELSE 0 END) as today_active,
+                  SUM(CASE WHEN status = 'completed' AND completed_at >= ? AND completed_at < ? THEN 1 ELSE 0 END) as hour_done,
+                  SUM(CASE WHEN status IN ('pending','step1','step2','step3') AND expires_at > NOW() AND created_at >= ? AND created_at < ? THEN 1 ELSE 0 END) as hour_active
            FROM vuot_link_tasks
-           WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
+           WHERE campaign_id = ? AND bot_detected = 0 AND is_over_limit = 0
+             AND status IN ('completed','pending','step1','step2','step3')
            GROUP BY keyword`,
-          [vnDayStart, vnDayEnd, vnHourStart, vnNextHourStart, picked.id]
+          [vnDayStart, vnDayEnd, vnDayStart, vnDayEnd, vnHourStart, vnNextHourStart, vnHourStart, vnNextHourStart, picked.id]
         );
         const doneMap = {};
+        const activeMap = {};
         const todayMap = {};
+        const todayActiveMap = {};
         const hourMap = {};
+        const hourActiveMap = {};
         kwCombined.forEach(r => {
           doneMap[r.keyword] = Number(r.done);
+          activeMap[r.keyword] = Number(r.active);
           todayMap[r.keyword] = Number(r.today_done);
+          todayActiveMap[r.keyword] = Number(r.today_active);
           hourMap[r.keyword] = Number(r.hour_done);
+          hourActiveMap[r.keyword] = Number(r.hour_active);
         });
 
         const campaignDailyViews = Number(picked.daily_views) || 0;
@@ -705,14 +714,21 @@ async function _handleTaskPost(req, res) {
           .filter(k => k.keyword && k.keyword.trim())
           .map(k => {
             const totalDone = doneMap[k.keyword] || 0;
+            const activeCount = activeMap[k.keyword] || 0;
             const todayDone = todayMap[k.keyword] || 0;
+            const todayActive = todayActiveMap[k.keyword] || 0;
             const hourDone = hourMap[k.keyword] || 0;
+            const hourActive = hourActiveMap[k.keyword] || 0;
+            const reservedTotal = totalDone + activeCount;
+            const reservedToday = todayDone + todayActive;
+            const reservedHour = hourDone + hourActive;
             const kwTotalViews = Number(k.views) || 0;
             const hasNoTotalLimit = kwTotalViews <= 0;
-            const totalRemaining = hasNoTotalLimit ? Infinity : Math.max(0, kwTotalViews - totalDone);
+            const totalRemaining = hasNoTotalLimit ? Infinity : Math.max(0, kwTotalViews - reservedTotal);
+            const totalOk = hasNoTotalLimit || reservedTotal < kwTotalViews;
             const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
-            const dailyRemaining = effectiveDailyLimit > 0 ? Math.max(0, effectiveDailyLimit - todayDone) : 0;
-            const dailyOk = effectiveDailyLimit <= 0 || todayDone < effectiveDailyLimit;
+            const dailyRemaining = effectiveDailyLimit > 0 ? Math.max(0, effectiveDailyLimit - reservedToday) : 0;
+            const dailyOk = effectiveDailyLimit <= 0 || reservedToday < effectiveDailyLimit;
 
             // Per-keyword device filtering: skip keywords that don't match worker's device type
             const kwDevice = (k.device || 'both').toLowerCase();
@@ -721,8 +737,8 @@ async function _handleTaskPost(req, res) {
               if (kwDevice === 'desktop' && workerDeviceType !== 'desktop') return { ...k, weight: 0 };
             }
 
-            // Daily limit: hard stop — weight = 0 nếu đã hết quota ngày
-            if (!dailyOk) return { ...k, weight: 0 };
+            // Daily/total limit: hard stop — tính cả task đang giữ slot
+            if (!dailyOk || !totalOk) return { ...k, weight: 0 };
 
             // ── Hourly cap per-keyword theo remaining_views / remaining_hours ──
             let kwHourlyCap = 0;
@@ -743,7 +759,7 @@ async function _handleTaskPost(req, res) {
               }
               // Random-proportional: tại phút m, cho phép số view theo đường cong ngẫu nhiên
               const allowedHourlyNow = allowedHourlyAtMinute(kwHourlyCap, `kw:${picked.id}:${k.keyword}`, minuteVn);
-              if (hourDone >= allowedHourlyNow) {
+              if (reservedHour >= allowedHourlyNow) {
                 return { ...k, weight: 0 };
               }
             }
@@ -759,11 +775,10 @@ async function _handleTaskPost(req, res) {
             }
 
             if (kwViewByHour && kwHourlyCap > 0) {
-              const hourlyRemaining = Math.max(0, kwHourlyCap - hourDone);
+              const hourlyRemaining = Math.max(0, kwHourlyCap - reservedHour);
               baseWeight = Math.min(baseWeight, hourlyRemaining);
             }
 
-            const totalPenalty = (!hasNoTotalLimit && totalRemaining === 0) ? 0.05 : 1;
             // Apply mobilePct weighting for 'both' device keywords to achieve traffic distribution ratio
             let deviceRatio = 1;
             if (kwDevice === 'both' && k.mobilePct != null) {
@@ -771,7 +786,7 @@ async function _handleTaskPost(req, res) {
               deviceRatio = workerDeviceType === 'mobile' ? (mPct / 100) : ((100 - mPct) / 100);
               deviceRatio = Math.max(0.01, deviceRatio); // avoid zero weight
             }
-            return { ...k, weight: baseWeight * totalPenalty * deviceRatio };
+            return { ...k, weight: baseWeight * deviceRatio };
           });
 
         const kwTotalWeight = weighted.reduce((s, w) => s + w.weight, 0);
@@ -797,10 +812,13 @@ async function _handleTaskPost(req, res) {
                 : autoDaily > 0 ? autoDaily
                   : campaignDailyViews > 0 ? Math.floor(campaignDailyViews / Math.max(1, kwConfig.length))
                     : 0;
-              const todayDoneKw = todayMap[k.keyword] || 0;
-              const hourDoneKw = hourMap[k.keyword] || 0;
-              // Keyword còn quota ngày (hoặc không giới hạn ngày)
+              const todayDoneKw = (todayMap[k.keyword] || 0) + (todayActiveMap[k.keyword] || 0);
+              const hourDoneKw = (hourMap[k.keyword] || 0) + (hourActiveMap[k.keyword] || 0);
+              const kwTotalViews = Number(k.views) || 0;
+              const totalReservedKw = (doneMap[k.keyword] || 0) + (activeMap[k.keyword] || 0);
+              // Keyword còn quota ngày/tổng (hoặc không giới hạn)
               const dailyOkKw = effDaily <= 0 || todayDoneKw < effDaily;
+              const totalOkKw = kwTotalViews <= 0 || totalReservedKw < kwTotalViews;
               // Tính hourly cap cùng rule với trên
               let kwHourlyCapCheck = 0;
               if (kwDailyLimitEx > 0) {
@@ -814,7 +832,7 @@ async function _handleTaskPost(req, res) {
                 kwHourlyCapCheck = Math.max(1, Math.ceil(campTotalViews / remainingHoursVn));
               }
               const allowedNow = allowedHourlyAtMinute(kwHourlyCapCheck, `kw:${picked.id}:${k.keyword}`, minuteVn);
-              return dailyOkKw && kwHourlyCapCheck > 0 && hourDoneKw >= allowedNow;
+              return dailyOkKw && totalOkKw && kwHourlyCapCheck > 0 && hourDoneKw >= allowedNow;
             });
             if (anyBlockedByHour) {
               console.log(`[VuotLink] Campaign ${picked.id}: all keywords hit hourly cap (view_by_hour) → remove from pool, retrying`);
@@ -833,16 +851,12 @@ async function _handleTaskPost(req, res) {
             if (hasUnlimitedKw) {
               const stillRemaining = kwConfig.filter(k => {
                 const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
-                const totalDone = doneMap[k.keyword] || 0;
+                const totalReserved = (doneMap[k.keyword] || 0) + (activeMap[k.keyword] || 0);
                 const kwTotalViews = Number(k.views) || 0;
-                return effectiveDailyLimit <= 0 && (kwTotalViews <= 0 || totalDone < kwTotalViews);
+                return effectiveDailyLimit <= 0 && (kwTotalViews <= 0 || totalReserved < kwTotalViews);
               });
-              const fallbackPool = stillRemaining.length > 0 ? stillRemaining : kwConfig.filter(k => {
-                const effectiveDailyLimit = Number(k.daily_views) > 0 ? Number(k.daily_views) : autoDaily;
-                return effectiveDailyLimit <= 0;
-              });
-              if (fallbackPool.length > 0) {
-                selectedObj = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+              if (stillRemaining.length > 0) {
+                selectedObj = stillRemaining[Math.floor(Math.random() * stillRemaining.length)];
               }
             } else {
               // ALL keywords exhausted for today → skip this campaign, try another
@@ -1033,6 +1047,39 @@ async function _handleTaskPost(req, res) {
     }
   } catch (_) { }
   const botDetectedValue = isTrustedWorker ? 0 : (botDetected ? 1 : 0);
+
+  if (selectedKeyword && campaign.keyword_config) {
+    try {
+      const kwConfig = JSON.parse(campaign.keyword_config || '[]');
+      const kwRule = Array.isArray(kwConfig) ? kwConfig.find(k => k.keyword === selectedKeyword) : null;
+      if (kwRule) {
+        const kwTotalViews = Number(kwRule.views) || 0;
+        const explicitDaily = Number(kwRule.daily_views) || 0;
+        const campaignDailyViews = Number(campaign.daily_views) || 0;
+        const totalExplicitDaily = kwConfig.reduce((s, k) => s + (Number(k.daily_views) > 0 ? Number(k.daily_views) : 0), 0);
+        const unsetCount = kwConfig.filter(k => !(Number(k.daily_views) > 0)).length;
+        const autoDaily = explicitDaily <= 0 && unsetCount > 0 && campaignDailyViews > 0
+          ? Math.floor(Math.max(0, campaignDailyViews - totalExplicitDaily) / unsetCount)
+          : 0;
+        const kwDailyViews = explicitDaily > 0 ? explicitDaily : autoDaily;
+        const [kwGuard] = await pool.execute(
+          `SELECT
+             SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as done,
+             SUM(CASE WHEN status IN ('pending','step1','step2','step3') AND expires_at > NOW() THEN 1 ELSE 0 END) as active,
+             SUM(CASE WHEN status = 'completed' AND completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_done,
+             SUM(CASE WHEN status IN ('pending','step1','step2','step3') AND expires_at > NOW() AND created_at >= ? AND created_at <= ? THEN 1 ELSE 0 END) as today_active
+           FROM vuot_link_tasks
+           WHERE campaign_id = ? AND keyword = ? AND bot_detected = 0 AND is_over_limit = 0`,
+          [vnDayStart, vnDayEnd, vnDayStart, vnDayEnd, campaign.id, selectedKeyword]
+        );
+        const reservedTotal = Number(kwGuard[0]?.done || 0) + Number(kwGuard[0]?.active || 0);
+        const reservedToday = Number(kwGuard[0]?.today_done || 0) + Number(kwGuard[0]?.today_active || 0);
+        if ((kwTotalViews > 0 && reservedTotal >= kwTotalViews) || (kwDailyViews > 0 && reservedToday >= kwDailyViews)) {
+          return res.status(409).json({ error: 'Từ khóa đã đạt giới hạn view, vui lòng thử lại.' });
+        }
+      }
+    } catch (_) { }
+  }
 
   const [result] = await pool.execute(
     `INSERT INTO vuot_link_tasks (campaign_id, worker_id, keyword, target_url, target_page, status, ip_address, user_agent, code_given, visitor_id, bot_detected, expires_at, worker_link_id, ref_worker_id, security_detail, is_over_limit) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?, ?, ?)`,
