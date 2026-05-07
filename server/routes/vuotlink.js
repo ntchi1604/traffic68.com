@@ -2122,7 +2122,13 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
                 AND completed_at >= ? AND completed_at <= ?
               GROUP BY campaign_id
             ) td ON td.campaign_id = c.id
-            WHERE c.status = 'running' AND c.views_done < c.total_views`, [todayStart, todayEnd]),
+            WHERE c.status = 'running'
+              AND (
+                (c.traffic_type = 'google_search' AND c.keyword != '')
+                OR c.traffic_type = 'direct'
+                OR (c.traffic_type = 'social' AND c.keyword != '')
+              )
+              AND c.views_done < c.total_views`, [todayStart, todayEnd]),
         ]);
 
         const walletMap = {};

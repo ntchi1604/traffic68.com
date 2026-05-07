@@ -12,7 +12,7 @@
  * Chiến lược tối ưu data lớn:
  *   - Batch delete: 5.000 rows/lần, tránh lock bảng quá lâu
  *   - Ngủ 200ms giữa mỗi batch: giảm tải I/O disk
- *   - Sync views_done theo batch: sửa drift giữa counter và thực tế
+ *   - Sync views_done chỉ tăng counter, không hạ theo raw task đã cleanup
  *   - Archive traffic_logs > 12 tháng: giữ dữ liệu báo cáo dài hạn
  *   - ANALYZE TABLE: cập nhật stats cho query optimizer sau cleanup
  */
@@ -25,6 +25,12 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const BATCH_SIZE   = 5000;   // rows mỗi lần DELETE — tránh lock quá lâu
 const BATCH_SLEEP  = 200;    // ms ngủ giữa các batch
 const OPTIMIZE_MIN = 500;    // tổng rows xóa tối thiểu để chạy OPTIMIZE
+const RETENTION = {
+  oneDay: 1,
+  sevenDays: 7,
+  fourteenDays: 14,
+  thirtyDays: 30,
+};
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -76,7 +82,8 @@ async function run() {
   const vnNow = new Date();
   const vnStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(vnNow);
   console.log(`\n[DB Cleanup] Bắt đầu: ${vnStr} (VN time)`);
-  console.log(`[DB Cleanup] Batch size: ${BATCH_SIZE} rows/batch\n`);
+  console.log(`[DB Cleanup] Batch size: ${BATCH_SIZE} rows/batch`);
+  console.log('[DB Cleanup] Retention tiers: 1 / 7 / 14 / 30 ngày\n');
 
   let totalDeleted = 0;
 
@@ -84,48 +91,40 @@ async function run() {
   // 1. vuot_link_tasks — bảng lớn nhất, ưu tiên clean trước
   // ════════════════════════════════════════════════════════════════════════════
 
-  // 1a. Tasks expired — lấy task nhưng không làm (không có earning)
+  // 1a. Rác nóng > 1 ngày
   totalDeleted += await batchDelete(conn,
-    'Tasks expired',
-    `DELETE FROM vuot_link_tasks WHERE status = 'expired'`
+    `Tasks expired/cancelled > ${RETENTION.oneDay} ngày`,
+    `DELETE FROM vuot_link_tasks
+     WHERE status IN ('expired','cancelled')
+       AND created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION.oneDay} DAY)`
   );
 
-  // 1b. Tasks bị hủy
   totalDeleted += await batchDelete(conn,
-    'Tasks cancelled',
-    `DELETE FROM vuot_link_tasks WHERE status = 'cancelled'`
-  );
-
-  // 1c. Tasks pending/đang làm nhưng expires_at đã qua > 3 ngày
-  //     (step1/step2/step3 = đang trong quy trình nhưng bị bỏ dở)
-  totalDeleted += await batchDelete(conn,
-    'Tasks pending quá hạn > 3 ngày',
+    `Tasks pending bỏ dở > ${RETENTION.oneDay} ngày`,
     `DELETE FROM vuot_link_tasks
      WHERE status IN ('pending','step1','step2','step3')
-       AND expires_at < DATE_SUB(NOW(), INTERVAL 3 DAY)`
+       AND expires_at IS NOT NULL
+       AND expires_at < DATE_SUB(NOW(), INTERVAL ${RETENTION.oneDay} DAY)`
   );
 
-  // 1d. Bot tasks > 15 ngày (rút ngắn từ 30 → 15)
-  //     Bot tasks chiếm nhiều dung lượng mà không có giá trị báo cáo dài hạn
+  // 1b. Rác bot/limit > 7 ngày
   totalDeleted += await batchDelete(conn,
-    'Bot tasks > 15 ngày',
+    `Bot tasks > ${RETENTION.sevenDays} ngày`,
     `DELETE FROM vuot_link_tasks
      WHERE bot_detected = 1
-       AND created_at < DATE_SUB(NOW(), INTERVAL 15 DAY)`
+       AND created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION.sevenDays} DAY)`
   );
 
-  // 1e. is_over_limit tasks > 30 ngày (vượt giới hạn IP/ngày, không có earning)
   totalDeleted += await batchDelete(conn,
-    'Over-limit tasks > 30 ngày',
+    `Over-limit tasks > ${RETENTION.sevenDays} ngày`,
     `DELETE FROM vuot_link_tasks
      WHERE is_over_limit = 1
-       AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)`
+       AND created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION.sevenDays} DAY)`
   );
 
-  // 1f. Completed tasks > 6 tháng (hợp lệ) — xóa sau khi đã vào traffic_logs
-  //     traffic_logs giữ aggregated data nên detail tasks không cần thiết lâu dài
+  // 1f. Completed tasks hợp lệ — giữ dài hơn vì còn dùng đối soát/báo cáo
   totalDeleted += await batchDelete(conn,
-    'Completed tasks hợp lệ > 6 tháng',
+    'Completed tasks hợp lệ > 180 ngày',
     `DELETE FROM vuot_link_tasks
      WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
        AND completed_at < DATE_SUB(NOW(), INTERVAL 180 DAY)`
@@ -161,26 +160,7 @@ async function run() {
 
   // ════════════════════════════════════════════════════════════════════════════
 
-  // 2a. Tasks của worker_links > 30 ngày (dùng subquery vì MySQL không cho LIMIT với JOIN DELETE)
-  totalDeleted += await batchDeleteSub(conn,
-    'Tasks qua worker_links > 30 ngày',
-    // idSql: lấy id cần xóa
-    `SELECT vt.id AS _id
-     FROM vuot_link_tasks vt
-     INNER JOIN worker_links wl ON wl.id = vt.worker_link_id
-     WHERE wl.created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)`,
-    // deleteSql: DELETE WHERE id IN (...)
-    `DELETE FROM vuot_link_tasks WHERE id`,
-    [] // params — không cần vì dùng literal date string
-  );
-
-  // 2b. Worker links > 30 ngày (chỉ xóa sau khi đã xóa tasks)
-  totalDeleted += await batchDelete(conn,
-    'Worker links (hidden) > 30 ngày',
-    `DELETE FROM worker_links
-     WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
-       AND hidden = 1`
-  );
+  console.log('\n  ⏭️  Bỏ qua cleanup worker_links để giữ lịch sử gateway/tasks');
 
   // ════════════════════════════════════════════════════════════════════════════
   // 4. traffic_logs — giữ dữ liệu báo cáo, chỉ xóa rất cũ
@@ -199,34 +179,62 @@ async function run() {
   // ════════════════════════════════════════════════════════════════════════════
 
   totalDeleted += await batchDelete(conn,
-    'Security logs > 45 ngày',
+    `Security logs > ${RETENTION.fourteenDays} ngày`,
     `DELETE FROM security_logs
-     WHERE created_at < DATE_SUB(NOW(), INTERVAL 45 DAY)`
+     WHERE created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION.fourteenDays} DAY)`
   );
 
   // ════════════════════════════════════════════════════════════════════════════
-  // 6. notifications — dọn theo trạng thái đọc
+  // 6. support_tickets — chỉ clear ticket đã đóng lâu
   // ════════════════════════════════════════════════════════════════════════════
 
   totalDeleted += await batchDelete(conn,
-    'Notifications đã đọc > 30 ngày',
-    `DELETE FROM notifications
-     WHERE is_read = 1 AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)`
+    `Support tickets đã đóng > ${RETENTION.thirtyDays} ngày`,
+    `DELETE FROM support_tickets
+     WHERE status IN ('closed','resolved')
+       AND updated_at < DATE_SUB(NOW(), INTERVAL ${RETENTION.thirtyDays} DAY)`
+  );
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // 7. transactions — giữ lịch sử buyer/worker, chỉ clear deposit rác
+  // ════════════════════════════════════════════════════════════════════════════
+
+  totalDeleted += await batchDelete(conn,
+    `Deposit cancelled/failed > ${RETENTION.oneDay} ngày`,
+    `DELETE FROM transactions
+     WHERE type = 'deposit'
+       AND status IN ('cancelled','failed')
+       AND created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION.oneDay} DAY)`
   );
 
   totalDeleted += await batchDelete(conn,
-    'Notifications chưa đọc > 90 ngày',
-    `DELETE FROM notifications
-     WHERE is_read = 0 AND created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)`
+    `Deposit pending quá hạn > ${RETENTION.oneDay} ngày`,
+    `DELETE FROM transactions
+     WHERE type = 'deposit' AND status = 'pending'
+       AND created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION.oneDay} DAY)`
   );
 
   // ════════════════════════════════════════════════════════════════════════════
-  // 6. Sync views_done — sửa drift counter nếu có (chạy sau khi đã xóa tasks)
-  //    Chỉ update những campaign thực sự bị lệch (affectedRows-based)
+  // 7. notifications — dọn theo trạng thái đọc
   // ════════════════════════════════════════════════════════════════════════════
-  console.log('\n  🔄 Sync views_done cho campaigns bị lệch...');
+
+  totalDeleted += await batchDelete(conn,
+    `Notifications đã đọc > ${RETENTION.sevenDays} ngày`,
+    `DELETE FROM notifications
+     WHERE is_read = 1 AND created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION.sevenDays} DAY)`
+  );
+
+  totalDeleted += await batchDelete(conn,
+    `Notifications chưa đọc > ${RETENTION.thirtyDays} ngày`,
+    `DELETE FROM notifications
+     WHERE is_read = 0 AND created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION.thirtyDays} DAY)`
+  );
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // 6. Sync views_done — chỉ được tăng counter, không được hạ sau cleanup raw tasks
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n  🔄 Sync views_done cho campaigns bị lệch tăng...');
   try {
-    // Dùng UPDATE...JOIN để tránh correlated subquery N+1
     const [syncRes] = await conn.execute(`
       UPDATE campaigns c
       INNER JOIN (
@@ -236,26 +244,12 @@ async function run() {
         GROUP BY campaign_id
       ) t ON t.campaign_id = c.id
       SET c.views_done = t.real_views
-      WHERE c.views_done != t.real_views
+      WHERE c.views_done < t.real_views
     `);
     if (syncRes.affectedRows > 0) {
-      console.log(`  ✅ Sync views_done: ${syncRes.affectedRows} campaigns cập nhật`);
+      console.log(`  ✅ Sync views_done tăng: ${syncRes.affectedRows} campaigns cập nhật`);
     } else {
-      console.log(`  ✅ Sync views_done: không có campaign nào bị lệch`);
-    }
-
-    // Những campaign không có task nào hoàn thành → đặt về 0 nếu > 0
-    const [zeroRes] = await conn.execute(`
-      UPDATE campaigns
-      SET views_done = 0
-      WHERE views_done > 0
-        AND id NOT IN (
-          SELECT DISTINCT campaign_id FROM vuot_link_tasks
-          WHERE status = 'completed' AND bot_detected = 0 AND is_over_limit = 0
-        )
-    `);
-    if (zeroRes.affectedRows > 0) {
-      console.log(`  ✅ Reset views_done = 0: ${zeroRes.affectedRows} campaigns không có task hợp lệ`);
+      console.log(`  ✅ Sync views_done: không có campaign nào cần tăng`);
     }
   } catch (e) {
     console.error(`  ❌ Sync views_done: ${e.message}`);
