@@ -711,7 +711,7 @@ router.get('/campaigns', async (req, res) => {
         await pool.execute(
           `UPDATE campaigns c SET views_done = (
             SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
-          ) WHERE c.id IN (${ph}) AND c.views_done != (
+          ) WHERE c.id IN (${ph}) AND c.views_done < (
             SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
           )`, ids
         );
@@ -854,7 +854,7 @@ router.post('/campaigns/:id/sync-views', async (req, res) => {
       );
       let fixed = 0;
       for (const r of rows) {
-        if (Number(r.old_views) !== Number(r.real_views)) {
+        if (Number(r.old_views) < Number(r.real_views)) {
           await pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [r.real_views, r.id]);
           fixed++;
         }
@@ -871,8 +871,10 @@ router.post('/campaigns/:id/sync-views', async (req, res) => {
     const [camp] = await pool.execute('SELECT views_done FROM campaigns WHERE id = ?', [cid]);
     const oldViews = camp[0] ? camp[0].views_done || 0 : 0;
 
-    await pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, cid]);
-    res.json({ message: `Đã đồng bộ: ${oldViews} → ${realViews}`, oldViews, newViews: realViews });
+    if (Number(oldViews) < Number(realViews)) {
+      await pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, cid]);
+    }
+    res.json({ message: `Đã đồng bộ: ${oldViews} → ${Math.max(Number(oldViews), Number(realViews))}`, oldViews, newViews: Math.max(Number(oldViews), Number(realViews)) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -901,7 +903,7 @@ router.get('/campaigns/:id/keyword-stats', async (req, res) => {
     // ── Auto-sync views_done nếu chênh lệch ──
     const realViews = rows.reduce((s, r) => s + Number(r.completed), 0);
     const [camp] = await pool.execute('SELECT views_done FROM campaigns WHERE id = ?', [cid]);
-    if (camp[0] && Number(camp[0].views_done) !== realViews) {
+    if (camp[0] && Number(camp[0].views_done) < realViews) {
       await pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, cid]);
     }
 

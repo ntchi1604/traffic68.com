@@ -217,7 +217,7 @@ router.get('/', async (req, res) => {
         const [syncResult] = await pool.execute(
           `UPDATE campaigns c SET views_done = (
             SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
-          ) WHERE c.id IN (${ph}) AND c.views_done != (
+          ) WHERE c.id IN (${ph}) AND c.views_done < (
             SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
           )`, ids
         );
@@ -404,7 +404,7 @@ router.get('/:id/keyword-stats', async (req, res) => {
     const realViews = rows.reduce((s, r) => s + Number(r.completed), 0);
     pool.execute('SELECT views_done, total_views, status FROM campaigns WHERE id = ?', [req.params.id]).then(([c]) => {
       if (c[0]) {
-        if (Number(c[0].views_done) !== realViews) {
+        if (Number(c[0].views_done) < realViews) {
           pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, req.params.id]).catch(() => { });
         }
         // Chỉ auto-revert nếu campaign không được đánh dấu hoàn thành thủ công
