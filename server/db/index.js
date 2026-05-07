@@ -121,6 +121,11 @@ async function initDb() {
     await p2.execute("ALTER TABLE security_logs ADD INDEX idx_created_at (created_at)").catch(() => { });
     await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_worker_security_page (worker_id, created_at, bot_detected, ip_address(45), visitor_id(100))").catch(() => { });
     await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_wlink_security_page (worker_link_id, created_at, bot_detected, ip_address(45), visitor_id(100))").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_security_date_worker (created_at, worker_id, worker_link_id, status, bot_detected)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_worker_recent (worker_id, created_at)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_wlink_recent (worker_link_id, created_at)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_worker_status_pending (worker_id, status)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_wlink_status_pending (worker_link_id, status)").catch(() => { });
     await p2.execute("ALTER TABLE security_logs ADD INDEX idx_security_pair_date_reason (ip_address, visitor_id, created_at, reason)").catch(() => { });
   } catch (_) { };
 }

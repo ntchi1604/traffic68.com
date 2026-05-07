@@ -1560,35 +1560,43 @@ router.get('/security/users', async (req, res) => {
     if (to) { timeWhere += ` AND vt.created_at <= ?`; timeParams.push(to + ' 23:59:59'); }
 
 
-    const [cnt] = await pool.execute(
-      `SELECT COUNT(*) as total FROM users u WHERE 1=1${searchWhere}`, params
-    );
-
-
     const sortMap = { ok: 'ok', blocked: 'blocked', earned: 'earned', total: 'total', last_at: 'last_at' };
     const orderCol = sortMap[sort] || 'ok';
 
+    let cnt;
+    let rows;
+    if (!search) {
+      [cnt] = await pool.execute(
+        `SELECT COUNT(*) as total
+         FROM (
+           SELECT COALESCE(vt.worker_id, wl.worker_id) as actual_worker_id
+           FROM vuot_link_tasks vt
+           LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+           WHERE COALESCE(vt.worker_id, wl.worker_id) IS NOT NULL${timeWhere}
+           GROUP BY actual_worker_id
+         ) active_workers`,
+        timeParams
+      );
 
-    const [rows] = await pool.execute(
-      `SELECT
-         u.id as worker_id,
-         u.name,
-         u.email,
-         u.status,
-         u.avatar_url,
-         COALESCE(vt_aggr.total, 0) as total,
-         COALESCE(vt_aggr.ok, 0) as ok,
-         COALESCE(vt_aggr.blocked, 0) as blocked,
-         COALESCE(vt_aggr.expired, 0) as expired,
-         COALESCE(vt_aggr.pending, 0) as pending,
-         COALESCE(vt_aggr.earned, 0) as earned,
-         vt_aggr.last_at,
-         vt_aggr.ips
-       FROM users u
-       LEFT JOIN (
-           SELECT 
+      [rows] = await pool.execute(
+        `SELECT
+           u.id as worker_id,
+           u.name,
+           u.email,
+           u.status,
+           u.avatar_url,
+           vt_aggr.total,
+           vt_aggr.ok,
+           vt_aggr.blocked,
+           vt_aggr.expired,
+           vt_aggr.pending,
+           vt_aggr.earned,
+           vt_aggr.last_at,
+           vt_aggr.ips
+         FROM (
+           SELECT
              COALESCE(vt.worker_id, wl.worker_id) as actual_worker_id,
-             COUNT(DISTINCT vt.id) as total,
+             COUNT(*) as total,
              CAST(SUM(CASE WHEN vt.status = 'completed' THEN 1 ELSE 0 END) AS UNSIGNED) as ok,
              CAST(SUM(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END) AS UNSIGNED) as blocked,
              CAST(SUM(CASE WHEN vt.status = 'expired' THEN 1 ELSE 0 END) AS UNSIGNED) as expired,
@@ -1598,14 +1606,58 @@ router.get('/security/users', async (req, res) => {
              GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips
            FROM vuot_link_tasks vt
            LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
-           WHERE 1=1 ${timeWhere.replace(/vt\./g, 'vt.')}
+           WHERE COALESCE(vt.worker_id, wl.worker_id) IS NOT NULL${timeWhere}
            GROUP BY actual_worker_id
-       ) vt_aggr ON vt_aggr.actual_worker_id = u.id
-       WHERE 1=1${searchWhere}
-       ORDER BY ${orderCol} DESC, last_at DESC
-       LIMIT ? OFFSET ?`,
-      [...timeParams, ...params, Number(limit), offset]
-    );
+           ORDER BY ${orderCol} DESC, last_at DESC
+           LIMIT ? OFFSET ?
+         ) vt_aggr
+         JOIN users u ON u.id = vt_aggr.actual_worker_id
+         ORDER BY ${orderCol} DESC, last_at DESC`,
+        [...timeParams, Number(limit), offset]
+      );
+    } else {
+      [cnt] = await pool.execute(
+        `SELECT COUNT(*) as total FROM users u WHERE 1=1${searchWhere}`, params
+      );
+
+      [rows] = await pool.execute(
+        `SELECT
+           u.id as worker_id,
+           u.name,
+           u.email,
+           u.status,
+           u.avatar_url,
+           COALESCE(vt_aggr.total, 0) as total,
+           COALESCE(vt_aggr.ok, 0) as ok,
+           COALESCE(vt_aggr.blocked, 0) as blocked,
+           COALESCE(vt_aggr.expired, 0) as expired,
+           COALESCE(vt_aggr.pending, 0) as pending,
+           COALESCE(vt_aggr.earned, 0) as earned,
+           vt_aggr.last_at,
+           vt_aggr.ips
+         FROM users u
+         LEFT JOIN (
+             SELECT
+               COALESCE(vt.worker_id, wl.worker_id) as actual_worker_id,
+               COUNT(*) as total,
+               CAST(SUM(CASE WHEN vt.status = 'completed' THEN 1 ELSE 0 END) AS UNSIGNED) as ok,
+               CAST(SUM(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END) AS UNSIGNED) as blocked,
+               CAST(SUM(CASE WHEN vt.status = 'expired' THEN 1 ELSE 0 END) AS UNSIGNED) as expired,
+               CAST(SUM(CASE WHEN vt.status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) AS UNSIGNED) as pending,
+               SUM(vt.earning) as earned,
+               MAX(vt.created_at) as last_at,
+               GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips
+             FROM vuot_link_tasks vt
+             LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+             WHERE 1=1 ${timeWhere}
+             GROUP BY actual_worker_id
+         ) vt_aggr ON vt_aggr.actual_worker_id = u.id
+         WHERE 1=1${searchWhere}
+         ORDER BY ${orderCol} DESC, last_at DESC
+         LIMIT ? OFFSET ?`,
+        [...timeParams, ...params, Number(limit), offset]
+      );
+    }
 
 
     const ids = rows.map(r => r.worker_id).filter(Boolean);

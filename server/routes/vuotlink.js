@@ -2048,21 +2048,37 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
         const d7 = new Date(); d7.setDate(d7.getDate() - 7);
         const sevenAgo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(d7) + ' 00:00:00';
 
-        const mkCountEarn = (where, p) => hasGateway
-          ? pool.execute(`SELECT SUM(cnt) as cnt, SUM(earn) as earn FROM (
-              SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? ${where}
-              UNION ALL
-              SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_link_id IN (${inList}) ${where}
-            ) _u`, [uid, ...p, ...wlIds, ...p])
-          : pool.execute(`SELECT COUNT(*) as cnt, COALESCE(SUM(earning),0) as earn FROM vuot_link_tasks WHERE worker_id = ? ${where}`, [uid, ...p]);
-
-        const mkCount = (where, p) => hasGateway
-          ? pool.execute(`SELECT SUM(cnt) as cnt FROM (
-              SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE worker_id = ? ${where}
-              UNION ALL
-              SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE worker_link_id IN (${inList}) ${where}
-            ) _u`, [uid, ...p, ...wlIds, ...p])
-          : pool.execute(`SELECT COUNT(*) as cnt FROM vuot_link_tasks WHERE worker_id = ? ${where}`, [uid, ...p]);
+        const mkSummary = () => hasGateway
+          ? pool.execute(`SELECT
+                SUM(today_tasks) as today_tasks,
+                SUM(today_earn) as today_earn,
+                SUM(total_tasks) as total_tasks,
+                SUM(total_earn) as total_earn,
+                SUM(pending_tasks) as pending_tasks
+              FROM (
+                SELECT
+                  SUM(CASE WHEN status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_tasks,
+                  COALESCE(SUM(CASE WHEN status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ? THEN earning ELSE 0 END),0) as today_earn,
+                  SUM(CASE WHEN status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 THEN 1 ELSE 0 END) as total_tasks,
+                  COALESCE(SUM(CASE WHEN status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 THEN earning ELSE 0 END),0) as total_earn,
+                  SUM(CASE WHEN status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) as pending_tasks
+                FROM vuot_link_tasks WHERE worker_id = ?
+                UNION ALL
+                SELECT
+                  SUM(CASE WHEN status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_tasks,
+                  COALESCE(SUM(CASE WHEN status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ? THEN earning ELSE 0 END),0) as today_earn,
+                  SUM(CASE WHEN status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 THEN 1 ELSE 0 END) as total_tasks,
+                  COALESCE(SUM(CASE WHEN status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 THEN earning ELSE 0 END),0) as total_earn,
+                  SUM(CASE WHEN status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) as pending_tasks
+                FROM vuot_link_tasks WHERE worker_link_id IN (${inList})
+              ) _u`, [todayStart, todayEnd, todayStart, todayEnd, uid, todayStart, todayEnd, todayStart, todayEnd, ...wlIds])
+          : pool.execute(`SELECT
+                SUM(CASE WHEN status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) as today_tasks,
+                COALESCE(SUM(CASE WHEN status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 AND completed_at >= ? AND completed_at <= ? THEN earning ELSE 0 END),0) as today_earn,
+                SUM(CASE WHEN status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 THEN 1 ELSE 0 END) as total_tasks,
+                COALESCE(SUM(CASE WHEN status = 'completed' AND bot_detected = 0 AND is_over_limit = 0 THEN earning ELSE 0 END),0) as total_earn,
+                SUM(CASE WHEN status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) as pending_tasks
+              FROM vuot_link_tasks WHERE worker_id = ?`, [todayStart, todayEnd, todayStart, todayEnd, uid]);
 
         const mkChart = (where, p) => hasGateway
           ? pool.execute(`SELECT day, SUM(tasks) as tasks, SUM(earn) as earn FROM (
@@ -2084,15 +2100,10 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
               FROM vuot_link_tasks t JOIN campaigns c ON t.campaign_id = c.id
               WHERE t.worker_id = ? ORDER BY t.created_at DESC LIMIT 10`, [uid]);
 
-        const completedWhere = "AND status = 'completed' AND bot_detected = 0 AND is_over_limit = 0";
-        const completedToday = completedWhere + ' AND completed_at >= ? AND completed_at <= ?';
         const completedChart = "AND status = 'completed' AND bot_detected = 0 AND completed_at >= ? AND completed_at <= ?";
-        const pendingWhere = "AND status IN ('pending','step1','step2','step3')";
 
-        const [todayR, totalR, pendingR, walletR, chartR, recentR, remR] = await Promise.all([
-          mkCountEarn(completedToday, [todayStart, todayEnd]),
-          mkCountEarn(completedWhere, []),
-          mkCount(pendingWhere, []),
+        const [summaryR, walletR, chartR, recentR, remR] = await Promise.all([
+          mkSummary(),
           pool.execute('SELECT type, balance FROM wallets WHERE user_id = ?', [uid]),
           mkChart(completedChart, [sevenAgo, todayEnd]),
           mkRecent(),
@@ -2108,10 +2119,11 @@ router.get('/worker/stats', authMiddleware, async (req, res) => {
 
         const walletMap = {};
         walletR[0].forEach(w => { walletMap[w.type] = Number(w.balance); });
+        const summary = summaryR[0][0] || {};
         return {
-          today: { tasks: Number(todayR[0][0].cnt || 0), earnings: Number(todayR[0][0].earn || 0) },
-          total: { tasks: Number(totalR[0][0].cnt || 0), earnings: Number(totalR[0][0].earn || 0) },
-          pending: Number(pendingR[0][0].cnt || 0),
+          today: { tasks: Number(summary.today_tasks || 0), earnings: Number(summary.today_earn || 0) },
+          total: { tasks: Number(summary.total_tasks || 0), earnings: Number(summary.total_earn || 0) },
+          pending: Number(summary.pending_tasks || 0),
           remainingDailyViews: Number(remR[0][0].remaining_views || 0),
           balance: walletMap.earning || 0,
           commissionBalance: walletMap.commission || 0,
