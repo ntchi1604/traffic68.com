@@ -1632,25 +1632,29 @@ router.get('/security/users', async (req, res) => {
       );
       botTaskRows.forEach(r => { if (r.uid) secMap[r.uid] = Number(r.cnt); });
 
-      // ── Batch 2: Security logs theo IPs của worker (join để tránh GROUP_CONCAT truncation) ──
+      // ── Batch 2: Security logs theo cặp IP/visitor của page hiện tại ──
       const [slRows] = await pool.execute(
-        `SELECT COALESCE(vt.worker_id, wl.worker_id) as uid,
+        `SELECT pairs.uid,
                 COUNT(DISTINCT CONCAT(sl.ip_address, '|', COALESCE(sl.visitor_id,''))) as cnt
-         FROM security_logs sl
-         JOIN vuot_link_tasks vt ON vt.ip_address = sl.ip_address
-         LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
-         WHERE COALESCE(vt.worker_id, wl.worker_id) IN (${ph})
+         FROM (
+           SELECT COALESCE(vt.worker_id, wl.worker_id) as uid,
+                  vt.ip_address,
+                  COALESCE(vt.visitor_id, '') as visitor_id,
+                  MAX(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END) as has_bot
+           FROM vuot_link_tasks vt
+           LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+           WHERE COALESCE(vt.worker_id, wl.worker_id) IN (${ph})
+             AND vt.ip_address IS NOT NULL
+             AND vt.ip_address != ''${vtDateWhere}
+           GROUP BY uid, vt.ip_address, COALESCE(vt.visitor_id, '')
+         ) pairs
+         JOIN security_logs sl
+           ON sl.ip_address = pairs.ip_address
+          AND COALESCE(sl.visitor_id, '') = pairs.visitor_id
+         WHERE pairs.has_bot = 0
            AND sl.reason != 'completed'${slDateWhere}
-           AND NOT EXISTS (
-             SELECT 1 FROM vuot_link_tasks vt2
-             LEFT JOIN worker_links wl2 ON wl2.id = vt2.worker_link_id
-             WHERE COALESCE(vt2.worker_id, wl2.worker_id) = COALESCE(vt.worker_id, wl.worker_id)
-               AND vt2.ip_address = sl.ip_address
-               AND COALESCE(vt2.visitor_id,'') = COALESCE(sl.visitor_id,'')
-               AND vt2.bot_detected = 1
-           )
-         GROUP BY uid`,
-        [...ids, ...slDateParams]
+         GROUP BY pairs.uid`,
+        [...ids, ...vtDateParams, ...slDateParams]
       );
       slRows.forEach(r => {
         if (r.uid) secMap[r.uid] = (secMap[r.uid] || 0) + Number(r.cnt);

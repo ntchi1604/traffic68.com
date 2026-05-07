@@ -1101,6 +1101,7 @@ export default function AdminSecurity() {
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [detail, setDetail] = useState(null);
@@ -1113,6 +1114,7 @@ export default function AdminSecurity() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const p = new URLSearchParams({ page, limit: LIMIT, sort });
       if (search) p.set('search', search);
@@ -1120,8 +1122,12 @@ export default function AdminSecurity() {
       if (dateTo) p.set('to', dateTo);
       const d = await api.get(`/admin/security/users?${p}`);
       setUsers(d.users || []); setTotal(d.total || 0);
-    } catch (e) { console.error(e); }
-    setLoading(false);
+    } catch (e) {
+      console.error(e);
+      setError(e.message || 'Không tải được dữ liệu người dùng');
+    } finally {
+      setLoading(false);
+    }
   }, [search, page, sort, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
@@ -1237,6 +1243,18 @@ export default function AdminSecurity() {
                     <div className="flex items-center justify-center gap-2 text-slate-500">
                       <RefreshCw size={16} className="animate-spin text-slate-400" />
                       <p className="text-sm font-medium">Đang tải dữ liệu người dùng...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12">
+                    <div className="flex flex-col items-center justify-center text-rose-500 gap-3">
+                      <AlertTriangle size={28} className="opacity-60" />
+                      <p className="text-sm font-semibold">{error}</p>
+                      <button onClick={load} className="px-4 py-2 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 text-xs font-bold hover:bg-rose-100 transition-colors">
+                        Thử tải lại
+                      </button>
                     </div>
                   </td>
                 </tr>

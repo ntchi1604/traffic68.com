@@ -119,6 +119,9 @@ async function initDb() {
     // ── Index cho security_logs ──
     await p2.execute("ALTER TABLE security_logs ADD INDEX idx_ip_created (ip_address, created_at)").catch(() => { });
     await p2.execute("ALTER TABLE security_logs ADD INDEX idx_created_at (created_at)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_worker_security_page (worker_id, created_at, bot_detected, ip_address(45), visitor_id(100))").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_wlink_security_page (worker_link_id, created_at, bot_detected, ip_address(45), visitor_id(100))").catch(() => { });
+    await p2.execute("ALTER TABLE security_logs ADD INDEX idx_security_pair_date_reason (ip_address, visitor_id, created_at, reason)").catch(() => { });
   } catch (_) { };
 }
 
