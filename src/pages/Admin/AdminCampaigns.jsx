@@ -954,6 +954,7 @@ export default function AdminCampaigns() {
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">ID</th>
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Chiến dịch</th>
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Loại</th>
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Chủ sở hữu</th>
@@ -971,6 +972,7 @@ export default function AdminCampaigns() {
                   return (
                     <tbody key={c.id} className={`border-b border-slate-100 group hover:bg-slate-50/50 transition-colors ${isExpanded ? 'bg-slate-50/30' : 'bg-white'}`}>
                       <tr className="hover:bg-slate-50/70">
+                        <td className="px-5 py-3 font-mono text-xs font-bold text-slate-500">#{c.id}</td>
                         <td className="px-5 py-3">
                           <p className="font-semibold text-slate-800">{c.name}</p>
                           <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline flex items-center gap-1">
@@ -1120,7 +1122,7 @@ export default function AdminCampaigns() {
                       </tr>
                       {isExpanded && (
                         <tr>
-                          <td colSpan={7} className="p-0 border-t border-slate-100 bg-slate-50/80">
+                          <td colSpan={10} className="p-0 border-t border-slate-100 bg-slate-50/80">
                             <div className="p-5 overflow-hidden shadow-inner">
                               <KeywordStats campaignId={c.id} trafficType={c.traffic_type} />
                             </div>
@@ -1143,6 +1145,7 @@ export default function AdminCampaigns() {
                     <div className="p-4 space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-mono font-bold text-slate-400 mb-0.5">#{c.id}</p>
                           <p className="font-bold text-slate-800 truncate">{c.name}</p>
                           <a href={c.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline flex items-center gap-1 truncate">
                             {c.url?.slice(0, 35)} <ExternalLink size={10} className="shrink-0" />

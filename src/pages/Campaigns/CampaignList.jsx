@@ -1242,12 +1242,12 @@ export default function CampaignList() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {['Chiến dịch', 'Trạng thái', 'Tổng tiến độ', 'Ngân sách', 'Hành động'].map(h => (
+                  {['ID', 'Chiến dịch', 'Trạng thái', 'Tổng tiến độ', 'Ngân sách', 'Hành động'].map(h => (
                     <th key={h} className="px-5 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-left">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody><SkTableRows rows={6} cols={5} /></tbody>
+              <tbody><SkTableRows rows={6} cols={6} /></tbody>
             </table>
           </div>
         </div>
@@ -1271,9 +1271,9 @@ export default function CampaignList() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {['Chiến dịch', 'Trạng thái', 'Tổng tiến độ', 'Ngân sách', 'Hành động'].map((h, i) => (
-                    <th key={h} className={`px-5 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest ${i >= 2 ? 'text-right' : 'text-left'
-                      } ${i === 4 ? 'text-center w-28' : ''}`}>{h}</th>
+                  {['ID', 'Chiến dịch', 'Trạng thái', 'Tổng tiến độ', 'Ngân sách', 'Hành động'].map((h, i) => (
+                    <th key={h} className={`px-5 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest ${i >= 3 ? 'text-right' : 'text-left'
+                      } ${i === 5 ? 'text-center w-28' : ''}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -1304,6 +1304,7 @@ export default function CampaignList() {
                 return (
                   <tbody key={c.id} className={`border-b border-slate-100 last:border-0 group transition-colors ${isExpanded ? 'bg-indigo-50/20' : 'hover:bg-slate-50/60'}`}>
                     <tr>
+                      <td className="px-5 py-4 align-top pt-5 font-mono text-xs font-bold text-slate-500">#{c.id}</td>
                       {/* Campaign info */}
                       <td className="px-5 py-4">
                         <div className="max-w-[260px]">
@@ -1420,7 +1421,7 @@ export default function CampaignList() {
                     {/* Expanded stats row */}
                     {isExpanded && (
                       <tr>
-                        <td colSpan={5} className="p-0 border-t border-indigo-100">
+                        <td colSpan={6} className="p-0 border-t border-indigo-100">
                           <div className="px-5 py-5"
                             style={{ background: 'linear-gradient(135deg, #f8faff 0%, #f5f3ff 100%)' }}>
                             <div className="flex items-center gap-2 mb-4">
