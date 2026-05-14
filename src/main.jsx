@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.jsx'
 import AgencyApp from './AgencyApp.jsx'
 import { ToastProvider } from './components/Toast.jsx'
+import { ErrorBoundary } from './ErrorBoundary.jsx'
 
 function MainWrapper() {
   const [config, setConfig] = useState(null);
@@ -65,8 +66,10 @@ function MainWrapper() {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ToastProvider>
-      <MainWrapper />
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <MainWrapper />
+      </ToastProvider>
+    </ErrorBoundary>
   </StrictMode>,
 )
