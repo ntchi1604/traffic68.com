@@ -4,7 +4,7 @@ import { Save, Users, Settings, DollarSign, CreditCard, Check, X, Store } from '
 import api from '../../lib/api';
 
 export default function AgencyDashboard() {
-  const { addToast } = useToast();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState('settings');
   const [loading, setLoading] = useState(true);
   const [agency, setAgency] = useState(null);
@@ -19,7 +19,7 @@ export default function AgencyDashboard() {
       const data = await api.get('/agencies/my');
       setAgency(data || {});
     } catch (error) {
-      addToast({ type: 'error', message: 'Lỗi tải thông tin đại lý' });
+      toast.error('Lỗi tải thông tin đại lý');
     } finally {
       setLoading(false);
     }
