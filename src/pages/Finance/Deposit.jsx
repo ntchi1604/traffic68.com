@@ -356,7 +356,28 @@ export default function Deposit() {
 
   useEffect(() => {
     fetchWallets();
-    api.get('/finance/deposit-config').then(setDepositConfig).catch(console.error);
+    api.get('/finance/deposit-config').then(data => {
+      // Check if we are in Agency mode
+      const agencyCfgStr = localStorage.getItem('agency_config');
+      if (agencyCfgStr) {
+        try {
+          const agency = JSON.parse(agencyCfgStr);
+          // Override config to only show Bank, with Agency's bank info
+          setDepositConfig({
+            bank: {
+              enabled: true,
+              bankName: agency.bank_name || 'Liên hệ đại lý',
+              accountNumber: agency.bank_account_number || 'Liên hệ đại lý',
+              accountHolder: agency.bank_account_name || 'Liên hệ đại lý'
+            },
+            crypto: { enabled: false },
+            trc20: { enabled: false }
+          });
+          return;
+        } catch (e) {}
+      }
+      setDepositConfig(data);
+    }).catch(console.error);
   }, []);
 
   const bankEnabled = depositConfig?.bank?.enabled;

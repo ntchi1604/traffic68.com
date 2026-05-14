@@ -14,7 +14,7 @@ function decodeJwtPayload(token) {
   }
 }
 
-export default function DashboardLayout() {
+export default function DashboardLayout({ agencyConfig }) {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -77,7 +77,7 @@ export default function DashboardLayout() {
         </div>
       ) : (
         <div className="min-h-screen overflow-x-hidden" style={{ background: '#f5f7ff' }}>
-          <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+          <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} agencyConfig={agencyConfig} />
 
           <div className="lg:ml-64">
             <DashboardHeader onMenuClick={() => setSidebarOpen(true)} />

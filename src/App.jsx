@@ -40,6 +40,7 @@ const UserPricing                   = lazy(() => import('./pages/Dashboard/UserP
 const UserReferral                  = lazy(() => import('./pages/General/UserReferral'));
 const BuyerSupport                  = lazy(() => import('./pages/Campaigns/BuyerSupport'));
 const BuyerApi                      = lazy(() => import('./pages/Campaigns/BuyerApi'));
+const AgencyDashboard               = lazy(() => import('./pages/Dashboard/AgencyDashboard'));
 
 // ── Worker pages — lazy load ──
 const MemberDashboard   = lazy(() => import('./pages/Dashboard/MemberDashboard'));
@@ -150,6 +151,7 @@ function Layout() {
             <Route path="referral" element={<UserReferral />} />
             <Route path="profile" element={<UserProfileAndAccountSettings />} />
             <Route path="api" element={<BuyerApi />} />
+            <Route path="agency" element={<AgencyDashboard />} />
           </Route>
 
           {/* ═══ WORKER Dashboard ═══ */}

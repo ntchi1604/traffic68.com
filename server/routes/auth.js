@@ -29,7 +29,7 @@ async function verifyHCaptcha(token) {
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, username, phone, referralCode, captchaToken, service } = req.body;
+    const { email, password, name, username, phone, referralCode, captchaToken, service, agency_domain } = req.body;
 
     
     const captchaValid = await verifyHCaptcha(captchaToken);
@@ -73,10 +73,18 @@ router.post('/register', async (req, res) => {
     const serviceType = service === 'shortlink' ? 'shortlink' : 'traffic';
     const initSourceStatus = serviceType === 'shortlink' ? 'pending' : null;
 
+    let agencyId = null;
+    if (agency_domain) {
+      const [agencies] = await pool.execute('SELECT id FROM agencies WHERE domain = ? AND status = "active"', [agency_domain]);
+      if (agencies.length > 0) {
+        agencyId = agencies[0].id;
+      }
+    }
+
     const [result] = await pool.execute(
-      `INSERT INTO users (email, password_hash, name, username, phone, referral_code, referred_by, service_type, source_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [email, hash, name || '', username || '', phone || '', myRefCode, referredBy, serviceType, initSourceStatus]
+      `INSERT INTO users (email, password_hash, name, username, phone, referral_code, referred_by, agency_id, service_type, source_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [email, hash, name || '', username || '', phone || '', myRefCode, referredBy, agencyId, serviceType, initSourceStatus]
     );
 
     const userId = result.insertId;
@@ -181,7 +189,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   const pool = getPool();
   const [users] = await pool.execute(
-    'SELECT id, email, name, username, phone, avatar_url, role, service_type, referral_code, created_at FROM users WHERE id = ?',
+    'SELECT id, email, name, username, phone, avatar_url, role, service_type, agency_id, referral_code, created_at FROM users WHERE id = ?',
     [req.userId]
   );
 

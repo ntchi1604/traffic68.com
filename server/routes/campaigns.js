@@ -539,27 +539,18 @@ router.post('/:id/renew', async (req, res) => {
     try {
       await conn.beginTransaction();
 
-      const [deductResult] = await conn.execute(
-        "UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main' AND balance >= ?",
-        [cost, req.userId, cost]
-      );
-      if (deductResult.affectedRows === 0) {
+      const [wCheck] = await conn.execute("SELECT balance FROM wallets WHERE user_id = ? AND type = 'main'", [req.userId]);
+      const currentBal = Number(wCheck[0] ? wCheck[0].balance || 0 : 0);
+      
+      if (currentBal < cost) {
         await conn.rollback();
         conn.release();
-        const [wCheck] = await pool.execute("SELECT balance FROM wallets WHERE user_id = ? AND type = 'main'", [req.userId]);
-        const currentBal = Number(wCheck[0] ? wCheck[0].balance || 0 : 0);
         return res.status(400).json({
           error: `Số dư ví không đủ. Cần ${cost.toLocaleString('vi-VN')} đ, hiện có ${currentBal.toLocaleString('vi-VN')} đ`
         });
       }
 
-      const renewRef = 'RNW-' + Date.now();
-      await conn.execute(
-        `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note)
-         VALUES (?, 'main', 'campaign', 'system', ?, 'completed', ?, ?)`,
-        [req.userId, cost, renewRef, `Gia hạn chiến dịch "${camp.name}" (+${addViews.toLocaleString()} view)`]
-      );
-
+      // Chỉ cập nhật total_views và budget, tiền sẽ bị trừ dần khi worker view
       const newTotal = Number(camp.total_views) + addViews;
       const newBudget = Math.round(newTotal * cpcValue);
       await conn.execute(
@@ -571,8 +562,8 @@ router.post('/:id/renew', async (req, res) => {
     } catch (txErr) {
       await conn.rollback();
       conn.release();
-      console.error('[Campaign] Renew transaction ROLLED BACK (ví chưa bị trừ):', txErr.message);
-      return res.status(500).json({ error: 'Lỗi gia hạn (tiền chưa bị trừ): ' + txErr.message });
+      console.error('[Campaign] Renew transaction error:', txErr.message);
+      return res.status(500).json({ error: 'Lỗi gia hạn: ' + txErr.message });
     }
     conn.release();
 

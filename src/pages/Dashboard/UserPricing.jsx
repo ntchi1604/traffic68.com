@@ -17,7 +17,7 @@ export default function UserPricing() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/pricing')
+    fetch('/api/pricing?domain=' + window.location.hostname)
       .then(r => r.json())
       .then(data => {
         if (data.config) setConfig(c => ({ ...c, ...data.config }));

@@ -1,0 +1,256 @@
+const express = require('express');
+const router = express.Router();
+const { getPool } = require('../db');
+const { auth, adminAuth } = require('../middleware/auth');
+
+// Public: Lấy cấu hình agency dựa theo domain (Dùng cho web con)
+router.get('/config', async (req, res) => {
+  try {
+    const domain = req.query.domain;
+    if (!domain) {
+      return res.status(400).json({ error: 'Domain is required' });
+    }
+
+    const pool = getPool();
+    const [rows] = await pool.query(
+      'SELECT id, name, domain, logo_url, primary_color, bank_name, bank_account_name, bank_account_number, contact_email, contact_phone FROM agencies WHERE domain = ? AND status = "active"',
+      [domain]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Agency not found for this domain' });
+    }
+
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Lỗi khi lấy config agency:', error);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
+// Private: Lấy cấu hình agency của đại lý đang đăng nhập
+router.get('/my', auth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      'SELECT * FROM agencies WHERE owner_id = ?',
+      [req.user.id]
+    );
+
+    if (rows.length === 0) {
+      return res.json(null);
+    }
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Lỗi lấy thông tin agency:', error);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
+// Private: Cập nhật hoặc tạo cấu hình agency
+router.post('/setup', auth, async (req, res) => {
+  try {
+    const { domain, name, logo_url, primary_color, bank_name, bank_account_name, bank_account_number, contact_email, contact_phone } = req.body;
+    
+    if (!domain) return res.status(400).json({ error: 'Tên miền là bắt buộc' });
+    
+    const pool = getPool();
+    
+    // Check nếu domain đã bị người khác đăng ký
+    const [exist] = await pool.query('SELECT id, owner_id FROM agencies WHERE domain = ?', [domain]);
+    if (exist.length > 0 && exist[0].owner_id !== req.user.id) {
+      return res.status(400).json({ error: 'Tên miền này đã được sử dụng bởi người khác' });
+    }
+
+    // Check xem user đã có agency chưa
+    const [myAgency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    
+    if (myAgency.length > 0) {
+      // Update
+      await pool.query(
+        `UPDATE agencies SET domain=?, name=?, logo_url=?, primary_color=?, bank_name=?, bank_account_name=?, bank_account_number=?, contact_email=?, contact_phone=? WHERE owner_id=?`,
+        [domain, name || 'Hệ Thống Traffic', logo_url || '', primary_color || '#0ea5e9', bank_name || '', bank_account_name || '', bank_account_number || '', contact_email || '', contact_phone || '', req.user.id]
+      );
+    } else {
+      // Insert
+      await pool.query(
+        `INSERT INTO agencies (owner_id, domain, name, logo_url, primary_color, bank_name, bank_account_name, bank_account_number, contact_email, contact_phone) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [req.user.id, domain, name || 'Hệ Thống Traffic', logo_url || '', primary_color || '#0ea5e9', bank_name || '', bank_account_name || '', bank_account_number || '', contact_email || '', contact_phone || '']
+      );
+    }
+
+    res.json({ success: true, message: 'Cập nhật thành công' });
+  } catch (error) {
+    console.error('Lỗi lưu agency:', error);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
+// Private: Lấy danh sách user (buyer) của agency
+router.get('/buyers', auth, async (req, res) => {
+  try {
+    const pool = getPool();
+    
+    // Tìm ID agency của user này
+    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    if (agency.length === 0) return res.json([]);
+
+    const [buyers] = await pool.query(
+      'SELECT id, name, email, username, created_at, status FROM users WHERE agency_id = ? ORDER BY id DESC',
+      [agency[0].id]
+    );
+
+    res.json(buyers);
+  } catch (error) {
+    console.error('Lỗi lấy danh sách buyer:', error);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
+// Private: Lấy danh sách giao dịch nạp tiền của buyer thuộc agency
+router.get('/transactions', auth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    if (agency.length === 0) return res.json([]);
+
+    const [transactions] = await pool.query(
+      `SELECT t.*, u.email, u.username 
+       FROM transactions t 
+       JOIN users u ON t.user_id = u.id 
+       WHERE u.agency_id = ? AND t.type = 'deposit'
+       ORDER BY t.created_at DESC`,
+      [agency[0].id]
+    );
+
+    res.json(transactions);
+  } catch (error) {
+    console.error('Lỗi lấy danh sách giao dịch:', error);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
+// Private: Duyệt giao dịch nạp tiền
+router.post('/transactions/:id/approve', auth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const txId = req.params.id;
+
+    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    if (agency.length === 0) return res.status(403).json({ error: 'Bạn không phải đại lý' });
+
+    // Kiểm tra giao dịch
+    const [txs] = await pool.query(
+      `SELECT t.* FROM transactions t 
+       JOIN users u ON t.user_id = u.id 
+       WHERE t.id = ? AND u.agency_id = ? AND t.type = 'deposit' AND t.status = 'pending'`,
+      [txId, agency[0].id]
+    );
+
+    if (txs.length === 0) {
+      return res.status(404).json({ error: 'Giao dịch không tồn tại hoặc đã được xử lý' });
+    }
+
+    const tx = txs[0];
+
+    // Cập nhật trạng thái
+    await pool.query("UPDATE transactions SET status = 'success' WHERE id = ?", [txId]);
+
+    // Cộng tiền cho buyer
+    await pool.query(
+      "UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?",
+      [tx.amount, tx.user_id, tx.wallet_type || 'main']
+    );
+
+    res.json({ success: true, message: 'Đã duyệt thành công' });
+  } catch (error) {
+    console.error('Lỗi duyệt giao dịch:', error);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
+// Private: Từ chối giao dịch nạp tiền
+router.post('/transactions/:id/reject', auth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const txId = req.params.id;
+
+    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    if (agency.length === 0) return res.status(403).json({ error: 'Bạn không phải đại lý' });
+
+    const [txs] = await pool.query(
+      `SELECT t.* FROM transactions t 
+       JOIN users u ON t.user_id = u.id 
+       WHERE t.id = ? AND u.agency_id = ? AND t.type = 'deposit' AND t.status = 'pending'`,
+      [txId, agency[0].id]
+    );
+
+    if (txs.length === 0) {
+      return res.status(404).json({ error: 'Giao dịch không tồn tại hoặc đã được xử lý' });
+    }
+
+    await pool.query("UPDATE transactions SET status = 'failed' WHERE id = ?", [txId]);
+
+    res.json({ success: true, message: 'Đã từ chối giao dịch' });
+  } catch (error) {
+    console.error('Lỗi từ chối giao dịch:', error);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
+// Private: Lấy bảng giá do đại lý thiết lập
+router.get('/prices', auth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    if (agency.length === 0) return res.json([]);
+
+    const [prices] = await pool.query('SELECT * FROM agency_prices WHERE agency_id = ?', [agency[0].id]);
+    res.json(prices);
+  } catch (error) {
+    console.error('Lỗi lấy bảng giá:', error);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
+// Private: Cập nhật bảng giá cho đại lý
+router.post('/prices', auth, async (req, res) => {
+  try {
+    const { prices } = req.body;
+    if (!Array.isArray(prices)) return res.status(400).json({ error: 'Invalid data' });
+
+    const pool = getPool();
+    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    if (agency.length === 0) return res.status(403).json({ error: 'Bạn không phải đại lý' });
+
+    const agencyId = agency[0].id;
+    
+    // Clear old prices and insert new ones
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query('DELETE FROM agency_prices WHERE agency_id = ?', [agencyId]);
+      
+      for (const p of prices) {
+        if (!p.traffic_type || !p.duration || !p.v1_price || !p.v2_price) continue;
+        await conn.query(
+          'INSERT INTO agency_prices (agency_id, traffic_type, duration, v1_price, v2_price) VALUES (?, ?, ?, ?, ?)',
+          [agencyId, p.traffic_type, p.duration, p.v1_price, p.v2_price]
+        );
+      }
+      await conn.commit();
+      res.json({ success: true, message: 'Cập nhật bảng giá thành công' });
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    console.error('Lỗi cập nhật bảng giá:', error);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+});
+
+module.exports = router;

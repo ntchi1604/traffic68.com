@@ -63,10 +63,31 @@ app.get('/api/pricing', async (req, res) => {
   try {
     const { getPool } = require('./db');
     const pool = getPool();
+    const domain = req.query.domain;
+    
     const [tiers] = await pool.execute('SELECT * FROM pricing_tiers ORDER BY traffic_type, CAST(REPLACE(duration,"s","") AS UNSIGNED)');
     const [settings] = await pool.execute("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('discount_code','discount_percent','discount_label','discount_enabled','worker_cpc')");
     const config = {};
     settings.forEach(s => { config[s.setting_key] = s.setting_value; });
+
+    if (domain) {
+      // Find agency by domain
+      const [agencies] = await pool.query('SELECT id FROM agencies WHERE domain = ? AND status = "active"', [domain]);
+      if (agencies.length > 0) {
+        const agencyId = agencies[0].id;
+        const [agencyPrices] = await pool.query('SELECT * FROM agency_prices WHERE agency_id = ?', [agencyId]);
+        
+        // Merge agency prices into default tiers
+        tiers.forEach(tier => {
+          const customPrice = agencyPrices.find(ap => ap.traffic_type === tier.traffic_type && ap.duration === tier.duration);
+          if (customPrice) {
+            tier.v1_price = customPrice.v1_price;
+            tier.v2_price = customPrice.v2_price;
+          }
+        });
+      }
+    }
+
     res.json({ tiers, config });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -189,6 +210,7 @@ app.get('/api/announcement', async (req, res) => {
 });
 
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/agencies', require('./routes/agency'));
 app.use('/api/campaigns', require('./routes/campaigns'));
 app.use('/api/finance', require('./routes/finance'));
 app.use('/api/widgets', require('./routes/widgets'));

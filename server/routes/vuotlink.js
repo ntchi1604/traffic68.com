@@ -1458,7 +1458,13 @@ async function _handleVerifyPost(req, res) {
       return res.status(400).json({ error: 'Mã xác nhận không đúng. Vui lòng kiểm tra lại.' });
     }
 
-    const [campaigns] = await pool.execute('SELECT cpc, budget, total_views, daily_views, user_id, traffic_type, time_on_site, version, name, discount_applied FROM campaigns WHERE id = ?', [task.campaign_id]);
+    const [campaigns] = await pool.execute(
+      `SELECT c.cpc, c.budget, c.total_views, c.daily_views, c.user_id, c.traffic_type, c.time_on_site, c.version, c.name, c.discount_applied, u.agency_id 
+       FROM campaigns c 
+       JOIN users u ON c.user_id = u.id 
+       WHERE c.id = ?`, 
+      [task.campaign_id]
+    );
     if (campaigns.length === 0) return res.status(404).json({ error: 'Campaign không tồn tại' });
     const campaign = campaigns[0];
 
@@ -1468,29 +1474,53 @@ async function _handleVerifyPost(req, res) {
     // "is_over_limit" đã được lưu vào task khi tạo → dùng task.is_over_limit để quyết định earning.
 
     let buyerCpc = campaign.cpc || 0;
+    let wholesaleCpc = 0; // Giá gốc (nếu có agency)
+    let agencyOwnerId = null;
+
     try {
       const duration = (campaign.time_on_site || '60').split('-')[0] + 's';
-      const [bptRows] = await pool.execute(
+      
+      // Lấy giá gốc từ hệ thống chính
+      const [sysTiers] = await pool.execute(
         'SELECT v1_price, v2_price, v1_discount, v2_discount FROM pricing_tiers WHERE traffic_type = ? AND duration = ?',
         [campaign.traffic_type || 'google_search', duration]
       );
-      if (bptRows.length > 0) {
-        const tier = bptRows[0];
+      
+      if (sysTiers.length > 0) {
+        const t = sysTiers[0];
         const hasDiscount = campaign.discount_applied === 1;
-        if (campaign.version === 2) {
-          buyerCpc = hasDiscount && tier.v2_discount > 0 ? tier.v2_discount : tier.v2_price;
+        const calcSysPrice = campaign.version === 2
+          ? (hasDiscount && t.v2_discount > 0 ? t.v2_discount : t.v2_price)
+          : (hasDiscount && t.v1_discount > 0 ? t.v1_discount : t.v1_price);
+        
+        if (!campaign.agency_id) {
+          // Người dùng bình thường
+          buyerCpc = calcSysPrice;
         } else {
-          buyerCpc = hasDiscount && tier.v1_discount > 0 ? tier.v1_discount : tier.v1_price;
+          // Người dùng của Agency
+          wholesaleCpc = calcSysPrice;
+          
+          // Lấy owner của agency
+          const [agencyRows] = await pool.execute('SELECT owner_id FROM agencies WHERE id = ?', [campaign.agency_id]);
+          if (agencyRows.length > 0) agencyOwnerId = agencyRows[0].owner_id;
+          
+          // Lấy giá bán lẻ do Agency tự thiết lập
+          const [agTiers] = await pool.execute(
+            'SELECT v1_price, v2_price FROM agency_prices WHERE agency_id = ? AND traffic_type = ? AND duration = ?',
+            [campaign.agency_id, campaign.traffic_type || 'google_search', duration]
+          );
+          if (agTiers.length > 0) {
+            buyerCpc = campaign.version === 2 ? agTiers[0].v2_price : agTiers[0].v1_price;
+          } else {
+             // Fallback nếu agency chưa cài giá
+             buyerCpc = calcSysPrice;
+          }
         }
-      } else {
-        // ⚠️ Không tìm thấy pricing tier → fallback về cpc cũ trong bảng campaigns
-        // Có thể gây tính phí sai nếu bảng giá chưa được cấu hình đúng
-        console.warn(`[VuotLink] ⚠️ No pricing tier found for type=${campaign.traffic_type || 'google_search'}, duration=${duration} → fallback to campaign.cpc=${buyerCpc} (campaign #${task.campaign_id})`);
       }
     } catch (e) {
       console.error('[VuotLink] Buyer CPC lookup error:', e.message);
     }
-    console.log(`[VuotLink] buyerCpc=${buyerCpc} (discount=${campaign.discount_applied}, cpc_col=${campaign.cpc}, campaign=#${task.campaign_id})`);
+    console.log(`[VuotLink] buyerCpc=${buyerCpc}, wholesaleCpc=${wholesaleCpc}, agencyOwner=${agencyOwnerId} (campaign=#${task.campaign_id})`);
 
     // NOTE: Không check balance ở đây nữa — sẽ dùng atomic UPDATE bên dưới (tránh race condition)
 
@@ -1640,36 +1670,83 @@ async function _handleVerifyPost(req, res) {
     }
 
     // ── Trừ tiền buyer: atomic UPDATE tránh race condition ──
-    // Điều kiện AND balance >= buyerCpc đảm bảo không bao giờ âm số dư
-    // dù nhiều worker verify cùng lúc (không cần SELECT trước)
+    // Nếu thuộc agency, trừ thêm tiền gốc của đại lý
     if (buyerCpc > 0) {
-      const [deductResult] = await pool.execute(
-        "UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main' AND balance >= ?",
-        [buyerCpc, campaign.user_id, buyerCpc]
-      );
-      if (deductResult.affectedRows === 0) {
-        // Ví không còn đủ tiền (race condition hoặc hết budget) → auto-pause + ghi log thất bại
-        console.warn(`[VuotLink] ⚠️ Wallet insufficient (atomic): buyer=${campaign.user_id}, campaign=#${task.campaign_id}, required=${buyerCpc} — view COUNTED but buyer NOT charged`);
-        await pool.execute(
-          "UPDATE campaigns SET status = 'paused', pause_reason = 'Số dư không đủ' WHERE id = ? AND status = 'running'",
-          [task.campaign_id]
-        ).catch(() => pool.execute("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [task.campaign_id]));
-        // Ghi transaction thất bại để admin có thể audit (view đã completed nhưng không trừ tiền được)
-        try {
-          const failRef = genRef('VW-FAIL-');
-          await pool.execute(
-            `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'failed', ?, ?)`,
-            [campaign.user_id, buyerCpc, failRef, `[Ví không đủ tiền] Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id}) - task #${task.id}`]
-          );
-        } catch (txErr) {
-          console.error('[VuotLink] Failed to log insufficient deduction transaction:', txErr.message);
-        }
-      } else {
-        const buyerRef = genRef('VW-');
-        await pool.execute(
-          `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'completed', ?, ?)`,
-          [campaign.user_id, buyerCpc, buyerRef, `Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id})`]
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+
+        let buyerDeducted = false;
+        let agencyDeducted = false;
+        let pauseReason = null;
+
+        // 1. Trừ tiền Buyer web con (hoặc Buyer thường)
+        const [deductBuyer] = await conn.execute(
+          "UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main' AND balance >= ?",
+          [buyerCpc, campaign.user_id, buyerCpc]
         );
+        buyerDeducted = deductBuyer.affectedRows > 0;
+
+        if (!buyerDeducted) {
+          pauseReason = 'Số dư người dùng không đủ';
+        } else {
+          // 2. Nếu là Agency, trừ thêm tiền gốc của owner agency
+          if (campaign.agency_id && agencyOwnerId && wholesaleCpc > 0) {
+            const [deductAgency] = await conn.execute(
+              "UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND type = 'main' AND balance >= ?",
+              [wholesaleCpc, agencyOwnerId, wholesaleCpc]
+            );
+            agencyDeducted = deductAgency.affectedRows > 0;
+            
+            if (!agencyDeducted) {
+              pauseReason = 'Đại lý đã hết số dư hệ thống';
+              // Hoàn lại tiền cho buyer nếu đại lý hết tiền
+              await conn.execute("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = 'main'", [buyerCpc, campaign.user_id]);
+              buyerDeducted = false;
+            }
+          }
+        }
+
+        if (buyerDeducted) {
+          await conn.commit();
+          
+          // Ghi transaction cho buyer
+          const buyerRef = genRef('VW-');
+          await pool.execute(
+            `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'completed', ?, ?)`,
+            [campaign.user_id, buyerCpc, buyerRef, `Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id})`]
+          );
+          
+          // Ghi transaction cho đại lý (nếu có)
+          if (campaign.agency_id && agencyOwnerId && wholesaleCpc > 0) {
+            const agencyRef = genRef('AG-VW-');
+            await pool.execute(
+              `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'completed', ?, ?)`,
+              [agencyOwnerId, wholesaleCpc, agencyRef, `[Web con] Lượt xem chiến dịch "${campaign.name}" của buyer #${campaign.user_id}`]
+            );
+          }
+        } else {
+          await conn.rollback();
+          console.warn(`[VuotLink] ⚠️ Wallet insufficient: buyer=${campaign.user_id}, agency=${agencyOwnerId}, reason=${pauseReason}`);
+          
+          await pool.execute(
+            "UPDATE campaigns SET status = 'paused', pause_reason = ? WHERE id = ? AND status = 'running'",
+            [pauseReason, task.campaign_id]
+          ).catch(() => pool.execute("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [task.campaign_id]));
+          
+          try {
+            const failRef = genRef('VW-FAIL-');
+            await pool.execute(
+              `INSERT INTO transactions (user_id, wallet_type, type, method, amount, status, ref_code, note) VALUES (?, 'main', 'campaign', 'system', ?, 'failed', ?, ?)`,
+              [campaign.user_id, buyerCpc, failRef, `[${pauseReason}] Lượt xem chiến dịch "${campaign.name}" (#${task.campaign_id}) - task #${task.id}`]
+            );
+          } catch (txErr) { }
+        }
+      } catch (e) {
+        await conn.rollback();
+        console.error('[VuotLink] Atomic deduction error:', e);
+      } finally {
+        conn.release();
       }
     }
 

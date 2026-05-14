@@ -16,13 +16,13 @@ import {
   History,
   HelpCircle,
   DollarSign,
-  Gift,
   Terminal,
+  Store,
 } from 'lucide-react';
 
 const linkBase = 'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150';
 
-export default function Sidebar({ isOpen, onClose }) {
+export default function Sidebar({ isOpen, onClose, agencyConfig }) {
   const [isCampaignOpen, setIsCampaignOpen] = useState(true);
   const [isReportOpen,   setIsReportOpen]   = useState(true);
   const [isFinanceOpen,  setIsFinanceOpen]  = useState(true);
@@ -50,11 +50,21 @@ export default function Sidebar({ isOpen, onClose }) {
       >
         {/* Logo */}
         <div className="flex items-center justify-center px-5 py-5 relative flex-shrink-0 border-b border-slate-100">
-          <img
-            src="/traffic68_com.gif"
-            alt="Traffic68"
-            className="h-14 sm:h-16 w-auto mx-auto"
-          />
+          {agencyConfig ? (
+            agencyConfig.logo_url ? (
+              <img src={agencyConfig.logo_url} alt={agencyConfig.name} className="h-10 sm:h-12 w-auto mx-auto object-contain" />
+            ) : (
+              <div className="text-xl font-black truncate" style={{ color: agencyConfig.primary_color || '#3B82F6' }}>
+                {agencyConfig.name}
+              </div>
+            )
+          ) : (
+            <img
+              src="/traffic68_com.gif"
+              alt="Traffic68"
+              className="h-14 sm:h-16 w-auto mx-auto"
+            />
+          )}
           <button
             onClick={onClose}
             className="lg:hidden p-2 rounded-lg absolute right-4 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
@@ -228,6 +238,28 @@ export default function Sidebar({ isOpen, onClose }) {
             </NavLink>
           ))}
 
+          {/* Agency */}
+          {!agencyConfig && (
+            <div className="pt-1">
+              <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Đại lý</p>
+              <NavLink to="/buyer/dashboard/agency" onClick={onClose}
+                className={({ isActive }) =>
+                  `${linkBase} ${isActive
+                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <Store size={16} className={isActive ? 'text-indigo-500' : 'text-slate-400'} />
+                    Quản lý web con
+                  </>
+                )}
+              </NavLink>
+            </div>
+          )}
+
           {/* Tools */}
           <div className="pt-1">
             <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Công cụ</p>
@@ -257,7 +289,7 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* Footer */}
         <div className="p-3 flex-shrink-0 border-t border-slate-100">
           <div className="px-3 py-2 rounded-lg bg-slate-50">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Traffic68</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{agencyConfig ? agencyConfig.name : 'Traffic68'}</p>
             <p className="text-[10px] text-slate-300">© 2025 · Nền tảng mua traffic SEO</p>
           </div>
         </div>

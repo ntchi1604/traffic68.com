@@ -83,6 +83,7 @@ async function initDb() {
     await p2.execute("ALTER TABLE campaigns ADD COLUMN priority TINYINT DEFAULT NULL AFTER discount_applied").catch(() => { });
     await p2.execute("ALTER TABLE campaigns ADD COLUMN bonus_mode TINYINT(1) NOT NULL DEFAULT 0 AFTER priority").catch(() => { });
     await p2.execute("ALTER TABLE users ADD COLUMN withdraw_wallet JSON DEFAULT NULL").catch(() => { });
+    await p2.execute("ALTER TABLE users ADD COLUMN agency_id INT DEFAULT NULL AFTER referred_by").catch(() => { });
     await p2.execute("ALTER TABLE users ADD COLUMN bonus_mode TINYINT(1) NOT NULL DEFAULT 1").catch(() => { });
     await p2.execute("ALTER TABLE users ADD COLUMN password_changed_at DATETIME NULL DEFAULT NULL").catch(() => { });
     await p2.execute("ALTER TABLE vuot_link_tasks ADD COLUMN is_over_limit TINYINT(1) NOT NULL DEFAULT 0").catch(() => { });

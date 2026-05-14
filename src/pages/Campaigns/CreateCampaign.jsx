@@ -204,7 +204,7 @@ export default function CreateCampaign() {
     api.get('/finance').then(data => {
       setWalletBalance(data.wallets?.main?.balance || 0);
     }).catch(() => { });
-    fetch('/api/pricing').then(r => r.json()).then(data => {
+    fetch('/api/pricing?domain=' + window.location.hostname).then(r => r.json()).then(data => {
       setPricingTiers(data.tiers || []);
       if (data.config) setPricingConfig(data.config);
     }).catch(() => { });
