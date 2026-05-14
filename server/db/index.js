@@ -88,6 +88,12 @@ async function initDb() {
     await p2.execute("ALTER TABLE users ADD COLUMN password_changed_at DATETIME NULL DEFAULT NULL").catch(() => { });
     await p2.execute("ALTER TABLE vuot_link_tasks ADD COLUMN is_over_limit TINYINT(1) NOT NULL DEFAULT 0").catch(() => { });
 
+    await p2.execute("ALTER TABLE agencies ADD COLUMN bank_name VARCHAR(100) DEFAULT NULL").catch(() => { });
+    await p2.execute("ALTER TABLE agencies ADD COLUMN bank_account_name VARCHAR(255) DEFAULT NULL").catch(() => { });
+    await p2.execute("ALTER TABLE agencies ADD COLUMN bank_account_number VARCHAR(100) DEFAULT NULL").catch(() => { });
+    await p2.execute("ALTER TABLE agencies ADD COLUMN contact_email VARCHAR(255) DEFAULT NULL").catch(() => { });
+    await p2.execute("ALTER TABLE agencies ADD COLUMN contact_phone VARCHAR(50) DEFAULT NULL").catch(() => { });
+
     await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_completed_at (completed_at)").catch(() => { });
     await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_camp_completed_status (campaign_id, completed_at, status, bot_detected)").catch(() => { });
     await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_ip_completed_status (ip_address(50), completed_at, status, bot_detected)").catch(() => { });
