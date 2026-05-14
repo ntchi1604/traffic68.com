@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../db');
-const { auth, adminAuth } = require('../middleware/auth');
+const { authMiddleware: auth } = require('../middleware/auth');
 
 // Public: Lấy cấu hình agency dựa theo domain (Dùng cho web con)
 router.get('/config', async (req, res) => {
