@@ -34,7 +34,7 @@ router.get('/my', auth, async (req, res) => {
     const pool = getPool();
     const [rows] = await pool.query(
       'SELECT * FROM agencies WHERE owner_id = ?',
-      [req.user.id]
+      [req.userId]
     );
 
     if (rows.length === 0) {
@@ -58,25 +58,25 @@ router.post('/setup', auth, async (req, res) => {
     
     // Check nếu domain đã bị người khác đăng ký
     const [exist] = await pool.query('SELECT id, owner_id FROM agencies WHERE domain = ?', [domain]);
-    if (exist.length > 0 && exist[0].owner_id !== req.user.id) {
+    if (exist.length > 0 && exist[0].owner_id !== req.userId) {
       return res.status(400).json({ error: 'Tên miền này đã được sử dụng bởi người khác' });
     }
 
     // Check xem user đã có agency chưa
-    const [myAgency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    const [myAgency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.userId]);
     
     if (myAgency.length > 0) {
       // Update
       await pool.query(
         `UPDATE agencies SET domain=?, name=?, logo_url=?, primary_color=?, bank_name=?, bank_account_name=?, bank_account_number=?, contact_email=?, contact_phone=? WHERE owner_id=?`,
-        [domain, name || 'Hệ Thống Traffic', logo_url || '', primary_color || '#0ea5e9', bank_name || '', bank_account_name || '', bank_account_number || '', contact_email || '', contact_phone || '', req.user.id]
+        [domain, name || 'Hệ Thống Traffic', logo_url || '', primary_color || '#0ea5e9', bank_name || '', bank_account_name || '', bank_account_number || '', contact_email || '', contact_phone || '', req.userId]
       );
     } else {
       // Insert
       await pool.query(
         `INSERT INTO agencies (owner_id, domain, name, logo_url, primary_color, bank_name, bank_account_name, bank_account_number, contact_email, contact_phone) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [req.user.id, domain, name || 'Hệ Thống Traffic', logo_url || '', primary_color || '#0ea5e9', bank_name || '', bank_account_name || '', bank_account_number || '', contact_email || '', contact_phone || '']
+        [req.userId, domain, name || 'Hệ Thống Traffic', logo_url || '', primary_color || '#0ea5e9', bank_name || '', bank_account_name || '', bank_account_number || '', contact_email || '', contact_phone || '']
       );
     }
 
@@ -93,7 +93,7 @@ router.get('/buyers', auth, async (req, res) => {
     const pool = getPool();
     
     // Tìm ID agency của user này
-    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.userId]);
     if (agency.length === 0) return res.json([]);
 
     const [buyers] = await pool.query(
@@ -112,7 +112,7 @@ router.get('/buyers', auth, async (req, res) => {
 router.get('/transactions', auth, async (req, res) => {
   try {
     const pool = getPool();
-    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.userId]);
     if (agency.length === 0) return res.json([]);
 
     const [transactions] = await pool.query(
@@ -137,7 +137,7 @@ router.post('/transactions/:id/approve', auth, async (req, res) => {
     const pool = getPool();
     const txId = req.params.id;
 
-    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.userId]);
     if (agency.length === 0) return res.status(403).json({ error: 'Bạn không phải đại lý' });
 
     // Kiểm tra giao dịch
@@ -176,7 +176,7 @@ router.post('/transactions/:id/reject', auth, async (req, res) => {
     const pool = getPool();
     const txId = req.params.id;
 
-    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.userId]);
     if (agency.length === 0) return res.status(403).json({ error: 'Bạn không phải đại lý' });
 
     const [txs] = await pool.query(
@@ -203,7 +203,7 @@ router.post('/transactions/:id/reject', auth, async (req, res) => {
 router.get('/prices', auth, async (req, res) => {
   try {
     const pool = getPool();
-    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.userId]);
     if (agency.length === 0) return res.json([]);
 
     const [prices] = await pool.query('SELECT * FROM agency_prices WHERE agency_id = ?', [agency[0].id]);
@@ -221,7 +221,7 @@ router.post('/prices', auth, async (req, res) => {
     if (!Array.isArray(prices)) return res.status(400).json({ error: 'Invalid data' });
 
     const pool = getPool();
-    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.user.id]);
+    const [agency] = await pool.query('SELECT id FROM agencies WHERE owner_id = ?', [req.userId]);
     if (agency.length === 0) return res.status(403).json({ error: 'Bạn không phải đại lý' });
 
     const agencyId = agency[0].id;
