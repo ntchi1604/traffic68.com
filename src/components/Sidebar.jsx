@@ -18,6 +18,8 @@ import {
   DollarSign,
   Terminal,
   Store,
+  Gift,
+  Zap,
 } from 'lucide-react';
 
 const linkBase = 'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150';
