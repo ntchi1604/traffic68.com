@@ -22,6 +22,17 @@ const UserPricing                   = lazy(() => import('./pages/Dashboard/UserP
 const BuyerSupport                  = lazy(() => import('./pages/Campaigns/BuyerSupport'));
 const BuyerApi                      = lazy(() => import('./pages/Campaigns/BuyerApi'));
 
+// ── Agency Admin pages — lazy load ──
+const AgencyAdminLayout       = lazy(() => import('./pages/AgencyAdmin/AgencyAdminLayout'));
+const AgencyAdminDashboard    = lazy(() => import('./pages/AgencyAdmin/AgencyAdminDashboard'));
+const AgencyAdminBuyers       = lazy(() => import('./pages/AgencyAdmin/AgencyAdminBuyers'));
+const AgencyAdminCampaigns    = lazy(() => import('./pages/AgencyAdmin/AgencyAdminCampaigns'));
+const AgencyAdminTransactions = lazy(() => import('./pages/AgencyAdmin/AgencyAdminTransactions'));
+const AgencyAdminTickets      = lazy(() => import('./pages/AgencyAdmin/AgencyAdminTickets'));
+const AgencyAdminPricing      = lazy(() => import('./pages/AgencyAdmin/AgencyAdminPricing'));
+const AgencyAdminConfig       = lazy(() => import('./pages/AgencyAdmin/AgencyAdminConfig'));
+const AgencyAdminSettings     = lazy(() => import('./pages/AgencyAdmin/AgencyAdminSettings'));
+
 function PageSpinner() {
   return (
     <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -81,6 +92,18 @@ function Layout({ config }) {
           <Route path="pricing" element={<UserPricing />} />
           <Route path="profile" element={<UserProfileAndAccountSettings />} />
           <Route path="api" element={<BuyerApi />} />
+        </Route>
+
+        {/* ═══ Agency Admin ═══ */}
+        <Route path="/agency-admin" element={<AgencyAdminLayout config={config} />}>
+          <Route index element={<AgencyAdminDashboard />} />
+          <Route path="buyers" element={<AgencyAdminBuyers />} />
+          <Route path="campaigns" element={<AgencyAdminCampaigns />} />
+          <Route path="transactions" element={<AgencyAdminTransactions />} />
+          <Route path="tickets" element={<AgencyAdminTickets />} />
+          <Route path="pricing" element={<AgencyAdminPricing />} />
+          <Route path="config" element={<AgencyAdminConfig />} />
+          <Route path="settings" element={<AgencyAdminSettings />} />
         </Route>
 
         <Route path="*" element={<AgencyNotFound />} />

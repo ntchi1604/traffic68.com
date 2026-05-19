@@ -20,6 +20,7 @@ import {
   Store,
   Gift,
   Zap,
+  Shield,
 } from 'lucide-react';
 
 const linkBase = 'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150';
@@ -240,7 +241,7 @@ export default function Sidebar({ isOpen, onClose, agencyConfig }) {
             </NavLink>
           ))}
 
-          {/* Agency */}
+          {/* Agency — trên web mẹ: link quản lý web con */}
           {!agencyConfig && (
             <div className="pt-1">
               <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Đại lý</p>
@@ -261,6 +262,36 @@ export default function Sidebar({ isOpen, onClose, agencyConfig }) {
               </NavLink>
             </div>
           )}
+
+          {/* Agency Admin — trên web con: link vào trang quản trị đại lý */}
+          {agencyConfig && (() => {
+            try {
+              const u = JSON.parse(localStorage.getItem('user') || 'null');
+              if (u && (u.agency_role === 'owner' || u.agency_role === 'admin')) {
+                return (
+                  <div className="pt-1">
+                    <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Quản trị</p>
+                    <NavLink to="/agency-admin" onClick={onClose}
+                      className={({ isActive }) =>
+                        `${linkBase} ${isActive
+                          ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <Shield size={16} className={isActive ? 'text-indigo-500' : 'text-slate-400'} />
+                          Agency Admin
+                        </>
+                      )}
+                    </NavLink>
+                  </div>
+                );
+              }
+            } catch { }
+            return null;
+          })()}
 
           {/* Tools */}
           <div className="pt-1">

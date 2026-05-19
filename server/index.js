@@ -220,6 +220,7 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/vuot-link', require('./routes/vuotlink'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/agency-admin', require('./routes/agency-admin'));
 app.use('/api/shortlink', require('./routes/shortlink'));
 app.use('/api/quicklink', require('./routes/quicklink'));
 app.use('/api/buyer', require('./routes/buyer'));
@@ -532,6 +533,19 @@ app.use((err, req, res, next) => {
       }
       console.log(`  ✅ Default pricing group ready (id=${defaultGroupId})`);
     } catch (e) { console.error('  ⚠ default pricing group seed:', e.message); }
+
+    // ── Agency admin: thêm cột agency_role cho users ──
+    try {
+      await pool.execute(`ALTER TABLE users ADD COLUMN agency_role ENUM('owner','admin') DEFAULT NULL`);
+      console.log('  ✅ Added users.agency_role column');
+    } catch (e) { }
+    // Auto-set agency_role = 'owner' cho tất cả agency owner hiện tại
+    try {
+      const [ownerRes] = await pool.execute(
+        `UPDATE users u JOIN agencies a ON a.owner_id = u.id SET u.agency_role = 'owner', u.agency_id = a.id WHERE u.agency_role IS NULL`
+      );
+      if (ownerRes.affectedRows > 0) console.log(`  ✅ Auto-set agency_role='owner' for ${ownerRes.affectedRows} agency owners`);
+    } catch (e) { }
 
     app.listen(PORT, () => {
 

@@ -71,13 +71,18 @@ router.post('/setup', auth, async (req, res) => {
         `UPDATE agencies SET domain=?, name=?, logo_url=?, primary_color=?, bank_name=?, bank_account_name=?, bank_account_number=?, contact_email=?, contact_phone=? WHERE owner_id=?`,
         [domain, name || 'Hệ Thống Traffic', logo_url || '', primary_color || '#0ea5e9', bank_name || '', bank_account_name || '', bank_account_number || '', contact_email || '', contact_phone || '', req.userId]
       );
+      // Đảm bảo owner có agency_role + agency_id
+      const agencyId = myAgency[0].id;
+      await pool.query(`UPDATE users SET agency_role = 'owner', agency_id = ? WHERE id = ? AND (agency_role IS NULL OR agency_role != 'owner')`, [agencyId, req.userId]);
     } else {
       // Insert
-      await pool.query(
-        `INSERT INTO agencies (owner_id, domain, name, logo_url, primary_color, bank_name, bank_account_name, bank_account_number, contact_email, contact_phone) 
+      const [insertResult] = await pool.query(
+        `INSERT INTO agencies (owner_id, domain, name, logo_url, primary_color, bank_name, bank_account_name, bank_account_number, contact_email, contact_phone)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [req.userId, domain, name || 'Hệ Thống Traffic', logo_url || '', primary_color || '#0ea5e9', bank_name || '', bank_account_name || '', bank_account_number || '', contact_email || '', contact_phone || '']
       );
+      // Set owner role + agency_id
+      await pool.query(`UPDATE users SET agency_role = 'owner', agency_id = ? WHERE id = ?`, [insertResult.insertId, req.userId]);
     }
 
     res.json({ success: true, message: 'Cập nhật thành công' });

@@ -8,7 +8,9 @@
       "mcp__grapuco__semantic_search",
       "mcp__grapuco__list_projects",
       "mcp__grapuco__get_context",
-      "WebFetch(domain:pagespeed.web.dev)"
+      "WebFetch(domain:pagespeed.web.dev)",
+      "mcp__claude-peers__set_summary",
+      "PowerShell(New-Item *)"
     ]
   }
 }
