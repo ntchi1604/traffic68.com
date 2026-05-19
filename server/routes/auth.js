@@ -181,6 +181,8 @@ router.post('/login', async (req, res) => {
       phone: user.phone,
       role: user.role,
       service_type: user.service_type || 'traffic',
+      agency_id: user.agency_id || null,
+      agency_role: user.agency_role || null,
       referralCode: user.referral_code,
     },
   });
