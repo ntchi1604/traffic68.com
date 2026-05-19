@@ -1,0 +1,1 @@
+import"./vendor-charts.20260519180436.js";import{t as e}from"./vendor-react.20260519180436.js";import t from"./AdminCampaigns.20260519180436.js";var n=e();function r(){return(0,n.jsx)(t,{apiBasePath:`/agency-admin/campaigns`,pageTitle:`Đại lý - Chiến dịch`,managementLabel:`Đại lý`})}export{r as default};

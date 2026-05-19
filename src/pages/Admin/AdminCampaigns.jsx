@@ -34,7 +34,7 @@ const parseJsonArray = (val) => {
 };
 
 /* ── Keyword Stats Panel (admin version) ── */
-function KeywordStats({ campaignId, trafficType }) {
+function KeywordStats({ campaignId, trafficType, apiBasePath = '/admin/campaigns' }) {
   const [stats, setStats] = useState(null);
   const [daily, setDaily] = useState([]);
   const [page, setPage] = useState(1);
@@ -44,13 +44,13 @@ function KeywordStats({ campaignId, trafficType }) {
 
   useEffect(() => {
     Promise.all([
-      api.get(`/admin/campaigns/${campaignId}/keyword-stats`),
-      api.get(`/admin/campaigns/${campaignId}/detailed-stats`)
+      api.get(`${apiBasePath}/${campaignId}/keyword-stats`),
+      api.get(`${apiBasePath}/${campaignId}/detailed-stats`)
     ]).then(([st, dt]) => {
       setStats(st.keywords || []);
       setDaily(dt.detailed || []);
     }).catch(console.error).finally(() => setLoading(false));
-  }, [campaignId]);
+  }, [campaignId, apiBasePath]);
 
   if (loading) return <div className="text-center py-4 text-xs text-slate-400">Đang tải...</div>;
   if (!stats || stats.length === 0) return <div className="text-center py-4 text-xs text-slate-400">Chưa có dữ liệu</div>;
@@ -67,7 +67,7 @@ function KeywordStats({ campaignId, trafficType }) {
     if (exportingXlsx) return;
     setExportingXlsx(true);
     try {
-      const data = await api.get(`/admin/campaigns/${campaignId}/tasks-export`);
+      const data = await api.get(`${apiBasePath}/${campaignId}/tasks-export`);
       const tasks = data.tasks || [];
       if (tasks.length > 0) {
         exportToExcel({
@@ -240,7 +240,7 @@ function KeywordStats({ campaignId, trafficType }) {
 }
 
 /* ── Edit Modal ── */
-function EditCampaignModal({ campaign, onClose, onSaved }) {
+function EditCampaignModal({ campaign, onClose, onSaved, apiBasePath = '/admin/campaigns' }) {
   const toast = useToast();
   const isDirect = campaign.traffic_type === 'direct';
   const [name, setName] = useState(campaign.name || '');
@@ -405,7 +405,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
           mobilePct: k.mobilePct ?? 50,
         })) : []);
 
-      await api.put(`/admin/campaigns/${campaign.id}`, {
+      await api.put(`${apiBasePath}/${campaign.id}`, {
         name,
         keyword: finalKeyword,
         keyword_config: finalKeywordConfig,
@@ -736,7 +736,7 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
 }
 
 /* ── Admin Renew Modal ── */
-function AdminRenewModal({ campaign, onClose, onRenewed }) {
+function AdminRenewModal({ campaign, onClose, onRenewed, apiBasePath = '/admin/campaigns', managementLabel = 'Admin' }) {
   const toast = useToast();
   const [extraViews, setExtraViews] = useState(1000);
   const [renewing, setRenewing] = useState(false);
@@ -747,7 +747,7 @@ function AdminRenewModal({ campaign, onClose, onRenewed }) {
     if (!extraViews || extraViews <= 0) return;
     setRenewing(true);
     try {
-      await api.post(`/admin/campaigns/${campaign.id}/renew`, { extraViews });
+      await api.post(`${apiBasePath}/${campaign.id}/renew`, { extraViews });
       toast.success(`Đã gia hạn +${extraViews.toLocaleString()} view cho "${campaign.name}"`);
       onRenewed();
       onClose();
@@ -794,7 +794,7 @@ function AdminRenewModal({ campaign, onClose, onRenewed }) {
           {/* Note: admin không trừ tiền buyer */}
           <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
             <span className="text-amber-500 text-sm mt-0.5">⚠️</span>
-            <p className="text-xs text-amber-700"><strong>Admin mode:</strong> Gia hạn này <strong>không trừ tiền</strong> ví buyer — chỉ cộng view và kích hoạt lại campaign.</p>
+            <p className="text-xs text-amber-700"><strong>{managementLabel} mode:</strong> Gia hạn này <strong>không trừ tiền</strong> ví buyer — chỉ cộng view và kích hoạt lại campaign.</p>
           </div>
 
           {/* Presets */}
@@ -853,8 +853,8 @@ function AdminRenewModal({ campaign, onClose, onRenewed }) {
 }
 
 /* ── Main ── */
-export default function AdminCampaigns() {
-  usePageTitle('Admin - Chiến dịch');
+export default function AdminCampaigns({ apiBasePath = '/admin/campaigns', pageTitle = 'Admin - Chiến dịch', managementLabel = 'Admin' }) {
+  usePageTitle(pageTitle);
   const toast = useToast();
   const [campaigns, setCampaigns] = useState([]);
   const [search, setSearch] = useState('');
@@ -881,17 +881,18 @@ export default function AdminCampaigns() {
 
   const fetchCampaigns = () => {
     setLoading(true);
-    api.get(`/admin/campaigns?search=${search}&status=${statusFilter}&limit=200`)
+    const params = new URLSearchParams({ search, status: statusFilter, limit: '200' });
+    api.get(`${apiBasePath}?${params}`)
       .then(data => { setCampaigns(data.campaigns || []); setPage(1); })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchCampaigns(); }, [statusFilter]);
+  useEffect(() => { fetchCampaigns(); }, [statusFilter, apiBasePath]);
 
   const updateStatus = async (id, status) => {
     try {
-      await api.put(`/admin/campaigns/${id}`, { status });
+      await api.put(`${apiBasePath}/${id}`, { status });
       toast.success(`Đã cập nhật trạng thái: ${STATUS_MAP[status]?.label || status}`);
       setOpenMenuId(null);
       fetchCampaigns();
@@ -903,7 +904,7 @@ export default function AdminCampaigns() {
     setSettingPriorityId(id);
     try {
       // priority=0 → đặt về NULL (mặc định, random đều)
-      await api.put(`/admin/campaigns/${id}/priority`, { priority });
+      await api.put(`${apiBasePath}/${id}/priority`, { priority });
       const pInfo = PRIORITY_MAP[priority] || PRIORITY_MAP[0];
       toast.success(`✅ Đã đặt ưu tiên: ${pInfo?.label || priority}`);
       setOpenMenuId(null);
@@ -1124,7 +1125,7 @@ export default function AdminCampaigns() {
                         <tr>
                           <td colSpan={10} className="p-0 border-t border-slate-100 bg-slate-50/80">
                             <div className="p-5 overflow-hidden shadow-inner">
-                              <KeywordStats campaignId={c.id} trafficType={c.traffic_type} />
+                              <KeywordStats campaignId={c.id} trafficType={c.traffic_type} apiBasePath={apiBasePath} />
                             </div>
                           </td>
                         </tr>
@@ -1247,7 +1248,7 @@ export default function AdminCampaigns() {
                     </div>
                     {isExpanded && (
                       <div className="border-t border-slate-100 bg-slate-50/80 p-4">
-                        <KeywordStats campaignId={c.id} trafficType={c.traffic_type} />
+                        <KeywordStats campaignId={c.id} trafficType={c.traffic_type} apiBasePath={apiBasePath} />
                       </div>
                     )}
                   </div>
@@ -1280,6 +1281,7 @@ export default function AdminCampaigns() {
           campaign={editingCampaign}
           onClose={() => setEditingCampaign(null)}
           onSaved={fetchCampaigns}
+          apiBasePath={apiBasePath}
         />
       )}
 
@@ -1289,6 +1291,8 @@ export default function AdminCampaigns() {
           campaign={renewingCampaign}
           onClose={() => setRenewingCampaign(null)}
           onRenewed={fetchCampaigns}
+          apiBasePath={apiBasePath}
+          managementLabel={managementLabel}
         />
       )}
     </div>

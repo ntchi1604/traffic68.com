@@ -232,11 +232,19 @@ router.put('/buyers/:id/role', ownerOnly, async (req, res) => {
 // ════════════════════════════════════════════════════════
 //  CAMPAIGNS
 // ════════════════════════════════════════════════════════
+const getAgencyCampaign = async (pool, campaignId, agencyId, select = 'c.*') => {
+  const [rows] = await pool.execute(
+    `SELECT ${select} FROM campaigns c JOIN users u ON c.user_id = u.id WHERE c.id = ? AND u.agency_id = ?`,
+    [campaignId, agencyId]
+  );
+  return rows[0] || null;
+};
+
 router.get('/campaigns', async (req, res) => {
   try {
     const pool = getPool();
     const aid = req.agencyId;
-    const { search, status, page = 1, limit = 20 } = req.query;
+    const { search, status, page = 1, limit = 20, sync } = req.query;
     const offset = (page - 1) * limit;
 
     const todayVn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
@@ -276,7 +284,79 @@ router.get('/campaigns', async (req, res) => {
     params.push(Number(limit), Number(offset));
     const [campaigns] = await pool.execute(sql, params);
 
+    if (sync === '1') {
+      try {
+        const ids = campaigns.map(c => c.id);
+        if (ids.length > 0) {
+          const ph = ids.map(() => '?').join(',');
+          try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch { /* column already exists */ }
+
+          await pool.execute(
+            `UPDATE campaigns c
+             JOIN users u ON c.user_id = u.id
+             SET c.views_done = (
+               SELECT COUNT(*) FROM vuot_link_tasks
+               WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
+             )
+             WHERE c.id IN (${ph}) AND u.agency_id = ? AND c.views_done < (
+               SELECT COUNT(*) FROM vuot_link_tasks
+               WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0
+             )`,
+            [...ids, aid]
+          );
+
+          await pool.execute(
+            `UPDATE campaigns c
+             JOIN users u ON c.user_id = u.id
+             SET c.status = 'running'
+             WHERE c.id IN (${ph}) AND u.agency_id = ? AND c.status = 'completed'
+               AND c.views_done < c.total_views AND COALESCE(c.manually_completed, 0) = 0`,
+            [...ids, aid]
+          ).catch(() => { });
+
+          const [updated] = await pool.execute(sql, params);
+          return res.json({ campaigns: updated, total, page: Number(page), limit: Number(limit) });
+        }
+      } catch { /* best-effort sync */ }
+    }
+
     res.json({ campaigns, total, page: Number(page), limit: Number(limit) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/campaigns/:id', async (req, res) => {
+  try {
+    const pool = getPool();
+    const campaign = await getAgencyCampaign(pool, req.params.id, req.agencyId);
+    if (!campaign) return res.status(404).json({ error: 'Chiến dịch không thuộc đại lý này' });
+
+    const { status, name, url, url2, keyword, keyword_config, dailyViews, viewByHour, image1_url, image2_url, totalViews, budget, cpc, trafficType, version, timeOnSite, targetPage, device, note } = req.body;
+    const n = (v) => v === undefined ? null : v;
+
+    if (status && Object.keys(req.body).length === 1) {
+      if (!['running', 'paused', 'completed'].includes(status)) return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
+      try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch { /* column already exists */ }
+      const manuallyCompleted = status === 'completed' ? 1 : 0;
+      await pool.execute(
+        'UPDATE campaigns SET status = ?, manually_completed = ? WHERE id = ?',
+        [status, manuallyCompleted, req.params.id]
+      );
+      return res.json({ message: 'Đã cập nhật trạng thái' });
+    }
+
+    await pool.execute(
+      `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), url2=COALESCE(?,url2), keyword=COALESCE(?,keyword), keyword_config=COALESCE(?,keyword_config),
+       daily_views=COALESCE(?,daily_views), view_by_hour=COALESCE(?,view_by_hour), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url),
+       total_views=COALESCE(?,total_views), budget=COALESCE(?,budget), cpc=COALESCE(?,cpc),
+       traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), time_on_site=COALESCE(?,time_on_site),
+       target_page=COALESCE(?,target_page), status=COALESCE(?,status), device=COALESCE(?,device), note=COALESCE(?,note) WHERE id = ?`,
+      [n(name), n(url), n(url2), n(keyword), n(keyword_config), n(dailyViews), n(viewByHour), n(image1_url), n(image2_url),
+      n(totalViews), n(budget), n(cpc), n(trafficType), n(version), n(timeOnSite), n(targetPage), n(status), n(device), n(note), req.params.id]
+    );
+    const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Cập nhật thành công', campaign: campaigns[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -288,14 +368,110 @@ router.put('/campaigns/:id/status', async (req, res) => {
     const { status } = req.body;
     if (!['running', 'paused', 'completed'].includes(status)) return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
 
-    const [check] = await pool.execute(
-      'SELECT c.id FROM campaigns c JOIN users u ON c.user_id = u.id WHERE c.id = ? AND u.agency_id = ?',
-      [req.params.id, req.agencyId]
-    );
-    if (!check.length) return res.status(404).json({ error: 'Chiến dịch không thuộc đại lý này' });
+    const campaign = await getAgencyCampaign(pool, req.params.id, req.agencyId, 'c.id');
+    if (!campaign) return res.status(404).json({ error: 'Chiến dịch không thuộc đại lý này' });
 
-    await pool.execute('UPDATE campaigns SET status = ? WHERE id = ?', [status, req.params.id]);
+    try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch { /* column already exists */ }
+    const manuallyCompleted = status === 'completed' ? 1 : 0;
+    await pool.execute('UPDATE campaigns SET status = ?, manually_completed = ? WHERE id = ?', [status, manuallyCompleted, req.params.id]);
     res.json({ ok: true, message: 'Cập nhật trạng thái thành công' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/campaigns/:id/priority', async (req, res) => {
+  try {
+    const pool = getPool();
+    const priority = Number(req.body.priority);
+    if (![0, 1, 2, 3, 4, 5].includes(priority)) {
+      return res.status(400).json({ error: 'Priority phải là 0 (mặc định) hoặc 1-5' });
+    }
+
+    const campaign = await getAgencyCampaign(pool, req.params.id, req.agencyId, 'c.id, c.name');
+    if (!campaign) return res.status(404).json({ error: 'Chiến dịch không thuộc đại lý này' });
+
+    const dbValue = priority === 0 ? null : priority;
+    await pool.execute('UPDATE campaigns SET priority = ? WHERE id = ?', [dbValue, req.params.id]);
+    res.json({ ok: true, campaignId: Number(req.params.id), priority: dbValue, campaignName: campaign.name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/campaigns/:id/renew', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { extraViews } = req.body;
+    const addViews = parseInt(extraViews, 10);
+    if (!addViews || addViews <= 0) return res.status(400).json({ error: 'Số view gia hạn phải lớn hơn 0' });
+
+    const camp = await getAgencyCampaign(pool, req.params.id, req.agencyId);
+    if (!camp) return res.status(404).json({ error: 'Chiến dịch không thuộc đại lý này' });
+
+    try { await pool.execute(`ALTER TABLE campaigns ADD COLUMN manually_completed TINYINT(1) NOT NULL DEFAULT 0`); } catch { /* column already exists */ }
+
+    const cpcValue = Number(camp.cpc) || 0;
+    const newTotal = Number(camp.total_views) + addViews;
+    const newBudget = cpcValue > 0 ? Math.round(newTotal * cpcValue) : Number(camp.budget);
+
+    await pool.execute(
+      `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running', manually_completed = 0 WHERE id = ?`,
+      [newTotal, newBudget, camp.id]
+    );
+
+    await pool.execute(
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [camp.user_id, 'Chiến dịch được gia hạn',
+      `Chiến dịch "${camp.name}" đã được đại lý gia hạn thêm ${addViews.toLocaleString()} view và tiếp tục chạy.`,
+        'success', 'buyer']
+    ).catch(() => { });
+
+    const [updated] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [camp.id]);
+    res.json({ message: `Đã gia hạn thêm ${addViews.toLocaleString()} view`, campaign: updated[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/campaigns/:id/sync-views', async (req, res) => {
+  try {
+    const pool = getPool();
+    const cid = req.params.id;
+
+    if (cid === 'all') {
+      const [rows] = await pool.execute(
+        `SELECT c.id, c.views_done as old_views,
+                COALESCE((SELECT COUNT(*) FROM vuot_link_tasks WHERE campaign_id = c.id AND status = 'completed' AND bot_detected = 0), 0) as real_views
+         FROM campaigns c
+         JOIN users u ON c.user_id = u.id
+         WHERE u.agency_id = ?`,
+        [req.agencyId]
+      );
+      let fixed = 0;
+      for (const r of rows) {
+        if (Number(r.old_views) < Number(r.real_views)) {
+          await pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [r.real_views, r.id]);
+          fixed++;
+        }
+      }
+      return res.json({ message: `Đã đồng bộ ${fixed}/${rows.length} chiến dịch`, fixed, total: rows.length });
+    }
+
+    const campaign = await getAgencyCampaign(pool, cid, req.agencyId, 'c.id, c.views_done');
+    if (!campaign) return res.status(404).json({ error: 'Chiến dịch không thuộc đại lý này' });
+
+    const [rows] = await pool.execute(
+      `SELECT COUNT(*) as real_views FROM vuot_link_tasks WHERE campaign_id = ? AND status = 'completed' AND bot_detected = 0`,
+      [cid]
+    );
+    const realViews = rows[0].real_views;
+    const oldViews = campaign.views_done || 0;
+
+    if (Number(oldViews) < Number(realViews)) {
+      await pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, cid]);
+    }
+    res.json({ message: `Đã đồng bộ: ${oldViews} -> ${Math.max(Number(oldViews), Number(realViews))}`, oldViews, newViews: Math.max(Number(oldViews), Number(realViews)) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -304,20 +480,185 @@ router.put('/campaigns/:id/status', async (req, res) => {
 router.get('/campaigns/:id/keyword-stats', async (req, res) => {
   try {
     const pool = getPool();
-    const [check] = await pool.execute(
-      'SELECT c.id FROM campaigns c JOIN users u ON c.user_id = u.id WHERE c.id = ? AND u.agency_id = ?',
-      [req.params.id, req.agencyId]
-    );
-    if (!check.length) return res.status(404).json({ error: 'Chiến dịch không thuộc đại lý này' });
+    const campaign = await getAgencyCampaign(pool, req.params.id, req.agencyId, 'c.id, c.views_done');
+    if (!campaign) return res.status(404).json({ error: 'Chiến dịch không thuộc đại lý này' });
 
-    const [stats] = await pool.execute(
-      `SELECT keyword, COUNT(*) as total,
-        SUM(CASE WHEN status = 'completed' AND bot_detected = 0 THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN bot_detected = 1 THEN 1 ELSE 0 END) as bot
-      FROM vuot_link_tasks WHERE campaign_id = ? GROUP BY keyword`,
+    const [rows] = await pool.execute(
+      `SELECT
+         keyword,
+         COUNT(*) as total,
+         SUM(CASE WHEN status = 'completed' AND bot_detected = 0 THEN 1 ELSE 0 END) as completed,
+         SUM(CASE WHEN status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) as pending,
+         SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) as expired,
+         SUM(CASE WHEN bot_detected = 1 THEN 1 ELSE 0 END) as blocked,
+         COALESCE(SUM(earning), 0) as cost
+       FROM vuot_link_tasks
+       WHERE campaign_id = ?
+       GROUP BY keyword
+       ORDER BY completed DESC`,
       [req.params.id]
     );
-    res.json({ stats });
+
+    const realViews = rows.reduce((s, r) => s + Number(r.completed), 0);
+    if (Number(campaign.views_done) < realViews) {
+      await pool.execute('UPDATE campaigns SET views_done = ? WHERE id = ?', [realViews, req.params.id]);
+    }
+
+    res.json({ keywords: rows, stats: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/campaigns/:id/detailed-stats', async (req, res) => {
+  try {
+    const pool = getPool();
+    const campaign = await getAgencyCampaign(pool, req.params.id, req.agencyId, 'c.id');
+    if (!campaign) return res.status(404).json({ error: 'Chiến dịch không thuộc đại lý này' });
+
+    const [data] = await pool.execute(
+      `SELECT DATE(vlt.created_at) as date, vlt.keyword, c.daily_views as campaign_daily_views,
+              c.keyword_config,
+              COUNT(*) as total,
+              SUM(CASE WHEN vlt.status = 'completed' AND vlt.bot_detected = 0 THEN 1 ELSE 0 END) as completed,
+              COALESCE(SUM(vlt.earning), 0) as cost
+       FROM vuot_link_tasks vlt
+       JOIN campaigns c ON c.id = vlt.campaign_id
+       WHERE vlt.campaign_id = ?
+       GROUP BY date, c.daily_views, c.keyword_config, vlt.keyword
+       ORDER BY date DESC, completed DESC`,
+      [req.params.id]
+    );
+
+    const safeData = data.map(r => {
+      let kwDailyViews = Number(r.campaign_daily_views) || 0;
+      try {
+        const cfg = r.keyword_config ? JSON.parse(r.keyword_config) : null;
+        if (Array.isArray(cfg) && cfg.length > 0) {
+          const kwEntry = cfg.find(k => k.keyword === r.keyword);
+          if (kwEntry && Number(kwEntry.daily_views) > 0) {
+            kwDailyViews = Number(kwEntry.daily_views);
+          } else if (kwEntry && !(Number(kwEntry.daily_views) > 0)) {
+            const explicit = cfg.filter(k => Number(k.daily_views) > 0);
+            const totalExplicit = explicit.reduce((s, k) => s + Number(k.daily_views), 0);
+            const unsetCount = cfg.filter(k => !(Number(k.daily_views) > 0)).length;
+            const remaining = Math.max(0, Number(r.campaign_daily_views) - totalExplicit);
+            kwDailyViews = unsetCount > 0 && Number(r.campaign_daily_views) > 0
+              ? Math.floor(remaining / unsetCount) : 0;
+          }
+        }
+      } catch { /* fallback to campaign daily limit */ }
+
+      return {
+        date: localDateStr(new Date(r.date)),
+        keyword: r.keyword,
+        total: r.total,
+        completed: r.completed,
+        cost: r.cost,
+        daily_views: kwDailyViews,
+      };
+    });
+    res.json({ detailed: safeData });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/campaigns/:id/tasks-export', async (req, res) => {
+  try {
+    const pool = getPool();
+    const cid = req.params.id;
+    const camp = await getAgencyCampaign(pool, cid, req.agencyId, 'c.id, c.cpc');
+    if (!camp) return res.status(404).json({ error: 'Chiến dịch không thuộc đại lý này' });
+
+    const detectDevice = (ua) => {
+      if (!ua) return 'Unknown';
+      if (/mobile|android|iphone|ipad/i.test(ua)) return 'Mobile';
+      if (/tablet/i.test(ua)) return 'Tablet';
+      return 'Desktop';
+    };
+
+    const [rows] = await pool.execute(
+      `SELECT vlt.id, vlt.keyword, vlt.ip_address, vlt.user_agent, vlt.ip_country,
+              vlt.created_at, vlt.completed_at
+       FROM vuot_link_tasks vlt
+       WHERE vlt.campaign_id = ? AND vlt.status = 'completed' AND vlt.bot_detected = 0
+       ORDER BY vlt.completed_at DESC
+       LIMIT 5000`,
+      [cid]
+    );
+
+    const geoip = require('geoip-lite');
+    const uniqueIps = [...new Set(
+      rows.map(r => r.ip_address).filter(ip => {
+        if (!ip) return false;
+        if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1|fe80)/i.test(ip)) return false;
+        return true;
+      })
+    )];
+    const geoMap = {};
+    const BATCH = 100;
+    const PARALLEL = 5;
+
+    const callIpApi = (batch) => new Promise((resolve) => {
+      const body = JSON.stringify(batch.map(ip => ({ query: ip, fields: 'query,country,city,status' })));
+      const options = {
+        hostname: 'ip-api.com',
+        path: '/batch?fields=query,country,city,status',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      };
+      const req2 = require('http').request(options, (resp) => {
+        let data = '';
+        resp.on('data', chunk => data += chunk);
+        resp.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve([]); } });
+      });
+      req2.on('error', () => resolve([]));
+      req2.setTimeout(5000, () => { req2.destroy(); resolve([]); });
+      req2.write(body);
+      req2.end();
+    });
+
+    const batches = [];
+    for (let i = 0; i < uniqueIps.length; i += BATCH) batches.push(uniqueIps.slice(i, i + BATCH));
+    for (let i = 0; i < batches.length; i += PARALLEL) {
+      const group = batches.slice(i, i + PARALLEL);
+      const results = await Promise.all(group.map(b => callIpApi(b).catch(() => [])));
+      results.forEach(result => {
+        if (Array.isArray(result)) {
+          result.forEach(r => {
+            if (r.status === 'success' && r.query) geoMap[r.query] = { country: r.country || '', city: r.city || '' };
+          });
+        }
+      });
+    }
+    uniqueIps.forEach(ip => {
+      if (!geoMap[ip]) {
+        const geo = geoip.lookup(ip);
+        if (geo) geoMap[ip] = { country: geo.country || '', city: geo.city || '' };
+      }
+    });
+
+    const cpc = Number(camp.cpc) || 0;
+    const tasks = rows.map((r, i) => {
+      const geo = geoMap[r.ip_address] || {};
+      const country = r.ip_country || geo.country || '';
+      const city = geo.city || '';
+      return {
+        stt: i + 1,
+        id: r.id,
+        keyword: r.keyword || '',
+        ip: r.ip_address || '',
+        country,
+        city,
+        device: detectDevice(r.user_agent),
+        userAgent: r.user_agent || '',
+        spending: cpc,
+        createdAt: r.created_at,
+        completedAt: r.completed_at || null,
+      };
+    });
+    res.json({ tasks, campaignId: cid });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
