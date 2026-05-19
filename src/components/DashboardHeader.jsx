@@ -165,6 +165,11 @@ export default function DashboardHeader({ onMenuClick }) {
                     🛡️ Admin Panel
                   </a>
                 )}
+                {user.role !== 'admin' && (user.agency_role === 'owner' || user.agency_role === 'admin') && (
+                  <a href="/agency-admin" className="flex items-center gap-2 px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 transition font-semibold">
+                    🛡️ Agency Admin
+                  </a>
+                )}
                 <button
                   onClick={handleLogout}
                   className="block w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition font-medium"

@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { Search, X, Key, Wallet, Shield, ShieldOff, UserCheck, UserX } from 'lucide-react';
+import { Search, X, Key, Wallet, Shield, ShieldOff, UserCheck, UserX, Eye, EyeOff } from 'lucide-react';
 import api from '../../lib/api';
-
-const money = (n) => Number(n).toLocaleString('vi-VN') + ' đ';
+import { formatMoney as fmt } from '../../lib/format';
 
 /* ── Change Password Modal ── */
 function ChangePasswordModal({ user, onClose, onDone }) {
   const [newPassword, setNewPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async () => {
-    if (!newPassword || newPassword.length < 6) { setError('Mat khau phai co it nhat 6 ky tu'); return; }
+    if (!newPassword || newPassword.length < 6) { setError('Mật khẩu phải có ít nhất 6 ký tự'); return; }
     setLoading(true);
     try {
       await api.post(`/agency-admin/buyers/${user.id}/change-password`, { newPassword });
@@ -25,22 +25,31 @@ function ChangePasswordModal({ user, onClose, onDone }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h3 className="font-bold text-slate-900">Doi mat khau</h3>
-          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-lg"><X size={16} /></button>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div>
+            <h3 className="text-lg font-black text-slate-900">Đổi mật khẩu</h3>
+            <p className="text-xs text-slate-500">{user.name} — {user.email}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition"><X size={18} className="text-slate-400" /></button>
         </div>
         <div className="p-5 space-y-4">
-          <p className="text-sm text-slate-600">Nguoi dung: <strong>{user.name}</strong> ({user.email})</p>
           {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded-lg">{error}</p>}
           <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Mat khau moi</label>
-            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
-              placeholder="Nhap mat khau moi..."
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Mật khẩu mới</label>
+            <div className="relative">
+              <input type={showPw ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                placeholder="Ít nhất 6 ký tự..."
+                autoFocus
+                className="w-full px-4 py-3 pr-11 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              <button type="button" onClick={() => setShowPw(v => !v)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
           <button onClick={handleSubmit} disabled={loading}
             className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
-            {loading ? 'Dang xu ly...' : 'Xac nhan doi mat khau'}
+            {loading ? 'Đang xử lý...' : 'Xác nhận đổi mật khẩu'}
           </button>
         </div>
       </div>
@@ -58,7 +67,7 @@ function BalanceModal({ user, onClose, onDone }) {
 
   const handleSubmit = async () => {
     const num = Number(amount);
-    if (!num || num <= 0) { setError('So tien phai lon hon 0'); return; }
+    if (!num || num <= 0) { setError('Số tiền phải lớn hơn 0'); return; }
     setLoading(true);
     try {
       await api.post(`/agency-admin/buyers/${user.id}/balance`, { amount: num, type, note });
@@ -71,43 +80,46 @@ function BalanceModal({ user, onClose, onDone }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h3 className="font-bold text-slate-900">Dieu chinh so du</h3>
-          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-lg"><X size={16} /></button>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div>
+            <h3 className="text-lg font-black text-slate-900">Điều chỉnh số dư</h3>
+            <p className="text-xs text-slate-500">{user.name} — {user.email}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition"><X size={18} className="text-slate-400" /></button>
         </div>
         <div className="p-5 space-y-4">
           <p className="text-sm text-slate-600">
-            Nguoi dung: <strong>{user.name}</strong> &mdash; So du: <strong className="text-indigo-600">{money(user.balance)}</strong>
+            Số dư hiện tại: <strong className="text-indigo-600">{fmt(user.balance)} đ</strong>
           </p>
           {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded-lg">{error}</p>}
           <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Loai</label>
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Loại</label>
             <div className="flex gap-2">
               <button onClick={() => setType('add')}
                 className={`flex-1 py-2 text-sm font-bold rounded-xl transition ${type === 'add' ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                + Cong tien
+                + Cộng tiền
               </button>
               <button onClick={() => setType('subtract')}
                 className={`flex-1 py-2 text-sm font-bold rounded-xl transition ${type === 'subtract' ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                - Tru tien
+                - Trừ tiền
               </button>
             </div>
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">So tien</label>
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Số tiền</label>
             <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
               placeholder="0"
               className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Ghi chu</label>
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Ghi chú</label>
             <input value={note} onChange={e => setNote(e.target.value)}
-              placeholder="Ly do dieu chinh..."
+              placeholder="Lý do điều chỉnh..."
               className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
           <button onClick={handleSubmit} disabled={loading}
             className={`w-full py-2.5 text-white text-sm font-bold rounded-xl transition disabled:opacity-50 ${type === 'add' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}>
-            {loading ? 'Dang xu ly...' : 'Xac nhan'}
+            {loading ? 'Đang xử lý...' : 'Xác nhận'}
           </button>
         </div>
       </div>
@@ -117,7 +129,7 @@ function BalanceModal({ user, onClose, onDone }) {
 
 /* ── Main ── */
 export default function AgencyAdminBuyers() {
-  usePageTitle('Agency Admin - Quan ly Buyer');
+  usePageTitle('Đại lý - Quản lý Buyer');
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -170,10 +182,10 @@ export default function AgencyAdminBuyers() {
           <div className="relative flex-1 max-w-md">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
-              placeholder="Tim theo ten, email, username..."
+              placeholder="Tìm theo tên, email, username..."
               className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
-          <button type="submit" className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition">Tim kiem</button>
+          <button type="submit" className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition">Tìm kiếm</button>
           {search && (
             <button type="button" onClick={() => { setSearch(''); setSearchInput(''); }}
               className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">
@@ -191,13 +203,13 @@ export default function AgencyAdminBuyers() {
           </div>
         ) : users.length === 0 ? (
           <div className="py-16 text-center text-slate-400">
-            <p className="font-semibold">Khong tim thay nguoi dung nao</p>
+            <p className="font-semibold">Không tìm thấy người dùng nào</p>
           </div>
         ) : (
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {['ID', 'Ten', 'Email', 'Username', 'So du', 'Campaigns', 'Tong nap', 'Trang thai', 'Vai tro', 'Hanh dong'].map(h => (
+                {['ID', 'Tên', 'Email', 'Username', 'Số dư', 'Campaigns', 'Tổng nạp', 'Trạng thái', 'Vai trò', 'Hành động'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -209,14 +221,14 @@ export default function AgencyAdminBuyers() {
                   <td className="px-4 py-3 font-semibold text-slate-800 text-xs">{u.name}</td>
                   <td className="px-4 py-3 text-xs text-slate-500">{u.email}</td>
                   <td className="px-4 py-3 text-xs text-slate-500">{u.username}</td>
-                  <td className="px-4 py-3 text-xs font-bold text-indigo-600 tabular-nums whitespace-nowrap">{money(u.balance)}</td>
+                  <td className="px-4 py-3 text-xs font-bold text-indigo-600 tabular-nums whitespace-nowrap">{fmt(u.balance)} đ</td>
                   <td className="px-4 py-3 text-xs text-slate-600 tabular-nums">{u.campaigns ?? 0}</td>
-                  <td className="px-4 py-3 text-xs font-bold text-green-600 tabular-nums whitespace-nowrap">{money(u.total_deposit)}</td>
+                  <td className="px-4 py-3 text-xs font-bold text-green-600 tabular-nums whitespace-nowrap">{fmt(u.total_deposit)} đ</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 text-[10px] font-bold rounded-full ${
                       u.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
                     }`}>
-                      {u.status === 'active' ? 'Hoat dong' : 'Tam ngung'}
+                      {u.status === 'active' ? 'Hoạt động' : 'Tạm ngưng'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -229,20 +241,20 @@ export default function AgencyAdminBuyers() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 flex-wrap">
-                      <button onClick={() => toggleStatus(u)} title={u.status === 'active' ? 'Tam ngung' : 'Kich hoat'}
+                      <button onClick={() => toggleStatus(u)} title={u.status === 'active' ? 'Tạm ngưng' : 'Kích hoạt'}
                         className={`p-1.5 rounded-lg transition ${u.status === 'active' ? 'hover:bg-red-50 text-red-500' : 'hover:bg-green-50 text-green-500'}`}>
                         {u.status === 'active' ? <UserX size={14} /> : <UserCheck size={14} />}
                       </button>
-                      <button onClick={() => setPwModal(u)} title="Doi mat khau"
+                      <button onClick={() => setPwModal(u)} title="Đổi mật khẩu"
                         className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-600 transition">
                         <Key size={14} />
                       </button>
-                      <button onClick={() => setBalModal(u)} title="Dieu chinh so du"
+                      <button onClick={() => setBalModal(u)} title="Điều chỉnh số dư"
                         className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-600 transition">
                         <Wallet size={14} />
                       </button>
                       {isOwner && u.agency_role !== 'owner' && (
-                        <button onClick={() => toggleAdmin(u)} title={u.agency_role === 'admin' ? 'Go quyen Admin' : 'Gan quyen Admin'}
+                        <button onClick={() => toggleAdmin(u)} title={u.agency_role === 'admin' ? 'Gỡ quyền Admin' : 'Gán quyền Admin'}
                           className={`p-1.5 rounded-lg transition ${u.agency_role === 'admin' ? 'hover:bg-red-50 text-red-500' : 'hover:bg-purple-50 text-purple-600'}`}>
                           {u.agency_role === 'admin' ? <ShieldOff size={14} /> : <Shield size={14} />}
                         </button>
@@ -261,12 +273,12 @@ export default function AgencyAdminBuyers() {
         <div className="flex items-center justify-between bg-white rounded-2xl border border-slate-200 px-5 py-3 shadow-sm">
           <p className="text-xs text-slate-500">
             Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages}
-            <span className="ml-2 text-slate-400">({total} nguoi dung)</span>
+            <span className="ml-2 text-slate-400">({total} người dùng)</span>
           </p>
           <div className="flex items-center gap-1">
             <button onClick={() => fetchData(page - 1)} disabled={page === 1}
               className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
-              &lsaquo; Truoc
+              &lsaquo; Trước
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)

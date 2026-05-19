@@ -10,7 +10,8 @@
       "mcp__grapuco__get_context",
       "WebFetch(domain:pagespeed.web.dev)",
       "mcp__claude-peers__set_summary",
-      "PowerShell(New-Item *)"
+      "PowerShell(New-Item *)",
+      "PowerShell(npx vite build 2>&1 | Select-Object -Last 20)"
     ]
   }
 }

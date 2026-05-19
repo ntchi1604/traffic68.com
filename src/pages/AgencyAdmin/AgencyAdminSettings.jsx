@@ -8,7 +8,6 @@ export default function AgencyAdminSettings() {
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Password form
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -22,9 +21,7 @@ export default function AgencyAdminSettings() {
 
   useEffect(() => {
     api.get('/auth/me')
-      .then(data => {
-        setAdmin(data.user);
-      })
+      .then(data => { setAdmin(data.user); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -35,11 +32,11 @@ export default function AgencyAdminSettings() {
     setPwMsg('');
 
     if (newPassword.length < 6) {
-      setPwErr('Mat khau moi phai it nhat 6 ky tu');
+      setPwErr('Mật khẩu mới phải ít nhất 6 ký tự');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPwErr('Mat khau xac nhan khong khop');
+      setPwErr('Mật khẩu xác nhận không khớp');
       return;
     }
 
@@ -49,7 +46,7 @@ export default function AgencyAdminSettings() {
         currentPassword,
         newPassword,
       });
-      setPwMsg(res.message || 'Doi mat khau thanh cong!');
+      setPwMsg(res.message || 'Đổi mật khẩu thành công!');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -71,8 +68,8 @@ export default function AgencyAdminSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-slate-900">Cai dat tai khoan</h1>
-        <p className="text-sm text-slate-500 mt-1">Quan ly thong tin tai khoan quan tri dai ly</p>
+        <h1 className="text-2xl font-black text-slate-900">Cài đặt tài khoản</h1>
+        <p className="text-sm text-slate-500 mt-1">Quản lý thông tin tài khoản quản trị đại lý</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -80,11 +77,11 @@ export default function AgencyAdminSettings() {
         {/* Profile Info (read-only) */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <User size={18} className="text-indigo-500" /> Thong tin tai khoan
+            <User size={18} className="text-indigo-500" /> Thông tin tài khoản
           </h2>
 
           <div>
-            <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Ho ten</label>
+            <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Họ tên</label>
             <div className="relative">
               <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input type="text" value={admin?.name || ''} readOnly
@@ -104,7 +101,7 @@ export default function AgencyAdminSettings() {
           <div className="pt-2">
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <div className="w-2 h-2 rounded-full bg-green-400" />
-              Vai tro: <span className="font-bold text-slate-600 capitalize">{admin?.agency_role || 'admin'}</span>
+              Vai trò: <span className="font-bold text-slate-600 capitalize">{admin?.agency_role || 'admin'}</span>
             </div>
           </div>
         </div>
@@ -112,11 +109,11 @@ export default function AgencyAdminSettings() {
         {/* Change Password */}
         <form onSubmit={handleUpdatePassword} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <Lock size={18} className="text-indigo-500" /> Doi mat khau
+            <Lock size={18} className="text-indigo-500" /> Đổi mật khẩu
           </h2>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Mat khau hien tai</label>
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Mật khẩu hiện tại</label>
             <div className="relative">
               <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input type={showCurrent ? 'text' : 'password'} value={currentPassword}
@@ -132,12 +129,12 @@ export default function AgencyAdminSettings() {
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Mat khau moi</label>
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Mật khẩu mới</label>
             <div className="relative">
               <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input type={showNew ? 'text' : 'password'} value={newPassword}
                 onChange={e => setNewPassword(e.target.value)}
-                placeholder="Toi thieu 6 ky tu"
+                placeholder="Tối thiểu 6 ký tự"
                 className="w-full pl-10 pr-11 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 required />
               <button type="button" onClick={() => setShowNew(!showNew)}
@@ -148,12 +145,12 @@ export default function AgencyAdminSettings() {
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Xac nhan mat khau moi</label>
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Xác nhận mật khẩu mới</label>
             <div className="relative">
               <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input type={showConfirm ? 'text' : 'password'} value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="Nhap lai mat khau moi"
+                placeholder="Nhập lại mật khẩu mới"
                 className="w-full pl-10 pr-11 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 required />
               <button type="button" onClick={() => setShowConfirm(!showConfirm)}
@@ -172,7 +169,7 @@ export default function AgencyAdminSettings() {
 
           <button type="submit" disabled={savingPw}
             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
-            <Save size={16} /> {savingPw ? 'Dang luu...' : 'Doi mat khau'}
+            <Save size={16} /> {savingPw ? 'Đang lưu...' : 'Đổi mật khẩu'}
           </button>
         </form>
       </div>

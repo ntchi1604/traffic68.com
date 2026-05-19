@@ -106,10 +106,10 @@ export default function AgencyAdminConfig() {
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <div className="flex items-center gap-2 mb-4">
             <Globe size={18} className="text-indigo-500" />
-            <h2 className="font-bold text-slate-800">Ten mien</h2>
+            <h2 className="font-bold text-slate-800">Tên miền</h2>
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Domain (khong the thay doi)</label>
+            <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Domain (không thể thay đổi)</label>
             <input type="text" value={config.domain} readOnly
               className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-500 cursor-not-allowed" />
           </div>
@@ -119,13 +119,13 @@ export default function AgencyAdminConfig() {
         <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
           <div className="flex items-center gap-2">
             <Palette size={18} className="text-indigo-500" />
-            <h2 className="font-bold text-slate-800">Thuong hieu</h2>
+            <h2 className="font-bold text-slate-800">Thương hiệu</h2>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Ten dai ly</label>
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Tên đại lý</label>
             <input type="text" value={config.name} onChange={e => updateField('name', e.target.value)}
-              placeholder="Ten dai ly cua ban"
+              placeholder="Tên đại lý của bạn"
               className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
 
@@ -143,7 +143,7 @@ export default function AgencyAdminConfig() {
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Mau chu dao</label>
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Màu chủ đạo</label>
             <div className="flex items-center gap-3">
               <input type="color" value={config.primary_color}
                 onChange={e => updateField('primary_color', e.target.value)}
@@ -161,18 +161,18 @@ export default function AgencyAdminConfig() {
         <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
           <div className="flex items-center gap-2">
             <Building2 size={18} className="text-indigo-500" />
-            <h2 className="font-bold text-slate-800">Thong tin ngan hang</h2>
+            <h2 className="font-bold text-slate-800">Thông tin ngân hàng</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Ten ngan hang</label>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Tên ngân hàng</label>
               <input type="text" value={config.bank_name} onChange={e => updateField('bank_name', e.target.value)}
                 placeholder="VD: Techcombank, Vietcombank..."
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Chu tai khoan</label>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Chủ tài khoản</label>
               <input type="text" value={config.bank_account_name} onChange={e => updateField('bank_account_name', e.target.value)}
                 placeholder="NGUYEN VAN A"
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
@@ -180,7 +180,7 @@ export default function AgencyAdminConfig() {
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">So tai khoan</label>
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Số tài khoản</label>
             <input type="text" value={config.bank_account_number} onChange={e => updateField('bank_account_number', e.target.value)}
               placeholder="0123456789"
               className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
@@ -191,18 +191,18 @@ export default function AgencyAdminConfig() {
         <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
           <div className="flex items-center gap-2">
             <Phone size={18} className="text-indigo-500" />
-            <h2 className="font-bold text-slate-800">Lien he</h2>
+            <h2 className="font-bold text-slate-800">Liên hệ</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Email lien he</label>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Email liên hệ</label>
               <input type="email" value={config.contact_email} onChange={e => updateField('contact_email', e.target.value)}
                 placeholder="support@agency.com"
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">So dien thoai</label>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Số điện thoại</label>
               <input type="tel" value={config.contact_phone} onChange={e => updateField('contact_phone', e.target.value)}
                 placeholder="0912 345 678"
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
