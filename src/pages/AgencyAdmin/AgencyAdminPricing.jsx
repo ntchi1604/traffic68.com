@@ -158,7 +158,7 @@ export default function AgencyAdminPricing() {
         const items = grouped[type].sort((a, b) => parseInt(a.duration) - parseInt(b.duration));
 
         return (
-          <div key={type} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div key={type} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
               <DollarSign size={18} className="text-indigo-500" />
               <span className={`px-3 py-1 text-xs font-bold rounded-full ${typeInfo.color}`}>

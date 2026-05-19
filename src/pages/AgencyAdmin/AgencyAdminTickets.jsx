@@ -134,12 +134,7 @@ export default function AgencyAdminTickets() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-black text-slate-900">Hỗ trợ</h1>
-        <p className="text-sm text-slate-500 mt-1">Quản lý ticket hỗ trợ từ buyer</p>
-      </div>
-
+    <div className="space-y-5">
       {/* Status filter tabs */}
       <div className="flex flex-wrap gap-2">
         {FILTERS.map(f => (

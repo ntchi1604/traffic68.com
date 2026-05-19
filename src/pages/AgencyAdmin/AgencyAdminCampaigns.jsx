@@ -57,16 +57,16 @@ export default function AgencyAdminCampaigns() {
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
         <form onSubmit={e => { e.preventDefault(); setSearch(searchInput); }} className="flex gap-2">
           <div className="relative flex-1 max-w-md">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
               placeholder="Tìm theo tên, URL, keyword..."
-              className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
-          <button type="submit" className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition">Tìm kiếm</button>
+          <button type="submit" className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition">Tìm kiếm</button>
           {search && (
             <button type="button" onClick={() => { setSearch(''); setSearchInput(''); }}
-              className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">
-              <X size={14} />
+              className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-bold rounded-xl transition">
+              <X size={16} />
             </button>
           )}
         </form>
@@ -87,10 +87,10 @@ export default function AgencyAdminCampaigns() {
       <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm">
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : campaigns.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
+          <div className="py-12 text-center text-slate-400">
             <p className="font-semibold">Không có chiến dịch nào</p>
           </div>
         ) : (
@@ -98,7 +98,7 @@ export default function AgencyAdminCampaigns() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 {['ID', 'Tên / URL', 'Keyword', 'Người dùng', 'Loại traffic', 'Lượt xem', 'Trạng thái', 'Hôm nay', 'Hành động'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-5 py-3 text-left font-semibold text-slate-500 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -107,8 +107,8 @@ export default function AgencyAdminCampaigns() {
                 const st = STATUS_COLORS[c.status] || STATUS_COLORS.pending;
                 return (
                   <tr key={c.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="px-4 py-3 text-xs text-slate-500 font-mono">{c.id}</td>
-                    <td className="px-4 py-3 max-w-[200px]">
+                    <td className="px-5 py-3 text-xs text-slate-500 font-mono">{c.id}</td>
+                    <td className="px-5 py-3 max-w-[200px]">
                       <p className="font-semibold text-slate-800 text-xs truncate">{c.name || c.url}</p>
                       {c.url && (
                         <a href={c.url} target="_blank" rel="noopener noreferrer"
@@ -117,38 +117,38 @@ export default function AgencyAdminCampaigns() {
                         </a>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-600 max-w-[120px] truncate">{c.keyword || '—'}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3 text-xs text-slate-600 max-w-[120px] truncate">{c.keyword || '—'}</td>
+                    <td className="px-5 py-3">
                       <p className="text-xs font-semibold text-slate-700">{c.user_name || '—'}</p>
                       <p className="text-[10px] text-slate-400">{c.user_email || ''}</p>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-600">{c.traffic_type || '—'}</td>
-                    <td className="px-4 py-3 text-xs tabular-nums">
+                    <td className="px-5 py-3 text-xs text-slate-600">{c.traffic_type || '—'}</td>
+                    <td className="px-5 py-3 text-xs tabular-nums">
                       <span className="font-bold text-slate-700">{c.views_done ?? 0}</span>
                       <span className="text-slate-400"> / {c.views_total ?? 0}</span>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 text-[10px] font-bold rounded-full ${st.cls}`}>{st.label}</span>
+                    <td className="px-5 py-3">
+                      <span className={`px-2 py-1 text-xs font-bold rounded-full ${st.cls}`}>{st.label}</span>
                     </td>
-                    <td className="px-4 py-3 text-xs font-bold text-indigo-600 tabular-nums">{c.views_today ?? 0}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3 text-xs font-bold text-indigo-600 tabular-nums">{c.views_today ?? 0}</td>
+                    <td className="px-5 py-3">
                       <div className="flex items-center gap-1">
                         {c.status === 'running' && (
                           <button onClick={() => changeStatus(c.id, 'paused')} title="Tạm dừng"
                             className="p-1.5 rounded-lg hover:bg-yellow-50 text-yellow-600 transition">
-                            <Pause size={14} />
+                            <Pause size={16} />
                           </button>
                         )}
                         {(c.status === 'paused' || c.status === 'pending') && (
                           <button onClick={() => changeStatus(c.id, 'running')} title="Chạy lại"
                             className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition">
-                            <Play size={14} />
+                            <Play size={16} />
                           </button>
                         )}
                         {c.status !== 'completed' && (
                           <button onClick={() => changeStatus(c.id, 'completed')} title="Hoàn thành"
                             className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition">
-                            <CheckCircle size={14} />
+                            <CheckCircle size={16} />
                           </button>
                         )}
                       </div>
@@ -163,7 +163,7 @@ export default function AgencyAdminCampaigns() {
 
       {/* Pagination */}
       {total > LIMIT && (
-        <div className="flex items-center justify-between bg-white rounded-2xl border border-slate-200 px-5 py-3 shadow-sm">
+        <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-5 py-3">
           <p className="text-xs text-slate-500">
             Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages}
             <span className="ml-2 text-slate-400">({total} chiến dịch)</span>

@@ -32,7 +32,7 @@ function ChangePasswordModal({ user, onClose, onDone }) {
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition"><X size={18} className="text-slate-400" /></button>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="p-6 space-y-4">
           {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded-lg">{error}</p>}
           <div>
             <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Mật khẩu mới</label>
@@ -87,7 +87,7 @@ function BalanceModal({ user, onClose, onDone }) {
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition"><X size={18} className="text-slate-400" /></button>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="p-6 space-y-4">
           <p className="text-sm text-slate-600">
             Số dư hiện tại: <strong className="text-indigo-600">{fmt(user.balance)} đ</strong>
           </p>
@@ -109,13 +109,13 @@ function BalanceModal({ user, onClose, onDone }) {
             <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Số tiền</label>
             <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
               placeholder="0"
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              className="w-full px-4 py-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Ghi chú</label>
             <input value={note} onChange={e => setNote(e.target.value)}
               placeholder="Lý do điều chỉnh..."
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              className="w-full px-4 py-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
           <button onClick={handleSubmit} disabled={loading}
             className={`w-full py-2.5 text-white text-sm font-bold rounded-xl transition disabled:opacity-50 ${type === 'add' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}>
@@ -180,16 +180,16 @@ export default function AgencyAdminBuyers() {
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
         <form onSubmit={e => { e.preventDefault(); setSearch(searchInput); }} className="flex gap-2">
           <div className="relative flex-1 max-w-md">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
               placeholder="Tìm theo tên, email, username..."
-              className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
-          <button type="submit" className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition">Tìm kiếm</button>
+          <button type="submit" className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition">Tìm kiếm</button>
           {search && (
             <button type="button" onClick={() => { setSearch(''); setSearchInput(''); }}
-              className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">
-              <X size={14} />
+              className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-bold rounded-xl transition">
+              <X size={16} />
             </button>
           )}
         </form>
@@ -199,10 +199,10 @@ export default function AgencyAdminBuyers() {
       <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm">
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : users.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
+          <div className="py-12 text-center text-slate-400">
             <p className="font-semibold">Không tìm thấy người dùng nào</p>
           </div>
         ) : (
@@ -210,53 +210,53 @@ export default function AgencyAdminBuyers() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 {['ID', 'Tên', 'Email', 'Username', 'Số dư', 'Campaigns', 'Tổng nạp', 'Trạng thái', 'Vai trò', 'Hành động'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-5 py-3 text-left font-semibold text-slate-500 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {users.map(u => (
                 <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="px-4 py-3 text-xs text-slate-500 font-mono">{u.id}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-800 text-xs">{u.name}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{u.email}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{u.username}</td>
-                  <td className="px-4 py-3 text-xs font-bold text-indigo-600 tabular-nums whitespace-nowrap">{fmt(u.balance)} đ</td>
-                  <td className="px-4 py-3 text-xs text-slate-600 tabular-nums">{u.campaigns ?? 0}</td>
-                  <td className="px-4 py-3 text-xs font-bold text-green-600 tabular-nums whitespace-nowrap">{fmt(u.total_deposit)} đ</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 text-[10px] font-bold rounded-full ${
+                  <td className="px-5 py-3 text-xs text-slate-500 font-mono">{u.id}</td>
+                  <td className="px-5 py-3 font-semibold text-slate-800 text-xs">{u.name}</td>
+                  <td className="px-5 py-3 text-xs text-slate-500">{u.email}</td>
+                  <td className="px-5 py-3 text-xs text-slate-500">{u.username}</td>
+                  <td className="px-5 py-3 text-xs font-bold text-indigo-600 tabular-nums whitespace-nowrap">{fmt(u.balance)} đ</td>
+                  <td className="px-5 py-3 text-xs text-slate-600 tabular-nums">{u.campaigns ?? 0}</td>
+                  <td className="px-5 py-3 text-xs font-bold text-green-600 tabular-nums whitespace-nowrap">{fmt(u.total_deposit)} đ</td>
+                  <td className="px-5 py-3">
+                    <span className={`px-2 py-1 text-xs font-bold rounded-full ${
                       u.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
                     }`}>
                       {u.status === 'active' ? 'Hoạt động' : 'Tạm ngưng'}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-5 py-3">
                     {u.agency_role === 'admin' && (
-                      <span className="px-2 py-1 text-[10px] font-bold rounded-full bg-purple-100 text-purple-700">Admin</span>
+                      <span className="px-2 py-1 text-xs font-bold rounded-full bg-purple-100 text-purple-700">Admin</span>
                     )}
                     {u.agency_role === 'owner' && (
-                      <span className="px-2 py-1 text-[10px] font-bold rounded-full bg-amber-100 text-amber-700">Owner</span>
+                      <span className="px-2 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-700">Owner</span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-5 py-3">
                     <div className="flex items-center gap-1 flex-wrap">
                       <button onClick={() => toggleStatus(u)} title={u.status === 'active' ? 'Tạm ngưng' : 'Kích hoạt'}
                         className={`p-1.5 rounded-lg transition ${u.status === 'active' ? 'hover:bg-red-50 text-red-500' : 'hover:bg-green-50 text-green-500'}`}>
-                        {u.status === 'active' ? <UserX size={14} /> : <UserCheck size={14} />}
+                        {u.status === 'active' ? <UserX size={16} /> : <UserCheck size={16} />}
                       </button>
                       <button onClick={() => setPwModal(u)} title="Đổi mật khẩu"
                         className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-600 transition">
-                        <Key size={14} />
+                        <Key size={16} />
                       </button>
                       <button onClick={() => setBalModal(u)} title="Điều chỉnh số dư"
                         className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-600 transition">
-                        <Wallet size={14} />
+                        <Wallet size={16} />
                       </button>
                       {isOwner && u.agency_role !== 'owner' && (
                         <button onClick={() => toggleAdmin(u)} title={u.agency_role === 'admin' ? 'Gỡ quyền Admin' : 'Gán quyền Admin'}
                           className={`p-1.5 rounded-lg transition ${u.agency_role === 'admin' ? 'hover:bg-red-50 text-red-500' : 'hover:bg-purple-50 text-purple-600'}`}>
-                          {u.agency_role === 'admin' ? <ShieldOff size={14} /> : <Shield size={14} />}
+                          {u.agency_role === 'admin' ? <ShieldOff size={16} /> : <Shield size={16} />}
                         </button>
                       )}
                     </div>
@@ -270,7 +270,7 @@ export default function AgencyAdminBuyers() {
 
       {/* Pagination */}
       {total > LIMIT && (
-        <div className="flex items-center justify-between bg-white rounded-2xl border border-slate-200 px-5 py-3 shadow-sm">
+        <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-5 py-3">
           <p className="text-xs text-slate-500">
             Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages}
             <span className="ml-2 text-slate-400">({total} người dùng)</span>

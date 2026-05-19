@@ -86,7 +86,7 @@ export default function AgencyAdminLayout({ config }) {
   if (loading || !admin) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-3 rounded-full animate-spin" style={{ borderColor: '#e2e8f0', borderTopColor: primaryColor }} />
+        <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#e2e8f0', borderTopColor: primaryColor }} />
       </div>
     );
   }

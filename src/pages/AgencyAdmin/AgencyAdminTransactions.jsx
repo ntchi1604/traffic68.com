@@ -51,11 +51,11 @@ function RejectModal({ tx, onClose, onDone }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h3 className="font-bold text-slate-900">Từ chối giao dịch</h3>
           <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-lg"><X size={16} /></button>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="p-6 space-y-4">
           <div className="p-3 bg-red-50 rounded-xl text-sm">
             <p className="font-semibold text-red-700">Mã: {tx.ref_code || tx.id}</p>
             <p className="text-red-600">Số tiền: {fmt(tx.amount)} đ — {tx.user_name || 'N/A'}</p>
@@ -64,7 +64,7 @@ function RejectModal({ tx, onClose, onDone }) {
             <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Lý do từ chối</label>
             <input value={reason} onChange={e => setReason(e.target.value)}
               placeholder="Nhập lý do..."
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+              className="w-full px-4 py-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent" />
           </div>
           <button onClick={handleReject} disabled={loading}
             className="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl transition disabled:opacity-50">
@@ -132,7 +132,7 @@ export default function AgencyAdminTransactions() {
             {STATUS_FILTERS.map(f => (
               <button key={f.value} onClick={() => setStatusFilter(f.value)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
-                  statusFilter === f.value ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  statusFilter === f.value ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                 }`}>
                 {f.label}
               </button>
@@ -145,10 +145,10 @@ export default function AgencyAdminTransactions() {
       <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm">
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : transactions.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
+          <div className="py-12 text-center text-slate-400">
             <Calendar size={32} className="mx-auto mb-2 opacity-50" />
             <p className="font-semibold">Không có giao dịch nào</p>
             <p className="text-xs mt-1">Thử thay đổi bộ lọc</p>
@@ -158,7 +158,7 @@ export default function AgencyAdminTransactions() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 {['ID', 'Người dùng', 'Loại', 'Phương thức', 'Số tiền', 'Trạng thái', 'Mã GD', 'Ghi chú', 'Ngày', 'Hành động'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-5 py-3 text-left font-semibold text-slate-500 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -171,29 +171,29 @@ export default function AgencyAdminTransactions() {
                 const isIncome = ['deposit', 'earning', 'commission'].includes(t.type);
                 return (
                   <tr key={t.id} className={`hover:bg-slate-50/70 transition-colors ${isPending ? 'bg-amber-50/40' : ''}`}>
-                    <td className="px-4 py-3 text-xs text-slate-500 font-mono">{t.id}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3 text-xs text-slate-500 font-mono">{t.id}</td>
+                    <td className="px-5 py-3">
                       <p className="font-semibold text-slate-700 text-xs">{t.user_name || '—'}</p>
                       <p className="text-[10px] text-slate-400">{t.user_email || ''}</p>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 text-[10px] font-bold rounded-full ${tp.cls}`}>{tp.label}</span>
+                    <td className="px-5 py-3">
+                      <span className={`px-2 py-1 text-xs font-bold rounded-full ${tp.cls}`}>{tp.label}</span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-600">{t.method || '—'}</td>
+                    <td className="px-5 py-3 text-xs text-slate-600">{t.method || '—'}</td>
                     <td className={`px-4 py-3 text-xs font-bold tabular-nums whitespace-nowrap ${isIncome ? 'text-green-600' : 'text-red-600'}`}>
                       {isIncome ? '+' : '-'}{fmt(t.amount)} đ
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 text-[10px] font-bold rounded-full ${st.cls} ${isPending ? 'animate-pulse' : ''}`}>
+                    <td className="px-5 py-3">
+                      <span className={`px-2 py-1 text-xs font-bold rounded-full ${st.cls} ${isPending ? 'animate-pulse' : ''}`}>
                         {st.label}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-500 font-mono">{t.ref_code || '—'}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500 max-w-[150px] truncate">{t.note || '—'}</td>
-                    <td className="px-4 py-3 text-[10px] text-slate-400 tabular-nums whitespace-nowrap">
+                    <td className="px-5 py-3 text-xs text-slate-500 font-mono">{t.ref_code || '—'}</td>
+                    <td className="px-5 py-3 text-xs text-slate-500 max-w-[150px] truncate">{t.note || '—'}</td>
+                    <td className="px-5 py-3 text-[10px] text-slate-400 tabular-nums whitespace-nowrap">
                       {fmtDateTime(t.created_at)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3">
                       {isPending && isDeposit ? (
                         <div className="flex items-center gap-1">
                           <button onClick={() => approveTx(t)} title="Duyệt"
@@ -219,7 +219,7 @@ export default function AgencyAdminTransactions() {
 
       {/* Pagination */}
       {total > LIMIT && (
-        <div className="flex items-center justify-between bg-white rounded-2xl border border-slate-200 px-5 py-3 shadow-sm">
+        <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-5 py-3">
           <p className="text-xs text-slate-500">
             Trang <span className="font-bold text-slate-700">{page}</span> / {totalPages}
             <span className="ml-2 text-slate-400">({total} giao dịch)</span>

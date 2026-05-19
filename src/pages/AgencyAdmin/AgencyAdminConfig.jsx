@@ -103,7 +103,7 @@ export default function AgencyAdminConfig() {
       <form onSubmit={handleSave} className="space-y-6">
 
         {/* Domain (read-only) */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center gap-2 mb-4">
             <Globe size={18} className="text-indigo-500" />
             <h2 className="font-bold text-slate-800">Tên miền</h2>
@@ -116,7 +116,7 @@ export default function AgencyAdminConfig() {
         </div>
 
         {/* Branding */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
           <div className="flex items-center gap-2">
             <Palette size={18} className="text-indigo-500" />
             <h2 className="font-bold text-slate-800">Thương hiệu</h2>
@@ -158,7 +158,7 @@ export default function AgencyAdminConfig() {
         </div>
 
         {/* Bank info */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
           <div className="flex items-center gap-2">
             <Building2 size={18} className="text-indigo-500" />
             <h2 className="font-bold text-slate-800">Thông tin ngân hàng</h2>
@@ -188,7 +188,7 @@ export default function AgencyAdminConfig() {
         </div>
 
         {/* Contact */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
           <div className="flex items-center gap-2">
             <Phone size={18} className="text-indigo-500" />
             <h2 className="font-bold text-slate-800">Liên hệ</h2>

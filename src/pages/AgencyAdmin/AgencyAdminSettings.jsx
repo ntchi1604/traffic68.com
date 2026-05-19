@@ -75,7 +75,7 @@ export default function AgencyAdminSettings() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Profile Info (read-only) */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             <User size={18} className="text-indigo-500" /> Thông tin tài khoản
           </h2>
@@ -107,7 +107,7 @@ export default function AgencyAdminSettings() {
         </div>
 
         {/* Change Password */}
-        <form onSubmit={handleUpdatePassword} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+        <form onSubmit={handleUpdatePassword} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             <Lock size={18} className="text-indigo-500" /> Đổi mật khẩu
           </h2>
