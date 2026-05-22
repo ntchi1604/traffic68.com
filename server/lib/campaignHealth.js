@@ -17,6 +17,8 @@ const { getPool } = require('../db');
 // ── Cache embed check: campId → { ts } — tránh fetch liên tục ──
 const _embedCache = new Map();
 const EMBED_TTL = 30 * 60 * 1000; // 30 phút
+const _embedMissCache = new Map();
+const REQUIRED_EMBED_MISSES = 2;
 
 // ── Kiểm tra 301 redirect đổi domain ────────────────────────────────────────
 function checkRedirect(urlStr) {
@@ -72,6 +74,8 @@ function checkEmbedScript(urlStr, tokens) {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': 'text/html',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
           },
           timeout: 12000,
         },
@@ -85,9 +89,9 @@ function checkEmbedScript(urlStr, tokens) {
           let received = 0;
           res.on('data', (chunk) => {
             if (settled) return;
-            body += chunk.toString('utf8', 0, Math.min(chunk.length, 200000 - received));
+            body += chunk.toString('utf8', 0, Math.min(chunk.length, 500000 - received));
             received += chunk.length;
-            if (received >= 200000) {
+            if (received >= 500000) {
               settled = true;
               req.destroy();
               resolve(_hasToken(body, tokens));
@@ -106,10 +110,11 @@ function checkEmbedScript(urlStr, tokens) {
 }
 
 function _hasToken(html, tokens) {
+  const lowerHtml = String(html || '').toLowerCase();
   for (const tok of tokens) {
-    if (html.includes(tok)) return 'ok';
+    if (lowerHtml.includes(String(tok).toLowerCase())) return 'ok';
   }
-  if (html.includes('api_seo_traffic68') || html.includes('traffic68.com')) return 'ok';
+  if (lowerHtml.includes('api_seo_traffic68') || lowerHtml.includes('traffic68.com')) return 'ok';
   return 'not_found';
 }
 
@@ -209,6 +214,13 @@ async function runCampaignHealthCheck() {
         console.log(`[CampaignHealth] #${camp.id} embed result: ${embedResult}`);
 
         if (embedResult === 'not_found') {
+          const missCount = (_embedMissCache.get(camp.id) || 0) + 1;
+          _embedMissCache.set(camp.id, missCount);
+          if (missCount < REQUIRED_EMBED_MISSES) {
+            console.log('[CampaignHealth] #' + camp.id + ' "' + camp.name + '": embed not found (' + missCount + '/' + REQUIRED_EMBED_MISSES + '), will recheck before pausing');
+            skipCount++;
+            continue;
+          }
           await pool.execute(
             `UPDATE campaigns SET status = 'paused', pause_reason = 'Chưa gắn script widget' WHERE id = ? AND status = 'running'`,
             [camp.id]
@@ -222,8 +234,10 @@ async function runCampaignHealthCheck() {
           console.log(`[CampaignHealth] Paused #${camp.id} "${camp.name}": embed not found`);
           pausedEmbed++;
         } else if (embedResult === 'ok') {
+          _embedMissCache.delete(camp.id);
           okCount++;
         } else {
+          _embedMissCache.delete(camp.id);
           skipCount++; // 'skip' = CF/403/timeout
         }
       } catch (e) {

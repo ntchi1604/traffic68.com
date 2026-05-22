@@ -89,7 +89,7 @@ function BalanceModal({ user, onClose, onDone }) {
         </div>
         <div className="p-6 space-y-4">
           <p className="text-sm text-slate-600">
-            Số dư hiện tại: <strong className="text-indigo-600">{fmt(user.balance)} đ</strong>
+            Số dư hiện tại: <strong className="text-indigo-600">{fmt(user.main_balance ?? user.balance)} đ</strong>
           </p>
           {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded-lg">{error}</p>}
           <div>
@@ -209,7 +209,7 @@ export default function AgencyAdminBuyers() {
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {['ID', 'Tên', 'Email', 'Username', 'Số dư', 'Campaigns', 'Tổng nạp', 'Trạng thái', 'Vai trò', 'Hành động'].map(h => (
+                {['ID', 'Tên', 'Email', 'Username', 'Số dư', 'Campaigns', 'Tổng nạp', 'Tổng chi', 'Traffic', 'Trạng thái', 'Vai trò', 'Hành động'].map(h => (
                   <th key={h} className="px-5 py-3 text-left font-semibold text-slate-500 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -221,9 +221,11 @@ export default function AgencyAdminBuyers() {
                   <td className="px-5 py-3 font-semibold text-slate-800 text-xs">{u.name}</td>
                   <td className="px-5 py-3 text-xs text-slate-500">{u.email}</td>
                   <td className="px-5 py-3 text-xs text-slate-500">{u.username}</td>
-                  <td className="px-5 py-3 text-xs font-bold text-indigo-600 tabular-nums whitespace-nowrap">{fmt(u.balance)} đ</td>
-                  <td className="px-5 py-3 text-xs text-slate-600 tabular-nums">{u.campaigns ?? 0}</td>
+                  <td className="px-5 py-3 text-xs font-bold text-indigo-600 tabular-nums whitespace-nowrap">{fmt(u.main_balance ?? u.balance)} đ</td>
+                  <td className="px-5 py-3 text-xs text-slate-600 tabular-nums">{u.campaign_count ?? u.campaigns ?? 0}</td>
                   <td className="px-5 py-3 text-xs font-bold text-green-600 tabular-nums whitespace-nowrap">{fmt(u.total_deposit)} đ</td>
+                  <td className="px-5 py-3 text-xs font-bold text-red-500 tabular-nums whitespace-nowrap">{fmt(u.total_campaign_spent)} đ</td>
+                  <td className="px-5 py-3 text-xs font-bold text-indigo-600 tabular-nums whitespace-nowrap">{fmt(u.total_traffic_done)} lượt</td>
                   <td className="px-5 py-3">
                     <span className={`px-2 py-1 text-xs font-bold rounded-full ${
                       u.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'

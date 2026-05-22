@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import usePageTitle from '../../hooks/usePageTitle';
-import { CheckCircle, XCircle, X, Calendar } from 'lucide-react';
+import { CheckCircle, XCircle, X, Calendar, Filter, Search } from 'lucide-react';
 import api from '../../lib/api';
 import { formatMoney as fmt, fmtDateTime } from '../../lib/format';
 
@@ -17,19 +17,33 @@ const STATUS_MAP = {
   completed: { label: 'Thành công',  cls: 'bg-green-100 text-green-700' },
   success:   { label: 'Thành công',  cls: 'bg-green-100 text-green-700' },
   failed:    { label: 'Thất bại',    cls: 'bg-red-100 text-red-700' },
+  rejected:  { label: 'Từ chối',     cls: 'bg-red-100 text-red-700' },
+  cancelled: { label: 'Đã hủy',      cls: 'bg-slate-100 text-slate-500' },
 };
+
+const localDate = (d = new Date()) => d.toLocaleDateString('en-CA');
+const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return localDate(d); };
+
+const PRESETS = [
+  { label: 'Hôm nay', getRange: () => ({ from: localDate(), to: localDate() }) },
+  { label: '7 ngày', getRange: () => ({ from: daysAgo(6), to: localDate() }) },
+  { label: '30 ngày', getRange: () => ({ from: daysAgo(29), to: localDate() }) },
+  { label: 'Tất cả', getRange: () => ({ from: '', to: '' }) },
+];
 
 const TYPE_FILTERS = [
   { value: '',          label: 'Tất cả' },
   { value: 'deposit',   label: 'Nạp tiền' },
   { value: 'withdraw',  label: 'Rút tiền' },
   { value: 'campaign',  label: 'Chiến dịch' },
+  { value: 'commission', label: 'Hoa hồng' },
 ];
 
 const STATUS_FILTERS = [
   { value: '',          label: 'Tất cả' },
   { value: 'pending',   label: 'Chờ xử lý' },
   { value: 'completed', label: 'Thành công' },
+  { value: 'rejected',  label: 'Từ chối' },
   { value: 'failed',    label: 'Thất bại' },
 ];
 
@@ -84,8 +98,14 @@ export default function AgencyAdminTransactions() {
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [searchUser, setSearchUser] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [rejectTx, setRejectTx] = useState(null);
+  const [totalDeposit, setTotalDeposit] = useState(0);
+  const [totalWithdraw, setTotalWithdraw] = useState(0);
   const LIMIT = 20;
 
   const fetchData = (p = 1) => {
@@ -93,13 +113,22 @@ export default function AgencyAdminTransactions() {
     const params = new URLSearchParams({ page: String(p), limit: String(LIMIT) });
     if (typeFilter) params.set('type', typeFilter);
     if (statusFilter) params.set('status', statusFilter);
+    if (fromDate) params.set('fromDate', fromDate);
+    if (toDate) params.set('toDate', toDate);
+    if (searchUser) params.set('search', searchUser);
     api.get(`/agency-admin/transactions?${params}`)
-      .then(data => { setTransactions(data.transactions || []); setTotal(data.total || 0); setPage(p); })
+      .then(data => {
+        setTransactions(data.transactions || []);
+        setTotal(data.total || 0);
+        setTotalDeposit(data.totalDeposit || 0);
+        setTotalWithdraw(data.totalWithdraw || 0);
+        setPage(p);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchData(1); }, [typeFilter, statusFilter]);
+  useEffect(() => { fetchData(1); }, [typeFilter, statusFilter, fromDate, toDate, searchUser]);
 
   const approveTx = async (tx) => {
     if (!confirm(`Duyệt giao dịch ${fmt(tx.amount)} đ của ${tx.user_name || 'user'}?`)) return;
@@ -110,11 +139,77 @@ export default function AgencyAdminTransactions() {
   };
 
   const totalPages = Math.ceil(total / LIMIT);
+  const applyPreset = (p) => {
+    const r = p.getRange();
+    setFromDate(r.from);
+    setToDate(r.to);
+  };
 
   return (
     <div className="space-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 font-medium">Tổng vào</p>
+          <p className="text-xl font-black text-green-600 mt-0.5">+{fmt(totalDeposit)} đ</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 font-medium">Tổng ra / chi</p>
+          <p className="text-xl font-black text-red-600 mt-0.5">-{fmt(totalWithdraw)} đ</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 font-medium">Chênh lệch</p>
+          <p className="text-xl font-black text-indigo-600 mt-0.5">{fmt(totalDeposit - totalWithdraw)} đ</p>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
+        <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+          <Filter size={14} /> Bộ lọc
+        </div>
+        <form onSubmit={e => { e.preventDefault(); setSearchUser(searchInput); }} className="flex gap-2">
+          <div className="relative flex-1 max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
+              placeholder="Tìm tên / email / mã GD..."
+              className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+          </div>
+          <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition">Tìm</button>
+          {searchUser && (
+            <button type="button" onClick={() => { setSearchUser(''); setSearchInput(''); }}
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg transition">
+              Xóa
+            </button>
+          )}
+        </form>
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex items-center gap-2">
+            <div>
+              <label className="text-[10px] font-semibold text-slate-500 block mb-1">Từ ngày</label>
+              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            </div>
+            <span className="text-slate-300 mt-4">→</span>
+            <div>
+              <label className="text-[10px] font-semibold text-slate-500 block mb-1">Đến ngày</label>
+              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            </div>
+          </div>
+          <div className="flex gap-1.5">
+            {PRESETS.map(p => {
+              const r = p.getRange();
+              return (
+                <button key={p.label} onClick={() => applyPreset(p)}
+                  className={`px-3 py-2 text-xs font-bold rounded-lg transition ${fromDate === r.from && toDate === r.to
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div className="flex flex-wrap gap-4">
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-semibold text-slate-500">Loại:</span>
@@ -174,7 +269,7 @@ export default function AgencyAdminTransactions() {
                     <td className="px-5 py-3 text-xs text-slate-500 font-mono">{t.id}</td>
                     <td className="px-5 py-3">
                       <p className="font-semibold text-slate-700 text-xs">{t.user_name || '—'}</p>
-                      <p className="text-[10px] text-slate-400">{t.user_email || ''}</p>
+                      <p className="text-[10px] text-slate-400">{t.user_email || t.email || ''}</p>
                     </td>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-1 text-xs font-bold rounded-full ${tp.cls}`}>{tp.label}</span>

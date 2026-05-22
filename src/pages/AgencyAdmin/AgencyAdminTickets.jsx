@@ -4,13 +4,15 @@ import { Clock, CheckCircle, MessageSquare, Send, X, ChevronLeft, ChevronRight }
 import api from '../../lib/api';
 
 const STATUS_MAP = {
-  open:   { label: 'Mở',      cls: 'bg-green-100 text-green-700', icon: Clock },
-  closed: { label: 'Đã đóng', cls: 'bg-slate-100 text-slate-500', icon: CheckCircle },
+  open:        { label: 'Mở',        cls: 'bg-amber-100 text-amber-700', icon: Clock },
+  in_progress: { label: 'Đang xử lý', cls: 'bg-blue-100 text-indigo-700', icon: Clock },
+  resolved:    { label: 'Đã xử lý',   cls: 'bg-green-100 text-green-700', icon: CheckCircle },
+  closed:      { label: 'Đã đóng',    cls: 'bg-slate-100 text-slate-500', icon: CheckCircle },
 };
 
 function ReplyModal({ ticket, onClose, onDone }) {
   const [reply, setReply] = useState(ticket.admin_reply || '');
-  const [closeTicket, setCloseTicket] = useState(false);
+  const [status, setStatus] = useState('resolved');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -21,8 +23,9 @@ function ReplyModal({ ticket, onClose, onDone }) {
     setError('');
     try {
       await api.put(`/agency-admin/tickets/${ticket.id}`, {
+        reply,
         admin_reply: reply,
-        status: closeTicket ? 'closed' : 'open',
+        status,
       });
       onDone();
       onClose();
@@ -50,7 +53,7 @@ function ReplyModal({ ticket, onClose, onDone }) {
         <div className="px-6 pt-4">
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
             <p className="text-[10px] font-bold text-slate-400 mb-1">Nội dung từ {ticket.user_name || ticket.user_email}:</p>
-            <p className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.message}</p>
+            <p className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.description || ticket.message}</p>
           </div>
         </div>
 
@@ -73,11 +76,22 @@ function ReplyModal({ ticket, onClose, onDone }) {
               required />
           </div>
 
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={closeTicket} onChange={e => setCloseTicket(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
-            <span className="text-sm text-slate-600 font-medium">Đóng ticket sau khi phản hồi</span>
-          </label>
+          <div>
+            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Cập nhật trạng thái</label>
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { value: 'resolved', label: 'Đã xử lý', cls: 'bg-green-500 text-white' },
+                { value: 'in_progress', label: 'Đang xử lý', cls: 'bg-indigo-500 text-white' },
+                { value: 'closed', label: 'Đóng', cls: 'bg-slate-500 text-white' },
+              ].map(s => (
+                <button key={s.value} type="button" onClick={() => setStatus(s.value)}
+                  className={`px-3 py-2 text-xs font-bold rounded-lg transition ${
+                    status === s.value ? s.cls : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {error && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-medium">{error}</div>}
 
@@ -116,9 +130,9 @@ export default function AgencyAdminTickets() {
 
   useEffect(() => { fetchTickets(); }, [statusFilter, page]);
 
-  const closeTicket = async (id) => {
+  const updateTicket = async (id, status) => {
     try {
-      await api.put(`/agency-admin/tickets/${id}`, { status: 'closed' });
+      await api.put(`/agency-admin/tickets/${id}`, { status });
       fetchTickets();
     } catch (err) {
       console.error(err);
@@ -129,9 +143,22 @@ export default function AgencyAdminTickets() {
 
   const FILTERS = [
     { key: 'all', label: 'Tất cả' },
-    { key: 'open', label: 'Đang mở' },
+    { key: 'pending', label: 'Chưa xử lý' },
+    { key: 'resolved', label: 'Đã xử lý' },
     { key: 'closed', label: 'Đã đóng' },
   ];
+
+  const visibleTickets = tickets.filter(t => {
+    if (statusFilter === 'all') return true;
+    if (statusFilter === 'pending') return t.status === 'open' || t.status === 'in_progress';
+    return t.status === statusFilter;
+  });
+
+  const countFor = (key) => {
+    if (key === 'all') return total || tickets.length;
+    if (key === 'pending') return tickets.filter(t => t.status === 'open' || t.status === 'in_progress').length;
+    return tickets.filter(t => t.status === key).length;
+  };
 
   return (
     <div className="space-y-5">
@@ -139,12 +166,15 @@ export default function AgencyAdminTickets() {
       <div className="flex flex-wrap gap-2">
         {FILTERS.map(f => (
           <button key={f.key} onClick={() => { setStatusFilter(f.key); setPage(1); }}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition ${
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 ${
               statusFilter === f.key
                 ? 'bg-indigo-600 text-white'
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}>
             {f.label}
+            <span className={`px-1.5 py-0.5 text-[10px] font-black rounded-full ${
+              statusFilter === f.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+            }`}>{countFor(f.key)}</span>
           </button>
         ))}
       </div>
@@ -171,14 +201,14 @@ export default function AgencyAdminTickets() {
                     <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
                   </td>
                 </tr>
-              ) : tickets.length === 0 ? (
+              ) : visibleTickets.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
                     <MessageSquare size={32} className="mx-auto mb-2 opacity-40" />
                     Không có ticket nào
                   </td>
                 </tr>
-              ) : tickets.map(t => {
+              ) : visibleTickets.map(t => {
                 const st = STATUS_MAP[t.status] || STATUS_MAP.open;
                 return (
                   <tr key={t.id} className="hover:bg-slate-50/70">
@@ -188,7 +218,7 @@ export default function AgencyAdminTickets() {
                       <p className="text-[10px] text-slate-400">{t.user_email || ''}</p>
                     </td>
                     <td className="px-5 py-3 font-semibold text-slate-700 max-w-[200px] truncate">{t.subject}</td>
-                    <td className="px-5 py-3 text-slate-500 max-w-[250px] truncate">{t.message}</td>
+                    <td className="px-5 py-3 text-slate-500 max-w-[250px] truncate">{t.description || t.message}</td>
                     <td className="px-5 py-3 text-center">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full ${st.cls}`}>
                         <st.icon size={10} /> {st.label}
@@ -204,9 +234,21 @@ export default function AgencyAdminTickets() {
                           <MessageSquare size={12} /> Phản hồi
                         </button>
                         {t.status === 'open' && (
-                          <button onClick={() => closeTicket(t.id)}
+                          <button onClick={() => updateTicket(t.id, 'resolved')}
+                            className="px-2.5 py-1.5 text-xs font-bold bg-green-50 hover:bg-green-100 text-green-700 rounded-lg transition">
+                            Xử lý
+                          </button>
+                        )}
+                        {t.status !== 'closed' && (
+                          <button onClick={() => updateTicket(t.id, 'closed')}
                             className="px-2.5 py-1.5 text-xs font-bold bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg transition">
                             Đóng
+                          </button>
+                        )}
+                        {t.status !== 'open' && (
+                          <button onClick={() => updateTicket(t.id, 'open')}
+                            className="px-2.5 py-1.5 text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg transition">
+                            Mở lại
                           </button>
                         )}
                       </div>

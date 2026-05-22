@@ -1223,9 +1223,19 @@ export default function AdminCampaigns({ apiBasePath = '/admin/campaigns', pageT
                                   <p className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                                     <Zap size={10} /> Ưu tiên traffic
                                   </p>
+                                  <button
+                                    onClick={() => updatePriority(c.id, 0)}
+                                    disabled={settingPriorityId === c.id}
+                                    className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold transition text-left ${!c.priority ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+                                      } disabled:opacity-50`}
+                                  >
+                                    <span className="w-2 h-2 rounded-full bg-slate-300" />
+                                    Mặc định (random đều)
+                                    {!c.priority && <span className="ml-auto text-[10px] font-bold text-indigo-500">✓</span>}
+                                  </button>
                                   {[1, 2, 3, 4, 5].map(lvl => {
                                     const pr = PRIORITY_MAP[lvl];
-                                    const isActive = (c.priority || 3) === lvl;
+                                    const isActive = c.priority === lvl;
                                     return (
                                       <button key={lvl}
                                         onClick={() => updatePriority(c.id, lvl)}

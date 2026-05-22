@@ -117,19 +117,27 @@ router.get('/buyers', async (req, res) => {
 
     const uids = users.map(u => u.id);
     const ph = uids.map(() => '?').join(',');
-    const [[campRows], [depRows]] = await Promise.all([
+    const [[campRows], [depRows], [campSpentRows], [trafficRows]] = await Promise.all([
       pool.execute(`SELECT user_id, COUNT(*) as v FROM campaigns WHERE user_id IN (${ph}) GROUP BY user_id`, uids),
       pool.execute(`SELECT user_id, COALESCE(SUM(amount),0) as v FROM transactions WHERE user_id IN (${ph}) AND wallet_type='main' AND type='deposit' AND status='completed' GROUP BY user_id`, uids),
+      pool.execute(`SELECT user_id, COALESCE(SUM(amount),0) as v FROM transactions WHERE user_id IN (${ph}) AND wallet_type='main' AND type='campaign' AND status='completed' GROUP BY user_id`, uids),
+      pool.execute(`SELECT user_id, COALESCE(SUM(views_done),0) as v FROM campaigns WHERE user_id IN (${ph}) GROUP BY user_id`, uids),
     ]);
 
     const toMap = (rows) => Object.fromEntries(rows.map(r => [r.user_id, Number(r.v)]));
     const campMap = toMap(campRows);
     const depMap = toMap(depRows);
+    const campSpentMap = toMap(campSpentRows);
+    const trafficMap = toMap(trafficRows);
 
     const enriched = users.map(u => ({
       ...u,
+      balance: Number(u.main_balance) || 0,
       campaign_count: campMap[u.id] || 0,
+      campaigns: campMap[u.id] || 0,
       total_deposit: depMap[u.id] || 0,
+      total_campaign_spent: campSpentMap[u.id] || 0,
+      total_traffic_done: trafficMap[u.id] || 0,
     }));
 
     res.json({ users: enriched, total, page: Number(page), limit: Number(limit) });
@@ -671,32 +679,83 @@ router.get('/transactions', async (req, res) => {
   try {
     const pool = getPool();
     const aid = req.agencyId;
-    const { type, status, page = 1, limit = 20 } = req.query;
-    const offset = (page - 1) * limit;
+    const { type, status, search: txSearch, fromDate, toDate, page = 1, limit = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
 
-    let sql = `SELECT t.*, u.email, u.username, u.name as user_name
-      FROM transactions t
-      JOIN users u ON t.user_id = u.id
-      WHERE u.agency_id = ?`;
-    let countSql = `SELECT COUNT(*) as total FROM transactions t JOIN users u ON t.user_id = u.id WHERE u.agency_id = ?`;
+    let where = 'WHERE u.agency_id = ?';
     const params = [aid];
-    const countParams = [aid];
+    const filterParams = [aid];
+    let filterWhere = 'WHERE u.agency_id = ?';
+
+    if (txSearch) {
+      const q = `%${txSearch}%`;
+      where += ' AND (u.name LIKE ? OR u.email LIKE ? OR u.username LIKE ? OR t.ref_code LIKE ?)';
+      filterWhere += ' AND (u.name LIKE ? OR u.email LIKE ? OR u.username LIKE ? OR t.ref_code LIKE ?)';
+      params.push(q, q, q, q);
+      filterParams.push(q, q, q, q);
+    }
 
     if (type && type !== 'all') {
-      sql += ' AND t.type = ?'; countSql += ' AND t.type = ?';
-      params.push(type); countParams.push(type);
+      where += ' AND t.type = ?';
+      filterWhere += ' AND t.type = ?';
+      params.push(type);
+      filterParams.push(type);
     }
     if (status && status !== 'all') {
-      sql += ' AND t.status = ?'; countSql += ' AND t.status = ?';
-      params.push(status); countParams.push(status);
+      where += ' AND t.status = ?';
+      filterWhere += ' AND t.status = ?';
+      params.push(status);
+      filterParams.push(status);
+    }
+    if (fromDate) {
+      where += ' AND t.created_at >= ?';
+      filterWhere += ' AND t.created_at >= ?';
+      params.push(fromDate + ' 00:00:00');
+      filterParams.push(fromDate + ' 00:00:00');
+    }
+    if (toDate) {
+      where += ' AND t.created_at <= ?';
+      filterWhere += ' AND t.created_at <= ?';
+      params.push(toDate + ' 23:59:59');
+      filterParams.push(toDate + ' 23:59:59');
     }
 
-    const [[{ total }]] = await pool.execute(countSql, countParams);
-    sql += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
-    params.push(Number(limit), Number(offset));
-    const [transactions] = await pool.execute(sql, params);
+    const [[{ total }]] = await pool.execute(
+      `SELECT COUNT(*) as total FROM transactions t JOIN users u ON t.user_id = u.id ${where}`,
+      params
+    );
+    const [transactions] = await pool.execute(
+      `SELECT t.*, u.email as user_email, u.username, u.name as user_name
+       FROM transactions t
+       JOIN users u ON t.user_id = u.id
+       ${where}
+       ORDER BY t.created_at DESC LIMIT ? OFFSET ?`,
+      [...params, Number(limit), Number(offset)]
+    );
 
-    res.json({ transactions, total, page: Number(page), limit: Number(limit) });
+    const [[depRows], [wdRows]] = await Promise.all([
+      pool.execute(
+        `SELECT COALESCE(SUM(t.amount), 0) as total
+         FROM transactions t JOIN users u ON t.user_id = u.id
+         ${filterWhere} AND t.status = 'completed' AND t.type IN ('deposit','earning','commission','refund')`,
+        filterParams
+      ),
+      pool.execute(
+        `SELECT COALESCE(SUM(t.amount), 0) as total
+         FROM transactions t JOIN users u ON t.user_id = u.id
+         ${filterWhere} AND t.status = 'completed' AND t.type IN ('withdraw','campaign')`,
+        filterParams
+      ),
+    ]);
+
+    res.json({
+      transactions,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      totalDeposit: Number(depRows[0].total),
+      totalWithdraw: Number(wdRows[0].total),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -718,6 +777,10 @@ router.put('/transactions/:id/approve', async (req, res) => {
       "UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?",
       [tx.amount, tx.user_id, tx.wallet_type || 'main']
     );
+    await pool.execute(
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [tx.user_id, 'Nạp tiền thành công', `Đơn nạp ${Number(tx.amount).toLocaleString('vi-VN')} VND đã được đại lý duyệt.`, 'success', 'buyer']
+    ).catch(() => { });
 
     res.json({ ok: true, message: 'Đã duyệt thành công' });
   } catch (err) {
@@ -736,8 +799,12 @@ router.put('/transactions/:id/reject', async (req, res) => {
     );
     if (!txs.length) return res.status(404).json({ error: 'Giao dịch không tồn tại hoặc đã được xử lý' });
 
-    await pool.execute("UPDATE transactions SET status = 'failed', note = CONCAT(COALESCE(note,''), ?) WHERE id = ?",
-      [reason ? ` | Lý do từ chối: ${reason}` : '', txs[0].id]);
+    await pool.execute("UPDATE transactions SET status = 'rejected', note = ? WHERE id = ?",
+      [reason || 'Đại lý từ chối', txs[0].id]);
+    await pool.execute(
+      `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+      [txs[0].user_id, 'Đơn nạp tiền bị từ chối', `Đơn nạp ${Number(txs[0].amount).toLocaleString('vi-VN')} VND bị từ chối. Lý do: ${reason || 'Không hợp lệ'}`, 'error', 'buyer']
+    ).catch(() => { });
 
     res.json({ ok: true, message: 'Đã từ chối giao dịch' });
   } catch (err) {
@@ -755,7 +822,7 @@ router.get('/tickets', async (req, res) => {
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
 
-    let sql = `SELECT st.*, u.email, u.name as user_name
+    let sql = `SELECT st.*, st.description as message, u.email as user_email, u.name as user_name
       FROM support_tickets st
       JOIN users u ON st.user_id = u.id
       WHERE u.agency_id = ?`;
@@ -764,8 +831,13 @@ router.get('/tickets', async (req, res) => {
     const countParams = [aid];
 
     if (status && status !== 'all') {
-      sql += ' AND st.status = ?'; countSql += ' AND st.status = ?';
-      params.push(status); countParams.push(status);
+      if (status === 'pending') {
+        sql += " AND st.status IN ('open','in_progress')";
+        countSql += " AND st.status IN ('open','in_progress')";
+      } else {
+        sql += ' AND st.status = ?'; countSql += ' AND st.status = ?';
+        params.push(status); countParams.push(status);
+      }
     }
 
     const [[{ total }]] = await pool.execute(countSql, countParams);
@@ -782,18 +854,33 @@ router.get('/tickets', async (req, res) => {
 router.put('/tickets/:id', async (req, res) => {
   try {
     const pool = getPool();
-    const { admin_reply, status } = req.body;
+    const { admin_reply, reply, status } = req.body;
+    const finalReply = admin_reply !== undefined ? admin_reply : reply;
 
     const [check] = await pool.execute(
-      'SELECT st.id FROM support_tickets st JOIN users u ON st.user_id = u.id WHERE st.id = ? AND u.agency_id = ?',
+      'SELECT st.id, st.user_id, st.subject FROM support_tickets st JOIN users u ON st.user_id = u.id WHERE st.id = ? AND u.agency_id = ?',
       [req.params.id, req.agencyId]
     );
     if (!check.length) return res.status(404).json({ error: 'Ticket không thuộc đại lý này' });
 
-    await pool.execute(
-      'UPDATE support_tickets SET admin_reply = COALESCE(?, admin_reply), status = COALESCE(?, status) WHERE id = ?',
-      [admin_reply || null, status || null, req.params.id]
-    );
+    if (finalReply !== undefined) {
+      await pool.execute(
+        'UPDATE support_tickets SET admin_reply = ?, replied_at = NOW(), status = COALESCE(?, status) WHERE id = ?',
+        [finalReply, status || null, req.params.id]
+      );
+      if (finalReply) {
+        await pool.execute(
+          `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+          [check[0].user_id, `Phản hồi ticket: ${check[0].subject}`, finalReply, 'info', 'buyer']
+        ).catch(() => { });
+      }
+    } else {
+      await pool.execute(
+        'UPDATE support_tickets SET status = COALESCE(?, status) WHERE id = ?',
+        [status || null, req.params.id]
+      );
+    }
+
     res.json({ ok: true, message: 'Cập nhật thành công' });
   } catch (err) {
     res.status(500).json({ error: err.message });
