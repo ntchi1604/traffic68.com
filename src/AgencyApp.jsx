@@ -53,13 +53,21 @@ function AgencyNotFound() {
 }
 
 function Layout({ config }) {
-  // Apply theme color
+  // Apply theme color + favicon + title
   useEffect(() => {
     if (config?.primary_color) {
       document.documentElement.style.setProperty('--primary-color', config.primary_color);
     }
     if (config?.name) {
       document.title = config.name;
+    }
+    if (config?.favicon_url) {
+      // Remove existing favicons
+      document.querySelectorAll("link[rel~='icon']").forEach(el => el.remove());
+      const link = document.createElement('link');
+      link.rel = 'icon';
+      link.href = config.favicon_url;
+      document.head.appendChild(link);
     }
   }, [config]);
 

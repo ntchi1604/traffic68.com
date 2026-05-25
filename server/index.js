@@ -539,6 +539,16 @@ app.use((err, req, res, next) => {
       await pool.execute(`ALTER TABLE users ADD COLUMN agency_role ENUM('owner','admin') DEFAULT NULL`);
       console.log('  ✅ Added users.agency_role column');
     } catch (e) { }
+
+    // ── Agency: favicon + payment_config ──
+    try {
+      await pool.execute(`ALTER TABLE agencies ADD COLUMN favicon_url TEXT DEFAULT NULL`);
+      console.log('  ✅ Added agencies.favicon_url column');
+    } catch (e) { }
+    try {
+      await pool.execute(`ALTER TABLE agencies ADD COLUMN payment_config JSON DEFAULT NULL`);
+      console.log('  ✅ Added agencies.payment_config column');
+    } catch (e) { }
     // Auto-set agency_role = 'owner' cho tất cả agency owner hiện tại
     try {
       const [ownerRes] = await pool.execute(

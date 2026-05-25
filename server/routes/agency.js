@@ -13,7 +13,7 @@ router.get('/config', async (req, res) => {
 
     const pool = getPool();
     const [rows] = await pool.query(
-      'SELECT id, name, domain, logo_url, primary_color, bank_name, bank_account_name, bank_account_number, contact_email, contact_phone FROM agencies WHERE domain = ? AND status = "active"',
+      'SELECT id, name, domain, logo_url, favicon_url, primary_color, bank_name, bank_account_name, bank_account_number, contact_email, contact_phone, payment_config FROM agencies WHERE domain = ? AND status = "active"',
       [domain]
     );
 
@@ -21,7 +21,22 @@ router.get('/config', async (req, res) => {
       return res.status(404).json({ error: 'Agency not found for this domain' });
     }
 
-    res.json(rows[0]);
+    const agency = rows[0];
+    let pc = null;
+    try { pc = agency.payment_config ? (typeof agency.payment_config === 'string' ? JSON.parse(agency.payment_config) : agency.payment_config) : null; } catch { pc = null; }
+
+    // Strip secrets — chỉ trả flag enabled + thông tin hiển thị công khai
+    const safePayment = pc ? {
+      sepay: { enabled: !!pc.sepay?.enabled, bankName: pc.sepay?.bankName || '', accountNumber: pc.sepay?.accountNumber || '', accountHolder: pc.sepay?.accountHolder || '' },
+      pay666: { enabled: !!pc.pay666?.enabled },
+      manualBank: { enabled: !!pc.manualBank?.enabled, bankName: pc.manualBank?.bankName || '', accountNumber: pc.manualBank?.accountNumber || '', accountHolder: pc.manualBank?.accountHolder || '', branch: pc.manualBank?.branch || '' },
+      bep20: { enabled: !!pc.bep20?.enabled, address: pc.bep20?.address || '', auto: !!pc.bep20?.auto },
+      trc20: { enabled: !!pc.trc20?.enabled, address: pc.trc20?.address || '', auto: !!pc.trc20?.auto },
+      vndRate: pc.vndRate || null,
+    } : null;
+
+    delete agency.payment_config;
+    res.json({ ...agency, payment_config: safePayment });
   } catch (error) {
     console.error('Lỗi khi lấy config agency:', error);
     res.status(500).json({ error: 'Lỗi server' });

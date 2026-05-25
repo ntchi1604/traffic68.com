@@ -362,7 +362,34 @@ export default function Deposit() {
       if (agencyCfgStr) {
         try {
           const agency = JSON.parse(agencyCfgStr);
-          // Override config to only show Bank, with Agency's bank info
+          const pc = agency.payment_config || null;
+
+          // Nếu agency đã cấu hình payment_config riêng → ưu tiên dùng nó
+          if (pc) {
+            const rate = pc.vndRate ? Number(pc.vndRate) : (data.rate || 25500);
+            setDepositConfig({
+              bank: pc.manualBank?.enabled ? {
+                enabled: true,
+                bankName: pc.manualBank.bankName || '',
+                accountNumber: pc.manualBank.accountNumber || '',
+                accountHolder: pc.manualBank.accountHolder || '',
+                branch: pc.manualBank.branch || '',
+              } : { enabled: false },
+              sepay: pc.sepay?.enabled ? {
+                enabled: true,
+                bankName: pc.sepay.bankName || '',
+                accountNumber: pc.sepay.accountNumber || '',
+                accountHolder: pc.sepay.accountHolder || '',
+              } : { enabled: false },
+              pay666: pc.pay666?.enabled ? { enabled: true } : { enabled: false },
+              crypto: pc.bep20?.enabled ? { enabled: true, address: pc.bep20.address || '', auto: !!pc.bep20.auto, minUsdt: 1 } : { enabled: false },
+              trc20: pc.trc20?.enabled ? { enabled: true, address: pc.trc20.address || '', auto: !!pc.trc20.auto, minUsdt: 1 } : { enabled: false },
+              rate,
+            });
+            return;
+          }
+
+          // Fallback (agency cũ chưa có payment_config) → dùng bank info trên agency
           setDepositConfig({
             bank: {
               enabled: true,
@@ -381,10 +408,14 @@ export default function Deposit() {
   }, []);
 
   const bankEnabled = depositConfig?.bank?.enabled;
+  const sepayEnabled = depositConfig?.sepay?.enabled;
+  const pay666Enabled = depositConfig?.pay666?.enabled;
   const cryptoEnabled = depositConfig?.crypto?.enabled;
   const trc20Enabled = depositConfig?.trc20?.enabled;
 
   const METHODS = [
+    ...(sepayEnabled ? [{ id: 'sepay', label: 'SePay (chuyển khoản tự động)', sub: 'Xác nhận tự động ~30s', Icon: Building2, gradient: 'from-sky-500 to-blue-600', bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-700', ring: 'ring-sky-400' }] : []),
+    ...(pay666Enabled ? [{ id: 'pay666', label: '666Pay', sub: 'Cổng thanh toán 666Pay', Icon: CircleDollarSign, gradient: 'from-rose-500 to-pink-600', bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', ring: 'ring-rose-400' }] : []),
     ...(bankEnabled ? [{ id: 'bank', label: 'Chuyển khoản ngân hàng', sub: 'Xác nhận 5–15 phút', Icon: Building2, gradient: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-indigo-700', ring: 'ring-blue-400' }] : []),
     ...(cryptoEnabled ? [{ id: 'bep20', label: 'USDT (BEP20)', sub: 'BSC Network · Nhanh & tự động', icon: 'usdt', gradient: 'from-emerald-500 to-teal-600', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', ring: 'ring-emerald-400' }] : []),
     ...(trc20Enabled ? [{ id: 'trc20', label: 'USDT (TRC20)', sub: 'Tron Network · Nhanh & tự động', icon: 'usdt', gradient: 'from-violet-500 to-purple-700', bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700', ring: 'ring-violet-400' }] : []),

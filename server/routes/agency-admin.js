@@ -939,7 +939,10 @@ router.get('/config', async (req, res) => {
     const pool = getPool();
     const [rows] = await pool.execute('SELECT * FROM agencies WHERE id = ?', [req.agencyId]);
     if (!rows.length) return res.status(404).json({ error: 'Agency không tồn tại' });
-    res.json(rows[0]);
+    const a = rows[0];
+    let pc = null;
+    try { pc = a.payment_config ? (typeof a.payment_config === 'string' ? JSON.parse(a.payment_config) : a.payment_config) : null; } catch { pc = null; }
+    res.json({ ...a, payment_config: pc });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -948,12 +951,22 @@ router.get('/config', async (req, res) => {
 router.put('/config', ownerOnly, async (req, res) => {
   try {
     const pool = getPool();
-    const { name, logo_url, primary_color, bank_name, bank_account_name, bank_account_number, contact_email, contact_phone } = req.body;
+    const { name, logo_url, favicon_url, primary_color, bank_name, bank_account_name, bank_account_number, contact_email, contact_phone, payment_config } = req.body;
+
+    let pcJson = null;
+    if (payment_config !== undefined) {
+      try {
+        const pc = typeof payment_config === 'string' ? JSON.parse(payment_config) : payment_config;
+        if (pc && typeof pc === 'object') pcJson = JSON.stringify(pc);
+      } catch { return res.status(400).json({ error: 'payment_config không hợp lệ (JSON)' }); }
+    }
+
     await pool.execute(
-      `UPDATE agencies SET name=COALESCE(?,name), logo_url=COALESCE(?,logo_url), primary_color=COALESCE(?,primary_color),
+      `UPDATE agencies SET name=COALESCE(?,name), logo_url=COALESCE(?,logo_url), favicon_url=COALESCE(?,favicon_url), primary_color=COALESCE(?,primary_color),
        bank_name=COALESCE(?,bank_name), bank_account_name=COALESCE(?,bank_account_name), bank_account_number=COALESCE(?,bank_account_number),
-       contact_email=COALESCE(?,contact_email), contact_phone=COALESCE(?,contact_phone) WHERE id=?`,
-      [name||null, logo_url||null, primary_color||null, bank_name||null, bank_account_name||null, bank_account_number||null, contact_email||null, contact_phone||null, req.agencyId]
+       contact_email=COALESCE(?,contact_email), contact_phone=COALESCE(?,contact_phone),
+       payment_config=COALESCE(?,payment_config) WHERE id=?`,
+      [name||null, logo_url===undefined?null:logo_url, favicon_url===undefined?null:favicon_url, primary_color||null, bank_name===undefined?null:bank_name, bank_account_name===undefined?null:bank_account_name, bank_account_number===undefined?null:bank_account_number, contact_email===undefined?null:contact_email, contact_phone===undefined?null:contact_phone, pcJson, req.agencyId]
     );
     res.json({ ok: true, message: 'Cập nhật cấu hình thành công' });
   } catch (err) {
