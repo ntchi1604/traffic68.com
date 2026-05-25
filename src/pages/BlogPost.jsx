@@ -161,15 +161,15 @@ function renderContent(content = '') {
       while (i < lines.length) {
         const match = lines[i].trim().match(/^(\d+)\.\s(.+)/);
         if (!match) break;
-        items.push(match[2]);
+        items.push({ num: Number(match[1]), text: match[2] });
         i++;
       }
       elements.push(
         <ol key={`ol-${i}`} className="my-5 space-y-3 counter-reset-list">
           {items.map((item, idx) => (
             <li key={idx} className="flex gap-3 text-slate-700 leading-relaxed">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#10245c] text-white text-xs font-black shrink-0">{idx + 1}</span>
-              <span>{formatInline(item)}</span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#10245c] text-white text-xs font-black shrink-0">{item.num}</span>
+              <span>{formatInline(item.text)}</span>
             </li>
           ))}
         </ol>
