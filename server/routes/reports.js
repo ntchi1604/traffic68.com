@@ -206,8 +206,7 @@ router.get('/tasks/export', async (req, res) => {
        FROM vuot_link_tasks vlt
        WHERE vlt.campaign_id = ? AND vlt.status = 'completed' AND vlt.bot_detected = 0
          AND DATE(vlt.created_at) >= ?
-       ORDER BY vlt.completed_at DESC
-       LIMIT 5000`,
+       ORDER BY vlt.completed_at DESC`,
       [campaignId, fromDate]
     );
 
