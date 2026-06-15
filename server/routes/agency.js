@@ -162,8 +162,8 @@ router.post('/transactions/:id/approve', auth, async (req, res) => {
 
     // Kiểm tra giao dịch
     const [txs] = await pool.query(
-      `SELECT t.* FROM transactions t 
-       JOIN users u ON t.user_id = u.id 
+      `SELECT t.* FROM transactions t
+       JOIN users u ON t.user_id = u.id
        WHERE t.id = ? AND u.agency_id = ? AND t.type = 'deposit' AND t.status = 'pending'`,
       [txId, agency[0].id]
     );
@@ -174,14 +174,33 @@ router.post('/transactions/:id/approve', auth, async (req, res) => {
 
     const tx = txs[0];
 
-    // Cập nhật trạng thái
-    await pool.query("UPDATE transactions SET status = 'success' WHERE id = ?", [txId]);
+    // Sử dụng transaction để đảm bảo atomicity
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
 
-    // Cộng tiền cho buyer
-    await pool.query(
-      "UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?",
-      [tx.amount, tx.user_id, tx.wallet_type || 'main']
-    );
+      // Cập nhật trạng thái
+      await conn.query("UPDATE transactions SET status = 'completed' WHERE id = ?", [txId]);
+
+      // Cộng tiền cho buyer
+      await conn.query(
+        "UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND type = ?",
+        [tx.amount, tx.user_id, tx.wallet_type || 'main']
+      );
+
+      // Tạo thông báo cho buyer
+      await conn.query(
+        `INSERT INTO notifications (user_id, title, message, type, role) VALUES (?, ?, ?, ?, ?)`,
+        [tx.user_id, 'Nạp tiền thành công', `Giao dịch nạp ${Number(tx.amount).toLocaleString('vi-VN')} đ đã được duyệt.`, 'success', 'buyer']
+      );
+
+      await conn.commit();
+    } catch (txErr) {
+      await conn.rollback();
+      throw txErr;
+    } finally {
+      conn.release();
+    }
 
     res.json({ success: true, message: 'Đã duyệt thành công' });
   } catch (error) {
@@ -210,7 +229,7 @@ router.post('/transactions/:id/reject', auth, async (req, res) => {
       return res.status(404).json({ error: 'Giao dịch không tồn tại hoặc đã được xử lý' });
     }
 
-    await pool.query("UPDATE transactions SET status = 'failed' WHERE id = ?", [txId]);
+    await pool.query("UPDATE transactions SET status = 'rejected' WHERE id = ?", [txId]);
 
     res.json({ success: true, message: 'Đã từ chối giao dịch' });
   } catch (error) {

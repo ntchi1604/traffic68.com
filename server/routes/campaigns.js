@@ -293,16 +293,33 @@ router.post('/', async (req, res) => {
     if (!name || !url) return res.status(400).json({ error: 'Tên và URL chiến dịch là bắt buộc' });
 
 
+    // Lấy agency_id của user để dùng giá đại lý nếu có
+    const [userAgency] = await pool.execute('SELECT agency_id FROM users WHERE id = ?', [req.userId]);
+    const userAgencyId = userAgency[0]?.agency_id || null;
+
     let realBudget = budget || 0;
     let useDiscount = false;
     try {
       const durSec = duration ? duration + 's' : '';
-      const [tiers] = await pool.execute(
-        'SELECT * FROM pricing_tiers WHERE traffic_type = ? AND duration = ?',
-        [_trafficType, durSec]
-      );
-      if (tiers.length > 0) {
-        const tier = tiers[0];
+
+      // Nếu user thuộc agency → dùng agency_prices, ngược lại dùng pricing_tiers
+      let priceRow = null;
+      if (userAgencyId) {
+        const [agPrices] = await pool.execute(
+          'SELECT v1_price, v2_price, v1_discount, v2_discount FROM agency_prices WHERE agency_id = ? AND traffic_type = ? AND duration = ?',
+          [userAgencyId, _trafficType, durSec]
+        );
+        if (agPrices.length > 0) priceRow = agPrices[0];
+      }
+      if (!priceRow) {
+        const [tiers] = await pool.execute(
+          'SELECT v1_price, v2_price, v1_discount, v2_discount FROM pricing_tiers WHERE traffic_type = ? AND duration = ?',
+          [_trafficType, durSec]
+        );
+        if (tiers.length > 0) priceRow = tiers[0];
+      }
+
+      if (priceRow) {
         useDiscount = false;
         if (discount_applied && discount_code) {
           const [dcSettings] = await pool.execute("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('discount_enabled','discount_code')");
@@ -311,8 +328,8 @@ router.post('/', async (req, res) => {
           useDiscount = cfg.discount_enabled === 'true' && cfg.discount_code && cfg.discount_code.toUpperCase() === discount_code.trim().toUpperCase();
         }
         const price = _version === 'v1'
-          ? (useDiscount ? tier.v1_discount : tier.v1_price)
-          : (useDiscount ? tier.v2_discount : tier.v2_price);
+          ? (useDiscount ? (priceRow.v1_discount || priceRow.v1_price) : priceRow.v1_price)
+          : (useDiscount ? (priceRow.v2_discount || priceRow.v2_price) : priceRow.v2_price);
         realBudget = Math.round(_totalViews * price);
       }
     } catch (e) {
@@ -331,23 +348,23 @@ router.post('/', async (req, res) => {
     let result;
     try {
       [result] = await pool.execute(
-        `INSERT INTO campaigns (user_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, keyword_config, target_page, time_on_site, image1_url, image2_url, discount_applied, device, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _keywordConfig, _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0, _device, note || null]
+        `INSERT INTO campaigns (user_id, agency_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, keyword_config, target_page, time_on_site, image1_url, image2_url, discount_applied, device, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [req.userId, userAgencyId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _keywordConfig, _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0, _device, note || null]
       );
     } catch (colErr) {
-      // Fallback: nếu cột device/note chưa tồn tại → auto-migrate rồi retry không có 2 cột đó
-      if (colErr.message && (colErr.message.includes('device') || colErr.message.includes('note') || colErr.message.includes('keyword_config'))) {
-        // Auto-add missing columns (chạy song song, bỏ qua lỗi duplicate)
+      // Fallback: nếu cột device/note/agency_id chưa tồn tại → auto-migrate rồi retry
+      if (colErr.message && (colErr.message.includes('device') || colErr.message.includes('note') || colErr.message.includes('keyword_config') || colErr.message.includes('agency_id'))) {
         await Promise.allSettled([
           pool.execute("ALTER TABLE campaigns ADD COLUMN keyword_config TEXT DEFAULT NULL AFTER keyword"),
           pool.execute("ALTER TABLE campaigns MODIFY COLUMN keyword TEXT DEFAULT NULL"),
           pool.execute("ALTER TABLE campaigns ADD COLUMN device VARCHAR(50) NOT NULL DEFAULT 'desktop,mobile' AFTER priority"),
           pool.execute("ALTER TABLE campaigns ADD COLUMN note TEXT DEFAULT NULL AFTER device"),
+          pool.execute("ALTER TABLE campaigns ADD COLUMN agency_id INT DEFAULT NULL AFTER user_id"),
+          pool.execute("ALTER TABLE campaigns ADD INDEX idx_agency_id (agency_id)"),
         ]);
-        // Retry với đầy đủ cột
         [result] = await pool.execute(
-          `INSERT INTO campaigns (user_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, keyword_config, target_page, time_on_site, image1_url, image2_url, discount_applied, device, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [req.userId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _keywordConfig, _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0, _device, note || null]
+          `INSERT INTO campaigns (user_id, agency_id, name, url, url2, traffic_type, version, budget, cpc, daily_views, total_views, view_by_hour, keyword, keyword_config, target_page, time_on_site, image1_url, image2_url, discount_applied, device, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [req.userId, userAgencyId, name, url, url2 || null, _trafficType, _versionInt, realBudget, calculatedCpc, _dailyViews, _totalViews, _viewByHour, keyword || '', _keywordConfig, _targetPage, _timeOnSite, image1_url || null, image2_url || null, useDiscount ? 1 : 0, _device, note || null]
         );
       } else {
         throw colErr;
