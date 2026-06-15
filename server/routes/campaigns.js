@@ -541,7 +541,7 @@ router.post('/:id/renew', async (req, res) => {
 
       const [wCheck] = await conn.execute("SELECT balance FROM wallets WHERE user_id = ? AND type = 'main'", [req.userId]);
       const currentBal = Number(wCheck[0] ? wCheck[0].balance || 0 : 0);
-      
+
       if (currentBal < cost) {
         await conn.rollback();
         conn.release();
@@ -553,9 +553,20 @@ router.post('/:id/renew', async (req, res) => {
       // Chỉ cập nhật total_views và budget, tiền sẽ bị trừ dần khi worker view
       const newTotal = Number(camp.total_views) + addViews;
       const newBudget = Math.round(newTotal * cpcValue);
+
+      // Cập nhật keyword_config: phân bổ extraViews vào keyword đầu tiên
+      let newKeywordConfig = camp.keyword_config;
+      try {
+        const cfg = camp.keyword_config ? JSON.parse(camp.keyword_config) : null;
+        if (Array.isArray(cfg) && cfg.length > 0) {
+          cfg[0].views = Number(cfg[0].views || 0) + addViews;
+          newKeywordConfig = JSON.stringify(cfg);
+        }
+      } catch (_) { }
+
       await conn.execute(
-        `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running', manually_completed = 0 WHERE id = ?`,
-        [newTotal, newBudget, camp.id]
+        `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running', manually_completed = 0, keyword_config = ? WHERE id = ?`,
+        [newTotal, newBudget, newKeywordConfig, camp.id]
       );
 
       await conn.commit();

@@ -1390,14 +1390,14 @@ export default function CampaignList() {
                             <BarChart3 size={14} />
                           </button>
 
-                          {effStatus === 'completed' ? (
-                            /* Gia hạn — chỉ hiện khi completed */
-                            <button onClick={() => setRenewingCampaign(c)} title="Gia hạn chiến dịch"
-                              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border transition bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300">
-                              <RotateCcw size={13} />
-                              <span className="hidden sm:inline">Gia hạn</span>
-                            </button>
-                          ) : (
+                          {/* Gia hạn — hiện khi running hoặc completed */}
+                          <button onClick={() => setRenewingCampaign(c)} title="Gia hạn chiến dịch"
+                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border transition bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300">
+                            <RotateCcw size={13} />
+                            <span className="hidden sm:inline">Gia hạn</span>
+                          </button>
+
+                          {effStatus !== 'completed' && (
                             <>
                               {/* Edit */}
                               <button onClick={() => setEditingCampaign(c)} title="Chỉnh sửa"

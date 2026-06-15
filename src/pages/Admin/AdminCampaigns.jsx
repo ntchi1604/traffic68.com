@@ -1073,15 +1073,13 @@ export default function AdminCampaigns({ apiBasePath = '/admin/campaigns', pageT
                                       <CheckCircle size={14} className="text-indigo-500" /> Hoàn thành
                                     </button>
                                   )}
-                                  {/* Gia hạn — chỉ hiện gợi ý khi completed */}
-                                  {c.status === 'completed' && (
-                                    <button
-                                      onClick={() => { setOpenMenuId(null); setRenewingCampaign(c); }}
-                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 transition text-left"
-                                    >
-                                      <RotateCcw size={14} className="text-indigo-500" /> Gia hạn chiến dịch
-                                    </button>
-                                  )}
+                                  {/* Gia hạn — hiện cho mọi status */}
+                                  <button
+                                    onClick={() => { setOpenMenuId(null); setRenewingCampaign(c); }}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 transition text-left"
+                                  >
+                                    <RotateCcw size={14} className="text-indigo-500" /> Gia hạn chiến dịch
+                                  </button>
 
                                   <div className="border-t border-slate-100 mt-1 pt-1">
                                     <p className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -1211,12 +1209,11 @@ export default function AdminCampaigns({ apiBasePath = '/admin/campaigns', pageT
                                     <CheckCircle size={14} className="text-indigo-500" /> Xong
                                   </button>
                                 )}
-                                {/* Gia hạn mobile */}
-                                {c.status === 'completed' && (
-                                  <button onClick={() => { setOpenMenuId(null); setRenewingCampaign(c); }}
-                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 text-left">
-                                    <RotateCcw size={14} className="text-indigo-500" /> Gia hạn
-                                  </button>
+                                {/* Gia hạn mobile — hiện cho mọi status */}
+                                <button onClick={() => { setOpenMenuId(null); setRenewingCampaign(c); }}
+                                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 text-left">
+                                  <RotateCcw size={14} className="text-indigo-500" /> Gia hạn
+                                </button>
                                 )}
 
                                 <div className="border-t border-slate-100 mt-1 pt-1">

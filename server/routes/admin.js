@@ -816,10 +816,20 @@ router.post('/campaigns/:id/renew', async (req, res) => {
     const newTotal = Number(camp.total_views) + addViews;
     const newBudget = cpcValue > 0 ? Math.round(newTotal * cpcValue) : Number(camp.budget);
 
+    // Cập nhật keyword_config: phân bổ extraViews vào keyword đầu tiên
+    let newKeywordConfig = camp.keyword_config;
+    try {
+      const cfg = camp.keyword_config ? JSON.parse(camp.keyword_config) : null;
+      if (Array.isArray(cfg) && cfg.length > 0) {
+        cfg[0].views = Number(cfg[0].views || 0) + addViews;
+        newKeywordConfig = JSON.stringify(cfg);
+      }
+    } catch (_) { }
+
     // Cộng view, reset manually_completed = 0 để cho phép chạy lại
     await pool.execute(
-      `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running', manually_completed = 0 WHERE id = ?`,
-      [newTotal, newBudget, camp.id]
+      `UPDATE campaigns SET total_views = ?, budget = ?, status = 'running', manually_completed = 0, keyword_config = ? WHERE id = ?`,
+      [newTotal, newBudget, newKeywordConfig, camp.id]
     );
 
     // Thông báo cho buyer
