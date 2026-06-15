@@ -255,31 +255,21 @@ export default function Sidebar({ isOpen, onClose, agencyConfig }) {
           {!agencyConfig && (
             <div className="pt-1">
               <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Đại lý</p>
-              {agencyDomain ? (
-                <a href={`https://${agencyDomain}/agency-admin`} target="_blank" rel="noopener noreferrer"
-                  className={`${linkBase} text-slate-600 hover:bg-slate-50 hover:text-slate-900`}
-                >
-                  <Store size={16} className="text-slate-400" />
-                  Quản lý web con
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ml-auto text-slate-400"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 012-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                </a>
-              ) : (
-                <NavLink to="/buyer/dashboard/agency" onClick={onClose}
-                  className={({ isActive }) =>
-                    `${linkBase} ${isActive
-                      ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <Store size={16} className={isActive ? 'text-indigo-500' : 'text-slate-400'} />
-                      Quản lý web con
-                    </>
-                  )}
-                </NavLink>
-              )}
+              <NavLink to="/buyer/dashboard/agency" onClick={onClose}
+                className={({ isActive }) =>
+                  `${linkBase} ${isActive
+                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <Store size={16} className={isActive ? 'text-indigo-500' : 'text-slate-400'} />
+                    Quản lý web con
+                  </>
+                )}
+              </NavLink>
             </div>
           )}
 
