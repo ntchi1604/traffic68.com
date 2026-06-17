@@ -796,46 +796,48 @@ function EditCampaignModal({ campaign, onClose, onSaved }) {
                       </div>
                       <div className="flex-1 space-y-2">
                         {(kw.images || ['']).map((img, imgIdx) => (
-                          <div key={imgIdx} className="flex gap-2">
-                            <input
-                              type="text" value={img}
-                              onChange={e => updateKeywordImage(i, imgIdx, e.target.value)}
-                              onPaste={async e => {
-                                const items = e.clipboardData?.items;
-                                if (!items) return;
-                                for (let j = 0; j < items.length; j++) {
-                                  const item = items[j];
-                                  if (item.type.startsWith('image/')) {
-                                    e.preventDefault();
-                                    const file = item.getAsFile();
-                                    if (file) handleKeywordImageUpload({ target: { files: [file] } }, i, imgIdx);
-                                    break;
+                          <div key={imgIdx} className="space-y-1">
+                            <div className="flex gap-2">
+                              <input
+                                type="text" value={img}
+                                onChange={e => updateKeywordImage(i, imgIdx, e.target.value)}
+                                onPaste={async e => {
+                                  const items = e.clipboardData?.items;
+                                  if (!items) return;
+                                  for (let j = 0; j < items.length; j++) {
+                                    const item = items[j];
+                                    if (item.type.startsWith('image/')) {
+                                      e.preventDefault();
+                                      const file = item.getAsFile();
+                                      if (file) handleKeywordImageUpload({ target: { files: [file] } }, i, imgIdx);
+                                      break;
+                                    }
                                   }
-                                }
-                              }}
-                              placeholder={`Link Image ${imgIdx + 1} - Ctrl+V dán ảnh`}
-                              className={input + ' flex-1 text-xs'}
-                            />
-                            <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0">
-                              {uploadingKwIdx === i && uploadingKwImgIdx === imgIdx ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
-                              <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i, imgIdx)} />
-                            </label>
-                            {(kw.images || []).length > 1 && (
-                              <button type="button" onClick={() => removeKeywordImage(i, imgIdx)}
-                                className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
-                                <Trash2 size={14} />
-                              </button>
+                                }}
+                                placeholder={`Link Image ${imgIdx + 1} - Ctrl+V dán ảnh`}
+                                className={input + ' flex-1 text-xs'}
+                              />
+                              <label className="flex items-center justify-center p-2.5 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition flex-shrink-0">
+                                {uploadingKwIdx === i && uploadingKwImgIdx === imgIdx ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : <Upload size={14} className="text-slate-500" />}
+                                <input type="file" accept="image/*" className="hidden" onChange={e => handleKeywordImageUpload(e, i, imgIdx)} />
+                              </label>
+                              {(kw.images || []).length > 1 && (
+                                <button type="button" onClick={() => removeKeywordImage(i, imgIdx)}
+                                  className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0">
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                            {img && img.trim() && (
+                              <div className="relative group">
+                                <img src={img} alt={`preview-${imgIdx}`} className="h-16 w-auto max-w-full rounded-lg border border-slate-200 object-cover" />
+                                <button type="button" onClick={() => updateKeywordImage(i, imgIdx, '')}
+                                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-600">
+                                  <X size={10} />
+                                </button>
+                              </div>
                             )}
                           </div>
-                          {img && img.trim() && (
-                            <div className="relative group mt-1">
-                              <img src={img} alt={`preview-${imgIdx}`} className="h-16 w-auto max-w-full rounded-lg border border-slate-200 object-cover" />
-                              <button type="button" onClick={() => updateKeywordImage(i, imgIdx, '')}
-                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-600">
-                                <X size={10} />
-                              </button>
-                            </div>
-                          )}
                         ))}
                         <button type="button" onClick={() => addKeywordImage(i)}
                           className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1">
