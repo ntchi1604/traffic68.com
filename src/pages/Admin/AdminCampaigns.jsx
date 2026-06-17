@@ -547,6 +547,15 @@ function EditCampaignModal({ campaign, onClose, onSaved, apiBasePath = '/admin/c
                           </label>
                           {(kw.images || []).length > 1 && <button onClick={() => removeKeywordImage(i, imgIdx)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex-shrink-0"><Trash2 size={14} /></button>}
                         </div>
+                        {img && img.trim() && (
+                          <div className="relative group mt-1">
+                            <img src={img} alt={`preview-${imgIdx}`} className="h-16 w-auto max-w-full rounded-lg border border-slate-200 object-cover" />
+                            <button type="button" onClick={() => updateKeywordImageItem(i, imgIdx, '')}
+                              className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-600">
+                              <X size={10} />
+                            </button>
+                          </div>
+                        )}
                       ))}
                       <button type="button" onClick={() => addKeywordImage(i)} className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1"><Plus size={14} /> Thêm ảnh</button>
                     </div>

@@ -925,6 +925,15 @@ export default function CreateCampaign() {
                                   </button>
                                 )}
                               </div>
+                              {img && img.trim() && (
+                                <div className="relative group mt-1">
+                                  <img src={img} alt={`preview-${imgIdx}`} className="h-16 w-auto max-w-full rounded-lg border border-slate-200 object-cover" />
+                                  <button type="button" onClick={() => updateKeywordImage(i, imgIdx, '')}
+                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-600">
+                                    <X size={10} />
+                                  </button>
+                                </div>
+                              )}
                             ))}
                             <button type="button" onClick={() => addKeywordImage(i)}
                               className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1">
