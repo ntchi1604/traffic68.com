@@ -2191,13 +2191,14 @@ router.get('/security/ip/:ip', async (req, res) => {
 
 
 
+const _workerTasksState = { lastExpire: 0 };
 router.get('/worker-tasks', async (req, res) => {
   try {
     const pool = getPool();
 
     // Chỉ expire tasks mỗi 60 giây, không phải mỗi request
-    if (!workerTasks._lastExpire || Date.now() - workerTasks._lastExpire > 60000) {
-      workerTasks._lastExpire = Date.now();
+    if (Date.now() - _workerTasksState.lastExpire > 60000) {
+      _workerTasksState.lastExpire = Date.now();
       pool.execute(
         `UPDATE vuot_link_tasks SET status = 'expired'
          WHERE status IN ('pending','step1','step2','step3')
