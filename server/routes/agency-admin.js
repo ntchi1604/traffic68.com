@@ -354,6 +354,16 @@ router.put('/campaigns/:id', async (req, res) => {
       return res.json({ message: 'Đã cập nhật trạng thái' });
     }
 
+    // ── Khi totalViews thay đổi → tự động tính lại budget ──
+    let newBudget = n(budget);
+    if (totalViews !== undefined) {
+      const [old] = await pool.execute('SELECT total_views, cpc FROM campaigns WHERE id = ?', [req.params.id]);
+      if (old.length > 0 && Number(totalViews) !== Number(old[0].total_views)) {
+        const cpcValue = Number(old[0].cpc) || 0;
+        if (cpcValue > 0) newBudget = Math.round(Number(totalViews) * cpcValue);
+      }
+    }
+
     await pool.execute(
       `UPDATE campaigns SET name=COALESCE(?,name), url=COALESCE(?,url), url2=COALESCE(?,url2), keyword=COALESCE(?,keyword), keyword_config=COALESCE(?,keyword_config),
        daily_views=COALESCE(?,daily_views), view_by_hour=COALESCE(?,view_by_hour), image1_url=COALESCE(?,image1_url), image2_url=COALESCE(?,image2_url),
@@ -361,7 +371,7 @@ router.put('/campaigns/:id', async (req, res) => {
        traffic_type=COALESCE(?,traffic_type), version=COALESCE(?,version), time_on_site=COALESCE(?,time_on_site),
        target_page=COALESCE(?,target_page), status=COALESCE(?,status), device=COALESCE(?,device), note=COALESCE(?,note) WHERE id = ?`,
       [n(name), n(url), n(url2), n(keyword), n(keyword_config), n(dailyViews), n(viewByHour), n(image1_url), n(image2_url),
-      n(totalViews), n(budget), n(cpc), n(trafficType), n(version), n(timeOnSite), n(targetPage), n(status), n(device), n(note), req.params.id]
+      n(totalViews), newBudget, n(cpc), n(trafficType), n(version), n(timeOnSite), n(targetPage), n(status), n(device), n(note), req.params.id]
     );
     const [campaigns] = await pool.execute('SELECT * FROM campaigns WHERE id = ?', [req.params.id]);
     res.json({ message: 'Cập nhật thành công', campaign: campaigns[0] });
