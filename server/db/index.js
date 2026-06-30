@@ -134,6 +134,22 @@ async function initDb() {
     await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_worker_status_pending (worker_id, status)").catch(() => { });
     await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_wlink_status_pending (worker_link_id, status)").catch(() => { });
     await p2.execute("ALTER TABLE security_logs ADD INDEX idx_security_pair_date_reason (ip_address, visitor_id, created_at, reason)").catch(() => { });
+
+    // ── Performance indexes (auto-migration) ──
+    await p2.execute("ALTER TABLE transactions ADD INDEX idx_tx_type_status_created (type, status, created_at)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_vlt_worker_completed (worker_id, status, completed_at)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_vlt_wl_completed (worker_link_id, status, completed_at)").catch(() => { });
+    await p2.execute("ALTER TABLE vuot_link_tasks ADD INDEX idx_vlt_campaign_status (campaign_id, status, bot_detected)").catch(() => { });
+    await p2.execute("ALTER TABLE campaigns ADD INDEX idx_camp_user_id (user_id)").catch(() => { });
+    await p2.execute("ALTER TABLE campaigns ADD INDEX idx_camp_created_at (created_at)").catch(() => { });
+    await p2.execute("ALTER TABLE users ADD INDEX idx_users_created_at (created_at)").catch(() => { });
+    await p2.execute("ALTER TABLE users ADD INDEX idx_users_role (role)").catch(() => { });
+    await p2.execute("ALTER TABLE support_tickets ADD INDEX idx_tickets_status (status)").catch(() => { });
+
+    // ── Sync budget = total_views * cpc ──
+    await p2.execute("UPDATE campaigns SET budget = ROUND(total_views * cpc) WHERE cpc > 0 AND budget != ROUND(total_views * cpc)").catch(() => { });
+
+    console.log('[Migrate] Performance indexes & budget sync — done');
   } catch (_) { };
 }
 
