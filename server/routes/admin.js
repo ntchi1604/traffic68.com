@@ -133,29 +133,21 @@ router.get('/overview', async (req, res) => {
 // ── Tổng hợp tài chính toàn hệ thống ──
 router.get('/finance/summary', async (req, res) => {
   try {
+    const data = await cache.get('admin:finance:summary', async () => {
     const pool = getPool();
 
     const [
-      // Số dư hiện tại trong các ví (toàn bộ user)
       [balMain],
       [balEarning],
       [balCommission],
-      // Buyer: tổng nạp đã duyệt
       [totalDeposit],
-      // Buyer: tổng chi campaign đã khấu trừ
       [totalCampaignSpent],
-      // Worker: tổng đã rút (completed)
       [totalWithdrawWorker],
-      // Buyer commission: tổng đã rút (completed)
       [totalWithdrawCommission],
-      // Pending: rút chờ duyệt (đã trừ ví, chưa completed)
       [pendingWithdrawWorker],
       [pendingWithdrawCommission],
-      // Pending: nạp chờ duyệt (chưa vào ví)
       [pendingDeposit],
-      // Worker: tổng đã kiếm được (earning tasks)
       [totalWorkerEarned],
-      // Hoa hồng referral đã trả
       [totalCommissionPaid],
     ] = await Promise.all([
       pool.execute(`SELECT COALESCE(SUM(balance), 0) as total FROM wallets WHERE type = 'main'`),
@@ -219,6 +211,8 @@ router.get('/finance/summary', async (req, res) => {
         worker: { count: Number(userCounts.worker_count), earningBalance: Number(userCounts.worker_earning_balance) },
       },
     });
+    }, 30 * 1000, 20 * 1000);
+    res.json(data);
   } catch (err) {
     console.error('[Admin] finance/summary error:', err.message);
     res.status(500).json({ error: err.message });
@@ -1088,34 +1082,33 @@ router.get('/transactions', async (req, res) => {
   const offset = (Number(page) - 1) * Number(limit);
   let baseWhere = `WHERE 1=1`;
   const params = [];
-  const filterParams = [];
   let filterCondition = '';
-  if (txSearch) { baseWhere += ' AND (u.name LIKE ? OR u.email LIKE ?)'; params.push(`%${txSearch}%`, `%${txSearch}%`); filterCondition += ' AND (u.name LIKE ? OR u.email LIKE ?)'; filterParams.push(`%${txSearch}%`, `%${txSearch}%`); }
-  if (type && type !== 'all') { baseWhere += ' AND t.type = ?'; params.push(type); filterCondition += ' AND t.type = ?'; filterParams.push(type); }
-  if (status && status !== 'all') { baseWhere += ' AND t.status = ?'; params.push(status); filterCondition += ' AND t.status = ?'; filterParams.push(status); }
-  // Dùng range thay vì DATE() — cho phép MySQL dùng index trên created_at
-  if (fromDate) { baseWhere += ' AND t.created_at >= ?'; params.push(fromDate + ' 00:00:00'); filterCondition += ' AND t.created_at >= ?'; filterParams.push(fromDate + ' 00:00:00'); }
-  if (toDate) { baseWhere += ' AND t.created_at <= ?'; params.push(toDate + ' 23:59:59'); filterCondition += ' AND t.created_at <= ?'; filterParams.push(toDate + ' 23:59:59'); }
+  const sumFilterCondition = '';
+  const sumFilterParams = [];
+  if (txSearch) { baseWhere += ' AND (u.name LIKE ? OR u.email LIKE ?)'; params.push(`%${txSearch}%`, `%${txSearch}%`); }
+  if (type && type !== 'all') { baseWhere += ' AND t.type = ?'; params.push(type); filterCondition += ' AND t.type = ?'; sumFilterParams.push(type); }
+  if (status && status !== 'all') { baseWhere += ' AND t.status = ?'; params.push(status); filterCondition += ' AND t.status = ?'; sumFilterParams.push(status); }
+  if (fromDate) { baseWhere += ' AND t.created_at >= ?'; params.push(fromDate + ' 00:00:00'); filterCondition += ' AND t.created_at >= ?'; sumFilterParams.push(fromDate + ' 00:00:00'); }
+  if (toDate) { baseWhere += ' AND t.created_at <= ?'; params.push(toDate + ' 23:59:59'); filterCondition += ' AND t.created_at <= ?'; sumFilterParams.push(toDate + ' 23:59:59'); }
 
-  const [countRows] = await pool.execute(
-    `SELECT COUNT(*) as c FROM transactions t LEFT JOIN users u ON t.user_id = u.id ${baseWhere}`, params
-  );
-  const total = countRows[0].c;
+  const [countRows, , depRows, wdRows] = await Promise.all([
+    pool.execute(`SELECT COUNT(*) as c FROM transactions t LEFT JOIN users u ON t.user_id = u.id ${baseWhere}`, params),
+    null, // placeholder
+    pool.execute(
+      `SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t WHERE t.status = 'completed' AND t.type IN ('deposit','earning','commission','refund')${filterCondition}`,
+      sumFilterParams
+    ),
+    pool.execute(
+      `SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t WHERE t.status = 'completed' AND t.type IN ('withdraw','campaign')${filterCondition}`,
+      sumFilterParams
+    ),
+  ]);
+  const total = countRows[0][0].c;
 
   const sql = `SELECT t.*, u.name as user_name, u.email as user_email FROM transactions t LEFT JOIN users u ON t.user_id = u.id ${baseWhere} ORDER BY t.created_at DESC LIMIT ? OFFSET ?`;
   const [transactions] = await pool.execute(sql, [...params, Number(limit), offset]);
 
-
-  const [depRows] = await pool.execute(
-    `SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE t.status = 'completed' AND t.type IN ('deposit','earning','commission','refund')${filterCondition}`,
-    filterParams
-  );
-  const [wdRows] = await pool.execute(
-    `SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE t.status = 'completed' AND t.type IN ('withdraw','campaign')${filterCondition}`,
-    filterParams
-  );
-
-  res.json({ transactions, total, totalDeposit: Number(depRows[0].total), totalWithdraw: Number(wdRows[0].total) });
+  res.json({ transactions, total, totalDeposit: Number(depRows[0][0].total), totalWithdraw: Number(wdRows[0][0].total) });
 });
 
 
@@ -1451,9 +1444,6 @@ router.get('/worker-links', async (req, res) => {
     }
 
     const countSql = `SELECT COUNT(*) as c FROM worker_links wl LEFT JOIN users u ON u.id = wl.worker_id ${where}`;
-    const [countRows] = await pool.execute(countSql, params);
-    const total = countRows[0].c;
-
     const sql = `
       SELECT wl.id, wl.worker_id, wl.slug, wl.title, wl.destination_url,
              wl.click_count, wl.completed_count, wl.earning, wl.hidden, wl.created_at,
@@ -1464,20 +1454,22 @@ router.get('/worker-links', async (req, res) => {
       ORDER BY wl.created_at DESC
       LIMIT ? OFFSET ?
     `;
-    const [links] = await pool.execute(sql, [...params, Number(limit), offset]);
 
-    // Stats tổng quan
-    const [stats] = await pool.execute(`
-      SELECT
-        COUNT(*) as total_links,
-        SUM(click_count) as total_clicks,
-        SUM(completed_count) as total_completed,
-        COALESCE(SUM(earning), 0) as total_earning,
-        SUM(hidden) as total_hidden
-      FROM worker_links
-    `);
+    const [countRows, [links], [stats]] = await Promise.all([
+      pool.execute(countSql, params),
+      pool.execute(sql, [...params, Number(limit), offset]),
+      pool.execute(`
+        SELECT
+          COUNT(*) as total_links,
+          SUM(click_count) as total_clicks,
+          SUM(completed_count) as total_completed,
+          COALESCE(SUM(earning), 0) as total_earning,
+          SUM(hidden) as total_hidden
+        FROM worker_links
+      `),
+    ]);
 
-    res.json({ links, total, stats: stats[0], page: Number(page), limit: Number(limit) });
+    res.json({ links, total: countRows[0][0].c, stats: stats[0], page: Number(page), limit: Number(limit) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1552,112 +1544,97 @@ router.get('/security/users', async (req, res) => {
     const pool = getPool();
     const { search, page = 1, limit = 20, from, to, sort = 'ok' } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
-    const params = [];
 
-    let searchWhere = '';
-    if (search) {
-      const s = search.trim();
-      const isIp = /^[\d.:a-f]+$/i.test(s) && (s.includes('.') || s.includes(':'));
-      const isVisitorId = s.length > 20;
-      const isSlug = /^[a-z0-9_-]{3,20}$/.test(s) && !s.includes('@') && !isIp;
-      if (isIp) {
-        searchWhere = ` AND u.id IN (SELECT DISTINCT COALESCE(vt2.worker_id, wl2.worker_id) FROM vuot_link_tasks vt2 LEFT JOIN worker_links wl2 ON wl2.id = vt2.worker_link_id WHERE vt2.ip_address LIKE ?)`;
-        params.push(`%${s}%`);
-      } else if (isVisitorId) {
-        searchWhere = ` AND u.id IN (SELECT DISTINCT COALESCE(vt2.worker_id, wl2.worker_id) FROM vuot_link_tasks vt2 LEFT JOIN worker_links wl2 ON wl2.id = vt2.worker_link_id WHERE vt2.visitor_id = ?)`;
-        params.push(s);
-      } else if (isSlug) {
-        searchWhere = ` AND (u.name LIKE ? OR u.email LIKE ? OR u.id IN (SELECT worker_id FROM worker_links WHERE slug = ?))`;
-        params.push(`%${s}%`, `%${s}%`, s);
-      } else {
-        searchWhere = ` AND (u.name LIKE ? OR u.email LIKE ?)`;
-        params.push(`%${s}%`, `%${s}%`);
+    // Cache key dựa trên tất cả query params
+    const cacheKey = `admin:security:${search || ''}:${page}:${limit}:${from || ''}:${to || ''}:${sort}`;
+
+    const data = await cache.get(cacheKey, async () => {
+      const params = [];
+      let searchWhere = '';
+      if (search) {
+        const s = search.trim();
+        const isIp = /^[\d.:a-f]+$/i.test(s) && (s.includes('.') || s.includes(':'));
+        const isVisitorId = s.length > 20;
+        const isSlug = /^[a-z0-9_-]{3,20}$/.test(s) && !s.includes('@') && !isIp;
+        if (isIp) {
+          searchWhere = ` AND u.id IN (SELECT DISTINCT COALESCE(vt2.worker_id, wl2.worker_id) FROM vuot_link_tasks vt2 LEFT JOIN worker_links wl2 ON wl2.id = vt2.worker_link_id WHERE vt2.ip_address LIKE ?)`;
+          params.push(`%${s}%`);
+        } else if (isVisitorId) {
+          searchWhere = ` AND u.id IN (SELECT DISTINCT COALESCE(vt2.worker_id, wl2.worker_id) FROM vuot_link_tasks vt2 LEFT JOIN worker_links wl2 ON wl2.id = vt2.worker_link_id WHERE vt2.visitor_id = ?)`;
+          params.push(s);
+        } else if (isSlug) {
+          searchWhere = ` AND (u.name LIKE ? OR u.email LIKE ? OR u.id IN (SELECT worker_id FROM worker_links WHERE slug = ?))`;
+          params.push(`%${s}%`, `%${s}%`, s);
+        } else {
+          searchWhere = ` AND (u.name LIKE ? OR u.email LIKE ?)`;
+          params.push(`%${s}%`, `%${s}%`);
+        }
       }
-    }
 
-    let timeWhere = '';
-    const timeParams = [];
-    if (from) { timeWhere += ` AND vt.created_at >= ?`; timeParams.push(from); }
-    if (to) { timeWhere += ` AND vt.created_at <= ?`; timeParams.push(to + ' 23:59:59'); }
+      let timeWhere = '';
+      const timeParams = [];
+      if (from) { timeWhere += ` AND vt.created_at >= ?`; timeParams.push(from); }
+      if (to) { timeWhere += ` AND vt.created_at <= ?`; timeParams.push(to + ' 23:59:59'); }
 
+      const sortMap = { ok: 'ok', blocked: 'blocked', earned: 'earned', total: 'total', last_at: 'last_at' };
+      const orderCol = sortMap[sort] || 'ok';
 
-    const sortMap = { ok: 'ok', blocked: 'blocked', earned: 'earned', total: 'total', last_at: 'last_at' };
-    const orderCol = sortMap[sort] || 'ok';
+      let cnt;
+      let rows;
+      if (!search) {
+        [cnt] = await pool.execute(
+          `SELECT COUNT(*) as total
+           FROM (
+             SELECT COALESCE(vt.worker_id, wl.worker_id) as actual_worker_id
+             FROM vuot_link_tasks vt
+             LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+             WHERE COALESCE(vt.worker_id, wl.worker_id) IS NOT NULL${timeWhere}
+             GROUP BY actual_worker_id
+           ) active_workers`,
+          timeParams
+        );
 
-    let cnt;
-    let rows;
-    if (!search) {
-      [cnt] = await pool.execute(
-        `SELECT COUNT(*) as total
-         FROM (
-           SELECT COALESCE(vt.worker_id, wl.worker_id) as actual_worker_id
-           FROM vuot_link_tasks vt
-           LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
-           WHERE COALESCE(vt.worker_id, wl.worker_id) IS NOT NULL${timeWhere}
-           GROUP BY actual_worker_id
-         ) active_workers`,
-        timeParams
-      );
+        [rows] = await pool.execute(
+          `SELECT
+             u.id as worker_id, u.name, u.email, u.status, u.avatar_url,
+             vt_aggr.total, vt_aggr.ok, vt_aggr.blocked, vt_aggr.expired, vt_aggr.pending,
+             vt_aggr.earned, vt_aggr.last_at, vt_aggr.ips
+           FROM (
+             SELECT
+               COALESCE(vt.worker_id, wl.worker_id) as actual_worker_id,
+               COUNT(*) as total,
+               CAST(SUM(CASE WHEN vt.status = 'completed' THEN 1 ELSE 0 END) AS UNSIGNED) as ok,
+               CAST(SUM(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END) AS UNSIGNED) as blocked,
+               CAST(SUM(CASE WHEN vt.status = 'expired' THEN 1 ELSE 0 END) AS UNSIGNED) as expired,
+               CAST(SUM(CASE WHEN vt.status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) AS UNSIGNED) as pending,
+               SUM(vt.earning) as earned,
+               MAX(vt.created_at) as last_at,
+               GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips
+             FROM vuot_link_tasks vt
+             LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+             WHERE COALESCE(vt.worker_id, wl.worker_id) IS NOT NULL${timeWhere}
+             GROUP BY actual_worker_id
+             ORDER BY ${orderCol} DESC, last_at DESC
+             LIMIT ? OFFSET ?
+           ) vt_aggr
+           JOIN users u ON u.id = vt_aggr.actual_worker_id
+           ORDER BY ${orderCol} DESC, last_at DESC`,
+          [...timeParams, Number(limit), offset]
+        );
+      } else {
+        [cnt] = await pool.execute(
+          `SELECT COUNT(*) as total FROM users u WHERE 1=1${searchWhere}`, params
+        );
 
-      [rows] = await pool.execute(
-        `SELECT
-           u.id as worker_id,
-           u.name,
-           u.email,
-           u.status,
-           u.avatar_url,
-           vt_aggr.total,
-           vt_aggr.ok,
-           vt_aggr.blocked,
-           vt_aggr.expired,
-           vt_aggr.pending,
-           vt_aggr.earned,
-           vt_aggr.last_at,
-           vt_aggr.ips
-         FROM (
-           SELECT
-             COALESCE(vt.worker_id, wl.worker_id) as actual_worker_id,
-             COUNT(*) as total,
-             CAST(SUM(CASE WHEN vt.status = 'completed' THEN 1 ELSE 0 END) AS UNSIGNED) as ok,
-             CAST(SUM(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END) AS UNSIGNED) as blocked,
-             CAST(SUM(CASE WHEN vt.status = 'expired' THEN 1 ELSE 0 END) AS UNSIGNED) as expired,
-             CAST(SUM(CASE WHEN vt.status IN ('pending','step1','step2','step3') THEN 1 ELSE 0 END) AS UNSIGNED) as pending,
-             SUM(vt.earning) as earned,
-             MAX(vt.created_at) as last_at,
-             GROUP_CONCAT(DISTINCT vt.ip_address SEPARATOR ',') as ips
-           FROM vuot_link_tasks vt
-           LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
-           WHERE COALESCE(vt.worker_id, wl.worker_id) IS NOT NULL${timeWhere}
-           GROUP BY actual_worker_id
-           ORDER BY ${orderCol} DESC, last_at DESC
-           LIMIT ? OFFSET ?
-         ) vt_aggr
-         JOIN users u ON u.id = vt_aggr.actual_worker_id
-         ORDER BY ${orderCol} DESC, last_at DESC`,
-        [...timeParams, Number(limit), offset]
-      );
-    } else {
-      [cnt] = await pool.execute(
-        `SELECT COUNT(*) as total FROM users u WHERE 1=1${searchWhere}`, params
-      );
-
-      [rows] = await pool.execute(
-        `SELECT
-           u.id as worker_id,
-           u.name,
-           u.email,
-           u.status,
-           u.avatar_url,
-           COALESCE(vt_aggr.total, 0) as total,
-           COALESCE(vt_aggr.ok, 0) as ok,
-           COALESCE(vt_aggr.blocked, 0) as blocked,
-           COALESCE(vt_aggr.expired, 0) as expired,
-           COALESCE(vt_aggr.pending, 0) as pending,
-           COALESCE(vt_aggr.earned, 0) as earned,
-           vt_aggr.last_at,
-           vt_aggr.ips
-         FROM users u
-         LEFT JOIN (
+        [rows] = await pool.execute(
+          `SELECT
+             u.id as worker_id, u.name, u.email, u.status, u.avatar_url,
+             COALESCE(vt_aggr.total, 0) as total, COALESCE(vt_aggr.ok, 0) as ok,
+             COALESCE(vt_aggr.blocked, 0) as blocked, COALESCE(vt_aggr.expired, 0) as expired,
+             COALESCE(vt_aggr.pending, 0) as pending, COALESCE(vt_aggr.earned, 0) as earned,
+             vt_aggr.last_at, vt_aggr.ips
+           FROM users u
+           LEFT JOIN (
              SELECT
                COALESCE(vt.worker_id, wl.worker_id) as actual_worker_id,
                COUNT(*) as total,
@@ -1672,89 +1649,89 @@ router.get('/security/users', async (req, res) => {
              LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
              WHERE 1=1 ${timeWhere}
              GROUP BY actual_worker_id
-         ) vt_aggr ON vt_aggr.actual_worker_id = u.id
-         WHERE 1=1${searchWhere}
-         ORDER BY ${orderCol} DESC, last_at DESC
-         LIMIT ? OFFSET ?`,
-        [...timeParams, ...params, Number(limit), offset]
-      );
-    }
+           ) vt_aggr ON vt_aggr.actual_worker_id = u.id
+           WHERE 1=1${searchWhere}
+           ORDER BY ${orderCol} DESC, last_at DESC
+           LIMIT ? OFFSET ?`,
+          [...timeParams, ...params, Number(limit), offset]
+        );
+      }
 
+      const ids = rows.map(r => r.worker_id).filter(Boolean);
+      const secMap = {};
+      if (ids.length > 0) {
+        const ph = ids.map(() => '?').join(',');
+        let vtDateWhere = '';
+        let slDateWhere = '';
+        const vtDateParams = [];
+        const slDateParams = [];
+        if (from) { vtDateWhere += ` AND vt.created_at >= ?`; vtDateParams.push(from); slDateWhere += ` AND sl.created_at >= ?`; slDateParams.push(from); }
+        if (to) { vtDateWhere += ` AND vt.created_at <= ?`; vtDateParams.push(to + ' 23:59:59'); slDateWhere += ` AND sl.created_at <= ?`; slDateParams.push(to + ' 23:59:59'); }
 
-    const ids = rows.map(r => r.worker_id).filter(Boolean);
-    const secMap = {};
-    if (ids.length > 0) {
-      const ph = ids.map(() => '?').join(',');
-      let vtDateWhere = '';
-      let slDateWhere = '';
-      const vtDateParams = [];
-      const slDateParams = [];
-      if (from) { vtDateWhere += ` AND vt.created_at >= ?`; vtDateParams.push(from); slDateWhere += ` AND sl.created_at >= ?`; slDateParams.push(from); }
-      if (to) { vtDateWhere += ` AND vt.created_at <= ?`; vtDateParams.push(to + ' 23:59:59'); slDateWhere += ` AND sl.created_at <= ?`; slDateParams.push(to + ' 23:59:59'); }
-
-      // ── Batch 1: Bot tasks gắn đúng với worker (không qua IP) ──
-      const [botTaskRows] = await pool.execute(
-        `SELECT COALESCE(vt.worker_id, wl.worker_id) as uid,
-                COUNT(DISTINCT CONCAT(vt.ip_address, '|', COALESCE(vt.visitor_id,''))) as cnt
-         FROM vuot_link_tasks vt
-         LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
-         WHERE COALESCE(vt.worker_id, wl.worker_id) IN (${ph})
-           AND vt.bot_detected = 1${vtDateWhere}
-         GROUP BY uid`,
-        [...ids, ...vtDateParams]
-      );
-      botTaskRows.forEach(r => { if (r.uid) secMap[r.uid] = Number(r.cnt); });
-
-      // ── Batch 2: Security logs theo cặp IP/visitor của page hiện tại ──
-      const [slRows] = await pool.execute(
-        `SELECT pairs.uid,
-                COUNT(DISTINCT CONCAT(sl.ip_address, '|', COALESCE(sl.visitor_id,''))) as cnt
-         FROM (
-           SELECT COALESCE(vt.worker_id, wl.worker_id) as uid,
-                  vt.ip_address,
-                  COALESCE(vt.visitor_id, '') as visitor_id,
-                  MAX(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END) as has_bot
+        const [botTaskRows] = await pool.execute(
+          `SELECT COALESCE(vt.worker_id, wl.worker_id) as uid,
+                  COUNT(DISTINCT CONCAT(vt.ip_address, '|', COALESCE(vt.visitor_id,''))) as cnt
            FROM vuot_link_tasks vt
            LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
            WHERE COALESCE(vt.worker_id, wl.worker_id) IN (${ph})
-             AND vt.ip_address IS NOT NULL
-             AND vt.ip_address != ''${vtDateWhere}
-           GROUP BY uid, vt.ip_address, COALESCE(vt.visitor_id, '')
-         ) pairs
-         JOIN security_logs sl
-           ON sl.ip_address = pairs.ip_address
-          AND COALESCE(sl.visitor_id, '') = pairs.visitor_id
-         WHERE pairs.has_bot = 0
-           AND sl.reason != 'completed'${slDateWhere}
-         GROUP BY pairs.uid`,
-        [...ids, ...vtDateParams, ...slDateParams]
-      );
-      slRows.forEach(r => {
-        if (r.uid) secMap[r.uid] = (secMap[r.uid] || 0) + Number(r.cnt);
-      });
-    }
+             AND vt.bot_detected = 1${vtDateWhere}
+           GROUP BY uid`,
+          [...ids, ...vtDateParams]
+        );
+        botTaskRows.forEach(r => { if (r.uid) secMap[r.uid] = Number(r.cnt); });
 
-    res.json({
-      users: rows.map(r => ({
-        id: r.worker_id,
-        name: r.name,
-        email: r.email,
-        status: r.status,
-        avatar_url: r.avatar_url,
-        total: Number(r.total),
-        ok: Number(r.ok),
-        blocked: Number(r.blocked),
-        expired: Number(r.expired),
-        pending: Number(r.pending),
-        earned: Number(r.earned),
-        last_at: r.last_at,
-        ips: (r.ips || '').split(',').filter(Boolean).slice(0, 5),
-        events: secMap[r.worker_id] || 0,
-      })),
-      total: cnt[0].total,
-      page: Number(page),
-      limit: Number(limit),
-    });
+        const [slRows] = await pool.execute(
+          `SELECT pairs.uid,
+                  COUNT(DISTINCT CONCAT(sl.ip_address, '|', COALESCE(sl.visitor_id,''))) as cnt
+           FROM (
+             SELECT COALESCE(vt.worker_id, wl.worker_id) as uid,
+                    vt.ip_address,
+                    COALESCE(vt.visitor_id, '') as visitor_id,
+                    MAX(CASE WHEN vt.bot_detected = 1 THEN 1 ELSE 0 END) as has_bot
+             FROM vuot_link_tasks vt
+             LEFT JOIN worker_links wl ON wl.id = vt.worker_link_id
+             WHERE COALESCE(vt.worker_id, wl.worker_id) IN (${ph})
+               AND vt.ip_address IS NOT NULL
+               AND vt.ip_address != ''${vtDateWhere}
+             GROUP BY uid, vt.ip_address, COALESCE(vt.visitor_id, '')
+           ) pairs
+           JOIN security_logs sl
+             ON sl.ip_address = pairs.ip_address
+            AND COALESCE(sl.visitor_id, '') = pairs.visitor_id
+           WHERE pairs.has_bot = 0
+             AND sl.reason != 'completed'${slDateWhere}
+           GROUP BY pairs.uid`,
+          [...ids, ...vtDateParams, ...slDateParams]
+        );
+        slRows.forEach(r => {
+          if (r.uid) secMap[r.uid] = (secMap[r.uid] || 0) + Number(r.cnt);
+        });
+      }
+
+      return {
+        users: rows.map(r => ({
+          id: r.worker_id,
+          name: r.name,
+          email: r.email,
+          status: r.status,
+          avatar_url: r.avatar_url,
+          total: Number(r.total),
+          ok: Number(r.ok),
+          blocked: Number(r.blocked),
+          expired: Number(r.expired),
+          pending: Number(r.pending),
+          earned: Number(r.earned),
+          last_at: r.last_at,
+          ips: (r.ips || '').split(',').filter(Boolean).slice(0, 5),
+          events: secMap[r.worker_id] || 0,
+        })),
+        total: cnt[0].total,
+        page: Number(page),
+        limit: Number(limit),
+      };
+    }, 30 * 1000, 20 * 1000);
+
+    res.json(data);
   } catch (err) {
     console.error('[AntiCheat] users error:', err);
     res.status(500).json({ error: err.message });
@@ -2218,12 +2195,16 @@ router.get('/worker-tasks', async (req, res) => {
   try {
     const pool = getPool();
 
+    // Chỉ expire tasks mỗi 60 giây, không phải mỗi request
+    if (!workerTasks._lastExpire || Date.now() - workerTasks._lastExpire > 60000) {
+      workerTasks._lastExpire = Date.now();
+      pool.execute(
+        `UPDATE vuot_link_tasks SET status = 'expired'
+         WHERE status IN ('pending','step1','step2','step3')
+         AND expires_at IS NOT NULL AND expires_at < NOW()`
+      ).catch(() => {});
+    }
 
-    await pool.execute(
-      `UPDATE vuot_link_tasks SET status = 'expired'
-       WHERE status IN ('pending','step1','step2','step3')
-       AND expires_at IS NOT NULL AND expires_at < NOW()`
-    );
     const { page = 1, limit = 30, search, status } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
@@ -2235,29 +2216,30 @@ router.get('/worker-tasks', async (req, res) => {
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    const [countR] = await pool.execute(
-      `SELECT COUNT(*) as c FROM vuot_link_tasks t
-       LEFT JOIN users u ON t.worker_id = u.id
-       LEFT JOIN worker_links wl ON t.worker_link_id = wl.id
-       LEFT JOIN users u2 ON wl.worker_id = u2.id
-       LEFT JOIN campaigns c ON t.campaign_id = c.id
-       WHERE ${where}`, params);
-    const [tasks] = await pool.execute(
-      `SELECT t.id, t.keyword, t.status, t.earning, t.completed_at, t.created_at,
-       c.name as campaign_name, c.url as campaign_url,
-       COALESCE(u.name, u2.name) as worker_name,
-       COALESCE(u.email, u2.email) as worker_email
-       FROM vuot_link_tasks t
-       LEFT JOIN campaigns c ON t.campaign_id = c.id
-       LEFT JOIN users u ON t.worker_id = u.id
-       LEFT JOIN worker_links wl ON t.worker_link_id = wl.id
-       LEFT JOIN users u2 ON wl.worker_id = u2.id
-       WHERE ${where}
-       ORDER BY t.created_at DESC LIMIT ${Number(limit)} OFFSET ${offset}`,
-      params
-    );
+    const [countR, tasks] = await Promise.all([
+      pool.execute(
+        `SELECT COUNT(*) as c FROM vuot_link_tasks t
+         LEFT JOIN users u ON t.worker_id = u.id
+         LEFT JOIN worker_links wl ON t.worker_link_id = wl.id
+         LEFT JOIN users u2 ON wl.worker_id = u2.id
+         LEFT JOIN campaigns c ON t.campaign_id = c.id
+         WHERE ${where}`, params),
+      pool.execute(
+        `SELECT t.id, t.keyword, t.status, t.earning, t.completed_at, t.created_at,
+         c.name as campaign_name, c.url as campaign_url,
+         COALESCE(u.name, u2.name) as worker_name,
+         COALESCE(u.email, u2.email) as worker_email
+         FROM vuot_link_tasks t
+         LEFT JOIN campaigns c ON t.campaign_id = c.id
+         LEFT JOIN users u ON t.worker_id = u.id
+         LEFT JOIN worker_links wl ON t.worker_link_id = wl.id
+         LEFT JOIN users u2 ON wl.worker_id = u2.id
+         WHERE ${where}
+         ORDER BY t.created_at DESC LIMIT ${Number(limit)} OFFSET ${offset}`,
+        params)
+    ]);
 
-    res.json({ tasks, total: countR[0].c, page: Number(page), limit: Number(limit) });
+    res.json({ tasks: tasks[0], total: countR[0][0].c, page: Number(page), limit: Number(limit) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
