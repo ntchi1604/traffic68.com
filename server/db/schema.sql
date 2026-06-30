@@ -18,7 +18,9 @@ CREATE TABLE IF NOT EXISTS users (
   agency_id     INT DEFAULT NULL,
   created_at    DATETIME     DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (referred_by) REFERENCES users(id)
+  FOREIGN KEY (referred_by) REFERENCES users(id),
+  INDEX idx_users_created_at (created_at),
+  INDEX idx_users_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS agencies (
@@ -82,7 +84,10 @@ CREATE TABLE IF NOT EXISTS campaigns (
   updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE SET NULL,
-  INDEX idx_agency_id (agency_id)
+  INDEX idx_agency_id (agency_id),
+  INDEX idx_camp_user_id (user_id),
+  INDEX idx_camp_status (status),
+  INDEX idx_camp_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Migration for existing databases:
@@ -107,6 +112,9 @@ CREATE TABLE IF NOT EXISTS transactions (
   ref_code    VARCHAR(100) UNIQUE,
   note        TEXT DEFAULT NULL,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_tx_type_status_created (type, status, created_at),
+  INDEX idx_tx_created_at (created_at),
+  INDEX idx_tx_user_id (user_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -151,6 +159,7 @@ CREATE TABLE IF NOT EXISTS support_tickets (
   replied_at   DATETIME DEFAULT NULL,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_tickets_status (status),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -196,6 +205,11 @@ CREATE TABLE IF NOT EXISTS vuot_link_tasks (
   KEY idx_ip_status         (ip_address, status, created_at),
   KEY idx_ip_ua_status      (ip_address(50), status),
   KEY idx_status_expires    (status, expires_at),
+  INDEX idx_vlt_worker_completed (worker_id, status, completed_at),
+  INDEX idx_vlt_wl_completed (worker_link_id, status, completed_at),
+  INDEX idx_vlt_campaign_status (campaign_id, status, bot_detected),
+  INDEX idx_vlt_completed_at (completed_at),
+  INDEX idx_vlt_created_at (created_at),
   FOREIGN KEY (campaign_id)    REFERENCES campaigns(id) ON DELETE CASCADE,
   FOREIGN KEY (worker_id)      REFERENCES users(id),
   FOREIGN KEY (worker_link_id) REFERENCES worker_links(id) ON DELETE SET NULL,
